@@ -1,4 +1,10 @@
-[dist]
+[workspace]
+members = [
+  "crates/byteblaster-core",
+  "crates/byteblaster-cli",
+]
+
+[workspace.metadata.dist]
 cargo-dist-version = "0.31.0"
 ci = "github"
 installers = ["shell", "powershell"]

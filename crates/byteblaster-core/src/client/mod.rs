@@ -313,6 +313,7 @@ async fn run_connected_session(
     let watchdog = Watchdog::new(ctx.config.watchdog_timeout_secs, ctx.config.max_exceptions);
     let mut auth_interval = tokio::time::interval(Duration::from_secs(REAUTH_INTERVAL_SECS));
     auth_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    auth_interval.tick().await;
     let mut telemetry_interval =
         tokio::time::interval(Duration::from_secs(TELEMETRY_EMIT_INTERVAL_SECS));
     telemetry_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

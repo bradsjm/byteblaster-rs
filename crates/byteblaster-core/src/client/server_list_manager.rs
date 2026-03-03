@@ -12,7 +12,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct ServerListManager {
     path: Option<PathBuf>,
     current: ServerList,
-    available: VecDeque<(String, u16)>,
+    primary_available: VecDeque<(String, u16)>,
+    satellite_available: VecDeque<(String, u16)>,
     shuffle_nonce: u64,
 }
 
@@ -31,7 +32,8 @@ impl ServerListManager {
                 servers: default_servers,
                 sat_servers: Vec::new(),
             },
-            available: VecDeque::new(),
+            primary_available: VecDeque::new(),
+            satellite_available: VecDeque::new(),
             shuffle_nonce: entropy_seed(),
         };
         manager.rebuild_available();
@@ -83,22 +85,36 @@ impl ServerListManager {
     }
 
     pub fn next_endpoint(&mut self) -> Option<(String, u16)> {
-        let endpoint = self.available.pop_front()?;
-        self.available.push_back(endpoint.clone());
+        if let Some(endpoint) = self.primary_available.pop_front() {
+            self.primary_available.push_back(endpoint.clone());
+            return Some(endpoint);
+        }
+
+        let endpoint = self.satellite_available.pop_front()?;
+        self.satellite_available.push_back(endpoint.clone());
         Some(endpoint)
     }
 
     pub fn mark_bad_endpoint(&mut self, endpoint: &(String, u16)) {
-        self.available.retain(|candidate| candidate != endpoint);
+        self.primary_available
+            .retain(|candidate| candidate != endpoint);
+        self.satellite_available
+            .retain(|candidate| candidate != endpoint);
     }
 
     fn rebuild_available(&mut self) {
-        let mut combined = self.current.servers.clone();
-        combined.extend(self.current.sat_servers.iter().cloned());
-        sort_dedup_endpoints(&mut combined);
+        let mut primary = self.current.servers.clone();
+        let mut satellite = self.current.sat_servers.clone();
+
+        sort_dedup_endpoints(&mut primary);
+        sort_dedup_endpoints(&mut satellite);
+
         self.shuffle_nonce ^= entropy_seed();
-        self.shuffle_endpoints(&mut combined);
-        self.available = VecDeque::from(combined);
+        self.shuffle_endpoints(&mut primary);
+        self.shuffle_endpoints(&mut satellite);
+
+        self.primary_available = VecDeque::from(primary);
+        self.satellite_available = VecDeque::from(satellite);
     }
 
     fn shuffle_endpoints(&mut self, endpoints: &mut [(String, u16)]) {
@@ -162,7 +178,7 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn rotation_across_server_and_sat_lists() {
+    fn uses_primary_servers_before_satellite_servers() {
         let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
         mgr.apply_server_list(ServerList {
             servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
@@ -171,15 +187,32 @@ mod tests {
         .expect("server list should apply");
 
         let mut seen = HashSet::new();
-        for _ in 0..3 {
+        for _ in 0..12 {
             let endpoint = mgr.next_endpoint().expect("endpoint should exist");
+            assert_ne!(endpoint, ("sat".to_string(), 3));
             seen.insert(endpoint);
         }
 
-        assert_eq!(seen.len(), 3);
+        assert_eq!(seen.len(), 2);
         assert!(seen.contains(&("a".to_string(), 1)));
         assert!(seen.contains(&("b".to_string(), 2)));
-        assert!(seen.contains(&("sat".to_string(), 3)));
+    }
+
+    #[test]
+    fn falls_back_to_satellite_when_primary_pool_is_exhausted() {
+        let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
+        mgr.apply_server_list(ServerList {
+            servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
+            sat_servers: vec![("sat".to_string(), 3)],
+        })
+        .expect("server list should apply");
+
+        mgr.mark_bad_endpoint(&("a".to_string(), 1));
+        mgr.mark_bad_endpoint(&("b".to_string(), 2));
+
+        for _ in 0..6 {
+            assert_eq!(mgr.next_endpoint(), Some(("sat".to_string(), 3)));
+        }
     }
 
     #[test]

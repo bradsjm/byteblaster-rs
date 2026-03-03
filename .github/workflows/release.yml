@@ -244,7 +244,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ANNOUNCEMENT_BODY="${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
+          ANNOUNCEMENT_BODY=$(jq -r '.announcement_github_body // ""' dist-manifest.json)
           NOTES_FILE="$RUNNER_TEMP/notes.txt"
 
           mapfile -t RELEASE_FILES < <(find artifacts -maxdepth 1 -type f -print | sort)

@@ -1,4 +1,4 @@
-use crate::output::{OutputFormat, emit_json_line, emit_text_line};
+use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder};
 use std::io::Read;
 
@@ -14,7 +14,11 @@ pub async fn run(
 
     match format {
         OutputFormat::Text => {
-            emit_text_line(&format!("inspect ok: {} event(s)", events.len()));
+            emit_text_line(&format!(
+                "{} inspect complete events={}",
+                label_ok(),
+                events.len()
+            ));
         }
         OutputFormat::Json => {
             let event_payload: Vec<serde_json::Value> = events

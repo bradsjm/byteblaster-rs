@@ -1,4 +1,4 @@
-use crate::output::{OutputFormat, emit_json_line, emit_text_line};
+use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok, label_warn};
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
     FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler, parse_server,
@@ -51,9 +51,13 @@ fn run_capture_mode(
     match format {
         OutputFormat::Text => {
             for path in &written_files {
-                emit_text_line(&format!("wrote {path}"));
+                emit_text_line(&format!("{} wrote path={path}", label_ok()));
             }
-            emit_text_line(&format!("download ok: {} file(s)", written_files.len()));
+            emit_text_line(&format!(
+                "{} download capture complete files={}",
+                label_ok(),
+                written_files.len()
+            ));
         }
         OutputFormat::Json => emit_json_line(&serde_json::json!({
             "command":"download",
@@ -113,7 +117,7 @@ async fn run_live_mode(
                     std::fs::write(&target, &file.data)?;
                     let path = target.to_string_lossy().to_string();
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!("wrote {path}"));
+                        emit_text_line(&format!("{} wrote path={path}", label_ok()));
                     }
                     written_files.push(path);
                 }
@@ -127,7 +131,7 @@ async fn run_live_mode(
             Ok(ClientEvent::Connected(_)) | Ok(ClientEvent::Disconnected) => {}
             Ok(_) => {}
             Err(err) => {
-                eprintln!("download live warning: {err}");
+                eprintln!("{} download live warning: {err}", label_warn());
             }
         }
     }
@@ -138,7 +142,8 @@ async fn run_live_mode(
     match format {
         OutputFormat::Text => {
             emit_text_line(&format!(
-                "download live ok: {} file(s)",
+                "{} download live complete files={}",
+                label_ok(),
                 written_files.len()
             ));
         }

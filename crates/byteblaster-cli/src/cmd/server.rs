@@ -1,4 +1,4 @@
-use crate::output::{style_dim, style_meta, style_ok, style_warn};
+use crate::output::{label_error, label_info, label_ok, label_stats, label_warn};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -301,7 +301,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let listener = TcpListener::bind(bind_addr).await?;
     log_info(
         options.quiet,
-        &format!("{} listening on {bind_addr}", style_ok("server")),
+        &format!("{} server listening addr={bind_addr}", label_ok()),
     );
 
     let config = ClientConfig {
@@ -421,7 +421,7 @@ fn handle_client_event(
             }
             log_info(
                 state.quiet,
-                &format!("{} {endpoint}", style_ok("connected upstream")),
+                &format!("{} upstream connected endpoint={endpoint}", label_ok()),
             );
             publish(
                 state,
@@ -438,7 +438,10 @@ fn handle_client_event(
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 *guard = None;
             }
-            log_info(state.quiet, &style_warn("upstream disconnected"));
+            log_info(
+                state.quiet,
+                &format!("{} upstream disconnected", label_warn()),
+            );
             publish(state, EventKind::Disconnected);
         }
         Ok(ClientEvent::Telemetry(snapshot)) => {
@@ -477,8 +480,8 @@ fn handle_client_event(
                     log_info(
                         state.quiet,
                         &format!(
-                            "{} {} ({} bytes)",
-                            style_meta("file complete"),
+                            "{} file complete name={} bytes={}",
+                            label_info(),
                             file.filename,
                             file.data.len()
                         ),
@@ -567,7 +570,7 @@ async fn run_stats_loop(
                 let uptime = state.started_at.elapsed().as_secs();
                 eprintln!(
                     "{} uptime={}s bytes_in={} frames={} files={} clients={} upstream={}",
-                    style_dim("stats"),
+                    label_stats(),
                     uptime,
                     telemetry.bytes_in_total,
                     telemetry.frame_events_total,
@@ -590,7 +593,10 @@ async fn events_handler(
     if current >= state.max_clients {
         log_info(
             state.quiet,
-            &format!("{} {peer}", style_warn("rejecting client; limit reached")),
+            &format!(
+                "{} rejecting client; limit reached peer={peer}",
+                label_warn()
+            ),
         );
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
@@ -598,7 +604,7 @@ async fn events_handler(
     state.connected_clients.fetch_add(1, Ordering::Relaxed);
     log_info(
         state.quiet,
-        &format!("{} {peer}", style_ok("sse client connected")),
+        &format!("{} sse client connected peer={peer}", label_info()),
     );
 
     let rx = state.event_tx.subscribe();
@@ -649,8 +655,8 @@ async fn events_handler(
                         log_info(
                             st.state.quiet,
                             &format!(
-                                "{} {} dropped={}",
-                                style_warn("sse client lagged"),
+                                "{} sse client lagged peer={} dropped={}",
+                                label_warn(),
                                 st.peer,
                                 dropped
                             ),
@@ -692,7 +698,11 @@ impl Drop for ClientGuard {
         self.state.connected_clients.fetch_sub(1, Ordering::Relaxed);
         log_info(
             self.state.quiet,
-            &format!("{} {}", style_meta("sse client disconnected"), self.peer),
+            &format!(
+                "{} sse client disconnected peer={}",
+                label_info(),
+                self.peer
+            ),
         );
     }
 }
@@ -862,7 +872,7 @@ fn log_info(quiet: bool, msg: &str) {
 }
 
 fn log_error(msg: &str) {
-    eprintln!("{} {msg}", style_warn("error"));
+    eprintln!("{} {msg}", label_error());
 }
 
 fn build_cors_layer(cors_origin: Option<String>) -> anyhow::Result<CorsLayer> {

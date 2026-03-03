@@ -1,5 +1,6 @@
 use crate::output::{
-    OutputFormat, emit_json_line, emit_text_line, style_dim, style_meta, style_ok, style_warn,
+    OutputFormat, emit_json_line, emit_text_line, label_event, label_info, label_ok, label_stats,
+    label_warn,
 };
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FrameDecoder, FrameEvent,
@@ -38,8 +39,8 @@ fn run_capture_mode(
                 emit_text_line(&event_to_text(event, text_preview_chars));
             }
             emit_text_line(&format!(
-                "{} {} event(s)",
-                style_ok("stream ok:"),
+                "{} stream capture complete events={}",
+                label_ok(),
                 events.len()
             ));
         }
@@ -106,8 +107,8 @@ async fn run_live_mode(
                     }));
                     if matches!(format, OutputFormat::Text) {
                         emit_text_line(&format!(
-                            "{} servers={} sat_servers={}",
-                            style_meta("server list update received"),
+                            "{} server_list_update servers={} sat_servers={}",
+                            label_info(),
                             list.servers.len(),
                             list.sat_servers.len()
                         ));
@@ -119,7 +120,7 @@ async fn run_live_mode(
             }
             Ok(ClientEvent::Connected(endpoint)) => {
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&format!("{} {endpoint}", style_ok("connected to")));
+                    emit_text_line(&format!("{} connected endpoint={endpoint}", label_ok()));
                 }
                 let event = serde_json::json!({
                     "type":"connected",
@@ -131,7 +132,7 @@ async fn run_live_mode(
             }
             Ok(ClientEvent::Disconnected) => {
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&style_warn("disconnected; switching server"));
+                    emit_text_line(&format!("{} disconnected; switching server", label_warn()));
                 }
                 let event = serde_json::json!({
                     "type":"disconnected",
@@ -145,7 +146,7 @@ async fn run_live_mode(
                 if matches!(format, OutputFormat::Text) {
                     emit_text_line(&format!(
                         "{} bytes_in={} frames={} drops={}",
-                        style_dim("telemetry"),
+                        label_stats(),
                         snapshot.bytes_in_total,
                         snapshot.frame_events_total,
                         snapshot.event_queue_drop_total
@@ -178,9 +179,9 @@ async fn run_live_mode(
     match format {
         OutputFormat::Text => {
             emit_text_line(&format!(
-                "{} {} event(s)",
-                style_ok("stream live ok:"),
-                payload.len()
+                "{} stream live complete events={}",
+                label_ok(),
+                seen
             ));
         }
         OutputFormat::Json => emit_json_line(&serde_json::json!({
@@ -221,7 +222,7 @@ fn event_to_text(event: &FrameEvent, text_preview_chars: usize) -> String {
         FrameEvent::DataBlock(seg) => {
             let mut line = format!(
                 "{} file={} block={}/{} bytes={}",
-                style_meta("data_block"),
+                label_event(),
                 seg.filename,
                 seg.block_number,
                 seg.total_blocks,
@@ -233,12 +234,12 @@ fn event_to_text(event: &FrameEvent, text_preview_chars: usize) -> String {
             line
         }
         FrameEvent::ServerListUpdate(list) => format!(
-            "{} servers={} sat_servers={}",
-            style_meta("server_list"),
+            "{} server_list servers={} sat_servers={}",
+            label_event(),
             list.servers.len(),
             list.sat_servers.len()
         ),
-        FrameEvent::Warning(warning) => format!("{} {:?}", style_warn("warning"), warning),
+        FrameEvent::Warning(warning) => format!("{} {:?}", label_warn(), warning),
         _ => "unknown".to_string(),
     }
 }

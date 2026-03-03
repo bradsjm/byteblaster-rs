@@ -18,7 +18,7 @@ static COLOR_ENABLED: AtomicBool = AtomicBool::new(false);
 
 pub fn configure_color(policy: ColorPolicy) {
     let enabled = match policy {
-        ColorPolicy::Auto => std::io::stdout().is_terminal(),
+        ColorPolicy::Auto => std::io::stdout().is_terminal() || std::io::stderr().is_terminal(),
         ColorPolicy::Always => true,
         ColorPolicy::Never => false,
     };
@@ -32,20 +32,32 @@ fn paint(text: &str, ansi: &str) -> String {
     format!("\x1b[{ansi}m{text}\x1b[0m")
 }
 
-pub fn style_ok(text: &str) -> String {
-    paint(text, "32")
+fn level_tag(level: &str, ansi: &str) -> String {
+    paint(&format!("[{level}]"), ansi)
 }
 
-pub fn style_warn(text: &str) -> String {
-    paint(text, "33")
+pub fn label_ok() -> String {
+    level_tag("OK", "1;32")
 }
 
-pub fn style_meta(text: &str) -> String {
-    paint(text, "36")
+pub fn label_info() -> String {
+    level_tag("INFO", "1;36")
 }
 
-pub fn style_dim(text: &str) -> String {
-    paint(text, "90")
+pub fn label_warn() -> String {
+    level_tag("WARN", "1;33")
+}
+
+pub fn label_error() -> String {
+    level_tag("ERROR", "1;31")
+}
+
+pub fn label_stats() -> String {
+    level_tag("STATS", "1;90")
+}
+
+pub fn label_event() -> String {
+    level_tag("EVENT", "1;34")
 }
 
 pub fn emit_text_line(line: &str) {

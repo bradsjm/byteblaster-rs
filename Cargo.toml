@@ -7,6 +7,9 @@ edition = "2024"
 version = "0.1.0"
 rust-version = "1.85"
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/bradsjm/byteblaster-rs"
+homepage = "https://github.com/bradsjm/byteblaster-rs"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }

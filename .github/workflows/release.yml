@@ -1,0 +1,307 @@
+name: Release
+
+permissions:
+  contents: write
+  id-token: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      val: ${{ steps.plan.outputs.manifest }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag-flag: ${{ steps.version.outputs.tag_flag }}
+      publishing: "true"
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=$(awk '
+            $0 ~ /^\[workspace\.package\]$/ { in_workspace_package=1; next }
+            $0 ~ /^\[/ { in_workspace_package=0 }
+            in_workspace_package && $0 ~ /^version = / {
+              gsub(/version = "|"/, "", $0)
+              print $0
+              exit
+            }
+          ' Cargo.toml)
+
+          if [ -z "$VERSION" ]; then
+            echo "Failed to read [workspace.package].version from Cargo.toml"
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          echo "Resolved release version: $VERSION"
+          echo "Resolved release tag: $TAG"
+
+          if gh release view "$TAG" --repo bradsjm/byteblaster-rs >/dev/null 2>&1; then
+            echo "Release $TAG already exists; workflow will update assets and notes idempotently."
+          fi
+
+          if gh api "repos/bradsjm/byteblaster-rs/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; reusing existing tag."
+          else
+            echo "Tag $TAG does not exist; creating lightweight tag at $GITHUB_SHA."
+            gh api \
+              --method POST \
+              "repos/bradsjm/byteblaster-rs/git/refs" \
+              --field ref="refs/tags/${TAG}" \
+              --field sha="$GITHUB_SHA"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag_flag=--tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Install dist
+        shell: bash
+        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh"
+      - name: Cache dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-dist-cache
+          path: ~/.cargo/bin/dist
+      - id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist host --steps=create "${{ steps.version.outputs.tag_flag }}" --output-format=json > plan-dist-manifest.json
+          echo "manifest=$(jq -c '.' plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: Upload dist plan manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-plan-dist-manifest
+          path: plan-dist-manifest.json
+
+  build-local-artifacts:
+    name: build-local-artifacts (${{ join(matrix.targets, ', ') }})
+    needs:
+      - plan
+    if: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix.include != null }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container && matrix.container.image || null }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
+    steps:
+      - name: Enable Windows long paths
+        if: ${{ startsWith(matrix.runner, 'windows') }}
+        shell: bash
+        run: |
+          git config --global core.longpaths true
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Rust if needed in container
+        if: ${{ matrix.container }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Install dist
+        run: ${{ matrix.install_dist.run }}
+      - name: Fetch local artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: target/distrib/
+          merge-multiple: true
+      - name: Install dependencies
+        run: |
+          ${{ matrix.packages_install }}
+      - name: Build artifacts
+        run: |
+          dist build "${{ needs.plan.outputs.tag-flag }}" --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
+      - id: cargo-dist
+        name: Post-build
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          cp dist-manifest.json "$BUILD_MANIFEST_NAME"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-build-local-${{ join(matrix.targets, '_') }}
+          path: |
+            ${{ steps.cargo-dist.outputs.paths }}
+            ${{ env.BUILD_MANIFEST_NAME }}
+
+  build-global-artifacts:
+    needs:
+      - plan
+      - build-local-artifacts
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BUILD_MANIFEST_NAME: target/distrib/global-dist-manifest.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install cached dist
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-dist-cache
+          path: ~/.cargo/bin/
+      - run: chmod +x ~/.cargo/bin/dist
+      - name: Fetch local artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: target/distrib/
+          merge-multiple: true
+      - id: cargo-dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist build "${{ needs.plan.outputs.tag-flag }}" --output-format=json "--artifacts=global" > dist-manifest.json
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          jq --raw-output '.upload_files[]' dist-manifest.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          cp dist-manifest.json "$BUILD_MANIFEST_NAME"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-build-global
+          path: |
+            ${{ steps.cargo-dist.outputs.paths }}
+            ${{ env.BUILD_MANIFEST_NAME }}
+
+  host:
+    needs:
+      - plan
+      - build-local-artifacts
+      - build-global-artifacts
+    if: ${{ always() && needs.plan.result == 'success' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-24.04
+    outputs:
+      val: ${{ steps.host.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install cached dist
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-dist-cache
+          path: ~/.cargo/bin/
+      - run: chmod +x ~/.cargo/bin/dist
+      - name: Fetch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: target/distrib/
+          merge-multiple: true
+      - id: host
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist host "${{ needs.plan.outputs.tag-flag }}" --steps=upload --steps=release --output-format=json > dist-manifest.json
+          echo "manifest=$(jq -c '.' dist-manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: Upload dist manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-dist-manifest
+          path: dist-manifest.json
+      - name: Download GitHub artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: artifacts
+          merge-multiple: true
+      - name: Cleanup manifests from release upload directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f artifacts/*-dist-manifest.json
+      - name: Build release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ANNOUNCEMENT_BODY="${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
+          NOTES_FILE="$RUNNER_TEMP/notes.txt"
+
+          mapfile -t RELEASE_FILES < <(find artifacts -maxdepth 1 -type f -print | sort)
+          if [ "${#RELEASE_FILES[@]}" -eq 0 ]; then
+            echo "No release files found in artifacts directory"
+            exit 1
+          fi
+
+          INSTALLER_FILE=""
+          for FILE_PATH in "${RELEASE_FILES[@]}"; do
+            FILE_NAME=$(basename "$FILE_PATH")
+            if [[ "$FILE_NAME" == *installer.sh ]]; then
+              INSTALLER_FILE="$FILE_NAME"
+              break
+            fi
+          done
+
+          if [ -z "$INSTALLER_FILE" ]; then
+            echo "Failed to locate shell installer in release artifacts"
+            exit 1
+          fi
+
+          {
+            printf '%s\n\n' "$ANNOUNCEMENT_BODY"
+            printf '## Release Files\n'
+            for FILE_PATH in "${RELEASE_FILES[@]}"; do
+              printf -- '- `%s`\n' "$(basename "$FILE_PATH")"
+            done
+            printf '\n## Install (bash)\n'
+            printf '`curl --proto '\''=https'\'' --tlsv1.2 -LsSf https://github.com/bradsjm/byteblaster-rs/releases/download/%s/%s | sh`\n' "${{ needs.plan.outputs.tag }}" "$INSTALLER_FILE"
+          } > "$NOTES_FILE"
+
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+      - name: Create or update GitHub Release
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          RELEASE_TITLE: ${{ fromJson(steps.host.outputs.manifest).announcement_title }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          PRERELEASE: ${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease }}
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" --repo bradsjm/byteblaster-rs >/dev/null 2>&1; then
+            echo "Release $TAG exists; updating notes and assets idempotently."
+            gh release upload "$TAG" artifacts/* --clobber --repo bradsjm/byteblaster-rs
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/byteblaster-rs
+            else
+              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/byteblaster-rs
+            fi
+          else
+            echo "Release $TAG does not exist; creating release."
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/byteblaster-rs artifacts/*
+            else
+              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/byteblaster-rs artifacts/*
+            fi
+          fi

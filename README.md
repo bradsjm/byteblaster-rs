@@ -7,6 +7,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - `crates/byteblaster-core` - protocol + runtime library
 - `crates/byteblaster-cli` - command-line interface built on `byteblaster-core`
 - `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
+- `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
 - `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` - historical external draft reference
 - `tests/fixtures` - binary/json fixture corpus metadata
 

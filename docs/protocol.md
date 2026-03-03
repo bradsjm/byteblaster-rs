@@ -1,0 +1,517 @@
+# ByteBlaster TCP Protocol Reference Specification
+
+Version: 2.0.0
+Last Updated: 2026-03-03
+Status: Authoritative (implementation and tests)
+
+## 1. Purpose
+
+This is the authoritative, evidence-based TCP protocol reference for `byteblaster-rs`.
+
+- It supersedes `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` for implementation behavior.
+- It is both normative (what code must do) and explanatory (why it does it).
+- It covers the full stack from wire bytes to final decoded message and file reconstruction.
+
+## 2. Relationship to the EMWIN Satellite Draft
+
+ByteBlaster is protocol-compatible with EMWIN QBT payload semantics where practical, but it runs over TCP rather than satellite broadcast framing.
+
+Use this rule set:
+
+1. `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` is a historical/reference input.
+2. `docs/protocol.md` is the implementation authority.
+3. When draft assumptions conflict with observed TCP behavior, this document wins.
+
+High-level mapping:
+
+| Satellite draft concept | ByteBlaster TCP interpretation |
+|---|---|
+| Fixed-size packet transmission model | Continuous TCP stream with arbitrary segmentation |
+| Packet boundaries implied by transport | Boundaries inferred by decoded sync marker and parsed lengths |
+| Suffix strictness in packet diagrams | Suffix tolerated but not required for decode continuity |
+| Draft checksum interpretation examples | Receiver validates with low-16-bit compatibility semantics |
+
+The payload/header field lineage remains EMWIN-derived (`/PF`, `/PN`, `/PT`, `/CS`, `/FD`, `/DL`), but transport behavior is TCP-native.
+
+### 2.1 Satellite-to-TCP Glossary
+
+| Satellite draft term | ByteBlaster TCP term | Practical meaning |
+|---|---|---|
+| Packet | Frame candidate in byte stream | A decodable unit inferred from sync + parsed lengths, not from socket read size |
+| Broadcast packet order | Stream decode order | Receiver processes bytes in arrival order from one TCP stream |
+| Prefix (6 null) | Sync marker | Six decoded `0x00` bytes used for resynchronization |
+| Header (80 bytes) | Header (80 bytes) | Same payload header concept, parsed after sync |
+| Data block | Segment content | V1 fixed 1024 bytes, V2 variable length from `/DL` |
+| Suffix (6 null) | Optional trailing delimiter | Commonly present but not required for decode continuity |
+| Computed sum (`/CS`) | Receiver checksum compare target | Receiver validates with low-16-bit compatibility semantics |
+| Product retransmission assumptions | Runtime recovery model | Reliability is achieved by decode recovery + reconnect behavior over TCP |
+
+## 3. One-Page Mental Model
+
+```text
+TCP stream bytes (wire, XOR-FF encoded)
+  -> XOR-FF decode
+  -> sync scan (decoded 00 00 00 00 00 00)
+  -> frame typing (/PF data frame, /ServerList frame)
+  -> header parse + body extraction (V1 fixed 1024, V2 /DL)
+  -> optional V2 zlib inflate
+  -> checksum validation + policy filters
+  -> FrameEvent stream (DataBlock | ServerListUpdate | Warning)
+  -> optional FileAssembler reconstruction
+  -> completed file payload(s)
+```
+
+## 4. Evidence Baseline
+
+The normative decisions in this spec are backed by replayable corpus evidence.
+
+- Capture: `emwin-live.pcap`
+- Extracted stream fixture: `tests/fixtures/live/20260303T000000Z_live_stream0_001.bin`
+- Replay harness: `crates/byteblaster-core/tests/live_capture_replay.rs`
+- Replay manifest: `tests/fixtures/live/replay-cases.json`
+- Baseline parity artifacts: `live-events.json`, `tests/fixtures/live/original_inspect.json`
+
+Observed baseline sample:
+
+- 500 decoded data events
+- 451 V1 segments, 49 V2 segments
+- `/DL` present on all observed V2 headers
+- observed V2 output lengths: 45..1024 bytes
+
+Mutation evidence cases used for divergence checks:
+
+- `mutation-no-xor-wire`
+- `mutation-strip-first-dl`
+- `mutation-v2-sig-to-pk`
+- `mutation-v1-cs-plus-65536`
+- `mutation-remove-first-suffix-null6`
+
+## 5. Layered Architecture (Wire to Final Message)
+
+```text
+L0  Transport        : TCP byte stream (segmentation arbitrary)
+L1  Wire Transform   : XOR-FF decode/encode
+L2  Framing          : sync detection + frame classification
+L3  Payload Decode   : header parse, body extraction, optional inflate
+L4  Validation       : checksum, structural guards, policy drops
+L5  Event Projection : FrameEvent::{DataBlock, ServerListUpdate, Warning}
+L6  Reconstruction   : FileAssembler combines QbtSegment blocks
+```
+
+Implementation anchors:
+
+- L1-L5: `crates/byteblaster-core/src/protocol/codec.rs`
+- checksum: `crates/byteblaster-core/src/protocol/checksum.rs`
+- compression: `crates/byteblaster-core/src/protocol/compression.rs`
+- server list parsing: `crates/byteblaster-core/src/protocol/server_list.rs`
+- runtime dispatch/recovery: `crates/byteblaster-core/src/client/mod.rs`
+- L6 assembly: `crates/byteblaster-core/src/file/assembler.rs`
+
+## 6. Wire-Level Specification (TCP)
+
+### 6.1 Transport and Encoding
+
+1. The protocol runs over a TCP byte stream.
+2. Every inbound payload byte is decoded via XOR with `0xFF` before any parse logic.
+3. Outbound auth/logon payload is also XOR-FF encoded.
+4. Read boundaries from `recv/read` calls are not frame boundaries.
+
+Auth message format (pre-XOR):
+
+```text
+ByteBlast Client|NM-<email>|V2
+```
+
+### 6.2 Sync and Frame Boundaries
+
+Decoded sync marker:
+
+```text
+00 00 00 00 00 00
+```
+
+Wire equivalent (before XOR decode):
+
+```text
+FF FF FF FF FF FF
+```
+
+Boundary rules:
+
+- Decoder searches sliding windows for decoded six-null sync.
+- TCP packet boundaries are irrelevant; frames may span reads.
+- On failure to find sync, decoder retains trailing 5 bytes as overlap window.
+
+### 6.3 Frame Type Identification
+
+After sync/padding removal:
+
+- `/PF...` => data block frame
+- `/Se...` or `/ServerList/...` => server list frame
+- unknown prefix => byte-skip + resync attempt
+
+## 7. Data Frame Format (Decoded Stream)
+
+### 7.1 Layout Diagram
+
+```text
+Offset (decoded stream)
+
+0      5   6                    85  86                       N   N+5
+|------|---|---------------------|---|------------------------|----|
+ sync6     header (80 bytes)         body (V1=1024, V2=/DL)   optional suffix6
+
+sync6            : 00 00 00 00 00 00
+header           : ASCII, must parse via header regex
+body             : raw payload bytes (may be zlib-compressed for V2)
+optional suffix6 : often 00x6 on wire; not required for acceptance
+```
+
+### 7.2 Header Grammar
+
+Regex-equivalent grammar implemented by decoder:
+
+```text
+/PF<filename>
+ /PN <u32>
+ /PT <u32>
+ /CS <u32>
+ /FD<timestamp>
+ [ /DL<u32> ]
+\r\n
+[optional trailing spaces to fill fixed 80 bytes]
+```
+
+Timestamp parse format:
+
+```text
+[month]/[day]/[year] [hour(12)]:[minute]:[second] [AM|PM]
+```
+
+### 7.3 V1 and V2 Body Rules
+
+- V1: `/DL` absent, body length fixed at 1024.
+- V2: `/DL` present, body length = `/DL`, bounded by `1..=max_v2_body_size`.
+- default `max_v2_body_size = 1024`.
+
+### 7.4 Compression Rules (V2)
+
+Default policy `RequireZlibHeader`:
+
+- attempt inflate only if body starts with one of:
+  - `78 9C`
+  - `78 DA`
+  - `78 01`
+
+If inflate fails:
+
+- emit `ProtocolWarning::DecompressionFailed`
+- drop that segment
+- continue stream decode
+
+### 7.5 Checksum Rules
+
+Receiver checksum function:
+
+```text
+calculate_checksum(data) = sum(unsigned bytes) & 0xFFFF
+```
+
+Comparison behavior:
+
+- V1 expected checksum masked to low 16 bits before compare.
+- V2 expected checksum compared through same `verify_checksum` path.
+- mismatch emits `ProtocolWarning::ChecksumMismatch` and segment is dropped.
+
+Important wire compatibility note:
+
+- live evidence shows V1 headers can carry full-sum values beyond 16 bits,
+  while receiver remains low-16 compatible.
+
+### 7.6 Text Payload Normalization
+
+For filenames ending `.TXT` or `.WMO` (case-insensitive):
+
+- trailing bytes are trimmed if they are one of:
+  - `\0`, space, tab, CR, LF
+
+### 7.7 Non-Emitted Data Cases
+
+Decoder drops (no `DataBlock` event) when any of these hold:
+
+- decompression failed
+- invalid block numbering (`total=0`, `block=0`, `block>total`)
+- filename `FILLFILE.TXT` (case-insensitive)
+- checksum mismatch
+
+## 8. Server List Frame Format
+
+### 8.1 Supported Forms
+
+Simple form:
+
+```text
+/ServerList/<host:port|host:port|...>\0
+```
+
+Full form:
+
+```text
+/ServerList/<regular servers>\ServerList\/SatServers/<sat servers>\SatServers\\0
+```
+
+Delimiter semantics:
+
+- regular servers: `|`
+- sat servers: `+`
+
+Malformed entries:
+
+- are filtered
+- emit `ProtocolWarning::MalformedServerEntry`
+- do not invalidate valid entries in same frame
+
+## 9. Decoder State Machine
+
+```text
+Resync -> StartFrame -> FrameType -> (ServerList | BlockHeader)
+BlockHeader -> BlockBody -> Validate -> StartFrame
+ServerList -> StartFrame
+
+Any recoverable parse/decode error:
+  emit Warning(DecoderRecovered)
+  clear pending segment
+  reset to Resync
+```
+
+Recovery strategy is forward-only; process does not terminate on recoverable corruption.
+
+## 10. Final Decoded Message Model
+
+Primary decoded data unit is `QbtSegment`:
+
+```text
+filename: String
+block_number: u32
+total_blocks: u32
+content: Bytes
+checksum: u32
+length: usize
+version: ProtocolVersion (V1|V2)
+timestamp_utc: SystemTime
+source: Option<SocketAddr>
+```
+
+Event envelope type is `FrameEvent`:
+
+- `DataBlock(QbtSegment)`
+- `ServerListUpdate(ServerList)`
+- `Warning(ProtocolWarning)`
+
+Client runtime envelope type is `ClientEvent`:
+
+- `Frame(FrameEvent)`
+- `Connected(String)`
+- `Disconnected`
+- `Telemetry(ClientTelemetrySnapshot)`
+
+Warning types:
+
+- `ChecksumMismatch`
+- `DecompressionFailed`
+- `DecoderRecovered`
+- `MalformedServerEntry`
+- `TimestampParseFallback`
+- `HandlerError`
+- `BackpressureDrop`
+
+## 11. Runtime and Dispatch Flow
+
+```text
+socket.read -> decoder.feed
+  -> FrameEvents
+    -> apply server list updates
+    -> invoke subscribed handlers (isolated)
+    -> publish ClientEvent::Frame over bounded channel (1024)
+
+channel full:
+  -> drop event
+  -> increment telemetry counters
+  -> attempt emit Warning(BackpressureDrop)
+```
+
+Reconnect/survivability behavior:
+
+- watchdog timeout closes current session and triggers reconnect loop
+- endpoint rotation + bounded backoff are applied
+- process continues unless explicitly stopped
+
+### 11.1 Core Telemetry Schema
+
+`byteblaster-core` maintains process-local runtime counters exposed via
+`Client::telemetry_snapshot()`.
+
+Counter fields:
+
+- `connection_attempts_total`
+- `connection_success_total`
+- `connection_fail_total`
+- `disconnect_total`
+- `watchdog_timeouts_total`
+- `watchdog_exception_events_total`
+- `auth_logon_sent_total`
+- `bytes_in_total`
+- `frame_events_total`
+- `data_blocks_emitted_total`
+- `server_list_updates_total`
+- `checksum_mismatch_total`
+- `decompression_failed_total`
+- `decoder_recovery_events_total`
+- `handler_failures_total`
+- `backpressure_warning_emitted_total`
+- `event_queue_drop_total`
+- `telemetry_events_emitted_total`
+
+These counters support runtime diagnostics and protocol conformance observability.
+
+## 12. File Reconstruction Layer
+
+`FileAssembler` reconstitutes complete files from `QbtSegment` blocks.
+
+### 12.1 Why Blocks Arrive Out of Order or Interleaved
+
+The upstream transmission model is priority-driven. Higher-importance products (for example,
+tornado warnings) are allowed to preempt lower-importance, long-running transfers (for example,
+large graphics or long forecast text products).
+
+This is intentional behavior and is required to minimize latency for urgent products while still
+keeping the channel busy with bulk data.
+
+Implications for receivers:
+
+- Segments for one filename may be interrupted by segments from another filename.
+- Segment arrival order is not a global filename order; reconstruction must key by file identity
+  and block numbering, not arrival adjacency.
+- A file may complete while another older file remains incomplete.
+
+Interleaved reception example:
+
+```text
+Arrival index   Filename        Block/Total   Notes
+-----------     --------        -----------   -----
+1               GRAPHIC1.ZIP    1/40          low-priority bulk transfer starts
+2               GRAPHIC1.ZIP    2/40
+3               WARN1234.TXT    1/2           high-priority warning preempts
+4               WARN1234.TXT    2/2           warning completes quickly
+5               GRAPHIC1.ZIP    3/40          bulk transfer resumes
+6               GRAPHIC1.ZIP    4/40
+...
+```
+
+Receiver reconstruction model (implemented by `FileAssembler`) is therefore per-file and
+order-aware at block level, not stream-order-dependent.
+
+### 12.2 Reassembly Algorithm
+
+Algorithm summary:
+
+1. Group segments by key: `<lower(filename)>_<timestamp_utc>`.
+2. Insert segment by `block_number` into ordered map.
+3. When map size equals `total_blocks`, concatenate in block order.
+4. Emit `CompletedFile { filename, data }`.
+5. Cache completed keys to suppress duplicate reconstruction.
+
+Guardrails:
+
+- ignores `FILLFILE.TXT`
+- ignores invalid block numbering
+
+## 13. Worked Examples
+
+### 13.1 Decoded V1 Header Example
+
+```text
+/PFZFPSFOCA.TXT /PN 3 /PT 5 /CS 63366 /FD5/19/2016 5:24:26 PM\r\n
+[space padded to 80 bytes]
+```
+
+Interpretation:
+
+- filename: `ZFPSFOCA.TXT`
+- segment: 3 of 5
+- checksum field value may exceed 16 bits on wire
+- body length: 1024 (no `/DL`)
+
+### 13.2 Decoded V2 Header Example
+
+```text
+/PFABC12345.ZIP /PN 1 /PT 1 /CS 32123 /FD3/3/2026 1:02:03 PM /DL314\r\n
+[space padded to 80 bytes]
+```
+
+Interpretation:
+
+- V2 body length = 314 bytes
+- if body starts with zlib signature, decoder attempts inflate
+
+## 14. Requirement-to-Test Matrix
+
+| ID | Normative Requirement | Unit Test Target | Integration Test Target | Property/Fuzz | Status |
+|---|---|---|---|---|---|
+| P-001 | Inbound transport bytes are XOR-decoded with key `0xFF` before parsing | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/byteblaster-core/tests/protocol_parity.rs::sync_recovery` | Yes | Required |
+| P-002 | Sync detection uses 6 decoded `0x00` bytes | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/byteblaster-core/tests/protocol_parity.rs::sync_recovery` | Yes | Implemented |
+| P-003 | V1 header is exactly 80 bytes and regex-valid | `protocol::codec::tests::parse_header_valid`, `protocol::codec::tests::parse_header_invalid_missing_fields` | `crates/byteblaster-core/tests/protocol_parity.rs::inspect_valid_v1_fixture` | Yes | Implemented |
+| P-004 | V2 `/DL` length is required and bounded `1..=1024` | `protocol::codec::tests::v2_dl_bounds` | `crates/byteblaster-core/tests/protocol_parity.rs::v2_fixture_bounds` | Yes | Implemented |
+| P-005 | V2 decompression is header-gated under `RequireZlibHeader` | `protocol::codec::tests::v2_header_gate` | `N/A (unit + property coverage)` | Yes | Implemented |
+| P-006 | Decompression failure never aborts runtime; bad segment is dropped | `protocol::codec::tests::v2_decompress_failure_drops_segment_and_emits_warning` | `crates/byteblaster-core/tests/protocol_parity.rs::v2_corrupt_payload_policy` | Yes | Required |
+| P-007 | Receiver checksum comparison uses `sum(data) & 0xFFFF` | `protocol::checksum::tests::checksum_matches_reference` | `crates/byteblaster-core/tests/protocol_parity.rs::checksum_fixture` | Yes | Implemented |
+| P-008 | V1 expected checksum is masked to 16-bit | `protocol::codec::tests::v1_checksum_masking` | `crates/byteblaster-core/tests/protocol_parity.rs::checksum_fixture` | No | Implemented |
+| P-009 | Checksum mismatch payload is never emitted as data event | `protocol::codec::tests::checksum_strict_drop` | `crates/byteblaster-core/tests/protocol_parity.rs::stream_policy_behavior` | Yes | Required |
+| P-010 | `FILLFILE.TXT` is never emitted as data event | `protocol::codec::tests::fillfile_filtered` | `N/A (unit coverage)` | No | Implemented |
+| P-011 | `.TXT` and `.WMO` trailing padding is trimmed | `protocol::codec::tests::trim_padding_text_wmo` | `N/A (unit coverage)` | No | Implemented |
+| P-012 | Simple server list format parses and filters invalid entries | `protocol::server_list::tests::server_list_simple_parse` | `crates/byteblaster-core/tests/protocol_parity.rs::server_update_simple` | Yes | Implemented |
+| P-013 | Full server list format parses regular and sat entries | `protocol::server_list::tests::server_list_full_parse` | `crates/byteblaster-core/tests/protocol_parity.rs::server_update_full_format` | Yes | Implemented |
+| P-014 | Unknown/corrupt frame triggers byte-skip + resync and decode continues | `protocol::codec::tests::unknown_frame_resync` | `crates/byteblaster-core/tests/protocol_parity.rs::mixed_corruption_stream` | Yes | Required |
+| P-015 | Handler exceptions are isolated | `client::tests::handler_error_isolated` | `N/A (unit coverage)` | No | Implemented |
+| P-016 | Reconnect failover rotates endpoints with backoff | `client::reconnect::tests::reconnect_backoff_logic` | `crates/byteblaster-core/tests/reconnect_failover.rs::reconnect_failover_rotates_endpoints_with_backoff` | No | Implemented |
+| P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/byteblaster-core/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
+| P-018 | Runtime emits bounded-channel backpressure telemetry with counters | `client::tests::backpressure_drop_emits_warning_with_counters`, `client::tests::backpressure_drop_warning_reports_and_resets_window` | `N/A (unit coverage)` | No | Required |
+| P-019 | CLI enforces stdout/stderr channel contract | `cli_output_channeling` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_output_channeling` | No | Implemented |
+| P-020 | CLI JSON output schema is stable | `cli_stream_json_fixture` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_stream_json_fixture` | No | Implemented |
+| P-021 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/byteblaster-core/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
+
+## 15. Satellite Draft Alignment Notes
+
+Evidence-backed alignment verdicts from replay and mutation corpus:
+
+1. XOR-FF inbound transform: Confirmed for TCP deployment.
+2. Checksum width behavior: Mixed.
+   - wire may carry full-sum V1 `CS`
+   - receiver validation is low-16 tolerant
+3. V2 variable-length `/DL` framing: Confirmed.
+4. Compression path behavior: zlib-gated receiver path confirmed.
+5. Header/filename strictness beyond draft: inconclusive with current sample set.
+6. strict suffix-null requirement: not required for receiver continuity over TCP stream decode.
+
+These are expected transport adaptation differences, not implementation bugs.
+
+## 16. Change Governance
+
+Any protocol behavior change must update, in the same change set:
+
+1. implementation
+2. tests
+3. this document
+
+Rules:
+
+- every `P-xxx` requirement is either implemented or explicitly deferred with rationale
+- invalid payloads are never emitted as valid data
+- no legacy fallback/deprecated mode is introduced unless explicitly normalized in this spec
+
+### 16.1 Public API Evolution Policy
+
+- Stable API surface is the root re-export facade of `byteblaster_core`.
+- `byteblaster_core::unstable` is explicitly non-stable and may change without migration guarantees.
+- Public event/model types are `#[non_exhaustive]`; downstream code must include wildcard match arms.
+- Telemetry snapshot serde support is gated by the `telemetry-serde` feature to keep optional serialization concerns explicit.

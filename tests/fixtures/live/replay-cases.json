@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "live-stream0-server-payload-001",
+      "wire_path": "20260303T000000Z_live_stream0_001.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_emit": [
+          "DataBlock"
+        ],
+        "min_data_blocks": 1
+      }
+    },
+    {
+      "id": "mutation-no-xor-wire",
+      "wire_path": "20260303T000000Z_live_stream0_no_xor_mutation.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_not_emit": [
+          "DataBlock"
+        ],
+        "min_data_blocks": 0
+      }
+    },
+    {
+      "id": "mutation-strip-first-dl",
+      "wire_path": "20260303T000000Z_live_stream0_strip_dl_mutation.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_emit": [
+          "Warning:ChecksumMismatch",
+          "DataBlock"
+        ],
+        "min_data_blocks": 1
+      }
+    },
+    {
+      "id": "mutation-v2-sig-to-pk",
+      "wire_path": "20260303T000000Z_live_stream0_v2_sig_to_pk_mutation.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_emit": [
+          "Warning:ChecksumMismatch",
+          "DataBlock"
+        ],
+        "min_data_blocks": 1
+      }
+    },
+    {
+      "id": "mutation-v1-cs-plus-65536",
+      "wire_path": "20260303T000000Z_live_stream0_cs_plus65536_mutation.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_emit": [
+          "DataBlock"
+        ],
+        "must_not_emit": [
+          "Warning:ChecksumMismatch"
+        ],
+        "min_data_blocks": 1
+      }
+    },
+    {
+      "id": "mutation-remove-first-suffix-null6",
+      "wire_path": "20260303T000000Z_live_stream0_suffix_removed_mutation.bin",
+      "chunk_bytes": 512,
+      "expected": {
+        "result": "success",
+        "must_emit": [
+          "DataBlock"
+        ],
+        "must_not_emit": [
+          "Warning:DecoderRecovered"
+        ],
+        "min_data_blocks": 1
+      }
+    }
+  ]
+}

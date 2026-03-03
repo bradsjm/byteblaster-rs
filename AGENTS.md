@@ -1,0 +1,198 @@
+# AGENTS.md
+
+Agent guide for `byteblaster-rs`.
+Use this file as the operational contract for automated coding agents.
+
+## Scope
+
+- Repository type: Rust workspace (Edition 2024).
+- Toolchain target: stable Rust, workspace `rust-version = 1.85`.
+- Workspace members:
+  - `crates/byteblaster-core`
+  - `crates/byteblaster-cli`
+- Protocol behavior authority: `docs/protocol.md`.
+
+## Repo Rules Snapshot
+
+- `unsafe_code` is forbidden at workspace level (`[workspace.lints.rust]`).
+- Keep changes focused; avoid unrelated refactors.
+- If protocol behavior changes, update all three:
+  - implementation
+  - tests
+  - `docs/protocol.md`
+
+## Build, Lint, and Test Commands
+
+Run commands from repository root unless noted.
+
+### Full workspace checks
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+### Build commands
+
+```bash
+cargo build --workspace
+cargo build -p byteblaster-core
+cargo build -p byteblaster-cli
+```
+
+### Crate-specific test commands
+
+```bash
+cargo test -p byteblaster-core
+cargo test -p byteblaster-cli
+```
+
+### Running a single test (important)
+
+Use the test name as a filter:
+
+```bash
+cargo test -p byteblaster-core checksum_fixture
+cargo test -p byteblaster-core protocol::codec::tests::v2_compressed_roundtrip
+cargo test -p byteblaster-cli cli_output_channeling
+```
+
+Use exact matching when names are ambiguous:
+
+```bash
+cargo test -p byteblaster-core protocol::codec::tests::checksum_strict_drop -- --exact
+```
+
+Run one integration test target file:
+
+```bash
+cargo test -p byteblaster-core --test protocol_parity
+cargo test -p byteblaster-cli --test cli_contract
+```
+
+Run one integration test function from a test target:
+
+```bash
+cargo test -p byteblaster-core --test protocol_parity server_update_full_format -- --exact
+```
+
+List available tests before selecting one:
+
+```bash
+cargo test -p byteblaster-core -- --list
+cargo test -p byteblaster-cli -- --list
+```
+
+Debug failing tests with output:
+
+```bash
+cargo test -p byteblaster-core <test_name> -- --nocapture
+```
+
+## Local Run Commands
+
+```bash
+cargo run -p byteblaster-cli -- --format json inspect path/to/capture.bin
+cargo run -p byteblaster-cli -- --format json stream path/to/capture.bin
+cargo run -p byteblaster-cli -- --format json download ./out path/to/capture.bin
+```
+
+Live mode examples:
+
+```bash
+cargo run -p byteblaster-cli -- --format json stream --email you@example.com --max-events 100
+cargo run -p byteblaster-cli -- --format text download ./out --email you@example.com --idle-timeout-secs 30
+```
+
+## Code Style Guidelines
+
+### Formatting and linting
+
+- Always format with `cargo fmt --all`.
+- Always pass clippy with `-D warnings`.
+- Do not merge code that introduces warnings.
+
+### Imports
+
+- Prefer explicit imports; avoid wildcard imports.
+- Keep imports minimal and local to module needs.
+- Follow existing file style and let `rustfmt` normalize layout.
+- Alias imports only when name collisions or readability require it.
+
+### Types and APIs
+
+- Prefer concrete domain types over loosely typed values.
+- Use enums for protocol state and event variants.
+- Keep public APIs intentionally small (`lib.rs` re-exports are curated).
+- Validate configuration before runtime startup (builder/constructor boundary).
+- Avoid introducing `unsafe` or unstable/nightly-only features.
+
+### Naming conventions
+
+- Types/traits/enums: `UpperCamelCase`.
+- Functions/modules/variables: `snake_case`.
+- Constants: `SCREAMING_SNAKE_CASE`.
+- Keep names domain-specific (`ProtocolDecoder`, `ServerListManager`, etc.).
+
+### Error handling
+
+- Use typed errors (`thiserror`) for domain failures.
+- Keep crate-local result aliases when present (`CoreResult<T>`).
+- Propagate errors with `?`; avoid `unwrap()` in production code.
+- Use `expect(...)` only in tests with a specific failure message.
+- Preserve context when converting errors (`#[from]` or explicit mapping).
+- Avoid stringly-typed catch-all errors unless no typed option exists.
+
+### Async and concurrency
+
+- Use Tokio primitives already used in the repo (`mpsc`, `watch`, tasks).
+- Respect shutdown signals and avoid orphaned background tasks.
+- Use bounded channels unless there is a clear reason not to.
+- Handle reconnect/backoff deterministically; prefer saturating math.
+
+### Logging and output boundaries
+
+- CLI contract: payloads to `stdout`, diagnostics/logs to `stderr`.
+- Preserve machine-readable JSON output stability.
+- Keep human-readable text mode concise and non-ambiguous.
+
+### Testing conventions
+
+- Unit tests close to implementation (`#[cfg(test)] mod tests`).
+- Cross-module behavior in `crates/*/tests/*.rs` integration tests.
+- Add regression tests for protocol parsing edge cases and corruption.
+- For new protocol behavior, test both success and failure paths.
+- Prefer deterministic tests; avoid unnecessary timing flakiness.
+
+### File and module organization
+
+- Keep protocol parsing concerns under `byteblaster-core/src/protocol`.
+- Keep client runtime orchestration under `byteblaster-core/src/client`.
+- Keep CLI command handling under `byteblaster-cli/src/cmd`.
+- Do not leak CLI-only concerns into core library modules.
+
+## Documentation Requirements
+
+- Treat `docs/protocol.md` as normative.
+- Record protocol deltas/decisions directly in `docs/protocol.md`.
+- Update crate README examples if user-facing behavior changes.
+
+## Cursor/Copilot Rule Files
+
+Checked for repository-specific agent instruction files:
+
+- `.cursorrules`: not present
+- `.cursor/rules/`: not present
+- `.github/copilot-instructions.md`: not present
+
+If these files are added later, merge their guidance into this document and treat
+their repository-local instructions as higher-priority constraints.
+
+## Agent Execution Checklist
+
+- Read this file and `README.md` first.
+- Make smallest correct change.
+- Run format, clippy, and relevant tests.
+- Prefer running a focused single test during iteration, then full crate/workspace tests.
+- Ensure protocol changes include code + tests + spec updates.

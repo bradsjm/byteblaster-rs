@@ -33,3 +33,6 @@ tower = "0.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[profile.dist]
+inherits = "release"

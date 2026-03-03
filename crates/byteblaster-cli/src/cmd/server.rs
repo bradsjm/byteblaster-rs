@@ -72,6 +72,7 @@ impl EventKind {
             Self::FileComplete { filename, size } => serde_json::json!({
                 "filename": filename,
                 "size": size,
+                "download_url": file_download_url(filename),
             }),
             Self::Telemetry(snapshot) => serde_json::json!(snapshot),
             Self::Error { message } => serde_json::json!({ "message": message }),
@@ -144,7 +145,7 @@ impl RetainedFiles {
             .map(|file| RetainedFileMeta {
                 filename: file.filename.clone(),
                 size: file.size(),
-                completed_at_unix_secs: file
+                timestamp: file
                     .completed_at
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .map(|d| d.as_secs())
@@ -206,7 +207,7 @@ struct EventsQuery {
 struct RetainedFileMeta {
     filename: String,
     size: usize,
-    completed_at_unix_secs: u64,
+    timestamp: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -221,6 +222,19 @@ struct HealthResponse {
     retained_files: usize,
     uptime_secs: u64,
     upstream_endpoint: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct EndpointDoc {
+    method: &'static str,
+    path: &'static str,
+    description: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct RootResponse {
+    service: &'static str,
+    endpoints: Vec<EndpointDoc>,
 }
 
 #[derive(Debug, Clone)]
@@ -320,6 +334,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
 
 fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Result<Router> {
     Ok(Router::new()
+        .route("/", get(root_handler))
         .route("/events", get(events_handler))
         .route("/files", get(files_handler))
         .route("/files/*filename", get(file_download_handler))
@@ -327,6 +342,44 @@ fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Re
         .route("/metrics", get(metrics_handler))
         .layer(build_cors_layer(cors_origin)?)
         .with_state(state))
+}
+
+async fn root_handler() -> Json<RootResponse> {
+    Json(RootResponse {
+        service: "byteblaster-cli server",
+        endpoints: vec![
+            EndpointDoc {
+                method: "GET",
+                path: "/",
+                description: "API index with endpoint descriptions",
+            },
+            EndpointDoc {
+                method: "GET",
+                path: "/events?filter=*.TXT",
+                description: "SSE stream of frame and server events; optional wildcard filename filter",
+            },
+            EndpointDoc {
+                method: "GET",
+                path: "/files",
+                description: "List retained completed files",
+            },
+            EndpointDoc {
+                method: "GET",
+                path: "/files/*filename",
+                description: "Download retained file by URL-encoded filename path",
+            },
+            EndpointDoc {
+                method: "GET",
+                path: "/health",
+                description: "Server health summary",
+            },
+            EndpointDoc {
+                method: "GET",
+                path: "/metrics",
+                description: "JSON telemetry snapshot",
+            },
+        ],
+    })
 }
 
 async fn run_ingest_loop(
@@ -768,6 +821,23 @@ fn sanitize_requested_filename(raw: &str) -> Option<String> {
     Some(trimmed.to_string())
 }
 
+fn file_download_url(filename: &str) -> String {
+    format!("/files/{}", percent_encode(filename))
+}
+
+fn percent_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for b in input.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(b));
+        } else {
+            out.push('%');
+            out.push_str(&format!("{b:02X}"));
+        }
+    }
+    out
+}
+
 fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(String, u16)>> {
     if raw_servers.is_empty() {
         return Ok(vec![
@@ -986,6 +1056,33 @@ mod tests {
         assert_eq!(&body[..], b"hello world");
     }
 
+    #[tokio::test]
+    async fn root_endpoint_lists_available_routes() {
+        let state = test_state(10);
+        let app = build_router(state, None).expect("router should build");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .method("GET")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
+        assert!(body_text.contains("\"/events?filter=*.TXT\""));
+        assert!(body_text.contains("\"/files\""));
+        assert!(body_text.contains("\"/health\""));
+        assert!(body_text.contains("\"/metrics\""));
+    }
+
     #[test]
     fn events_filter_only_allows_matching_filenames() {
         let txt = EventKind::FileComplete {
@@ -1001,5 +1098,16 @@ mod tests {
         assert!(event_matches_filter(Some("*.txt"), &txt));
         assert!(!event_matches_filter(Some("*.txt"), &zip));
         assert!(event_matches_filter(Some("*.txt"), &telemetry));
+    }
+
+    #[test]
+    fn file_complete_event_includes_download_url() {
+        let value = EventKind::FileComplete {
+            filename: "nested/my file.txt".to_string(),
+            size: 11,
+        }
+        .to_json();
+
+        assert_eq!(value["download_url"], "/files/nested%2Fmy%20file.txt");
     }
 }

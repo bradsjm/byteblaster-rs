@@ -80,15 +80,31 @@ async fn run_live_mode(format: OutputFormat, live: crate::LiveOptions) -> anyhow
                 if matches!(format, OutputFormat::Text) {
                     emit_text_line(&event_to_text(&frame));
                 }
+                if let FrameEvent::ServerListUpdate(list) = &frame {
+                    connection_events.push(serde_json::json!({
+                        "type": "server_list_update",
+                        "servers": list.servers,
+                        "sat_servers": list.sat_servers,
+                    }));
+                    if matches!(format, OutputFormat::Text) {
+                        emit_text_line("server list update received");
+                    }
+                }
                 payload.push(event_to_json(&frame));
             }
             Ok(ClientEvent::Connected(endpoint)) => {
+                if matches!(format, OutputFormat::Text) {
+                    emit_text_line(&format!("connected to {endpoint}"));
+                }
                 connection_events.push(serde_json::json!({
                     "type":"connected",
                     "endpoint": endpoint,
                 }));
             }
             Ok(ClientEvent::Disconnected) => {
+                if matches!(format, OutputFormat::Text) {
+                    emit_text_line("disconnected; switching server");
+                }
                 connection_events.push(serde_json::json!({
                     "type":"disconnected",
                 }));

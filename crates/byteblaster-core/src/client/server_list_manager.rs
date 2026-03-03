@@ -2,8 +2,11 @@ use crate::error::{CoreError, CoreResult};
 use crate::protocol::model::ServerList;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::collections::hash_map::RandomState;
 use std::fs;
+use std::hash::{BuildHasher, Hasher};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
 pub struct ServerListManager {
@@ -29,7 +32,7 @@ impl ServerListManager {
                 sat_servers: Vec::new(),
             },
             available: VecDeque::new(),
-            shuffle_nonce: 0,
+            shuffle_nonce: entropy_seed(),
         };
         manager.rebuild_available();
         manager
@@ -93,6 +96,7 @@ impl ServerListManager {
         let mut combined = self.current.servers.clone();
         combined.extend(self.current.sat_servers.iter().cloned());
         sort_dedup_endpoints(&mut combined);
+        self.shuffle_nonce ^= entropy_seed();
         self.shuffle_endpoints(&mut combined);
         self.available = VecDeque::from(combined);
     }
@@ -118,6 +122,17 @@ impl ServerListManager {
 fn sort_dedup_endpoints(endpoints: &mut Vec<(String, u16)>) {
     endpoints.sort_unstable();
     endpoints.dedup();
+}
+
+fn entropy_seed() -> u64 {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos() as u64)
+        .unwrap_or(0);
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u64(nanos);
+    hasher.write_u64(std::process::id() as u64);
+    hasher.finish()
 }
 
 fn save_atomic(path: &Path, server_list: &ServerList) -> CoreResult<()> {

@@ -47,8 +47,20 @@ Live stream/download mode:
 
 ```bash
 cargo run -p byteblaster-cli -- --format json stream --email you@example.com --max-events 100
+cargo run -p byteblaster-cli -- --format text stream --output-dir ./out --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- --format text download ./out --email you@example.com --idle-timeout-secs 30
 ```
+
+Optional stream file writing:
+
+- `stream --output-dir <PATH>` writes each completed assembled file while still emitting stream events.
+- Applies to both capture mode (`stream <capture.bin>`) and live mode (`stream --email ...`).
+- JSON stream output includes `written_files` when `--output-dir` is used.
+
+CLI logging format:
+
+- Human-readable diagnostics use colorized level tags (for example `[OK]`, `[INFO]`, `[WARN]`, `[ERROR]`, `[STATS]`).
+- Command payloads remain on `stdout`; diagnostics/logging remain on `stderr`.
 
 Live server mode (SSE + JSON endpoints):
 

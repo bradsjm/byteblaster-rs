@@ -124,3 +124,52 @@ fn cli_download_writes_files() {
     let expected = out_dir.path().join("out.txt");
     assert!(expected.exists(), "output file should exist");
 }
+
+#[test]
+fn cli_stream_optional_output_dir_writes_completed_files() {
+    let mut fixture = tempfile::NamedTempFile::new().expect("temp file should create");
+    let body = [b'Y'; 1024];
+    let checksum = body.iter().map(|v| *v as u32).sum::<u32>() & 0xFFFF;
+
+    let mut header =
+        format!("/PFstream.txt /PN 1 /PT 1 /CS {checksum} /FD01/01/2024 01:00:00 AM\r\n");
+    while header.len() < 80 {
+        header.push(' ');
+    }
+
+    let mut decoded = Vec::new();
+    decoded.extend_from_slice(b"\0\0\0\0\0\0");
+    decoded.extend_from_slice(&header.as_bytes()[..80]);
+    decoded.extend_from_slice(&body);
+    let wire = xor_encode(&decoded);
+    fixture
+        .write_all(&wire)
+        .expect("fixture write should succeed");
+
+    let out_dir = tempfile::tempdir().expect("temp dir should create");
+
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "stream",
+            "--output-dir",
+            out_dir.path().to_string_lossy().as_ref(),
+            fixture.path().to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("command should run");
+    assert!(output.status.success(), "command should succeed");
+
+    assert!(output.stderr.is_empty(), "stderr must be empty");
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be valid utf8");
+    let parsed: Value = serde_json::from_str(stdout.trim()).expect("stdout must be valid json");
+
+    assert_eq!(parsed["command"], "stream");
+    assert_eq!(parsed["status"], "ok");
+    assert_eq!(parsed["written_files"].as_array().map(|v| v.len()), Some(1));
+
+    let expected = out_dir.path().join("stream.txt");
+    assert!(expected.exists(), "output file should exist");
+}

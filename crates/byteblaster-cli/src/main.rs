@@ -30,13 +30,15 @@ enum Commands {
     Stream {
         input: Option<String>,
         #[arg(long)]
+        output_dir: Option<String>,
+        #[arg(long)]
         email: Option<String>,
         #[arg(long = "server", value_delimiter = ',')]
         servers: Vec<String>,
         #[arg(long)]
         server_list_path: Option<String>,
-        #[arg(long, default_value_t = 200)]
-        max_events: usize,
+        #[arg(long)]
+        max_events: Option<usize>,
         #[arg(long, default_value_t = 20)]
         idle_timeout_secs: u64,
     },
@@ -124,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Stream {
             input,
+            output_dir,
             email,
             servers,
             server_list_path,
@@ -134,10 +137,10 @@ async fn main() -> anyhow::Result<()> {
                 email,
                 servers,
                 server_list_path,
-                max_events,
+                max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
             };
-            cmd::stream::run(format, input, live, text_preview_chars).await
+            cmd::stream::run(format, input, output_dir, live, text_preview_chars).await
         }
         Commands::Download {
             output_dir,

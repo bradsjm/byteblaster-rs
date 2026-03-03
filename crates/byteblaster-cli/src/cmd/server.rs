@@ -1,3 +1,4 @@
+use super::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::output::{label_error, label_info, label_ok, label_stats, label_warn};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
@@ -35,32 +36,12 @@ struct BroadcastEvent {
 
 #[derive(Debug, Clone)]
 enum EventKind {
-    Connected {
-        endpoint: String,
-    },
+    Connected { endpoint: String },
     Disconnected,
-    DataBlock {
-        filename: String,
-        block_number: u32,
-        total_blocks: u32,
-        length: usize,
-        version: String,
-    },
-    FileComplete {
-        filename: String,
-        size: usize,
-    },
-    ServerList {
-        servers: Vec<(String, u16)>,
-        sat_servers: Vec<(String, u16)>,
-    },
+    Frame(FrameEvent),
+    FileComplete { filename: String, size: usize },
     Telemetry(ClientTelemetrySnapshot),
-    Warning {
-        warning: String,
-    },
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 impl EventKind {
@@ -68,20 +49,17 @@ impl EventKind {
         match self {
             Self::Connected { .. } => "connected",
             Self::Disconnected => "disconnected",
-            Self::DataBlock { .. } => "data_block",
+            Self::Frame(frame) => frame_event_name(frame),
             Self::FileComplete { .. } => "file_complete",
-            Self::ServerList { .. } => "server_list",
             Self::Telemetry(_) => "telemetry",
-            Self::Warning { .. } => "warning",
             Self::Error { .. } => "error",
         }
     }
 
     fn filename(&self) -> Option<&str> {
         match self {
-            Self::DataBlock { filename, .. } | Self::FileComplete { filename, .. } => {
-                Some(filename.as_str())
-            }
+            Self::Frame(frame) => frame_event_filename(frame),
+            Self::FileComplete { filename, .. } => Some(filename.as_str()),
             _ => None,
         }
     }
@@ -90,32 +68,12 @@ impl EventKind {
         match self {
             Self::Connected { endpoint } => serde_json::json!({ "endpoint": endpoint }),
             Self::Disconnected => serde_json::json!({}),
-            Self::DataBlock {
-                filename,
-                block_number,
-                total_blocks,
-                length,
-                version,
-            } => serde_json::json!({
-                "filename": filename,
-                "block_number": block_number,
-                "total_blocks": total_blocks,
-                "length": length,
-                "version": version,
-            }),
+            Self::Frame(frame) => frame_event_to_json(frame, 0),
             Self::FileComplete { filename, size } => serde_json::json!({
                 "filename": filename,
                 "size": size,
             }),
-            Self::ServerList {
-                servers,
-                sat_servers,
-            } => serde_json::json!({
-                "servers": servers,
-                "sat_servers": sat_servers,
-            }),
             Self::Telemetry(snapshot) => serde_json::json!(snapshot),
-            Self::Warning { warning } => serde_json::json!({ "warning": warning }),
             Self::Error { message } => serde_json::json!({ "message": message }),
         }
     }
@@ -231,6 +189,9 @@ struct AppState {
     connected_clients: AtomicUsize,
     max_clients: usize,
     next_event_id: AtomicU64,
+    data_blocks_total: AtomicU64,
+    current_servers: AtomicUsize,
+    current_sat_servers: AtomicUsize,
     started_at: Instant,
     upstream_endpoint: Mutex<Option<String>>,
     quiet: bool,
@@ -291,6 +252,9 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         connected_clients: AtomicUsize::new(0),
         max_clients: options.max_clients.max(1),
         next_event_id: AtomicU64::new(1),
+        data_blocks_total: AtomicU64::new(0),
+        current_servers: AtomicUsize::new(0),
+        current_sat_servers: AtomicUsize::new(0),
         started_at: Instant::now(),
         upstream_endpoint: Mutex::new(None),
         quiet: options.quiet,
@@ -456,16 +420,10 @@ fn handle_client_event(
         }
         Ok(ClientEvent::Frame(frame)) => match frame {
             FrameEvent::DataBlock(segment) => {
-                let segment_for_event = segment.clone();
+                state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
                 publish(
                     state,
-                    EventKind::DataBlock {
-                        filename: segment_for_event.filename,
-                        block_number: segment_for_event.block_number,
-                        total_blocks: segment_for_event.total_blocks,
-                        length: segment_for_event.content.len(),
-                        version: format!("{:?}", segment_for_event.version),
-                    },
+                    EventKind::Frame(FrameEvent::DataBlock(segment.clone())),
                 );
 
                 if let Ok(Some(file)) = assembler.push(segment) {
@@ -496,21 +454,25 @@ fn handle_client_event(
                 }
             }
             FrameEvent::ServerListUpdate(list) => {
-                publish(
-                    state,
-                    EventKind::ServerList {
-                        servers: list.servers,
-                        sat_servers: list.sat_servers,
-                    },
+                state
+                    .current_servers
+                    .store(list.servers.len(), Ordering::Relaxed);
+                state
+                    .current_sat_servers
+                    .store(list.sat_servers.len(), Ordering::Relaxed);
+                log_info(
+                    state.quiet,
+                    &format!(
+                        "{} server list received servers={} sat_servers={}",
+                        label_info(),
+                        list.servers.len(),
+                        list.sat_servers.len()
+                    ),
                 );
+                publish(state, EventKind::Frame(FrameEvent::ServerListUpdate(list)));
             }
             FrameEvent::Warning(warning) => {
-                publish(
-                    state,
-                    EventKind::Warning {
-                        warning: format!("{warning:?}"),
-                    },
-                );
+                publish(state, EventKind::Frame(FrameEvent::Warning(warning)));
             }
             _ => {}
         },
@@ -566,14 +528,25 @@ async fn run_stats_loop(
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .len();
+                let data_blocks = state.data_blocks_total.load(Ordering::Relaxed);
+                let servers = state.current_servers.load(Ordering::Relaxed);
+                let sat_servers = state.current_sat_servers.load(Ordering::Relaxed);
 
                 let uptime = state.started_at.elapsed().as_secs();
                 eprintln!(
-                    "{} uptime={}s bytes_in={} frames={} files={} clients={} upstream={}",
+                    "{} uptime={}s bytes_in={} frames={} data_blocks={} drops={} server_lists={} servers={} sat_servers={} auth_logons={} watchdog_timeouts={} watchdog_exceptions={} files={} clients={} upstream={}",
                     label_stats(),
                     uptime,
                     telemetry.bytes_in_total,
                     telemetry.frame_events_total,
+                    data_blocks,
+                    telemetry.event_queue_drop_total,
+                    telemetry.server_list_updates_total,
+                    servers,
+                    sat_servers,
+                    telemetry.auth_logon_sent_total,
+                    telemetry.watchdog_timeouts_total,
+                    telemetry.watchdog_exception_events_total,
                     files,
                     clients,
                     endpoint.unwrap_or_else(|| "disconnected".to_string())
@@ -915,6 +888,9 @@ mod tests {
             connected_clients: AtomicUsize::new(0),
             max_clients,
             next_event_id: AtomicU64::new(1),
+            data_blocks_total: AtomicU64::new(0),
+            current_servers: AtomicUsize::new(0),
+            current_sat_servers: AtomicUsize::new(0),
             started_at: Instant::now(),
             upstream_endpoint: std::sync::Mutex::new(None),
             quiet: true,

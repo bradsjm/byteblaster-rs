@@ -9,8 +9,9 @@ rust-version = "1.85"
 license = "MIT"
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
 bytes = { version = "1", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"
@@ -23,6 +24,9 @@ flate2 = "1"
 futures = "0.3"
 regex = "1"
 time = { version = "0.3", features = ["parsing", "macros"] }
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors"] }
+tower = "0.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

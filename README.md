@@ -17,7 +17,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - Client connection loop with reconnect/backoff, auth ticker, watchdog, and handler isolation
 - Server-list parsing and persisted lifecycle management
 - File assembly with duplicate suppression
-- CLI commands for stream, download, and inspect flows
+- CLI commands for stream, download, inspect, and server flows
 
 ## Rust/toolchain
 
@@ -49,6 +49,29 @@ Live stream/download mode:
 cargo run -p byteblaster-cli -- --format json stream --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- --format text download ./out --email you@example.com --idle-timeout-secs 30
 ```
+
+Live server mode (SSE + JSON endpoints):
+
+```bash
+cargo run -p byteblaster-cli -- server --email you@example.com --bind 127.0.0.1:8080
+```
+
+Useful server flags:
+
+- `--stats-interval-secs 30` (set `0` to disable periodic stats logging)
+- `--quiet` (suppress non-error logs)
+- `--max-clients 100` (cap concurrent SSE clients)
+- `--file-retention-secs 300` (in-memory completed-file TTL)
+- `--max-retained-files 1000` (in-memory completed-file capacity)
+- `--cors-origin "*"` or `--cors-origin "https://your-ui.example"`
+
+Server endpoints:
+
+- `GET /events?filter=*.TXT` - SSE event stream with wildcard filename filter (`*`, case-insensitive)
+- `GET /files` - retained completed-file metadata
+- `GET /files/*filename` - retained file download (URL-encoded path segment)
+- `GET /health` - server health summary
+- `GET /metrics` - JSON telemetry snapshot
 
 Optional live-mode endpoint/persistence overrides:
 

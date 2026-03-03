@@ -12,6 +12,7 @@ pub async fn run(
     output_dir: String,
     input: Option<String>,
     live: crate::LiveOptions,
+    _text_preview_chars: usize,
 ) -> anyhow::Result<()> {
     if let Some(input_path) = input {
         return run_capture_mode(format, &output_dir, &input_path);

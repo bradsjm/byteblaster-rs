@@ -1,4 +1,6 @@
-use crate::output::{OutputFormat, emit_json_line, emit_text_line};
+use crate::output::{
+    OutputFormat, emit_json_line, emit_text_line, style_dim, style_meta, style_ok, style_warn,
+};
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FrameDecoder, FrameEvent,
     ProtocolDecoder, parse_server,
@@ -11,15 +13,20 @@ pub async fn run(
     format: OutputFormat,
     input: Option<String>,
     live: crate::LiveOptions,
+    text_preview_chars: usize,
 ) -> anyhow::Result<()> {
     if let Some(input_path) = input {
-        return run_capture_mode(format, &input_path);
+        return run_capture_mode(format, &input_path, text_preview_chars);
     }
 
-    run_live_mode(format, live).await
+    run_live_mode(format, live, text_preview_chars).await
 }
 
-fn run_capture_mode(format: OutputFormat, input_path: &str) -> anyhow::Result<()> {
+fn run_capture_mode(
+    format: OutputFormat,
+    input_path: &str,
+    text_preview_chars: usize,
+) -> anyhow::Result<()> {
     let bytes = std::fs::read(input_path)?;
 
     let mut decoder = ProtocolDecoder::default();
@@ -28,21 +35,32 @@ fn run_capture_mode(format: OutputFormat, input_path: &str) -> anyhow::Result<()
     match format {
         OutputFormat::Text => {
             for event in &events {
-                emit_text_line(&event_to_text(event));
+                emit_text_line(&event_to_text(event, text_preview_chars));
             }
-            emit_text_line(&format!("stream ok: {} event(s)", events.len()));
+            emit_text_line(&format!(
+                "{} {} event(s)",
+                style_ok("stream ok:"),
+                events.len()
+            ));
         }
         OutputFormat::Json => emit_json_line(&serde_json::json!({
             "command":"stream",
             "status":"ok",
             "event_count": events.len(),
-            "events": events.iter().map(event_to_json).collect::<Vec<_>>()
+            "events": events
+                .iter()
+                .map(|event| event_to_json(event, text_preview_chars))
+                .collect::<Vec<_>>()
         }))?,
     }
     Ok(())
 }
 
-async fn run_live_mode(format: OutputFormat, live: crate::LiveOptions) -> anyhow::Result<()> {
+async fn run_live_mode(
+    format: OutputFormat,
+    live: crate::LiveOptions,
+    text_preview_chars: usize,
+) -> anyhow::Result<()> {
     let email = live
         .email
         .ok_or_else(|| anyhow::anyhow!("live mode requires --email"))?;
@@ -78,7 +96,7 @@ async fn run_live_mode(format: OutputFormat, live: crate::LiveOptions) -> anyhow
             Ok(ClientEvent::Frame(frame)) => {
                 seen += 1;
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&event_to_text(&frame));
+                    emit_text_line(&event_to_text(&frame, text_preview_chars));
                 }
                 if let FrameEvent::ServerListUpdate(list) = &frame {
                     connection_events.push(serde_json::json!({
@@ -87,49 +105,69 @@ async fn run_live_mode(format: OutputFormat, live: crate::LiveOptions) -> anyhow
                         "sat_servers": list.sat_servers,
                     }));
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line("server list update received");
+                        emit_text_line(&format!(
+                            "{} servers={} sat_servers={}",
+                            style_meta("server list update received"),
+                            list.servers.len(),
+                            list.sat_servers.len()
+                        ));
                     }
                 }
-                payload.push(event_to_json(&frame));
+                if matches!(format, OutputFormat::Json) {
+                    payload.push(event_to_json(&frame, text_preview_chars));
+                }
             }
             Ok(ClientEvent::Connected(endpoint)) => {
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&format!("connected to {endpoint}"));
+                    emit_text_line(&format!("{} {endpoint}", style_ok("connected to")));
                 }
-                connection_events.push(serde_json::json!({
+                let event = serde_json::json!({
                     "type":"connected",
                     "endpoint": endpoint,
-                }));
+                });
+                if matches!(format, OutputFormat::Json) {
+                    connection_events.push(event);
+                }
             }
             Ok(ClientEvent::Disconnected) => {
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line("disconnected; switching server");
+                    emit_text_line(&style_warn("disconnected; switching server"));
                 }
-                connection_events.push(serde_json::json!({
+                let event = serde_json::json!({
                     "type":"disconnected",
-                }));
+                });
+                if matches!(format, OutputFormat::Json) {
+                    connection_events.push(event);
+                }
             }
             Ok(ClientEvent::Telemetry(snapshot)) => {
                 seen += 1;
                 if matches!(format, OutputFormat::Text) {
                     emit_text_line(&format!(
-                        "telemetry bytes_in={} frames={} drops={}",
+                        "{} bytes_in={} frames={} drops={}",
+                        style_dim("telemetry"),
                         snapshot.bytes_in_total,
                         snapshot.frame_events_total,
                         snapshot.event_queue_drop_total
                     ));
                 }
-                connection_events.push(serde_json::json!({
+                let event = serde_json::json!({
                     "type":"telemetry",
                     "snapshot": snapshot,
-                }));
+                });
+                if matches!(format, OutputFormat::Json) {
+                    connection_events.push(event);
+                }
             }
             Ok(_) => {}
             Err(err) => {
-                connection_events.push(serde_json::json!({
+                let event = serde_json::json!({
                     "type":"error",
                     "error": err.to_string(),
-                }));
+                });
+                if matches!(format, OutputFormat::Json) {
+                    connection_events.push(event);
+                }
             }
         }
     }
@@ -139,7 +177,11 @@ async fn run_live_mode(format: OutputFormat, live: crate::LiveOptions) -> anyhow
 
     match format {
         OutputFormat::Text => {
-            emit_text_line(&format!("stream live ok: {} event(s)", payload.len()));
+            emit_text_line(&format!(
+                "{} {} event(s)",
+                style_ok("stream live ok:"),
+                payload.len()
+            ));
         }
         OutputFormat::Json => emit_json_line(&serde_json::json!({
             "command":"stream",
@@ -174,35 +216,49 @@ fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(Strin
         .collect()
 }
 
-fn event_to_text(event: &FrameEvent) -> String {
+fn event_to_text(event: &FrameEvent, text_preview_chars: usize) -> String {
     match event {
-        FrameEvent::DataBlock(seg) => format!(
-            "data_block file={} block={}/{} bytes={}",
-            seg.filename,
-            seg.block_number,
-            seg.total_blocks,
-            seg.content.len()
-        ),
+        FrameEvent::DataBlock(seg) => {
+            let mut line = format!(
+                "{} file={} block={}/{} bytes={}",
+                style_meta("data_block"),
+                seg.filename,
+                seg.block_number,
+                seg.total_blocks,
+                seg.content.len()
+            );
+            if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
+                line.push_str(&format!(" preview={preview:?}"));
+            }
+            line
+        }
         FrameEvent::ServerListUpdate(list) => format!(
-            "server_list servers={} sat_servers={}",
+            "{} servers={} sat_servers={}",
+            style_meta("server_list"),
             list.servers.len(),
             list.sat_servers.len()
         ),
-        FrameEvent::Warning(warning) => format!("warning {:?}", warning),
+        FrameEvent::Warning(warning) => format!("{} {:?}", style_warn("warning"), warning),
         _ => "unknown".to_string(),
     }
 }
 
-fn event_to_json(event: &FrameEvent) -> serde_json::Value {
+fn event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::Value {
     match event {
-        FrameEvent::DataBlock(seg) => serde_json::json!({
-            "type":"data_block",
-            "filename":seg.filename,
-            "block_number":seg.block_number,
-            "total_blocks":seg.total_blocks,
-            "length":seg.content.len(),
-            "version": format!("{:?}", seg.version),
-        }),
+        FrameEvent::DataBlock(seg) => {
+            let mut value = serde_json::json!({
+                "type":"data_block",
+                "filename":seg.filename,
+                "block_number":seg.block_number,
+                "total_blocks":seg.total_blocks,
+                "length":seg.content.len(),
+                "version": format!("{:?}", seg.version),
+            });
+            if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
+                value["preview"] = serde_json::Value::String(preview);
+            }
+            value
+        }
         FrameEvent::ServerListUpdate(list) => serde_json::json!({
             "type":"server_list",
             "servers": list.servers,
@@ -216,4 +272,39 @@ fn event_to_json(event: &FrameEvent) -> serde_json::Value {
             "type":"unknown",
         }),
     }
+}
+
+fn text_preview(filename: &str, bytes: &[u8], max_chars: usize) -> Option<String> {
+    if max_chars == 0 || !is_text_like(filename) {
+        return None;
+    }
+
+    let mut normalized = String::new();
+    for ch in String::from_utf8_lossy(bytes).chars() {
+        if normalized.chars().count() >= max_chars {
+            break;
+        }
+        if ch.is_control() {
+            if ch == '\n' || ch == '\r' || ch == '\t' {
+                normalized.push(' ');
+            }
+            continue;
+        }
+        normalized.push(ch);
+    }
+
+    let normalized = normalized.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn is_text_like(filename: &str) -> bool {
+    let upper = filename.to_ascii_uppercase();
+    upper.ends_with(".TXT")
+        || upper.ends_with(".WMO")
+        || upper.ends_with(".XML")
+        || upper.ends_with(".JSON")
 }

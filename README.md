@@ -34,6 +34,51 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+## Install
+
+Install latest release via script:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bradsjm/byteblaster-rs/releases/latest/download/byteblaster-cli-installer.sh | sh
+```
+
+Run via Docker (no local Rust toolchain required):
+
+```bash
+docker run --rm ghcr.io/bradsjm/byteblaster-rs:latest --help
+docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs:latest --format json inspect /work/path/to/capture.bin
+```
+
+## Use `byteblaster-core` in your app
+
+Add the crate from this monorepo:
+
+```toml
+[dependencies]
+byteblaster-core = { git = "https://github.com/bradsjm/byteblaster-rs", tag = "v0.1.0", package = "byteblaster-core" }
+```
+
+Use stable top-level exports from the crate root:
+
+```rust
+use byteblaster_core::{ClientConfig, ProtocolDecoder};
+
+fn main() {
+    let _config = ClientConfig::default();
+
+    let mut decoder = ProtocolDecoder::default();
+    let events = decoder.feed(&[]).expect("decode should not fail");
+    println!("decoded {} event(s)", events.len());
+}
+```
+
+For active development against local changes, use a path dependency instead:
+
+```toml
+[dependencies]
+byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
+```
+
 ## Quick start
 
 Capture-file decode:
@@ -90,18 +135,3 @@ Optional live-mode endpoint/persistence overrides:
 
 - `--server host:port` (repeatable or comma-delimited)
 - `--server-list-path ./servers.json`
-
-## Governance
-
-- Treat `docs/protocol.md` as the source of truth for protocol behavior.
-- Any protocol behavior change must update:
-  - implementation
-  - tests
-  - `docs/protocol.md`
-
-## Public API Compatibility
-
-- Stable API is provided by root-level re-exports in `byteblaster_core`.
-- `byteblaster_core::unstable` has no compatibility guarantees and may change at any time.
-- Public enums/structs marked `#[non_exhaustive]` must be matched with wildcard arms by consumers.
-- Telemetry serde support is optional and enabled via the `telemetry-serde` crate feature.

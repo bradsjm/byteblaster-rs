@@ -1,12 +1,53 @@
+//! Server list parsing for ByteBlaster protocol.
+//!
+//! This module handles parsing of server list frames received from
+//! the ByteBlaster servers, including both primary and satellite servers.
+
 use crate::error::ProtocolError;
 use crate::protocol::model::{ProtocolWarning, ServerList};
 
+/// Parses a single server endpoint from a string.
+///
+/// Expected format: `host:port`
+///
+/// # Arguments
+///
+/// * `input` - The server string to parse
+///
+/// # Returns
+///
+/// `Some((host, port))` if parsing succeeds, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use byteblaster_core::parse_server;
+///
+/// let result = parse_server("example.com:2211");
+/// assert_eq!(result, Some(("example.com".to_string(), 2211)));
+/// ```
 pub fn parse_server(input: &str) -> Option<(String, u16)> {
     let (host, port) = input.rsplit_once(':')?;
     let parsed_port = port.parse::<u16>().ok()?;
     Some((host.to_string(), parsed_port))
 }
 
+/// Parses a complete server list frame.
+///
+/// Server list frames have the format:
+/// `/ServerList/host1:port1|host2:port2\ServerList\/SatServers/sat1:port1+sat2:port2\SatServers\`
+///
+/// # Arguments
+///
+/// * `content` - The frame content to parse
+///
+/// # Returns
+///
+/// A tuple of (ServerList, warnings) on success
+///
+/// # Errors
+///
+/// Returns `ProtocolError::UnsupportedFrame` if the content doesn't start with `/ServerList/`
 pub fn parse_server_list_frame(
     content: &str,
 ) -> Result<(ServerList, Vec<ProtocolWarning>), ProtocolError> {
@@ -47,6 +88,7 @@ pub fn parse_server_list_frame(
     Ok((out, warnings))
 }
 
+/// Parses a list of server entries separated by a delimiter.
 fn parse_list_entries(
     input: &str,
     delimiter: char,
@@ -68,6 +110,10 @@ fn parse_list_entries(
         .collect()
 }
 
+/// Parses a server list frame, returning an empty list on failure.
+///
+/// This is a convenience function that discards warnings and returns
+/// an empty ServerList on parse failure.
 pub fn parse_simple_server_list(content: &str) -> ServerList {
     parse_server_list_frame(content)
         .map(|(list, _warnings)| list)

@@ -1,6 +1,20 @@
+//! Event output formatting utilities.
+//!
+//! This module provides functions for converting frame events to text and JSON
+//! representations for CLI output.
+
 use crate::output::{label_event, label_warn};
 use byteblaster_core::FrameEvent;
 
+/// Returns the event type name for a frame event.
+///
+/// # Arguments
+///
+/// * `event` - The frame event to get the name for
+///
+/// # Returns
+///
+/// A static string representing the event type
 pub fn frame_event_name(event: &FrameEvent) -> &'static str {
     match event {
         FrameEvent::DataBlock(_) => "data_block",
@@ -10,6 +24,15 @@ pub fn frame_event_name(event: &FrameEvent) -> &'static str {
     }
 }
 
+/// Returns the filename associated with a frame event, if any.
+///
+/// # Arguments
+///
+/// * `event` - The frame event to extract the filename from
+///
+/// # Returns
+///
+/// The filename if the event is a data block, None otherwise
 pub fn frame_event_filename(event: &FrameEvent) -> Option<&str> {
     match event {
         FrameEvent::DataBlock(seg) => Some(seg.filename.as_str()),
@@ -17,6 +40,16 @@ pub fn frame_event_filename(event: &FrameEvent) -> Option<&str> {
     }
 }
 
+/// Converts a frame event to a human-readable text representation.
+///
+/// # Arguments
+///
+/// * `event` - The frame event to convert
+/// * `text_preview_chars` - Maximum characters for content preview
+///
+/// # Returns
+///
+/// A formatted string suitable for text output
 pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> String {
     match event {
         FrameEvent::DataBlock(seg) => {
@@ -44,6 +77,16 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
     }
 }
 
+/// Converts a frame event to a JSON representation.
+///
+/// # Arguments
+///
+/// * `event` - The frame event to convert
+/// * `text_preview_chars` - Maximum characters for content preview
+///
+/// # Returns
+///
+/// A JSON value representing the event
 pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::Value {
     match event {
         FrameEvent::DataBlock(seg) => {
@@ -75,6 +118,17 @@ pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> ser
     }
 }
 
+/// Generates a text preview for text-like files.
+///
+/// # Arguments
+///
+/// * `filename` - The filename to check for text-like extension
+/// * `bytes` - The content bytes to preview
+/// * `max_chars` - Maximum characters in the preview
+///
+/// # Returns
+///
+/// A cleaned preview string, or None if not applicable
 pub fn text_preview(filename: &str, bytes: &[u8], max_chars: usize) -> Option<String> {
     if max_chars == 0 || !is_text_like(filename) {
         return None;
@@ -102,6 +156,7 @@ pub fn text_preview(filename: &str, bytes: &[u8], max_chars: usize) -> Option<St
     }
 }
 
+/// Checks if a filename indicates a text-like file type.
 fn is_text_like(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     upper.ends_with(".TXT")

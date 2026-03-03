@@ -1,7 +1,26 @@
+//! Inspect command for decoding capture files.
+//!
+//! This module provides functionality to read and decode ByteBlaster
+//! capture files, outputting the decoded events in text or JSON format.
+
 use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder};
 use std::io::Read;
 
+/// Runs the inspect command.
+///
+/// Reads a capture file (or stdin) and decodes all frames, outputting
+/// the results in the specified format.
+///
+/// # Arguments
+///
+/// * `format` - Output format (text or JSON)
+/// * `input` - Optional path to capture file (reads stdin if None)
+/// * `text_preview_chars` - Maximum characters for text content preview
+///
+/// # Returns
+///
+/// Ok on success, or an error if reading/decoding fails
 pub async fn run(
     format: OutputFormat,
     input: Option<String>,
@@ -37,6 +56,7 @@ pub async fn run(
     Ok(())
 }
 
+/// Reads input from a file path or stdin.
 fn read_input(path: Option<&str>) -> anyhow::Result<Vec<u8>> {
     if let Some(path) = path {
         return Ok(std::fs::read(path)?);
@@ -47,6 +67,7 @@ fn read_input(path: Option<&str>) -> anyhow::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Converts a frame event to JSON representation.
 fn event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::Value {
     match event {
         FrameEvent::DataBlock(seg) => {
@@ -78,6 +99,7 @@ fn event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::V
     }
 }
 
+/// Generates a text preview for text-like files.
 fn text_preview(filename: &str, bytes: &[u8], max_chars: usize) -> Option<String> {
     if max_chars == 0 || !is_text_like(filename) {
         return None;
@@ -105,6 +127,7 @@ fn text_preview(filename: &str, bytes: &[u8], max_chars: usize) -> Option<String
     }
 }
 
+/// Checks if a filename indicates a text-like file type.
 fn is_text_like(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     upper.ends_with(".TXT")

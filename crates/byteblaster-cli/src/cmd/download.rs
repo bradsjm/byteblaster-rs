@@ -1,3 +1,8 @@
+//! Download command for file retrieval and assembly.
+//!
+//! This module provides functionality to download and assemble files from
+//! capture files or live ByteBlaster servers.
+
 use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok, label_warn};
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
@@ -7,6 +12,22 @@ use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+/// Runs the download command.
+///
+/// Downloads and assembles files from a capture file or live server
+/// into the specified output directory.
+///
+/// # Arguments
+///
+/// * `format` - Output format for status messages
+/// * `output_dir` - Directory to write completed files
+/// * `input` - Optional path to capture file (live mode if None)
+/// * `live` - Live mode connection options
+/// * `_text_preview_chars` - Unused (for API compatibility)
+///
+/// # Returns
+///
+/// Ok on success, or an error if the operation fails
 pub async fn run(
     format: OutputFormat,
     output_dir: String,

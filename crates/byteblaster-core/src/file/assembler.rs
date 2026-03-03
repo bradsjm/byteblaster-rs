@@ -1,41 +1,87 @@
+//! File assembly from ByteBlaster protocol segments.
+//!
+//! This module provides functionality for assembling complete files from
+//! individual data segments received over the ByteBlaster protocol.
+
 use crate::error::CoreError;
 use crate::protocol::model::QbtSegment;
 use bytes::Bytes;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
+/// Default maximum number of files being assembled concurrently.
 const DEFAULT_MAX_INFLIGHT_FILES: usize = 256;
+
+/// Default TTL for inflight file entries (in seconds).
 const DEFAULT_INFLIGHT_TTL_SECS: u64 = 90;
 
+/// A completed file with its filename and data.
 #[derive(Debug, Clone)]
 pub struct CompletedFile {
+    /// The filename of the completed file.
     pub filename: String,
+    /// The complete file data.
     pub data: Bytes,
 }
 
+/// Trait for segment assemblers that can collect and assemble file segments.
 pub trait SegmentAssembler {
+    /// Pushes a segment into the assembler.
+    ///
+    /// # Arguments
+    ///
+    /// * `segment` - The segment to add
+    ///
+    /// # Returns
+    ///
+    /// `Some(CompletedFile)` if this segment completes a file, `None` otherwise
     fn push(&mut self, segment: QbtSegment) -> Result<Option<CompletedFile>, CoreError>;
+
+    /// Clears all in-progress and completed files.
     fn clear(&mut self);
 }
 
+/// File assembler that collects segments and produces complete files.
+///
+/// This assembler:
+/// - Tracks in-progress files by filename and timestamp
+/// - Handles out-of-order segment arrival
+/// - Suppresses duplicate completed files
+/// - Evicts stale entries based on TTL
+/// - Limits concurrent inflight files
 #[derive(Debug, Default)]
 pub struct FileAssembler {
+    /// Inflight files being assembled, keyed by file_key().
     by_key: HashMap<String, InflightFile>,
+    /// Recently completed file keys (for duplicate suppression).
     completed_recent: VecDeque<String>,
+    /// Set of completed file keys for fast lookup.
     completed_index: HashSet<String>,
+    /// Maximum number of completed files to remember.
     duplicate_cache_size: usize,
+    /// Maximum number of concurrent inflight files.
     max_inflight_files: usize,
+    /// TTL for inflight file entries.
     inflight_ttl: Duration,
 }
 
+/// Inflight file being assembled from segments.
 #[derive(Debug)]
 struct InflightFile {
+    /// Total number of blocks expected.
     total_blocks: u32,
+    /// Received blocks keyed by block number.
     parts: BTreeMap<u32, QbtSegment>,
+    /// Last time a segment was received for this file.
     last_seen: Instant,
 }
 
 impl FileAssembler {
+    /// Creates a new file assembler with default limits.
+    ///
+    /// # Arguments
+    ///
+    /// * `duplicate_cache_size` - Number of completed files to remember for duplicate suppression
     pub fn new(duplicate_cache_size: usize) -> Self {
         Self::with_limits(
             duplicate_cache_size,
@@ -44,6 +90,13 @@ impl FileAssembler {
         )
     }
 
+    /// Creates a new file assembler with custom limits.
+    ///
+    /// # Arguments
+    ///
+    /// * `duplicate_cache_size` - Number of completed files to remember
+    /// * `max_inflight_files` - Maximum concurrent files being assembled
+    /// * `inflight_ttl` - Time-to-live for inactive inflight files
     pub fn with_limits(
         duplicate_cache_size: usize,
         max_inflight_files: usize,
@@ -59,6 +112,7 @@ impl FileAssembler {
         }
     }
 
+    /// Generates a unique key for a segment based on filename and timestamp.
     fn file_key(segment: &QbtSegment) -> String {
         let ts = segment
             .timestamp_utc
@@ -68,6 +122,7 @@ impl FileAssembler {
         format!("{}_{}", segment.filename.to_lowercase(), ts)
     }
 
+    /// Remembers a completed file key for duplicate suppression.
     fn remember_completed(&mut self, key: String) {
         if self.completed_index.contains(&key) {
             return;
@@ -81,12 +136,14 @@ impl FileAssembler {
         }
     }
 
+    /// Evicts inflight entries that have exceeded the TTL.
     fn evict_stale_inflight(&mut self, now: Instant) {
         let ttl = self.inflight_ttl;
         self.by_key
             .retain(|_, inflight| now.duration_since(inflight.last_seen) <= ttl);
     }
 
+    /// Evicts oldest inflight entries to make room for new ones.
     fn evict_overflow_inflight(&mut self, min_capacity: usize) {
         while self.by_key.len() >= min_capacity {
             let Some(oldest_key) = self

@@ -1,3 +1,8 @@
+//! Stream command for real-time event streaming.
+//!
+//! This module provides functionality to stream events from capture files
+//! or live ByteBlaster servers, with optional file assembly and output.
+
 use crate::cmd::event_output::{frame_event_to_json, frame_event_to_text};
 use crate::output::{
     OutputFormat, emit_json_line, emit_text_line, label_info, label_ok, label_stats, label_warn,
@@ -10,13 +15,20 @@ use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+/// Statistics tracked during live streaming.
 #[derive(Debug, Default)]
 struct LiveStats {
+    /// Total successful connections.
     connections_total: u64,
+    /// Total disconnections.
     disconnects_total: u64,
+    /// Total server list updates received.
     server_list_updates_total: u64,
+    /// Current number of primary servers.
     current_servers: usize,
+    /// Current number of satellite servers.
     current_sat_servers: usize,
+    /// Total data blocks received.
     data_blocks_total: u64,
 }
 

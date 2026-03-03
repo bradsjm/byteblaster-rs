@@ -1,22 +1,52 @@
+//! Watchdog health monitoring for ByteBlaster connections.
+//!
+//! This module provides a watchdog that monitors connection health
+//! based on data reception and exception counts.
+
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::time::{Duration, Instant};
 
+/// Trait for health observation.
+///
+/// Implementors can track connection health by receiving notifications
+/// about data reception and exceptions.
 pub trait HealthObserver: Send + Sync {
+    /// Called when data is successfully received.
     fn on_data_received(&self);
+    /// Called when an exception/error occurs.
     fn on_exception(&self);
+    /// Returns true if the connection should be closed due to health issues.
     fn should_close(&self) -> bool;
 }
 
+/// Connection health watchdog.
+///
+/// Monitors connection health based on:
+/// - Time since last data reception (timeout)
+/// - Number of consecutive exceptions
+///
+/// If either threshold is exceeded, the watchdog signals that the
+/// connection should be closed.
 #[derive(Debug)]
 pub struct Watchdog {
+    /// Timeout duration for data reception.
     timeout: Duration,
+    /// Maximum allowed consecutive exceptions.
     max_exceptions: u32,
+    /// Current exception count.
     exception_count: AtomicU32,
+    /// Timestamp of last data reception.
     last_data: Mutex<Instant>,
 }
 
 impl Watchdog {
+    /// Creates a new watchdog with the given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout_secs` - Timeout in seconds (minimum 1)
+    /// * `max_exceptions` - Maximum allowed consecutive exceptions
     pub fn new(timeout_secs: u64, max_exceptions: u32) -> Self {
         Self {
             timeout: Duration::from_secs(timeout_secs.max(1)),
@@ -26,6 +56,15 @@ impl Watchdog {
         }
     }
 
+    /// Checks if the connection should be closed at the given time.
+    ///
+    /// # Arguments
+    ///
+    /// * `now` - The current instant to check against
+    ///
+    /// # Returns
+    ///
+    /// `true` if the connection should be closed
     pub fn should_close_at(&self, now: Instant) -> bool {
         let exceptions = self.exception_count.load(Ordering::Relaxed);
         if exceptions > self.max_exceptions {

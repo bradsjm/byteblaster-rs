@@ -1,3 +1,11 @@
+//! Server command for running an HTTP server with SSE endpoints.
+//!
+//! This module provides an HTTP server that:
+//! - Streams events via Server-Sent Events (SSE)
+//! - Serves completed files for download
+//! - Provides health and metrics endpoints
+//! - Supports CORS for browser clients
+
 use super::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::output::{label_error, label_info, label_ok, label_stats, label_warn};
 use axum::extract::{ConnectInfo, Path, Query, State};
@@ -26,6 +34,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{broadcast, watch};
 use tower_http::cors::{Any, CorsLayer};
 
+/// Capacity of the broadcast channel for events.
 const EVENT_CHANNEL_CAPACITY: usize = 4096;
 
 #[derive(Debug, Clone)]

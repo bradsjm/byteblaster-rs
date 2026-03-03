@@ -51,6 +51,36 @@ fn decode_wire_chunk(wire: &[u8]) {
 }
 ```
 
+## Using from another app
+
+Add `byteblaster-core` from the repository:
+
+```toml
+[dependencies]
+byteblaster-core = { git = "https://github.com/bradsjm/byteblaster-rs", tag = "v0.1.0", package = "byteblaster-core" }
+```
+
+Or use a local path while developing both projects:
+
+```toml
+[dependencies]
+byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
+```
+
+Minimal usage example:
+
+```rust
+use byteblaster_core::{ClientConfig, ProtocolDecoder};
+
+fn main() {
+    let _config = ClientConfig::default();
+
+    let mut decoder = ProtocolDecoder::default();
+    let events = decoder.feed(&[]).expect("decode should not fail");
+    println!("decoded {} event(s)", events.len());
+}
+```
+
 ## Quality gates
 
 From workspace root:

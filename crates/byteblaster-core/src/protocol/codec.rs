@@ -1,3 +1,14 @@
+//! Protocol codec for ByteBlaster wire format.
+//!
+//! This module provides the main protocol decoder that handles:
+//! - XOR 0xFF wire obfuscation
+//! - Frame synchronization
+//! - V1 and V2 frame parsing
+//! - Checksum validation
+//! - Zlib decompression (V2)
+//! - Server list parsing
+//! - Text padding trimming
+
 use crate::config::{DecodeConfig, V2CompressionPolicy};
 use crate::error::ProtocolError;
 use crate::protocol::checksum::verify_checksum;
@@ -13,49 +24,130 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use time::PrimitiveDateTime;
 use time::macros::format_description;
 
+/// Synchronization bytes that mark the start of a frame.
 const SYNC_BYTES: &[u8; 6] = b"\0\0\0\0\0\0";
+
+/// Size of the frame header in bytes.
 const HEADER_SIZE: usize = 80;
+
+/// Body size for V1 protocol frames (fixed 1024 bytes).
 const V1_BODY_SIZE: usize = 1024;
 
+/// Trait for frame decoders that can process wire data.
 pub trait FrameDecoder {
+    /// Feeds a chunk of wire data to the decoder.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk` - Raw bytes from the wire (XOR 0xFF encoded)
+    ///
+    /// # Returns
+    ///
+    /// A vector of decoded frame events
     fn feed(&mut self, chunk: &[u8]) -> Result<Vec<FrameEvent>, ProtocolError>;
+
+    /// Resets the decoder state.
     fn reset(&mut self);
 }
 
+/// Trait for frame encoders that can create wire data.
 pub trait FrameEncoder {
+    /// Encodes an authentication message.
+    ///
+    /// # Arguments
+    ///
+    /// * `auth` - The authentication message to encode
+    ///
+    /// # Returns
+    ///
+    /// Encoded bytes ready for transmission
     fn encode_auth(&self, auth: &AuthMessage) -> Result<Bytes, ProtocolError>;
 }
 
+/// Internal state machine for the protocol decoder.
+///
+/// The decoder processes frames through a series of states:
+/// - `Resync`: Looking for sync bytes to start a new frame
+/// - `StartFrame`: Skipping padding after sync
+/// - `FrameType`: Detecting the type of frame (data block or server list)
+/// - `ServerList`: Processing server list frame content
+/// - `BlockHeader`: Parsing data block header fields
+/// - `BlockBody`: Reading the body content
+/// - `Validate`: Validating checksum and emitting the segment
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
+    /// Looking for sync bytes (six null bytes).
     Resync,
+    /// Skipping null padding after sync bytes.
     StartFrame,
+    /// Detecting frame type from the first non-null byte.
     FrameType,
+    /// Processing server list frame content.
     ServerList,
+    /// Parsing 80-byte header for data blocks.
     BlockHeader,
+    /// Reading body content based on header length.
     BlockBody,
+    /// Validating checksum and preparing to emit segment.
     Validate,
 }
 
+/// Pending segment being assembled from a data block frame.
+///
+/// This holds the partially parsed data from the header and
+/// the body content as it's being read.
 #[derive(Debug)]
 struct PendingSegment {
+    /// Filename from the /PF header field.
     filename: String,
+    /// Block number from the /PN header field.
     block_number: u32,
+    /// Total blocks from the /PT header field.
     total_blocks: u32,
+    /// Checksum from the /CS header field.
     checksum: u32,
+    /// Body length in bytes (1024 for V1, variable for V2).
     length: usize,
+    /// Protocol version determined by presence of /DL field.
     version: ProtocolVersion,
+    /// Body content bytes.
     content: Bytes,
+    /// Timestamp parsed from the /FD header field.
     timestamp_utc: SystemTime,
+    /// Warnings collected during parsing.
     warnings: Vec<ProtocolWarning>,
+    /// Whether decompression failed (V2 only).
     decompression_failed: bool,
 }
 
+/// Stateful decoder for ByteBlaster protocol frames.
+///
+/// This decoder processes raw wire data (XOR 0xFF encoded) and emits
+/// high-level frame events. It handles:
+/// - Frame synchronization
+/// - Header parsing
+/// - Body reading
+/// - Checksum validation
+/// - Zlib decompression (V2)
+///
+/// # Example
+///
+/// ```
+/// use byteblaster_core::{ProtocolDecoder, FrameDecoder};
+///
+/// let mut decoder = ProtocolDecoder::default();
+/// // Feed XOR-encoded wire data
+/// let events = decoder.feed(&[]).expect("decode should not fail");
+/// ```
 #[derive(Debug)]
 pub struct ProtocolDecoder {
+    /// Decoder configuration.
     config: DecodeConfig,
+    /// Internal buffer for accumulating partial frames.
     buffer: BytesMut,
+    /// Current decoder state.
     state: DecoderState,
+    /// Pending segment being assembled (if any).
     pending: Option<PendingSegment>,
 }
 
@@ -66,6 +158,11 @@ impl Default for ProtocolDecoder {
 }
 
 impl ProtocolDecoder {
+    /// Creates a new protocol decoder with the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Decoder configuration options
     pub fn new(config: DecodeConfig) -> Self {
         Self {
             config,
@@ -75,6 +172,10 @@ impl ProtocolDecoder {
         }
     }
 
+    /// Processes the internal buffer based on current state.
+    ///
+    /// This is the main state machine dispatch. It processes as much
+    /// data as possible and returns whether progress was made.
     fn process_buffer(&mut self, out: &mut Vec<FrameEvent>) -> Result<bool, ProtocolError> {
         match self.state {
             DecoderState::Resync => Ok(self.find_sync()),
@@ -87,6 +188,11 @@ impl ProtocolDecoder {
         }
     }
 
+    /// Finds sync bytes in the buffer to synchronize frame boundaries.
+    ///
+    /// Looks for six consecutive null bytes. If found, consumes everything
+    /// up to and including the sync bytes and transitions to StartFrame state.
+    /// If not found, keeps the last 5 bytes in case they're partial sync.
     fn find_sync(&mut self) -> bool {
         if self.buffer.len() < SYNC_BYTES.len() {
             return false;
@@ -112,6 +218,10 @@ impl ProtocolDecoder {
         }
     }
 
+    /// Skips null padding bytes after sync.
+    ///
+    /// Some frames have additional null padding after the sync bytes.
+    /// This method consumes all null bytes until a non-null byte is found.
     fn skip_padding(&mut self) -> bool {
         let mut skipped = 0usize;
         while self.buffer.first() == Some(&0) {
@@ -125,6 +235,12 @@ impl ProtocolDecoder {
         skipped > 0
     }
 
+    /// Detects the type of frame based on the first non-null bytes.
+    ///
+    /// Frame types:
+    /// - `/PF` - Data block frame (transitions to BlockHeader state)
+    /// - `/Se` or `/ServerList/` - Server list frame (transitions to ServerList state)
+    /// - Anything else - Invalid, resync
     fn detect_frame_type(&mut self) -> bool {
         if self.buffer.is_empty() {
             return false;

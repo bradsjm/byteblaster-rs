@@ -1,3 +1,9 @@
+//! Endpoint rotation and backoff utilities for reconnection logic.
+//!
+//! This module provides utilities for rotating through server endpoints
+//! and calculating exponential backoff delays.
+
+/// Rotates through a list of endpoints in round-robin fashion.
 #[derive(Debug, Clone)]
 pub struct EndpointRotator {
     endpoints: Vec<(String, u16)>,
@@ -5,6 +11,7 @@ pub struct EndpointRotator {
 }
 
 impl EndpointRotator {
+    /// Creates a new rotator with the given endpoints.
     pub fn new(endpoints: Vec<(String, u16)>) -> Self {
         Self {
             endpoints,
@@ -12,6 +19,7 @@ impl EndpointRotator {
         }
     }
 
+    /// Resets the rotation to the first endpoint.
     pub fn reset(&mut self) {
         self.index = 0;
     }
@@ -30,6 +38,22 @@ impl Iterator for EndpointRotator {
     }
 }
 
+/// Calculates the next backoff delay in seconds.
+///
+/// Uses exponential backoff with a cap at 60 seconds.
+///
+/// # Arguments
+///
+/// * `base` - Base delay in seconds
+/// * `failures` - Number of consecutive failures
+///
+/// # Returns
+///
+/// The calculated backoff delay in seconds
+///
+/// # Formula
+///
+/// `min(base * 2^min(failures, 6), 60)`
 pub fn next_backoff_secs(base: u64, failures: u32) -> u64 {
     let capped = failures.min(6);
     let factor = 1u64 << capped;

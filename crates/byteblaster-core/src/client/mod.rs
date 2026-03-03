@@ -1,3 +1,13 @@
+//! Client runtime for ByteBlaster protocol connections.
+//!
+//! This module provides a full-featured client implementation with:
+//! - Connection management with timeout and retry
+//! - Automatic reconnection with endpoint rotation
+//! - Authentication heartbeat
+//! - Watchdog health monitoring
+//! - Event streaming with backpressure handling
+//! - Server list persistence and management
+
 pub mod connection;
 pub mod reconnect;
 pub mod server_list_manager;
@@ -21,10 +31,19 @@ use self::connection::{connect_with_timeout, endpoint_label};
 use self::server_list_manager::ServerListManager;
 use self::watchdog::{HealthObserver, Watchdog};
 
+/// Capacity of the event channel between client and consumers.
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
+
+/// Interval between telemetry snapshot emissions (in seconds).
 const TELEMETRY_EMIT_INTERVAL_SECS: u64 = 5;
+
+/// Maximum connection timeout (in seconds).
 const MAX_CONNECT_TIMEOUT_SECS: u64 = 5;
 
+/// Snapshot of client telemetry counters.
+///
+/// This structure tracks various metrics about the client's operation,
+/// useful for monitoring and debugging.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(
     feature = "telemetry-serde",
@@ -32,60 +51,116 @@ const MAX_CONNECT_TIMEOUT_SECS: u64 = 5;
 )]
 #[non_exhaustive]
 pub struct ClientTelemetrySnapshot {
+    /// Total connection attempts made.
     pub connection_attempts_total: u64,
+    /// Total successful connections.
     pub connection_success_total: u64,
+    /// Total failed connection attempts.
     pub connection_fail_total: u64,
+    /// Total disconnections (expected and unexpected).
     pub disconnect_total: u64,
+    /// Total watchdog timeouts.
     pub watchdog_timeouts_total: u64,
+    /// Total watchdog exception events.
     pub watchdog_exception_events_total: u64,
+    /// Total authentication logon messages sent.
     pub auth_logon_sent_total: u64,
+    /// Total bytes received.
     pub bytes_in_total: u64,
+    /// Total frame events decoded.
     pub frame_events_total: u64,
+    /// Total data blocks emitted to handlers.
     pub data_blocks_emitted_total: u64,
+    /// Total server list updates received.
     pub server_list_updates_total: u64,
+    /// Total checksum mismatches detected.
     pub checksum_mismatch_total: u64,
+    /// Total decompression failures.
     pub decompression_failed_total: u64,
+    /// Total decoder recovery events.
     pub decoder_recovery_events_total: u64,
+    /// Total handler failures.
     pub handler_failures_total: u64,
+    /// Total backpressure warnings emitted.
     pub backpressure_warning_emitted_total: u64,
+    /// Total events dropped due to channel full.
     pub event_queue_drop_total: u64,
+    /// Total telemetry events emitted.
     pub telemetry_events_emitted_total: u64,
 }
 
+/// Internal runtime telemetry with tracking for backpressure reporting.
 #[derive(Debug, Default)]
 struct RuntimeTelemetry {
+    /// Current snapshot of counters.
     snapshot: ClientTelemetrySnapshot,
+    /// Events dropped since last backpressure warning.
     dropped_since_last_report: u64,
 }
 
+/// Events emitted by the ByteBlaster client.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum ClientEvent {
+    /// A protocol frame event (data block, server list, or warning).
     Frame(FrameEvent),
+    /// Connected to a server endpoint.
     Connected(String),
+    /// Disconnected from the current endpoint.
     Disconnected,
+    /// Periodic telemetry snapshot.
     Telemetry(ClientTelemetrySnapshot),
 }
 
+/// Type alias for event handler callbacks.
+///
+/// Handlers receive frame events and can return errors which will be
+/// converted to warnings and emitted to other handlers.
 pub type EventHandler = Arc<dyn Fn(&FrameEvent) -> CoreResult<()> + Send + Sync>;
 
+/// Trait for ByteBlaster client implementations.
+///
+/// This trait defines the interface for starting, stopping, and
+/// receiving events from a client connection.
 pub trait ByteBlasterClient: Send {
+    /// Starts the client connection loop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the client is already running.
     fn start(&mut self) -> CoreResult<()>;
+
+    /// Stops the client and cleans up resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cleanup fails.
     fn stop(&mut self) -> Pin<Box<dyn std::future::Future<Output = CoreResult<()>> + Send + '_>>;
+
+    /// Returns a stream of client events.
+    ///
+    /// This can only be called once; subsequent calls return an empty stream.
     fn events(&mut self)
     -> Pin<Box<dyn Stream<Item = Result<ClientEvent, CoreError>> + Send + '_>>;
 }
 
+/// Builder for constructing a [`Client`] with validation.
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
     config: ClientConfig,
 }
 
 impl ClientBuilder {
+    /// Creates a new client builder with the given configuration.
     pub fn new(config: ClientConfig) -> Self {
         Self { config }
     }
 
+    /// Builds a [`Client`] after validating the configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ConfigError`](crate::error::ConfigError) if validation fails.
     pub fn build(self) -> Result<Client, CoreError> {
         self.config.validate()?;
         Ok(Client {
@@ -100,13 +175,25 @@ impl ClientBuilder {
     }
 }
 
+/// ByteBlaster client implementation.
+///
+/// This is the main client type that manages the connection lifecycle,
+/// event streaming, and telemetry. Use [`Client::builder`] to construct
+/// an instance with validated configuration.
 pub struct Client {
+    /// Client configuration.
     config: ClientConfig,
+    /// Whether the client is currently running.
     running: bool,
+    /// Event receiver channel (taken when events() is called).
     event_rx: Option<mpsc::Receiver<Result<ClientEvent, CoreError>>>,
+    /// Shutdown signal sender.
     shutdown_tx: Option<watch::Sender<bool>>,
+    /// Background task handle.
     join_handle: Option<tokio::task::JoinHandle<()>>,
+    /// Registered event handlers.
     handlers: Vec<EventHandler>,
+    /// Shared telemetry snapshot.
     telemetry: Arc<Mutex<ClientTelemetrySnapshot>>,
 }
 
@@ -121,6 +208,7 @@ impl std::fmt::Debug for Client {
 }
 
 impl Client {
+    /// Creates a client builder with the given configuration.
     pub fn builder(config: ClientConfig) -> ClientBuilder {
         ClientBuilder::new(config)
     }

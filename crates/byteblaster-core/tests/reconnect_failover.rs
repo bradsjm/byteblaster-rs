@@ -79,48 +79,72 @@ fn connection_idle_timeout() {
 
 #[tokio::test]
 async fn watchdog_timeout_reconnects_without_termination() {
-    let listener = TcpListener::bind("127.0.0.1:0")
+    let listener_a = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("listener should bind");
-    let address = listener
+    let address_a = listener_a
         .local_addr()
         .expect("listener should have local addr");
 
-    let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
+    let listener_b = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address_b = listener_b
+        .local_addr()
+        .expect("listener should have local addr");
+
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let accepted_connections = Arc::new(AtomicUsize::new(0));
-    let accepted_connections_task = Arc::clone(&accepted_connections);
 
-    let server_task = tokio::spawn(async move {
-        let payload = encoded_valid_data_frame();
-        loop {
-            tokio::select! {
-                changed = shutdown_rx.changed() => {
-                    if changed.is_ok() && *shutdown_rx.borrow() {
-                        break;
+    let spawn_server = |listener: TcpListener,
+                        mut local_shutdown_rx: watch::Receiver<bool>,
+                        accepted_connections_task: Arc<AtomicUsize>| {
+        tokio::spawn(async move {
+            let payload = encoded_valid_data_frame();
+            loop {
+                tokio::select! {
+                    changed = local_shutdown_rx.changed() => {
+                        if changed.is_ok() && *local_shutdown_rx.borrow() {
+                            break;
+                        }
                     }
-                }
-                accepted = listener.accept() => {
-                    let Ok((mut socket, _)) = accepted else {
-                        break;
-                    };
-                    accepted_connections_task.fetch_add(1, Ordering::Relaxed);
+                    accepted = listener.accept() => {
+                        let Ok((mut socket, _)) = accepted else {
+                            break;
+                        };
+                        accepted_connections_task.fetch_add(1, Ordering::Relaxed);
 
-                    let mut auth_buf = [0u8; 128];
-                    let _ = tokio::time::timeout(Duration::from_millis(200), socket.read(&mut auth_buf)).await;
+                        let mut auth_buf = [0u8; 128];
+                        let _ = tokio::time::timeout(Duration::from_millis(200), socket.read(&mut auth_buf)).await;
 
-                    if socket.write_all(&payload).await.is_err() {
-                        continue;
+                        if socket.write_all(&payload).await.is_err() {
+                            continue;
+                        }
+
+                        tokio::time::sleep(Duration::from_secs(2)).await;
                     }
-
-                    tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }
-        }
-    });
+        })
+    };
+
+    let server_task_a = spawn_server(
+        listener_a,
+        shutdown_rx.clone(),
+        Arc::clone(&accepted_connections),
+    );
+    let server_task_b = spawn_server(
+        listener_b,
+        shutdown_rx.clone(),
+        Arc::clone(&accepted_connections),
+    );
 
     let mut client = Client::builder(ClientConfig {
         email: "test@example.com".to_string(),
-        servers: vec![("127.0.0.1".to_string(), address.port())],
+        servers: vec![
+            ("127.0.0.1".to_string(), address_a.port()),
+            ("127.0.0.1".to_string(), address_b.port()),
+        ],
         server_list_path: None,
         reconnect_delay_secs: 1,
         connection_timeout_secs: 1,
@@ -159,7 +183,8 @@ async fn watchdog_timeout_reconnects_without_termination() {
     shutdown_tx
         .send(true)
         .expect("server shutdown signal should send");
-    server_task.await.expect("server task should join");
+    server_task_a.await.expect("server task a should join");
+    server_task_b.await.expect("server task b should join");
     drop(events);
     client.stop().await.expect("client should stop");
 

@@ -18,12 +18,12 @@ use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, watch};
 
 use self::connection::{connect_with_timeout, endpoint_label};
-use self::reconnect::next_backoff_secs;
 use self::server_list_manager::ServerListManager;
 use self::watchdog::{HealthObserver, Watchdog};
 
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
 const TELEMETRY_EMIT_INTERVAL_SECS: u64 = 5;
+const MAX_CONNECT_TIMEOUT_SECS: u64 = 5;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(
@@ -210,8 +210,6 @@ async fn run_connection_loop(
         try_send_event(&event_tx, Err(err), &mut telemetry);
     }
 
-    let mut failures: u32 = 0;
-
     while !*shutdown_rx.borrow() {
         telemetry.snapshot.connection_attempts_total = telemetry
             .snapshot
@@ -226,19 +224,26 @@ async fn run_connection_loop(
                 &mut telemetry,
             );
             update_telemetry_sink(&telemetry_sink, &telemetry);
-            return;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(config.reconnect_delay_secs.max(1))) => {}
+                _ = shutdown_rx.changed() => {}
+            }
+            continue;
         };
 
         let connect = connect_with_timeout(
             &host,
             port,
-            Duration::from_secs(config.connection_timeout_secs.max(1)),
+            Duration::from_secs(
+                config
+                    .connection_timeout_secs
+                    .clamp(1, MAX_CONNECT_TIMEOUT_SECS),
+            ),
         )
         .await;
 
         match connect {
             Ok(stream) => {
-                failures = 0;
                 telemetry.snapshot.connection_success_total = telemetry
                     .snapshot
                     .connection_success_total
@@ -266,31 +271,25 @@ async fn run_connection_loop(
                     try_send_event(&event_tx, Err(err), &mut telemetry);
                 }
 
+                if !*shutdown_rx.borrow() {
+                    server_list.mark_bad_endpoint(&(host.clone(), port));
+                }
+
                 telemetry.snapshot.disconnect_total =
                     telemetry.snapshot.disconnect_total.saturating_add(1);
                 try_send_event(&event_tx, Ok(ClientEvent::Disconnected), &mut telemetry);
                 update_telemetry_sink(&telemetry_sink, &telemetry);
             }
             Err(err) => {
-                failures = failures.saturating_add(1);
                 telemetry.snapshot.connection_fail_total =
                     telemetry.snapshot.connection_fail_total.saturating_add(1);
-                if failures
-                    > (server_list.current().servers.len()
-                        + server_list.current().sat_servers.len()) as u32
-                {
-                    server_list.reset_rotation();
-                }
+                server_list.mark_bad_endpoint(&(host.clone(), port));
                 try_send_event(&event_tx, Err(CoreError::Io(err)), &mut telemetry);
                 update_telemetry_sink(&telemetry_sink, &telemetry);
             }
         }
 
-        let backoff = next_backoff_secs(config.reconnect_delay_secs, failures);
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(backoff)) => {}
-            _ = shutdown_rx.changed() => {}
-        }
+        tokio::task::yield_now().await;
     }
 
     update_telemetry_sink(&telemetry_sink, &telemetry);

@@ -1,6 +1,7 @@
 use crate::error::{CoreError, CoreResult};
 use crate::protocol::model::ServerList;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,7 +9,8 @@ use std::path::{Path, PathBuf};
 pub struct ServerListManager {
     path: Option<PathBuf>,
     current: ServerList,
-    index: usize,
+    available: VecDeque<(String, u16)>,
+    shuffle_nonce: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,14 +22,17 @@ struct PersistedServerList {
 
 impl ServerListManager {
     pub fn new(path: Option<PathBuf>, default_servers: Vec<(String, u16)>) -> Self {
-        Self {
+        let mut manager = Self {
             path,
             current: ServerList {
                 servers: default_servers,
                 sat_servers: Vec::new(),
             },
-            index: 0,
-        }
+            available: VecDeque::new(),
+            shuffle_nonce: 0,
+        };
+        manager.rebuild_available();
+        manager
     }
 
     pub fn load(&mut self) -> CoreResult<()> {
@@ -48,7 +53,7 @@ impl ServerListManager {
                 servers: persisted.servers,
                 sat_servers: persisted.sat_servers,
             };
-            self.index = 0;
+            self.rebuild_available();
         }
 
         Ok(())
@@ -70,34 +75,49 @@ impl ServerListManager {
         }
 
         self.current = list;
-        self.index = 0;
+        self.rebuild_available();
         self.save()
     }
 
     pub fn next_endpoint(&mut self) -> Option<(String, u16)> {
-        let combined_len = self.current.servers.len() + self.current.sat_servers.len();
-        if combined_len == 0 {
-            return None;
-        }
-
-        let endpoint = if self.index < self.current.servers.len() {
-            self.current.servers[self.index].clone()
-        } else {
-            let sat_idx = self.index - self.current.servers.len();
-            self.current.sat_servers[sat_idx].clone()
-        };
-
-        self.index = (self.index + 1) % combined_len;
+        let endpoint = self.available.pop_front()?;
+        self.available.push_back(endpoint.clone());
         Some(endpoint)
     }
 
-    pub fn reset_rotation(&mut self) {
-        self.index = 0;
+    pub fn mark_bad_endpoint(&mut self, endpoint: &(String, u16)) {
+        self.available.retain(|candidate| candidate != endpoint);
     }
 
-    pub fn current(&self) -> &ServerList {
-        &self.current
+    fn rebuild_available(&mut self) {
+        let mut combined = self.current.servers.clone();
+        combined.extend(self.current.sat_servers.iter().cloned());
+        sort_dedup_endpoints(&mut combined);
+        self.shuffle_endpoints(&mut combined);
+        self.available = VecDeque::from(combined);
     }
+
+    fn shuffle_endpoints(&mut self, endpoints: &mut [(String, u16)]) {
+        if endpoints.len() < 2 {
+            return;
+        }
+
+        self.shuffle_nonce = self.shuffle_nonce.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut state = self.shuffle_nonce ^ endpoints.len() as u64;
+
+        for idx in (1..endpoints.len()).rev() {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let swap_idx = (state as usize) % (idx + 1);
+            endpoints.swap(idx, swap_idx);
+        }
+    }
+}
+
+fn sort_dedup_endpoints(endpoints: &mut Vec<(String, u16)>) {
+    endpoints.sort_unstable();
+    endpoints.dedup();
 }
 
 fn save_atomic(path: &Path, server_list: &ServerList) -> CoreResult<()> {
@@ -124,6 +144,7 @@ fn save_atomic(path: &Path, server_list: &ServerList) -> CoreResult<()> {
 mod tests {
     use super::ServerListManager;
     use crate::protocol::model::ServerList;
+    use std::collections::HashSet;
 
     #[test]
     fn rotation_across_server_and_sat_lists() {
@@ -134,9 +155,46 @@ mod tests {
         })
         .expect("server list should apply");
 
-        assert_eq!(mgr.next_endpoint(), Some(("a".to_string(), 1)));
-        assert_eq!(mgr.next_endpoint(), Some(("b".to_string(), 2)));
-        assert_eq!(mgr.next_endpoint(), Some(("sat".to_string(), 3)));
-        assert_eq!(mgr.next_endpoint(), Some(("a".to_string(), 1)));
+        let mut seen = HashSet::new();
+        for _ in 0..3 {
+            let endpoint = mgr.next_endpoint().expect("endpoint should exist");
+            seen.insert(endpoint);
+        }
+
+        assert_eq!(seen.len(), 3);
+        assert!(seen.contains(&("a".to_string(), 1)));
+        assert!(seen.contains(&("b".to_string(), 2)));
+        assert!(seen.contains(&("sat".to_string(), 3)));
+    }
+
+    #[test]
+    fn mark_bad_endpoint_removes_until_next_list_update() {
+        let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
+        mgr.apply_server_list(ServerList {
+            servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
+            sat_servers: vec![("sat".to_string(), 3)],
+        })
+        .expect("server list should apply");
+
+        mgr.mark_bad_endpoint(&("b".to_string(), 2));
+        for _ in 0..10 {
+            let endpoint = mgr.next_endpoint().expect("endpoint should exist");
+            assert_ne!(endpoint, ("b".to_string(), 2));
+        }
+
+        mgr.apply_server_list(ServerList {
+            servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
+            sat_servers: vec![("sat".to_string(), 3)],
+        })
+        .expect("server list should apply again");
+
+        let mut saw_b = false;
+        for _ in 0..20 {
+            if mgr.next_endpoint() == Some(("b".to_string(), 2)) {
+                saw_b = true;
+                break;
+            }
+        }
+        assert!(saw_b, "expected refreshed list to reintroduce endpoint b");
     }
 }

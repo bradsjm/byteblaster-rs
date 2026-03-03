@@ -79,7 +79,7 @@ async fn run_live_mode(
         servers,
         server_list_path: live.server_list_path.map(PathBuf::from),
         reconnect_delay_secs: 5,
-        connection_timeout_secs: 10,
+        connection_timeout_secs: 5,
         watchdog_timeout_secs: 20,
         max_exceptions: 10,
         decode: DecodeConfig::default(),

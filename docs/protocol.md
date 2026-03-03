@@ -271,6 +271,30 @@ Malformed entries:
 - emit `ProtocolWarning::MalformedServerEntry`
 - do not invalidate valid entries in same frame
 
+### 8.2 TCP Operational Use of Server Lists
+
+For ByteBlaster TCP operation, both regular servers and sat servers are used as candidate
+connection endpoints.
+
+Operational behavior:
+
+- Server list frames are transmitted regularly by upstream and treated as live endpoint state.
+- Each received server list update replaces the runtime candidate list (after validation/filtering).
+- The replacement list is shuffled and used for endpoint hopping instead of fixed sequential order.
+- On connection loss/failure, the failed endpoint is removed from the local available list and the
+  client immediately hops to the next available endpoint.
+- Failed endpoints remain excluded until a fresh upstream server list arrives (which replaces and
+  reshuffles the active set).
+- Connection attempts are short-lived and clamped to a maximum of 5 seconds before hopping to
+  the next candidate endpoint.
+
+Why this matters:
+
+- Internet-connected TCP endpoints have higher outage probability than one-way satellite reception.
+- Rapid endpoint hopping reduces data loss windows during outages.
+- Priority files are retransmitted (see Section 12), so short failover gaps can be recovered by the
+  next transmission cycle.
+
 ## 9. Decoder State Machine
 
 ```text
@@ -411,7 +435,19 @@ Arrival index   Filename        Block/Total   Notes
 Receiver reconstruction model (implemented by `FileAssembler`) is therefore per-file and
 order-aware at block level, not stream-order-dependent.
 
-### 12.2 Reassembly Algorithm
+### 12.2 High-Priority Retransmission and Recovery Window
+
+High-priority files are transmitted twice to improve successful reception probability.
+
+- Retransmission starts no sooner than 5 seconds after first transmission.
+- Retransmission may be later than 5 seconds depending on queue state.
+
+Implication for TCP failover:
+
+- If blocks are missed during endpoint switchover, high-priority retransmission provides a
+  practical recovery path with minimal end-to-end data loss for urgent products.
+
+### 12.3 Reassembly Algorithm
 
 Algorithm summary:
 
@@ -420,6 +456,19 @@ Algorithm summary:
 3. When map size equals `total_blocks`, concatenate in block order.
 4. Emit `CompletedFile { filename, data }`.
 5. Cache completed keys to suppress duplicate reconstruction.
+
+### 12.4 Incomplete-File Retention Limits
+
+Incomplete file state is bounded to protect memory and force eventual cleanup under sustained loss:
+
+- Inflight TTL: 90 seconds (default).
+- Max inflight files: 256 (default).
+
+Behavior:
+
+- Inflight entries not updated within TTL are evicted.
+- If inflight set exceeds limit, oldest entries are evicted.
+- Completed-file duplicate suppression remains separately bounded by duplicate cache size.
 
 Guardrails:
 

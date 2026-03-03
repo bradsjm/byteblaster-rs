@@ -26,9 +26,9 @@ jobs:
         shell: bash
         run: |
           VERSION=$(awk '
-            $0 ~ /^\[package\]$/ { in_package=1; next }
-            $0 ~ /^\[/ { in_package=0 }
-            in_package && $0 ~ /^version = / {
+            $0 ~ /^\[workspace\.package\]$/ { in_workspace_package=1; next }
+            $0 ~ /^\[/ { in_workspace_package=0 }
+            in_workspace_package && $0 ~ /^version = / {
               gsub(/version = "|"/, "", $0)
               print $0
               exit
@@ -36,7 +36,7 @@ jobs:
           ' Cargo.toml)
 
           if [ -z "$VERSION" ]; then
-            echo "Failed to read [package].version from Cargo.toml"
+            echo "Failed to read [workspace.package].version from Cargo.toml"
             exit 1
           fi
 

@@ -191,6 +191,24 @@ Field meanings:
 - `event_queue_drop_total`: dropped events from queue pressure
 - `telemetry_events_emitted_total`: telemetry events emitted
 
+## `GET /dashboard`
+
+Serves a built-in read-only admin dashboard as a single HTML page.
+
+The dashboard connects to `/events` as an SSE client (counts toward `--max-clients`)
+and polls `/health`, `/metrics`, and `/files` for live state.
+
+Panels:
+
+- **Status bar** — connection indicator, upstream endpoint, client count, uptime
+- **Server list** — primary and satellite endpoints with active highlight, endpoint switch history
+- **Reliability** — queue drops, watchdog timeouts, watchdog exceptions, auth logons, server list updates
+- **Throughput** — cumulative bytes/frames with rolling 5-minute rate sparklines
+- **Files** — retained files with size, age, and download links
+- **Event log** — filterable, capped at 500 rows, expandable JSON detail per event
+
+No authentication. The dashboard is intended for local/private network use.
+
 ## 4. SSE Event Catalog
 
 All `/events` payloads are JSON in the `data` field.

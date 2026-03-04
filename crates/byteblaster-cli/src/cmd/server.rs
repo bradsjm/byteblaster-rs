@@ -12,7 +12,7 @@ use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use byteblaster_core::{
@@ -194,6 +194,7 @@ impl RetainedFiles {
 #[derive(Debug)]
 struct AppState {
     event_tx: broadcast::Sender<BroadcastEvent>,
+    shutdown_rx: watch::Receiver<bool>,
     retained_files: Mutex<RetainedFiles>,
     telemetry: Mutex<ClientTelemetrySnapshot>,
     connected_clients: AtomicUsize,
@@ -264,9 +265,11 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let servers = parse_servers_or_default(&options.raw_servers)?;
     let bind_addr = SocketAddr::from_str(&options.bind)
         .map_err(|err| anyhow::anyhow!("invalid --bind value {}: {err}", options.bind))?;
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
     let state = Arc::new(AppState {
         event_tx: broadcast::channel(EVENT_CHANNEL_CAPACITY).0,
+        shutdown_rx: shutdown_rx.clone(),
         retained_files: Mutex::new(RetainedFiles::new(
             options.max_retained_files.max(1),
             Duration::from_secs(options.file_retention_secs.max(1)),
@@ -302,7 +305,6 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         decode: DecodeConfig::default(),
     };
 
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let ingest_task = tokio::spawn(run_ingest_loop(
         config,
         Arc::clone(&state),
@@ -311,18 +313,27 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let stats_task = tokio::spawn(run_stats_loop(
         Arc::clone(&state),
         options.stats_interval_secs,
-        shutdown_rx,
+        shutdown_rx.clone(),
     ));
+    let ctrlc_task = tokio::spawn({
+        let shutdown_tx = shutdown_tx.clone();
+        async move {
+            let _ = tokio::signal::ctrl_c().await;
+            let _ = shutdown_tx.send(true);
+        }
+    });
+    let mut http_shutdown_rx = shutdown_rx.clone();
 
     let serve = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
+    .with_graceful_shutdown(async move {
+        let _ = http_shutdown_rx.changed().await;
     });
 
     let serve_result = serve.await;
+    ctrlc_task.abort();
     let _ = shutdown_tx.send(true);
 
     let ingest_result = ingest_task.await;
@@ -344,6 +355,8 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
 fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Result<Router> {
     Ok(Router::new()
         .route("/", get(root_handler))
+        .route("/dashboard", get(dashboard_handler))
+        .route("/dashboard/", get(dashboard_trailing_slash_handler))
         .route("/events", get(events_handler))
         .route("/files", get(files_handler))
         .route("/files/*filename", get(file_download_handler))
@@ -369,6 +382,11 @@ async fn root_handler() -> Json<RootResponse> {
             },
             EndpointDoc {
                 method: "GET",
+                path: "/dashboard",
+                description: "HTML admin dashboard UI (read-only)",
+            },
+            EndpointDoc {
+                method: "GET",
                 path: "/files",
                 description: "List retained completed files",
             },
@@ -390,6 +408,16 @@ async fn root_handler() -> Json<RootResponse> {
         ],
     })
 }
+
+async fn dashboard_handler() -> Html<&'static str> {
+    Html(DASHBOARD_HTML)
+}
+
+async fn dashboard_trailing_slash_handler() -> Redirect {
+    Redirect::permanent("/dashboard")
+}
+
+const DASHBOARD_HTML: &str = include_str!("dashboard.html");
 
 async fn run_ingest_loop(
     config: ClientConfig,
@@ -643,6 +671,7 @@ async fn events_handler(
     );
 
     let rx = state.event_tx.subscribe();
+    let shutdown_rx = state.shutdown_rx.clone();
     let last_id = headers
         .get("last-event-id")
         .and_then(|v| v.to_str().ok())
@@ -656,6 +685,7 @@ async fn events_handler(
             rx: Some(rx),
             last_id,
             filter,
+            shutdown_rx,
             peer,
             _guard: Some(ClientGuard {
                 state: Arc::clone(&state),
@@ -665,7 +695,9 @@ async fn events_handler(
         move |mut st| async move {
             let rx = st.rx.as_mut()?;
             loop {
-                match rx.recv().await {
+                tokio::select! {
+                    _ = st.shutdown_rx.changed() => return None,
+                    received = rx.recv() => match received {
                     Ok(event) => {
                         if event.id <= st.last_id {
                             continue;
@@ -706,6 +738,7 @@ async fn events_handler(
                         );
                         return Some((Ok(warning), st));
                     }
+                    }
                 }
             }
         },
@@ -719,6 +752,7 @@ struct StreamState {
     rx: Option<broadcast::Receiver<BroadcastEvent>>,
     last_id: u64,
     filter: Option<String>,
+    shutdown_rx: watch::Receiver<bool>,
     peer: SocketAddr,
     _guard: Option<ClientGuard>,
 }
@@ -956,12 +990,14 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
-    use tokio::sync::broadcast;
+    use tokio::sync::{broadcast, watch};
     use tower::ServiceExt;
 
     fn test_state(max_clients: usize) -> Arc<AppState> {
+        let (_, shutdown_rx) = watch::channel(false);
         Arc::new(AppState {
             event_tx: broadcast::channel(32).0,
+            shutdown_rx,
             retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
             telemetry: std::sync::Mutex::new(ClientTelemetrySnapshot::default()),
             connected_clients: AtomicUsize::new(0),
@@ -1087,9 +1123,61 @@ mod tests {
             .expect("body should read");
         let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
         assert!(body_text.contains("\"/events?filter=*.TXT\""));
+        assert!(body_text.contains("\"/dashboard\""));
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
+    }
+
+    #[tokio::test]
+    async fn dashboard_endpoint_serves_html() {
+        let state = test_state(10);
+        let app = build_router(state, None).expect("router should build");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard")
+                    .method("GET")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        assert!(content_type.starts_with("text/html"));
+    }
+
+    #[tokio::test]
+    async fn dashboard_trailing_slash_redirects_to_canonical_path() {
+        let state = test_state(10);
+        let app = build_router(state, None).expect("router should build");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard/")
+                    .method("GET")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(
+            response
+                .headers()
+                .get("location")
+                .and_then(|value| value.to_str().ok()),
+            Some("/dashboard")
+        );
     }
 
     #[test]

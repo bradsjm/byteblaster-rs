@@ -8,6 +8,7 @@
 
 use super::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::output::{label_error, label_info, label_ok, label_stats, label_warn};
+use crate::product_meta::{ProductMeta, detect_product_meta};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -90,12 +91,20 @@ impl EventKind {
                 filename,
                 size,
                 timestamp_utc,
-            } => serde_json::json!({
-                "filename": filename,
-                "size": size,
-                "timestamp_utc": timestamp_utc,
-                "download_url": file_download_url(filename),
-            }),
+            } => {
+                let mut payload = serde_json::json!({
+                    "filename": filename,
+                    "size": size,
+                    "timestamp_utc": timestamp_utc,
+                    "download_url": file_download_url(filename),
+                });
+                if let Some(product) = detect_product_meta(filename)
+                    && let Ok(product_json) = serde_json::to_value(product)
+                {
+                    payload["product"] = product_json;
+                }
+                payload
+            }
             Self::Telemetry(snapshot) => serde_json::json!(snapshot),
             Self::Error { message } => serde_json::json!({ "message": message }),
         }
@@ -176,6 +185,7 @@ impl RetainedFiles {
                 filename: file.filename.clone(),
                 size: file.size(),
                 timestamp_utc: file.timestamp_utc,
+                product: detect_product_meta(&file.filename),
             })
             .collect()
     }
@@ -235,6 +245,8 @@ struct RetainedFileMeta {
     filename: String,
     size: usize,
     timestamp_utc: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    product: Option<ProductMeta>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1010,8 +1022,9 @@ fn build_cors_layer(cors_origin: Option<String>) -> anyhow::Result<CorsLayer> {
 mod tests {
     use super::{
         AppState, EventKind, EventsQuery, RetainedFiles, build_router, event_matches_filter,
-        events_handler, sanitize_requested_filename, wildcard_match,
+        events_handler, files_handler, sanitize_requested_filename, wildcard_match,
     };
+    use axum::Json;
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
@@ -1129,6 +1142,32 @@ mod tests {
             .await
             .expect("body should read");
         assert_eq!(&body[..], b"hello world");
+    }
+
+    #[tokio::test]
+    async fn files_endpoint_includes_product_metadata_when_detectable() {
+        let state = test_state(10);
+        {
+            let mut guard = state
+                .retained_files
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            guard.insert(
+                "TAFPDKGA.TXT".to_string(),
+                b"data".to_vec(),
+                1,
+                SystemTime::now(),
+            );
+        }
+
+        let Json(response) = files_handler(State(state)).await;
+        let value = serde_json::to_value(response).expect("files response should serialize");
+        assert_eq!(value["files"][0]["filename"], "TAFPDKGA.TXT");
+        assert_eq!(value["files"][0]["product"]["pil"], "TAF");
+        assert_eq!(
+            value["files"][0]["product"]["title"],
+            "Terminal Aerodrome Forecast"
+        );
     }
 
     #[tokio::test]

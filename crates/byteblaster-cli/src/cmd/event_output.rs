@@ -4,6 +4,7 @@
 //! representations for CLI output.
 
 use crate::output::{label_event, label_warn};
+use crate::product_meta::detect_product_meta;
 use byteblaster_core::FrameEvent;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -55,14 +56,17 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
     match event {
         FrameEvent::DataBlock(seg) => {
             let mut line = format!(
-                "{} file={} block={}/{} bytes={} timestamp_utc={}",
+                "{} file={} block={}/{} bytes={}",
                 label_event(),
                 seg.filename,
                 seg.block_number,
                 seg.total_blocks,
                 seg.content.len(),
-                unix_seconds(seg.timestamp_utc)
             );
+            if let Some(product) = detect_product_meta(&seg.filename) {
+                line.push_str(&format!(" title={:?}", product.title));
+            }
+            line.push_str(&format!(" timestamp_utc={}", unix_seconds(seg.timestamp_utc)));
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 line.push_str(&format!(" preview={preview:?}"));
             }
@@ -103,6 +107,11 @@ pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> ser
             });
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 value["preview"] = serde_json::Value::String(preview);
+            }
+            if let Some(product) = detect_product_meta(&seg.filename)
+                && let Ok(product_json) = serde_json::to_value(product)
+            {
+                value["product"] = product_json;
             }
             value
         }

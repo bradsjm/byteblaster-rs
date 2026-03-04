@@ -8,6 +8,7 @@
 
 mod cmd;
 mod output;
+mod product_meta;
 
 use clap::{Parser, Subcommand, ValueEnum};
 

@@ -181,6 +181,7 @@ dependencies = [
  "byteblaster-core",
  "clap",
  "futures",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

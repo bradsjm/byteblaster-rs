@@ -7,6 +7,7 @@ use crate::cmd::event_output::{frame_event_to_json, frame_event_to_text};
 use crate::output::{
     OutputFormat, emit_json_line, emit_text_line, label_info, label_ok, label_stats, label_warn,
 };
+use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
     FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler, parse_server,
@@ -85,16 +86,23 @@ fn run_capture_mode(
                         &file.data,
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
+                    let filename = file.filename.clone();
                     emit_text_line(&format!(
                         "{} wrote path={path} timestamp_utc={timestamp_utc}",
                         label_ok()
                     ));
                     written_files.push(path.clone());
-                    file_events.push(serde_json::json!({
-                        "filename": file.filename,
+                    let mut file_event = serde_json::json!({
+                        "filename": filename,
                         "path": path,
                         "timestamp_utc": timestamp_utc,
-                    }));
+                    });
+                    if let Some(product) = detect_product_meta(&filename)
+                        && let Ok(product_json) = serde_json::to_value(product)
+                    {
+                        file_event["product"] = product_json;
+                    }
+                    file_events.push(file_event);
                 }
             }
             emit_text_line(&format!(
@@ -118,12 +126,19 @@ fn run_capture_mode(
                         &file.data,
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
+                    let filename = file.filename.clone();
                     written_files.push(path.clone());
-                    file_events.push(serde_json::json!({
-                        "filename": file.filename,
+                    let mut file_event = serde_json::json!({
+                        "filename": filename,
                         "path": path,
                         "timestamp_utc": timestamp_utc,
-                    }));
+                    });
+                    if let Some(product) = detect_product_meta(&filename)
+                        && let Ok(product_json) = serde_json::to_value(product)
+                    {
+                        file_event["product"] = product_json;
+                    }
+                    file_events.push(file_event);
                 }
             }
 
@@ -233,6 +248,7 @@ async fn run_live_mode(
                         &file.data,
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
+                    let filename = file.filename.clone();
                     if matches!(format, OutputFormat::Text) {
                         emit_text_line(&format!(
                             "{} wrote path={path} timestamp_utc={timestamp_utc}",
@@ -240,11 +256,17 @@ async fn run_live_mode(
                         ));
                     }
                     written_files.push(path.clone());
-                    file_events.push(serde_json::json!({
-                        "filename": file.filename,
+                    let mut file_event = serde_json::json!({
+                        "filename": filename,
                         "path": path,
                         "timestamp_utc": timestamp_utc,
-                    }));
+                    });
+                    if let Some(product) = detect_product_meta(&filename)
+                        && let Ok(product_json) = serde_json::to_value(product)
+                    {
+                        file_event["product"] = product_json;
+                    }
+                    file_events.push(file_event);
                 }
             }
             Ok(ClientEvent::Connected(endpoint)) => {

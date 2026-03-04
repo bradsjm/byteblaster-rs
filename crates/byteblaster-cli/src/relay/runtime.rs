@@ -1,11 +1,12 @@
+use crate::relay::auth::AuthParser;
+use crate::relay::config::{RelayArgs, RelayConfig};
+use crate::relay::server_list::{ServerListScanner, build_server_list_wire};
 use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use byteblaster_core::parse_server;
 use byteblaster_core::unstable::{build_logon_message, xor_ff};
 use bytes::Bytes;
-use clap::Args;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -17,62 +18,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, broadcast, mpsc, watch};
 use tracing::{debug, error, info, warn};
 
-const DEFAULT_SERVERS: &[&str] = &[
-    "emwin.weathermessage.com:2211",
-    "master.weathermessage.com:2211",
-    "emwin.interweather.net:1000",
-    "wxmesg.upstateweather.com:2211",
-];
-
 const INITIAL_AUTH_TIMEOUT_SECS: u64 = 30;
 const UPSTREAM_REAUTH_INTERVAL_SECS: u64 = 115;
 const UPSTREAM_READ_BUFFER_BYTES: usize = 8192;
 const UPSTREAM_CHANNEL_CAPACITY: usize = 4096;
 const QUALITY_RESUME_THRESHOLD: f64 = 0.97;
-
-#[derive(Debug, Clone, Args)]
-pub struct RelayArgs {
-    #[arg(long)]
-    email: String,
-    #[arg(long = "server", value_delimiter = ',')]
-    servers: Vec<String>,
-    #[arg(long, default_value = "0.0.0.0:2211")]
-    bind: String,
-    #[arg(long, default_value_t = 100)]
-    max_clients: usize,
-    #[arg(long, default_value_t = 720)]
-    auth_timeout_secs: u64,
-    #[arg(long, default_value_t = 65_536)]
-    client_buffer_bytes: usize,
-    #[arg(long, default_value = "127.0.0.1:9090")]
-    metrics_bind: String,
-    #[arg(long, default_value_t = 5)]
-    reconnect_delay_secs: u64,
-    #[arg(long, default_value_t = 5)]
-    connect_timeout_secs: u64,
-    #[arg(long, default_value_t = 60)]
-    quality_window_secs: usize,
-    #[arg(long, default_value_t = 0.95)]
-    quality_pause_threshold: f64,
-    #[arg(long, default_value_t = 30)]
-    metrics_log_interval_secs: u64,
-}
-
-#[derive(Debug, Clone)]
-struct RelayConfig {
-    email: String,
-    upstream_servers: Vec<(String, u16)>,
-    bind_addr: SocketAddr,
-    max_clients: usize,
-    auth_timeout: Duration,
-    client_buffer_bytes: usize,
-    metrics_bind_addr: SocketAddr,
-    reconnect_delay: Duration,
-    connect_timeout: Duration,
-    quality_window_secs: usize,
-    quality_pause_threshold: f64,
-    metrics_log_interval: Duration,
-}
 
 #[derive(Default)]
 struct Metrics {
@@ -130,11 +80,6 @@ struct HealthSnapshot {
     status: &'static str,
     forwarding_paused: bool,
     downstream_active_clients: u64,
-}
-
-#[derive(Default)]
-struct ServerListScanner {
-    decoded_buffer: Vec<u8>,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -406,53 +351,6 @@ pub async fn run(args: RelayArgs) -> Result<()> {
     Ok(())
 }
 
-impl RelayConfig {
-    fn from_args(args: RelayArgs) -> Result<Self> {
-        let servers = if args.servers.is_empty() {
-            DEFAULT_SERVERS
-                .iter()
-                .map(|raw| {
-                    parse_server(raw)
-                        .ok_or_else(|| anyhow::anyhow!("invalid default server entry: {raw}"))
-                })
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            args.servers
-                .iter()
-                .map(|raw| {
-                    parse_server(raw)
-                        .ok_or_else(|| anyhow::anyhow!("invalid --server entry: {raw}"))
-                })
-                .collect::<Result<Vec<_>>>()?
-        };
-
-        let bind_addr = args
-            .bind
-            .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --bind address: {}", args.bind))?;
-        let metrics_bind_addr = args
-            .metrics_bind
-            .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --metrics-bind address: {}", args.metrics_bind))?;
-        let quality_pause_threshold = args.quality_pause_threshold.clamp(0.0, 1.0);
-
-        Ok(Self {
-            email: args.email,
-            upstream_servers: servers,
-            bind_addr,
-            max_clients: args.max_clients.max(1),
-            auth_timeout: Duration::from_secs(args.auth_timeout_secs.max(1)),
-            client_buffer_bytes: args.client_buffer_bytes.max(1),
-            metrics_bind_addr,
-            reconnect_delay: Duration::from_secs(args.reconnect_delay_secs.max(1)),
-            connect_timeout: Duration::from_secs(args.connect_timeout_secs.max(1)),
-            quality_window_secs: args.quality_window_secs.max(1),
-            quality_pause_threshold,
-            metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs.max(1)),
-        })
-    }
-}
-
 async fn run_metrics_logger(
     state: Arc<AppState>,
     config: RelayConfig,
@@ -573,7 +471,10 @@ async fn run_upstream_loop(
                         Ok(n) => {
                             let bytes = Bytes::copy_from_slice(&read_buf[..n]);
                             state.metrics.bytes_in_total.fetch_add(n as u64, Ordering::Relaxed);
-                            scanner.observe_wire_chunk(&bytes, &state);
+                            if let Some(server_list_wire) = scanner.observe_wire_chunk(&bytes) {
+                                state.set_latest_server_list_wire(server_list_wire);
+                                info!("updated cached upstream server list frame");
+                            }
                             let _ = upstream_tx.send(bytes);
                         }
                         Err(_) => {
@@ -875,81 +776,6 @@ async fn health_handler(State(state): State<Arc<AppState>>) -> Json<HealthSnapsh
             .downstream_active_clients
             .load(Ordering::Relaxed),
     })
-}
-
-impl ServerListScanner {
-    fn observe_wire_chunk(&mut self, wire: &[u8], state: &AppState) {
-        self.decoded_buffer
-            .extend(wire.iter().map(|byte| byte ^ 0xFF));
-        if self.decoded_buffer.len() > 65_536 {
-            let drop_count = self.decoded_buffer.len() - 65_536;
-            self.decoded_buffer.drain(..drop_count);
-        }
-
-        let prefix = b"/ServerList/";
-        while let Some(start) = find_subsequence(&self.decoded_buffer, prefix) {
-            let slice = &self.decoded_buffer[start..];
-            let Some(end_rel) = slice.iter().position(|byte| *byte == 0) else {
-                break;
-            };
-            let end = start + end_rel + 1;
-            let frame = Bytes::copy_from_slice(&self.decoded_buffer[start..end]);
-            state.set_latest_server_list_wire(xor_ff(&frame));
-            info!("updated cached upstream server list frame");
-            self.decoded_buffer.drain(..end);
-        }
-    }
-}
-
-#[derive(Default)]
-struct AuthParser {
-    decoded_text: String,
-}
-
-impl AuthParser {
-    fn consume(&mut self, wire: &[u8]) -> Option<String> {
-        let decoded = wire.iter().map(|byte| byte ^ 0xFF).collect::<Vec<_>>();
-        self.decoded_text
-            .push_str(&String::from_utf8_lossy(&decoded));
-
-        const PREFIX: &str = "ByteBlast Client|NM-";
-        const SUFFIX: &str = "|V2";
-
-        if self.decoded_text.len() > 8192 {
-            let keep = self.decoded_text.split_off(self.decoded_text.len() - 8192);
-            self.decoded_text = keep;
-        }
-
-        let start = self.decoded_text.find(PREFIX)?;
-        let after_prefix = start + PREFIX.len();
-        let suffix_rel = self.decoded_text[after_prefix..].find(SUFFIX)?;
-        let suffix = after_prefix + suffix_rel;
-        let email = self.decoded_text[after_prefix..suffix].trim().to_string();
-
-        let remaining = self.decoded_text.split_off(suffix + SUFFIX.len());
-        self.decoded_text = remaining;
-
-        if email.is_empty() { None } else { Some(email) }
-    }
-}
-
-fn build_server_list_wire(servers: &[(String, u16)]) -> Bytes {
-    let entries = servers
-        .iter()
-        .map(|(host, port)| format!("{host}:{port}"))
-        .collect::<Vec<_>>()
-        .join("|");
-    let payload = format!("/ServerList/{entries}\0");
-    xor_ff(payload.as_bytes())
-}
-
-fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    haystack
-        .windows(needle.len())
-        .position(|window| window == needle)
 }
 
 fn unix_time_secs() -> u64 {

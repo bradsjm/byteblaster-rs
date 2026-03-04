@@ -5,7 +5,7 @@ use axum::{Json, Router};
 use byteblaster_core::parse_server;
 use byteblaster_core::unstable::{build_logon_message, xor_ff};
 use bytes::Bytes;
-use clap::Parser;
+use clap::Args;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -34,10 +34,8 @@ const UPSTREAM_READ_BUFFER_BYTES: usize = 8192;
 const UPSTREAM_CHANNEL_CAPACITY: usize = 4096;
 const QUALITY_RESUME_THRESHOLD: f64 = 0.97;
 
-#[derive(Debug, Parser)]
-#[command(name = "byteblaster-relay")]
-#[command(about = "Low-latency ByteBlaster passthrough relay")]
-struct Cli {
+#[derive(Debug, Clone, Args)]
+pub struct RelayArgs {
     #[arg(long)]
     email: String,
     #[arg(long = "server", value_delimiter = ',')]
@@ -311,8 +309,7 @@ struct QueuedChunk {
     _permit: OwnedSemaphorePermit,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+pub fn init_logging() {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     let stdout_layer = tracing_subscriber::fmt::layer()
@@ -336,10 +333,12 @@ async fn main() -> Result<()> {
         .with(env_filter)
         .with(stdout_layer)
         .with(stderr_layer)
-        .init();
+        .try_init()
+        .ok();
+}
 
-    let cli = Cli::parse();
-    let config = RelayConfig::from_cli(cli)?;
+pub async fn run(args: RelayArgs) -> Result<()> {
+    let config = RelayConfig::from_args(args)?;
 
     info!(
         relay_bind = %config.bind_addr,
@@ -440,8 +439,8 @@ async fn main() -> Result<()> {
 }
 
 impl RelayConfig {
-    fn from_cli(cli: Cli) -> Result<Self> {
-        let servers = if cli.servers.is_empty() {
+    fn from_args(args: RelayArgs) -> Result<Self> {
+        let servers = if args.servers.is_empty() {
             DEFAULT_SERVERS
                 .iter()
                 .map(|raw| {
@@ -450,7 +449,7 @@ impl RelayConfig {
                 })
                 .collect::<Result<Vec<_>>>()?
         } else {
-            cli.servers
+            args.servers
                 .iter()
                 .map(|raw| {
                     parse_server(raw)
@@ -459,29 +458,29 @@ impl RelayConfig {
                 .collect::<Result<Vec<_>>>()?
         };
 
-        let bind_addr = cli
+        let bind_addr = args
             .bind
             .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --bind address: {}", cli.bind))?;
-        let metrics_bind_addr = cli
+            .with_context(|| format!("invalid --bind address: {}", args.bind))?;
+        let metrics_bind_addr = args
             .metrics_bind
             .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --metrics-bind address: {}", cli.metrics_bind))?;
-        let quality_pause_threshold = cli.quality_pause_threshold.clamp(0.0, 1.0);
+            .with_context(|| format!("invalid --metrics-bind address: {}", args.metrics_bind))?;
+        let quality_pause_threshold = args.quality_pause_threshold.clamp(0.0, 1.0);
 
         Ok(Self {
-            email: cli.email,
+            email: args.email,
             upstream_servers: servers,
             bind_addr,
-            max_clients: cli.max_clients.max(1),
-            auth_timeout: Duration::from_secs(cli.auth_timeout_secs.max(1)),
-            client_buffer_bytes: cli.client_buffer_bytes.max(1),
+            max_clients: args.max_clients.max(1),
+            auth_timeout: Duration::from_secs(args.auth_timeout_secs.max(1)),
+            client_buffer_bytes: args.client_buffer_bytes.max(1),
             metrics_bind_addr,
-            reconnect_delay: Duration::from_secs(cli.reconnect_delay_secs.max(1)),
-            connect_timeout: Duration::from_secs(cli.connect_timeout_secs.max(1)),
-            quality_window_secs: cli.quality_window_secs.max(1),
+            reconnect_delay: Duration::from_secs(args.reconnect_delay_secs.max(1)),
+            connect_timeout: Duration::from_secs(args.connect_timeout_secs.max(1)),
+            quality_window_secs: args.quality_window_secs.max(1),
             quality_pause_threshold,
-            metrics_log_interval: Duration::from_secs(cli.metrics_log_interval_secs.max(1)),
+            metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs.max(1)),
         })
     }
 }

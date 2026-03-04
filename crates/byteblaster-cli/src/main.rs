@@ -7,8 +7,10 @@
 //! - Running an HTTP server with SSE endpoints
 
 mod cmd;
+mod live;
 mod output;
 mod product_meta;
+mod relay;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -133,6 +135,11 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         quiet: bool,
     },
+    /// Run low-latency ByteBlaster passthrough relay.
+    Relay {
+        #[command(flatten)]
+        options: relay::RelayOptions,
+    },
 }
 
 /// CLI argument parser for byteblaster.
@@ -159,12 +166,15 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .with_writer(std::io::stderr)
-        .init();
-
     let cli = Cli::parse();
+    if matches!(&cli.command, Commands::Relay { .. }) {
+        relay::init_logging();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_writer(std::io::stderr)
+            .init();
+    }
     let format = match cli.format {
         FormatArg::Text => output::OutputFormat::Text,
         FormatArg::Json => output::OutputFormat::Json,
@@ -245,5 +255,6 @@ async fn main() -> anyhow::Result<()> {
             };
             cmd::server::run(options).await
         }
+        Commands::Relay { options } => relay::run(options).await,
     }
 }

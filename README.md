@@ -6,7 +6,6 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 
 - `crates/byteblaster-core` - protocol + runtime library
 - `crates/byteblaster-cli` - command-line interface built on `byteblaster-core`
-- `crates/byteblaster-relay` - dedicated low-latency ByteBlaster TCP relay with local auth tracking
 - `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
 - `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
 - `docs/relay-mode.md` - TCP relay mode behavior and metrics contract
@@ -21,7 +20,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - Server-list parsing and persisted lifecycle management
 - File assembly with duplicate suppression
 - CLI commands for stream, download, inspect, and server flows
-- Dedicated relay process for passthrough retransmission with per-client buffering limits
+- Integrated relay command for passthrough retransmission with per-client buffering limits
 
 ## Rust/toolchain
 
@@ -48,8 +47,9 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bradsjm/byteblaster-rs/
 Run via Docker (no local Rust toolchain required):
 
 ```bash
-docker run --rm ghcr.io/bradsjm/byteblaster-rs:latest --help
-docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs:latest --format json inspect /work/path/to/capture.bin
+docker run --rm ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --help
+docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --format json inspect /work/path/to/capture.bin
+docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --email you@example.com
 ```
 
 ## Use `byteblaster-core` in your app
@@ -142,7 +142,7 @@ Optional live-mode endpoint/persistence overrides:
 Relay mode (raw TCP passthrough + metrics):
 
 ```bash
-cargo run -p byteblaster-relay -- --email you@example.com
+cargo run -p byteblaster-cli -- relay --email you@example.com
 ```
 
 Useful relay flags:

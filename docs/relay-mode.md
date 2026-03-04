@@ -1,8 +1,16 @@
-# Relay Mode (`byteblaster-relay`)
+# Relay Mode (`byteblaster-cli relay`)
 
-`byteblaster-relay` is a dedicated ByteBlaster TCP retransmission process.
+`byteblaster-cli relay` provides ByteBlaster TCP retransmission mode.
 It receives the upstream feed and forwards the raw wire bytes to downstream
 ByteBlaster clients with low added latency.
+
+## Container Usage
+
+```bash
+docker run --rm -p 2211:2211 -p 9090:9090 \
+  ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest \
+  relay --email you@example.com
+```
 
 ## Behavior Contract
 

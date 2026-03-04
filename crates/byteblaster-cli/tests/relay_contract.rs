@@ -28,7 +28,7 @@ impl RelayProcess {
 }
 
 fn relay_binary_path() -> PathBuf {
-    if let Ok(path) = std::env::var("CARGO_BIN_EXE_byteblaster-relay") {
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_byteblaster-cli") {
         return PathBuf::from(path);
     }
 
@@ -44,18 +44,18 @@ fn relay_binary_path() -> PathBuf {
                 .join("target")
                 .join("debug")
                 .join(if cfg!(windows) {
-                    "byteblaster-relay.exe"
+                    "byteblaster-cli.exe"
                 } else {
-                    "byteblaster-relay"
+                    "byteblaster-cli"
                 });
 
             if !bin_path.exists() {
                 let status = Command::new("cargo")
                     .arg("build")
                     .arg("-p")
-                    .arg("byteblaster-relay")
+                    .arg("byteblaster-cli")
                     .arg("--bin")
-                    .arg("byteblaster-relay")
+                    .arg("byteblaster-cli")
                     .status()
                     .expect("failed to build relay binary for integration tests");
                 assert!(status.success(), "cargo build for relay binary failed");
@@ -349,6 +349,7 @@ fn relay_args(
     client_buffer_bytes: usize,
 ) -> Vec<String> {
     vec![
+        "relay".into(),
         "--email".into(),
         "relay@example.com".into(),
         "--server".into(),

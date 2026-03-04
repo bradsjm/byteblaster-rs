@@ -1,25 +1,78 @@
+//! Product metadata detection for meteorological data files.
+//!
+//! This module provides functionality to detect and parse metadata from
+//! meteorological product filenames, including NWS text products (AWIPS),
+//! radar graphics, GOES satellite imagery, and other NWS graphic products.
+//!
+//! Metadata includes:
+//! - Product family (text, radar graphic, satellite graphic)
+//! - Product code (the unique identifier in the filename)
+//! - PIL (Product Identifier Line) for text products
+//! - WMO prefix for international routing
+//! - Origin station and region for location-specific products
+//! - Container format (ZIP, raw, etc.)
+
 use regex::Regex;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
+/// Metadata for a meteorological product file.
+///
+/// This struct captures all detectable metadata from a product filename,
+/// including the product family, code, and optional fields like PIL,
+/// WMO prefix, origin, and region. The metadata is serializable for
+/// JSON output in the CLI.
 #[derive(Debug, Clone, Serialize)]
 pub struct ProductMeta {
+    /// The detection method used to identify this product (e.g., "regex_graphics", "regex_awips_table").
     pub source: &'static str,
+    /// The product family/category (e.g., "nws_text_product", "radar_graphic", "goes_graphic").
     pub family: &'static str,
+    /// Human-readable title of the product.
     pub title: String,
+    /// The unique product code from the filename (e.g., "TAFPDKGA", "RADUMSVY").
     pub code: String,
+    /// The container format of the file (e.g., "zip", "raw").
     pub container: &'static str,
+    /// The Product Identifier Line (first 3 characters of code) for text products.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pil: Option<String>,
+    /// The WMO header prefix for international routing of text products.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wmo_prefix: Option<String>,
+    /// The origin station identifier for location-specific text products.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
+    /// The 2-letter region code for location-specific text products (e.g., "GA", "TX").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
 }
 
+/// Detects product metadata from a filename.
+///
+/// This function attempts to identify a meteorological product from its filename
+/// and extract relevant metadata. It first normalizes the filename, then tries
+/// to match against graphic product patterns (radar, GOES satellite, NWS graphics),
+/// and finally attempts to parse AWIPS text product formats.
+///
+/// # Arguments
+///
+/// * `filename` - The product filename, which may include path components or
+///   suffixes (e.g., "TAFPDKGA.TXT", "/path/to/RADUMSVY.GIF", "IMGCONUS-20250101.png").
+///
+/// # Returns
+///
+/// Returns `Some(ProductMeta)` if the filename matches a known product pattern,
+/// or `None` if no match is found.
+///
+/// # Examples
+///
+/// ```rust
+/// let meta = detect_product_meta("TAFPDKGA.TXT").unwrap();
+/// assert_eq!(meta.pil.as_deref(), Some("TAF"));
+/// assert_eq!(meta.title, "Terminal Aerodrome Forecast");
+/// ```
 pub fn detect_product_meta(filename: &str) -> Option<ProductMeta> {
     let candidate = canonical_name(filename);
     let upper = candidate.to_ascii_uppercase();
@@ -27,6 +80,21 @@ pub fn detect_product_meta(filename: &str) -> Option<ProductMeta> {
     detect_graphics(&upper).or_else(|| detect_awips_text(&upper))
 }
 
+/// Extracts the canonical product name from a filename.
+///
+/// This function strips path components and optional suffixes to obtain the
+/// core product identifier. It handles both Windows-style (`\`) and Unix-style
+/// (`/`) path separators. If the filename contains a suffix separated by `-`
+/// (e.g., `IMGCONUS-20250101.png`), only the part before the suffix is used
+/// if it contains a `.`.
+///
+/// # Arguments
+///
+/// * `filename` - The input filename, possibly with path components or suffixes.
+///
+/// # Returns
+///
+/// The canonical product name suitable for metadata detection.
 fn canonical_name(filename: &str) -> String {
     let base = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
     let trimmed = base.trim();
@@ -41,10 +109,34 @@ fn canonical_name(filename: &str) -> String {
     trimmed.to_string()
 }
 
+/// Maps a file extension to a container type.
+///
+/// # Arguments
+///
+/// * `ext` - The file extension (e.g., "ZIP", "TXT", "GIF").
+///
+/// # Returns
+///
+/// Returns `"zip"` for ZIP extensions, otherwise `"raw"` for all other formats.
 fn container_from_ext(ext: &str) -> &'static str {
     if ext == "ZIP" { "zip" } else { "raw" }
 }
 
+/// Detects graphic product metadata from a filename.
+///
+/// This function attempts to match the filename against three patterns:
+/// - Radar graphics: `RADXXXXX.GIF` where X is alphanumeric (e.g., "RADUMSVY.GIF")
+/// - GOES satellite graphics: `GNNXXXXXXX.ZIP|JPG` where NN is 2 digits (e.g., "G16CONUS.JPG")
+/// - NWS graphics: `(IMG|MOD)XXXXX.ZIP|GIF|PNG|JPG` (e.g., "IMGCONUS.PNG")
+///
+/// # Arguments
+///
+/// * `filename_upper` - The uppercase filename to match against.
+///
+/// # Returns
+///
+/// Returns `Some(ProductMeta)` if the filename matches a graphic pattern,
+/// or `None` if no match is found.
 fn detect_graphics(filename_upper: &str) -> Option<ProductMeta> {
     static RADAR_RE: OnceLock<Regex> = OnceLock::new();
     static GOES_RE: OnceLock<Regex> = OnceLock::new();
@@ -108,6 +200,26 @@ fn detect_graphics(filename_upper: &str) -> Option<ProductMeta> {
     None
 }
 
+/// Detects AWIPS text product metadata from a filename.
+///
+/// This function parses AWIPS (Advanced Weather Interactive Processing System)
+/// text product filenames, which follow the pattern `XXX[YYYYYY].TXT|ZIP` where:
+/// - `XXX` is the 3-character Product Identifier Line (PIL)
+/// - `YYYYYY` is an optional 6-character suffix containing origin and region
+///   for location-specific products (e.g., `PDKGA` for origin "PDK" in region "GA")
+///
+/// The function looks up the PIL in the product catalog to obtain the WMO prefix
+/// and human-readable title. For certain PIL types (e.g., TAF, AFD, CWF), it also
+/// extracts the origin station and region code from the filename suffix.
+///
+/// # Arguments
+///
+/// * `filename_upper` - The uppercase filename to parse (e.g., "TAFPDKGA.TXT", "AFDOKX.TXT").
+///
+/// # Returns
+///
+/// Returns `Some(ProductMeta)` if the PIL is found in the catalog,
+/// or `None` if the PIL is unknown.
 fn detect_awips_text(filename_upper: &str) -> Option<ProductMeta> {
     static STEM_RE: OnceLock<Regex> = OnceLock::new();
     static ORIGIN_RE: OnceLock<Regex> = OnceLock::new();
@@ -151,6 +263,16 @@ fn detect_awips_text(filename_upper: &str) -> Option<ProductMeta> {
     Some(meta)
 }
 
+/// Returns the set of PIL types that safely include origin/region in the suffix.
+///
+/// Not all AWIPS text products have consistent suffix formatting. This function
+/// returns the set of PIL types that are known to use the standard 6-character
+/// suffix format where characters 4-6 represent the origin station (3 chars) and
+/// characters 7-8 represent the region (2 chars).
+///
+/// # Returns
+///
+/// A static reference to a HashSet containing the safe PIL identifiers.
 fn pil_origin_safe() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -164,12 +286,26 @@ fn pil_origin_safe() -> &'static HashSet<&'static str> {
     })
 }
 
+/// A catalog entry for a Product Identifier Line (PIL).
+///
+/// This struct stores the WMO prefix and human-readable title for a PIL.
 #[derive(Debug, Clone, Copy)]
 struct PilCatalogEntry {
+    /// The WMO header prefix for international routing (e.g., "FT" for TAF).
     wmo_prefix: &'static str,
+    /// The human-readable title of the product (e.g., "Terminal Aerodrome Forecast").
     title: &'static str,
 }
 
+/// Returns the PIL catalog, mapping PIL codes to their metadata.
+///
+/// This function lazily initializes a HashMap that maps 3-character PIL codes
+/// to their corresponding `PilCatalogEntry` (WMO prefix and title). The catalog
+/// is populated from the static `PRODUCT_TABLE_ENTRIES` constant.
+///
+/// # Returns
+///
+/// A static reference to the HashMap containing all known PIL mappings.
 fn pil_catalog() -> &'static HashMap<&'static str, PilCatalogEntry> {
     static MAP: OnceLock<HashMap<&'static str, PilCatalogEntry>> = OnceLock::new();
     MAP.get_or_init(|| {
@@ -180,6 +316,15 @@ fn pil_catalog() -> &'static HashMap<&'static str, PilCatalogEntry> {
     })
 }
 
+/// Static table of known AWIPS text products.
+///
+/// Each entry is a tuple of:
+/// 0. The 3-character PIL (Product Identifier Line)
+/// 1. The WMO header prefix
+/// 2. The human-readable product title
+///
+/// This table serves as the authoritative source for PIL metadata and is
+/// used to populate the runtime `pil_catalog` HashMap.
 const PRODUCT_TABLE_ENTRIES: &[(&str, &str, &str)] = &[
     ("18A", "FB", "18 Hour Report"),
     ("24A", "FB", "24 Hour Report"),
@@ -979,6 +1124,10 @@ const PRODUCT_TABLE_ENTRIES: &[(&str, &str, &str)] = &[
 mod tests {
     use super::detect_product_meta;
 
+    /// Tests detection of TAF (Terminal Aerodrome Forecast) products.
+    ///
+    /// Verifies that a TAF product with origin station and region codes
+    /// is correctly parsed, extracting the PIL, title, origin, and region.
     #[test]
     fn detects_taf_with_origin_region() {
         let meta = detect_product_meta("TAFPDKGA.TXT").expect("expected metadata");
@@ -988,6 +1137,10 @@ mod tests {
         assert_eq!(meta.region.as_deref(), Some("GA"));
     }
 
+    /// Tests detection of radar graphic products.
+    ///
+    /// Verifies that a radar graphic filename is correctly identified
+    /// with the appropriate family and title.
     #[test]
     fn detects_radar_graphic_family() {
         let meta = detect_product_meta("RADUMSVY.GIF").expect("expected metadata");
@@ -995,6 +1148,10 @@ mod tests {
         assert_eq!(meta.title, "Radar graphic");
     }
 
+    /// Tests handling of unknown product codes.
+    ///
+    /// Verifies that filenames that do not match any known product
+    /// pattern return `None` instead of invalid metadata.
     #[test]
     fn unknown_code_returns_none() {
         let meta = detect_product_meta("COMP1117.ZIP");

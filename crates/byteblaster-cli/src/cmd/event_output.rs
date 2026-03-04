@@ -66,7 +66,10 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
             if let Some(product) = detect_product_meta(&seg.filename) {
                 line.push_str(&format!(" title={:?}", product.title));
             }
-            line.push_str(&format!(" timestamp_utc={}", unix_seconds(seg.timestamp_utc)));
+            line.push_str(&format!(
+                " timestamp_utc={}",
+                unix_seconds(seg.timestamp_utc)
+            ));
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 line.push_str(&format!(" preview={preview:?}"));
             }

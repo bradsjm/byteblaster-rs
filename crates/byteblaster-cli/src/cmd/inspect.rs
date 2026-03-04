@@ -3,8 +3,8 @@
 //! This module provides functionality to read and decode ByteBlaster
 //! capture files, outputting the decoded events in text or JSON format.
 
+use crate::OutputFormat;
 use crate::cmd::event_output::frame_event_to_json;
-use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use byteblaster_core::{FrameDecoder, ProtocolDecoder};
 use std::io::Read;
 
@@ -34,23 +34,22 @@ pub async fn run(
 
     match format {
         OutputFormat::Text => {
-            emit_text_line(&format!(
-                "{} inspect complete events={}",
-                label_ok(),
-                events.len()
-            ));
+            println!("[OK] inspect complete events={}", events.len());
         }
         OutputFormat::Json => {
             let event_payload: Vec<serde_json::Value> = events
                 .iter()
                 .map(|event| frame_event_to_json(event, text_preview_chars))
                 .collect();
-            emit_json_line(&serde_json::json!({
+            println!(
+                "{}",
+                serde_json::to_string(&serde_json::json!({
                 "command":"inspect",
                 "status":"ok",
                 "event_count": event_payload.len(),
                 "events": event_payload,
-            }))?;
+                }))?
+            );
         }
     }
 

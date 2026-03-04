@@ -3,7 +3,6 @@
 //! This module provides functions for converting frame events to text and JSON
 //! representations for CLI output.
 
-use crate::output::{label_event, label_warn};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::FrameEvent;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -56,8 +55,7 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
     match event {
         FrameEvent::DataBlock(seg) => {
             let mut line = format!(
-                "{} file={} block={}/{} bytes={}",
-                label_event(),
+                "[EVENT] file={} block={}/{} bytes={}",
                 seg.filename,
                 seg.block_number,
                 seg.total_blocks,
@@ -76,12 +74,11 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
             line
         }
         FrameEvent::ServerListUpdate(list) => format!(
-            "{} server_list servers={} sat_servers={}",
-            label_event(),
+            "[EVENT] server_list servers={} sat_servers={}",
             list.servers.len(),
             list.sat_servers.len()
         ),
-        FrameEvent::Warning(warning) => format!("{} {:?}", label_warn(), warning),
+        FrameEvent::Warning(warning) => format!("[WARN] {:?}", warning),
         _ => "unknown".to_string(),
     }
 }

@@ -1,6 +1,6 @@
 use crate::LiveOptions;
+use crate::OutputFormat;
 use crate::live;
-use crate::output::OutputFormat;
 
 pub async fn run(
     format: OutputFormat,

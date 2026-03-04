@@ -3,8 +3,8 @@
 //! This module provides functionality to download and assemble files from
 //! capture files or live ByteBlaster servers.
 
+use crate::OutputFormat;
 use crate::live::shared::{parse_servers_or_default, unix_seconds};
-use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
@@ -92,24 +92,23 @@ fn run_capture_mode(
             for file_event in &file_events {
                 let path = file_event["path"].as_str().unwrap_or("");
                 let timestamp_utc = file_event["timestamp_utc"].as_u64().unwrap_or(0);
-                emit_text_line(&format!(
-                    "{} wrote path={path} timestamp_utc={timestamp_utc}",
-                    label_ok()
-                ));
+                println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
             }
-            emit_text_line(&format!(
-                "{} download capture complete files={}",
-                label_ok(),
+            println!(
+                "[OK] download capture complete files={}",
                 written_files.len()
-            ));
+            );
         }
-        OutputFormat::Json => emit_json_line(&serde_json::json!({
-            "command":"download",
-            "status":"ok",
-            "output_dir":output_dir,
-            "written_files": written_files,
-            "file_events": file_events,
-        }))?,
+        OutputFormat::Json => println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "command":"download",
+                "status":"ok",
+                "output_dir":output_dir,
+                "written_files": written_files,
+                "file_events": file_events,
+            }))?
+        ),
     }
     Ok(())
 }
@@ -166,10 +165,7 @@ async fn run_live_mode(
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     let filename = file.filename.clone();
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!(
-                            "{} wrote path={path} timestamp_utc={timestamp_utc}",
-                            label_ok()
-                        ));
+                        println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
                     }
                     written_files.push(path.clone());
                     let mut file_event = serde_json::json!({
@@ -204,20 +200,19 @@ async fn run_live_mode(
 
     match format {
         OutputFormat::Text => {
-            emit_text_line(&format!(
-                "{} download live complete files={}",
-                label_ok(),
-                written_files.len()
-            ));
+            println!("[OK] download live complete files={}", written_files.len());
         }
-        OutputFormat::Json => emit_json_line(&serde_json::json!({
-            "command":"download",
-            "status":"ok",
-            "mode":"live",
-            "output_dir":output_dir,
-            "written_files": written_files,
-            "file_events": file_events,
-        }))?,
+        OutputFormat::Json => println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "command":"download",
+                "status":"ok",
+                "mode":"live",
+                "output_dir":output_dir,
+                "written_files": written_files,
+                "file_events": file_events,
+            }))?
+        ),
     }
 
     Ok(())

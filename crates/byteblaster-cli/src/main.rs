@@ -8,11 +8,12 @@
 
 mod cmd;
 mod live;
-mod output;
 mod product_meta;
 mod relay;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use std::io::IsTerminal;
+use tracing_subscriber::EnvFilter;
 
 /// Options for live mode connections.
 #[derive(Debug, Clone)]
@@ -31,22 +32,11 @@ struct LiveOptions {
 
 /// Output format for CLI commands.
 #[derive(Debug, Clone, Copy, ValueEnum)]
-enum FormatArg {
+pub(crate) enum OutputFormat {
     /// Human-readable text output.
     Text,
     /// Machine-readable JSON output.
     Json,
-}
-
-/// Color output policy.
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum ColorArg {
-    /// Enable colors when stdout is a terminal.
-    Auto,
-    /// Always enable colors.
-    Always,
-    /// Never enable colors.
-    Never,
 }
 
 /// Available CLI commands.
@@ -148,14 +138,8 @@ enum Commands {
 #[command(about = "ByteBlaster console client")]
 struct Cli {
     /// Output format for command results.
-    #[arg(long, value_enum, default_value_t = FormatArg::Text)]
-    format: FormatArg,
-    /// Color output policy.
-    #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
-    color: ColorArg,
-    /// Disable colored output.
-    #[arg(long, default_value_t = false)]
-    no_color: bool,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
     /// Maximum characters for text preview.
     #[arg(long, default_value_t = 80)]
     text_preview_chars: usize,
@@ -167,21 +151,8 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    output::init_logging();
-    let format = match cli.format {
-        FormatArg::Text => output::OutputFormat::Text,
-        FormatArg::Json => output::OutputFormat::Json,
-    };
-    let color = if cli.no_color {
-        output::ColorPolicy::Never
-    } else {
-        match cli.color {
-            ColorArg::Auto => output::ColorPolicy::Auto,
-            ColorArg::Always => output::ColorPolicy::Always,
-            ColorArg::Never => output::ColorPolicy::Never,
-        }
-    };
-    output::configure_color(color);
+    init_logging();
+    let format = cli.format;
     let text_preview_chars = cli.text_preview_chars;
 
     match cli.command {
@@ -250,4 +221,22 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Relay { options } => relay::run(options).await,
     }
+}
+
+fn init_logging() {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let ansi = match std::env::var("RUST_LOG_STYLE") {
+        Ok(value) => match value.to_ascii_lowercase().as_str() {
+            "always" => true,
+            "never" => false,
+            _ => std::io::stderr().is_terminal(),
+        },
+        Err(_) => std::io::stderr().is_terminal(),
+    };
+
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_writer(std::io::stderr)
+        .with_ansi(ansi)
+        .try_init();
 }

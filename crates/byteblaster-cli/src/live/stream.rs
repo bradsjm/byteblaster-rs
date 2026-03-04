@@ -3,11 +3,9 @@
 //! This module provides functionality to stream events from capture files
 //! or live ByteBlaster servers, with optional file assembly and output.
 
+use crate::OutputFormat;
 use crate::cmd::event_output::{frame_event_to_json, frame_event_to_text};
 use crate::live::shared::{parse_servers_or_default, unix_seconds, write_completed_file};
-use crate::output::{
-    OutputFormat, emit_json_line, emit_text_line, label_info, label_ok, label_stats, label_warn,
-};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
@@ -74,7 +72,7 @@ fn run_capture_mode(
     match format {
         OutputFormat::Text => {
             for event in &events {
-                emit_text_line(&frame_event_to_text(event, text_preview_chars));
+                println!("{}", frame_event_to_text(event, text_preview_chars));
                 if let Some(assembler) = assembler.as_mut()
                     && let FrameEvent::DataBlock(segment) = event
                     && let Some(file) = assembler.push(segment.clone())?
@@ -88,10 +86,7 @@ fn run_capture_mode(
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     let filename = file.filename.clone();
-                    emit_text_line(&format!(
-                        "{} wrote path={path} timestamp_utc={timestamp_utc}",
-                        label_ok()
-                    ));
+                    println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
                     written_files.push(path.clone());
                     let mut file_event = serde_json::json!({
                         "filename": filename,
@@ -106,12 +101,11 @@ fn run_capture_mode(
                     file_events.push(file_event);
                 }
             }
-            emit_text_line(&format!(
-                "{} stream capture complete events={} files={}",
-                label_ok(),
+            println!(
+                "[OK] stream capture complete events={} files={}",
                 events.len(),
                 written_files.len()
-            ));
+            );
         }
         OutputFormat::Json => {
             for event in &events {
@@ -143,17 +137,20 @@ fn run_capture_mode(
                 }
             }
 
-            emit_json_line(&serde_json::json!({
-                "command":"stream",
-                "status":"ok",
-                "event_count": events.len(),
-                "events": events
-                    .iter()
-                    .map(|event| frame_event_to_json(event, text_preview_chars))
-                    .collect::<Vec<_>>(),
-                "written_files": written_files,
-                "file_events": file_events,
-            }))?
+            println!(
+                "{}",
+                serde_json::to_string(&serde_json::json!({
+                    "command":"stream",
+                    "status":"ok",
+                    "event_count": events.len(),
+                    "events": events
+                        .iter()
+                        .map(|event| frame_event_to_json(event, text_preview_chars))
+                        .collect::<Vec<_>>(),
+                    "written_files": written_files,
+                    "file_events": file_events,
+                }))?
+            )
         }
     }
     Ok(())
@@ -211,7 +208,7 @@ async fn run_live_mode(
             Ok(ClientEvent::Frame(frame)) => {
                 seen += 1;
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&frame_event_to_text(&frame, text_preview_chars));
+                    println!("{}", frame_event_to_text(&frame, text_preview_chars));
                 }
                 if matches!(frame, FrameEvent::DataBlock(_)) {
                     live_stats.data_blocks_total = live_stats.data_blocks_total.saturating_add(1);
@@ -227,13 +224,12 @@ async fn run_live_mode(
                         "sat_servers": list.sat_servers,
                     }));
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!(
-                            "{} server list received updates={} servers={} sat_servers={}",
-                            label_info(),
+                        println!(
+                            "[INFO] server list received updates={} servers={} sat_servers={}",
                             live_stats.server_list_updates_total,
                             list.servers.len(),
                             list.sat_servers.len()
-                        ));
+                        );
                     }
                 }
                 if matches!(format, OutputFormat::Json) {
@@ -253,10 +249,7 @@ async fn run_live_mode(
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     let filename = file.filename.clone();
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!(
-                            "{} wrote path={path} timestamp_utc={timestamp_utc}",
-                            label_ok()
-                        ));
+                        println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
                     }
                     written_files.push(path.clone());
                     let mut file_event = serde_json::json!({
@@ -275,11 +268,10 @@ async fn run_live_mode(
             Ok(ClientEvent::Connected(endpoint)) => {
                 live_stats.connections_total = live_stats.connections_total.saturating_add(1);
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&format!(
-                        "{} connected endpoint={endpoint} connections={}",
-                        label_ok(),
+                    println!(
+                        "[OK] connected endpoint={endpoint} connections={}",
                         live_stats.connections_total
-                    ));
+                    );
                 }
                 let event = serde_json::json!({
                     "type":"connected",
@@ -292,11 +284,10 @@ async fn run_live_mode(
             Ok(ClientEvent::Disconnected) => {
                 live_stats.disconnects_total = live_stats.disconnects_total.saturating_add(1);
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&format!(
-                        "{} disconnected; switching server disconnects={}",
-                        label_warn(),
+                    println!(
+                        "[WARN] disconnected; switching server disconnects={}",
                         live_stats.disconnects_total
-                    ));
+                    );
                 }
                 let event = serde_json::json!({
                     "type":"disconnected",
@@ -312,12 +303,10 @@ async fn run_live_mode(
                     .unwrap_or(0);
                 if auth_delta > 0 {
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!(
-                            "{} auth logon sent delta={} total={}",
-                            label_info(),
-                            auth_delta,
-                            snapshot.auth_logon_sent_total
-                        ));
+                        println!(
+                            "[INFO] auth logon sent delta={} total={}",
+                            auth_delta, snapshot.auth_logon_sent_total
+                        );
                     }
                     if matches!(format, OutputFormat::Json) {
                         connection_events.push(serde_json::json!({
@@ -330,9 +319,8 @@ async fn run_live_mode(
                 last_auth_logons = Some(snapshot.auth_logon_sent_total);
 
                 if matches!(format, OutputFormat::Text) {
-                    emit_text_line(&format!(
-                        "{} bytes_in={} frames={} data_blocks={} drops={} server_lists={} servers={} sat_servers={} auth_logons={} watchdog_timeouts={} watchdog_exceptions={}",
-                        label_stats(),
+                    println!(
+                        "[STATS] bytes_in={} frames={} data_blocks={} drops={} server_lists={} servers={} sat_servers={} auth_logons={} watchdog_timeouts={} watchdog_exceptions={}",
                         snapshot.bytes_in_total,
                         snapshot.frame_events_total,
                         live_stats.data_blocks_total,
@@ -343,7 +331,7 @@ async fn run_live_mode(
                         snapshot.auth_logon_sent_total,
                         snapshot.watchdog_timeouts_total,
                         snapshot.watchdog_exception_events_total
-                    ));
+                    );
                 }
                 let event = serde_json::json!({
                     "type":"telemetry",
@@ -379,9 +367,8 @@ async fn run_live_mode(
 
     match format {
         OutputFormat::Text => {
-            emit_text_line(&format!(
-                "{} stream live complete events={} files={} server_lists={} servers={} sat_servers={} connections={} disconnects={}",
-                label_ok(),
+            println!(
+                "[OK] stream live complete events={} files={} server_lists={} servers={} sat_servers={} connections={} disconnects={}",
                 seen,
                 written_files.len(),
                 live_stats.server_list_updates_total,
@@ -389,26 +376,29 @@ async fn run_live_mode(
                 live_stats.current_sat_servers,
                 live_stats.connections_total,
                 live_stats.disconnects_total
-            ));
+            );
         }
-        OutputFormat::Json => emit_json_line(&serde_json::json!({
-            "command":"stream",
-            "status":"ok",
-            "mode":"live",
-            "event_count": payload.len(),
-            "events": payload,
-            "connection_events": connection_events,
-            "written_files": written_files,
-            "file_events": file_events,
-            "stream_stats": {
-                "connections_total": live_stats.connections_total,
-                "disconnects_total": live_stats.disconnects_total,
-                "data_blocks_total": live_stats.data_blocks_total,
-                "server_list_updates_total": live_stats.server_list_updates_total,
-                "current_servers": live_stats.current_servers,
-                "current_sat_servers": live_stats.current_sat_servers,
-            }
-        }))?,
+        OutputFormat::Json => println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "command":"stream",
+                "status":"ok",
+                "mode":"live",
+                "event_count": payload.len(),
+                "events": payload,
+                "connection_events": connection_events,
+                "written_files": written_files,
+                "file_events": file_events,
+                "stream_stats": {
+                    "connections_total": live_stats.connections_total,
+                    "disconnects_total": live_stats.disconnects_total,
+                    "data_blocks_total": live_stats.data_blocks_total,
+                    "server_list_updates_total": live_stats.server_list_updates_total,
+                    "current_servers": live_stats.current_servers,
+                    "current_sat_servers": live_stats.current_sat_servers,
+                }
+            }))?
+        ),
     }
 
     Ok(())

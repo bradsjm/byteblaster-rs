@@ -52,6 +52,8 @@ pub struct ClientConfig {
     pub servers: Vec<(String, u16)>,
     /// Optional path to persist and load server list.
     pub server_list_path: Option<PathBuf>,
+    /// Whether runtime server-list updates should replace configured endpoints.
+    pub follow_server_list_updates: bool,
     /// Delay between reconnection attempts (in seconds).
     pub reconnect_delay_secs: u64,
     /// Timeout for establishing connections (in seconds).

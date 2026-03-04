@@ -168,11 +168,13 @@ async fn run_live_mode(
         .email
         .ok_or_else(|| anyhow::anyhow!("live mode requires --email"))?;
 
+    let pin_servers = !live.servers.is_empty();
     let servers = parse_servers_or_default(&live.servers)?;
     let config = ClientConfig {
         email,
         servers,
         server_list_path: live.server_list_path.map(PathBuf::from),
+        follow_server_list_updates: !pin_servers,
         reconnect_delay_secs: 5,
         connection_timeout_secs: 5,
         watchdog_timeout_secs: 49,

@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/byteblaster-core", "crates/byteblaster-cli"]
+members = [
+    "crates/byteblaster-core",
+    "crates/byteblaster-cli",
+    "crates/byteblaster-relay",
+]
 resolver = "3"
 
 [workspace.package]

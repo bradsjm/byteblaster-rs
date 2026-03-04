@@ -294,8 +294,10 @@ async fn run_connection_loop(
     let mut telemetry = RuntimeTelemetry::default();
     let mut server_list =
         ServerListManager::new(config.server_list_path.clone(), config.servers.clone());
-    if let Err(err) = server_list.load() {
-        try_send_event(&event_tx, Err(err), &mut telemetry);
+    if config.follow_server_list_updates {
+        if let Err(err) = server_list.load() {
+            try_send_event(&event_tx, Err(err), &mut telemetry);
+        }
     }
 
     while !*shutdown_rx.borrow() {
@@ -359,7 +361,7 @@ async fn run_connection_loop(
                     try_send_event(&event_tx, Err(err), &mut telemetry);
                 }
 
-                if !*shutdown_rx.borrow() {
+                if !*shutdown_rx.borrow() && config.follow_server_list_updates {
                     server_list.mark_bad_endpoint(&(host.clone(), port));
                 }
 
@@ -371,7 +373,9 @@ async fn run_connection_loop(
             Err(err) => {
                 telemetry.snapshot.connection_fail_total =
                     telemetry.snapshot.connection_fail_total.saturating_add(1);
-                server_list.mark_bad_endpoint(&(host.clone(), port));
+                if config.follow_server_list_updates {
+                    server_list.mark_bad_endpoint(&(host.clone(), port));
+                }
                 try_send_event(&event_tx, Err(CoreError::Io(err)), &mut telemetry);
                 update_telemetry_sink(&telemetry_sink, &telemetry);
             }
@@ -480,7 +484,9 @@ async fn run_connected_session(
                                     .decompression_failed_total
                                     .saturating_add(count_decompression_failures(&events) as u64);
                                 for event in &events {
-                                    if let FrameEvent::ServerListUpdate(list) = event {
+                                    if ctx.config.follow_server_list_updates
+                                        && let FrameEvent::ServerListUpdate(list) = event
+                                    {
                                         if let Err(err) = ctx.server_list.apply_server_list(list.clone()) {
                                             try_send_event(ctx.event_tx, Err(err), ctx.telemetry);
                                         }

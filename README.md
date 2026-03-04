@@ -6,8 +6,10 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 
 - `crates/byteblaster-core` - protocol + runtime library
 - `crates/byteblaster-cli` - command-line interface built on `byteblaster-core`
+- `crates/byteblaster-relay` - dedicated low-latency ByteBlaster TCP relay with local auth tracking
 - `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
 - `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
+- `docs/relay-mode.md` - TCP relay mode behavior and metrics contract
 - `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` - historical external draft reference
 - `tests/fixtures` - binary/json fixture corpus metadata
 
@@ -19,6 +21,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - Server-list parsing and persisted lifecycle management
 - File assembly with duplicate suppression
 - CLI commands for stream, download, inspect, and server flows
+- Dedicated relay process for passthrough retransmission with per-client buffering limits
 
 ## Rust/toolchain
 
@@ -135,3 +138,22 @@ Optional live-mode endpoint/persistence overrides:
 
 - `--server host:port` (repeatable or comma-delimited)
 - `--server-list-path ./servers.json`
+
+Relay mode (raw TCP passthrough + metrics):
+
+```bash
+cargo run -p byteblaster-relay -- --email you@example.com
+```
+
+Useful relay flags:
+
+- `--bind 0.0.0.0:2211` (downstream client listener)
+- `--max-clients 100` (connection cap; over-capacity clients receive server-list frame then disconnect)
+- `--auth-timeout-secs 720` (downstream re-authentication window)
+- `--client-buffer-bytes 65536` (per-client backpressure budget)
+- `--metrics-bind 127.0.0.1:9090` (metrics listener)
+
+Relay endpoints:
+
+- `GET /health` - relay health summary
+- `GET /metrics` - relay telemetry snapshot (connections, auth, buffering, and quality state)

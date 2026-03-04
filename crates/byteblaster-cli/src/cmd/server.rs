@@ -291,6 +291,7 @@ pub struct ServerOptions {
 }
 
 pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
+    let pin_servers = !options.raw_servers.is_empty();
     let servers = parse_servers_or_default(&options.raw_servers)?;
     let bind_addr = SocketAddr::from_str(&options.bind)
         .map_err(|err| anyhow::anyhow!("invalid --bind value {}: {err}", options.bind))?;
@@ -327,6 +328,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         email: options.email,
         servers,
         server_list_path: options.server_list_path.map(PathBuf::from),
+        follow_server_list_updates: !pin_servers,
         reconnect_delay_secs: 5,
         connection_timeout_secs: 5,
         watchdog_timeout_secs: 20,

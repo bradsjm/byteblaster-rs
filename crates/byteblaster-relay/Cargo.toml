@@ -1,0 +1,24 @@
+[package]
+name = "byteblaster-relay"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+byteblaster-core = { path = "../byteblaster-core", features = ["telemetry-serde"] }
+tokio.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+axum.workspace = true
+bytes.workspace = true
+
+[lints]
+workspace = true

@@ -146,6 +146,7 @@ async fn watchdog_timeout_reconnects_without_termination() {
             ("127.0.0.1".to_string(), address_b.port()),
         ],
         server_list_path: None,
+        follow_server_list_updates: true,
         reconnect_delay_secs: 1,
         connection_timeout_secs: 1,
         watchdog_timeout_secs: 1,

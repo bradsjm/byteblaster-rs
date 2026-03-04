@@ -212,6 +212,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteblaster-relay"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "byteblaster-core",
+ "bytes",
+ "clap",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

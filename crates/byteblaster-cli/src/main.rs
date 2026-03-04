@@ -67,6 +67,9 @@ enum Commands {
     },
     /// Download and assemble files from capture or live server.
     Download {
+        /// Output format for command results.
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
         /// Output directory for downloaded files.
         output_dir: String,
         /// Path to capture file (omit for live mode).
@@ -89,6 +92,9 @@ enum Commands {
     },
     /// Inspect and decode a capture file.
     Inspect {
+        /// Output format for command results.
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
         /// Path to capture file (omit to read from stdin).
         input: Option<String>,
     },
@@ -137,9 +143,6 @@ enum Commands {
 #[command(name = "byteblaster")]
 #[command(about = "ByteBlaster console client")]
 struct Cli {
-    /// Output format for command results.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    format: OutputFormat,
     /// Maximum characters for text preview.
     #[arg(long, default_value_t = 80)]
     text_preview_chars: usize,
@@ -152,7 +155,6 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     init_logging();
-    let format = cli.format;
     let text_preview_chars = cli.text_preview_chars;
 
     match cli.command {
@@ -172,9 +174,10 @@ async fn main() -> anyhow::Result<()> {
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
             };
-            cmd::stream::run(format, input, output_dir, live, text_preview_chars).await
+            cmd::stream::run(input, output_dir, live, text_preview_chars).await
         }
         Commands::Download {
+            format,
             output_dir,
             input,
             email,
@@ -192,7 +195,9 @@ async fn main() -> anyhow::Result<()> {
             };
             cmd::download::run(format, output_dir, input, live, text_preview_chars).await
         }
-        Commands::Inspect { input } => cmd::inspect::run(format, input, text_preview_chars).await,
+        Commands::Inspect { format, input } => {
+            cmd::inspect::run(format, input, text_preview_chars).await
+        }
         Commands::Server {
             email,
             servers,

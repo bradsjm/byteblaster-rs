@@ -20,25 +20,22 @@ fn cli_output_channeling() {
 
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
     let output = cmd
-        .args([
-            "--format",
-            "json",
-            "stream",
-            fixture.path().to_string_lossy().as_ref(),
-        ])
+        .args(["stream", fixture.path().to_string_lossy().as_ref()])
         .output()
         .expect("command should run");
     assert!(output.status.success(), "command should succeed");
 
-    assert!(
-        output.stderr.is_empty(),
-        "stderr must be empty for normal result"
-    );
     let stdout = String::from_utf8(output.stdout).expect("stdout should be valid utf8");
-    let parsed: Value = serde_json::from_str(stdout.trim()).expect("stdout must be valid json");
-    assert_eq!(parsed["command"], "stream");
-    assert_eq!(parsed["status"], "ok");
-    assert_eq!(parsed["event_count"], 1);
+    assert!(
+        stdout.trim().is_empty(),
+        "stream should not write payloads to stdout"
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be valid utf8");
+    assert!(
+        stderr.contains("stream capture complete"),
+        "stderr should include structured stream completion log"
+    );
 }
 
 #[test]
@@ -56,9 +53,9 @@ fn cli_stream_json_fixture() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
     let output = cmd
         .args([
+            "inspect",
             "--format",
             "json",
-            "inspect",
             fixture.path().to_string_lossy().as_ref(),
         ])
         .output()
@@ -103,9 +100,9 @@ fn cli_download_writes_files() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
     let output = cmd
         .args([
+            "download",
             "--format",
             "json",
-            "download",
             out_dir.path().to_string_lossy().as_ref(),
             fixture.path().to_string_lossy().as_ref(),
         ])
@@ -153,8 +150,6 @@ fn cli_stream_optional_output_dir_writes_completed_files() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
     let output = cmd
         .args([
-            "--format",
-            "json",
             "stream",
             "--output-dir",
             out_dir.path().to_string_lossy().as_ref(),
@@ -164,15 +159,17 @@ fn cli_stream_optional_output_dir_writes_completed_files() {
         .expect("command should run");
     assert!(output.status.success(), "command should succeed");
 
-    assert!(output.stderr.is_empty(), "stderr must be empty");
     let stdout = String::from_utf8(output.stdout).expect("stdout should be valid utf8");
-    let parsed: Value = serde_json::from_str(stdout.trim()).expect("stdout must be valid json");
+    assert!(
+        stdout.trim().is_empty(),
+        "stream should not write payloads to stdout"
+    );
 
-    assert_eq!(parsed["command"], "stream");
-    assert_eq!(parsed["status"], "ok");
-    assert_eq!(parsed["written_files"].as_array().map(|v| v.len()), Some(1));
-    assert_eq!(parsed["file_events"].as_array().map(|v| v.len()), Some(1));
-    assert_eq!(parsed["file_events"][0]["timestamp_utc"], 1704070800);
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be valid utf8");
+    assert!(
+        stderr.contains("wrote file"),
+        "stderr should include structured file-write logs"
+    );
 
     let expected = out_dir.path().join("stream.txt");
     assert!(expected.exists(), "output file should exist");

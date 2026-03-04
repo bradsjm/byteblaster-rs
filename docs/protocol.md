@@ -526,7 +526,7 @@ Interpretation:
 | P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/byteblaster-core/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
 | P-018 | Runtime emits bounded-channel backpressure telemetry with counters | `client::tests::backpressure_drop_emits_warning_with_counters`, `client::tests::backpressure_drop_warning_reports_and_resets_window` | `N/A (unit coverage)` | No | Required |
 | P-019 | CLI enforces stdout/stderr channel contract | `cli_output_channeling` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_output_channeling` | No | Implemented |
-| P-020 | CLI JSON output schema is stable | `cli_stream_json_fixture` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_stream_json_fixture` | No | Implemented |
+| P-020 | CLI JSON output schema is stable for `inspect` and `download` (stream uses structured logs) | `cli_stream_json_fixture` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_stream_json_fixture` | No | Implemented |
 | P-021 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/byteblaster-core/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
 
 ## 15. Satellite Draft Alignment Notes

@@ -87,24 +87,24 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
 Capture-file decode:
 
 ```bash
-cargo run -p byteblaster-cli -- --format json inspect path/to/capture.bin
-cargo run -p byteblaster-cli -- --format json stream path/to/capture.bin
-cargo run -p byteblaster-cli -- --format json download ./out path/to/capture.bin
+cargo run -p byteblaster-cli -- inspect --format json path/to/capture.bin
+cargo run -p byteblaster-cli -- stream path/to/capture.bin
+cargo run -p byteblaster-cli -- download --format json ./out path/to/capture.bin
 ```
 
 Live stream/download mode:
 
 ```bash
-cargo run -p byteblaster-cli -- --format json stream --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- --format text stream --output-dir ./out --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- --format text download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
+cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
+cargo run -p byteblaster-cli -- download --format text ./out --email you@example.com --idle-timeout-secs 30
 ```
 
 Optional stream file writing:
 
 - `stream --output-dir <PATH>` writes each completed assembled file while still emitting stream events.
 - Applies to both capture mode (`stream <capture.bin>`) and live mode (`stream --email ...`).
-- JSON stream output includes `written_files` when `--output-dir` is used.
+- Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
 
 CLI logging format:
 

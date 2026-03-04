@@ -3,8 +3,7 @@
 //! This module provides functionality to stream events from capture files
 //! or live ByteBlaster servers, with optional file assembly and output.
 
-use crate::OutputFormat;
-use crate::cmd::event_output::{frame_event_to_json, frame_event_to_text};
+use crate::cmd::event_output::text_preview;
 use crate::live::shared::{parse_servers_or_default, unix_seconds, write_completed_file};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
@@ -14,6 +13,7 @@ use byteblaster_core::{
 use futures::StreamExt;
 use std::path::PathBuf;
 use std::time::Duration;
+use tracing::{info, warn};
 
 /// Statistics tracked during live streaming.
 #[derive(Debug, Default)]
@@ -33,26 +33,19 @@ struct LiveStats {
 }
 
 pub async fn run(
-    format: OutputFormat,
     input: Option<String>,
     output_dir: Option<String>,
     live: crate::LiveOptions,
     text_preview_chars: usize,
 ) -> anyhow::Result<()> {
     if let Some(input_path) = input {
-        return run_capture_mode(
-            format,
-            &input_path,
-            output_dir.as_deref(),
-            text_preview_chars,
-        );
+        return run_capture_mode(&input_path, output_dir.as_deref(), text_preview_chars);
     }
 
-    run_live_mode(format, output_dir.as_deref(), live, text_preview_chars).await
+    run_live_mode(output_dir.as_deref(), live, text_preview_chars).await
 }
 
 fn run_capture_mode(
-    format: OutputFormat,
     input_path: &str,
     output_dir: Option<&str>,
     text_preview_chars: usize,
@@ -67,97 +60,46 @@ fn run_capture_mode(
     }
     let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
     let mut written_files = Vec::new();
-    let mut file_events = Vec::new();
 
-    match format {
-        OutputFormat::Text => {
-            for event in &events {
-                println!("{}", frame_event_to_text(event, text_preview_chars));
-                if let Some(assembler) = assembler.as_mut()
-                    && let FrameEvent::DataBlock(segment) = event
-                    && let Some(file) = assembler.push(segment.clone())?
-                {
-                    let path = write_completed_file(
-                        output_dir_path
-                            .as_deref()
-                            .expect("output dir configured when assembler enabled"),
-                        &file.filename,
-                        &file.data,
-                    )?;
-                    let timestamp_utc = unix_seconds(file.timestamp_utc);
-                    let filename = file.filename.clone();
-                    println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
-                    written_files.push(path.clone());
-                    let mut file_event = serde_json::json!({
-                        "filename": filename,
-                        "path": path,
-                        "timestamp_utc": timestamp_utc,
-                    });
-                    if let Some(product) = detect_product_meta(&filename)
-                        && let Ok(product_json) = serde_json::to_value(product)
-                    {
-                        file_event["product"] = product_json;
-                    }
-                    file_events.push(file_event);
-                }
-            }
-            println!(
-                "[OK] stream capture complete events={} files={}",
-                events.len(),
-                written_files.len()
+    for event in &events {
+        log_frame_event(event, text_preview_chars, "capture");
+        if let Some(assembler) = assembler.as_mut()
+            && let FrameEvent::DataBlock(segment) = event
+            && let Some(file) = assembler.push(segment.clone())?
+        {
+            let path = write_completed_file(
+                output_dir_path
+                    .as_deref()
+                    .expect("output dir configured when assembler enabled"),
+                &file.filename,
+                &file.data,
+            )?;
+            let timestamp_utc = unix_seconds(file.timestamp_utc);
+            info!(
+                command = "stream",
+                mode = "capture",
+                path = %path,
+                filename = %file.filename,
+                timestamp_utc,
+                "wrote file"
             );
-        }
-        OutputFormat::Json => {
-            for event in &events {
-                if let Some(assembler) = assembler.as_mut()
-                    && let FrameEvent::DataBlock(segment) = event
-                    && let Some(file) = assembler.push(segment.clone())?
-                {
-                    let path = write_completed_file(
-                        output_dir_path
-                            .as_deref()
-                            .expect("output dir configured when assembler enabled"),
-                        &file.filename,
-                        &file.data,
-                    )?;
-                    let timestamp_utc = unix_seconds(file.timestamp_utc);
-                    let filename = file.filename.clone();
-                    written_files.push(path.clone());
-                    let mut file_event = serde_json::json!({
-                        "filename": filename,
-                        "path": path,
-                        "timestamp_utc": timestamp_utc,
-                    });
-                    if let Some(product) = detect_product_meta(&filename)
-                        && let Ok(product_json) = serde_json::to_value(product)
-                    {
-                        file_event["product"] = product_json;
-                    }
-                    file_events.push(file_event);
-                }
-            }
-
-            println!(
-                "{}",
-                serde_json::to_string(&serde_json::json!({
-                    "command":"stream",
-                    "status":"ok",
-                    "event_count": events.len(),
-                    "events": events
-                        .iter()
-                        .map(|event| frame_event_to_json(event, text_preview_chars))
-                        .collect::<Vec<_>>(),
-                    "written_files": written_files,
-                    "file_events": file_events,
-                }))?
-            )
+            written_files.push(path);
         }
     }
+
+    info!(
+        command = "stream",
+        mode = "capture",
+        events = events.len(),
+        files = written_files.len(),
+        status = "ok",
+        "stream capture complete"
+    );
+
     Ok(())
 }
 
 async fn run_live_mode(
-    format: OutputFormat,
     output_dir: Option<&str>,
     live: crate::LiveOptions,
     text_preview_chars: usize,
@@ -190,10 +132,7 @@ async fn run_live_mode(
     let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
 
     let mut seen = 0usize;
-    let mut payload = Vec::new();
-    let mut connection_events = Vec::new();
     let mut written_files = Vec::new();
-    let mut file_events = Vec::new();
     let mut live_stats = LiveStats::default();
     let mut last_auth_logons: Option<u64> = None;
     let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
@@ -207,9 +146,7 @@ async fn run_live_mode(
         match item {
             Ok(ClientEvent::Frame(frame)) => {
                 seen += 1;
-                if matches!(format, OutputFormat::Text) {
-                    println!("{}", frame_event_to_text(&frame, text_preview_chars));
-                }
+                log_frame_event(&frame, text_preview_chars, "live");
                 if matches!(frame, FrameEvent::DataBlock(_)) {
                     live_stats.data_blocks_total = live_stats.data_blocks_total.saturating_add(1);
                 }
@@ -218,22 +155,14 @@ async fn run_live_mode(
                         live_stats.server_list_updates_total.saturating_add(1);
                     live_stats.current_servers = list.servers.len();
                     live_stats.current_sat_servers = list.sat_servers.len();
-                    connection_events.push(serde_json::json!({
-                        "type": "server_list_update",
-                        "servers": list.servers,
-                        "sat_servers": list.sat_servers,
-                    }));
-                    if matches!(format, OutputFormat::Text) {
-                        println!(
-                            "[INFO] server list received updates={} servers={} sat_servers={}",
-                            live_stats.server_list_updates_total,
-                            list.servers.len(),
-                            list.sat_servers.len()
-                        );
-                    }
-                }
-                if matches!(format, OutputFormat::Json) {
-                    payload.push(frame_event_to_json(&frame, text_preview_chars));
+                    info!(
+                        command = "stream",
+                        mode = "live",
+                        updates = live_stats.server_list_updates_total,
+                        servers = list.servers.len(),
+                        sat_servers = list.sat_servers.len(),
+                        "server list received"
+                    );
                 }
                 if let Some(assembler) = assembler.as_mut()
                     && let FrameEvent::DataBlock(segment) = &frame
@@ -247,54 +176,35 @@ async fn run_live_mode(
                         &file.data,
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
-                    let filename = file.filename.clone();
-                    if matches!(format, OutputFormat::Text) {
-                        println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
-                    }
-                    written_files.push(path.clone());
-                    let mut file_event = serde_json::json!({
-                        "filename": filename,
-                        "path": path,
-                        "timestamp_utc": timestamp_utc,
-                    });
-                    if let Some(product) = detect_product_meta(&filename)
-                        && let Ok(product_json) = serde_json::to_value(product)
-                    {
-                        file_event["product"] = product_json;
-                    }
-                    file_events.push(file_event);
+                    info!(
+                        command = "stream",
+                        mode = "live",
+                        path = %path,
+                        filename = %file.filename,
+                        timestamp_utc,
+                        "wrote file"
+                    );
+                    written_files.push(path);
                 }
             }
             Ok(ClientEvent::Connected(endpoint)) => {
                 live_stats.connections_total = live_stats.connections_total.saturating_add(1);
-                if matches!(format, OutputFormat::Text) {
-                    println!(
-                        "[OK] connected endpoint={endpoint} connections={}",
-                        live_stats.connections_total
-                    );
-                }
-                let event = serde_json::json!({
-                    "type":"connected",
-                    "endpoint": endpoint,
-                });
-                if matches!(format, OutputFormat::Json) {
-                    connection_events.push(event);
-                }
+                info!(
+                    command = "stream",
+                    mode = "live",
+                    endpoint = %endpoint,
+                    connections = live_stats.connections_total,
+                    "connected"
+                );
             }
             Ok(ClientEvent::Disconnected) => {
                 live_stats.disconnects_total = live_stats.disconnects_total.saturating_add(1);
-                if matches!(format, OutputFormat::Text) {
-                    println!(
-                        "[WARN] disconnected; switching server disconnects={}",
-                        live_stats.disconnects_total
-                    );
-                }
-                let event = serde_json::json!({
-                    "type":"disconnected",
-                });
-                if matches!(format, OutputFormat::Json) {
-                    connection_events.push(event);
-                }
+                warn!(
+                    command = "stream",
+                    mode = "live",
+                    disconnects = live_stats.disconnects_total,
+                    "disconnected; switching server"
+                );
             }
             Ok(ClientEvent::Telemetry(snapshot)) => {
                 seen += 1;
@@ -302,62 +212,35 @@ async fn run_live_mode(
                     .map(|prev| snapshot.auth_logon_sent_total.saturating_sub(prev))
                     .unwrap_or(0);
                 if auth_delta > 0 {
-                    if matches!(format, OutputFormat::Text) {
-                        println!(
-                            "[INFO] auth logon sent delta={} total={}",
-                            auth_delta, snapshot.auth_logon_sent_total
-                        );
-                    }
-                    if matches!(format, OutputFormat::Json) {
-                        connection_events.push(serde_json::json!({
-                            "type": "auth_logon_sent",
-                            "delta": auth_delta,
-                            "total": snapshot.auth_logon_sent_total,
-                        }));
-                    }
+                    info!(
+                        command = "stream",
+                        mode = "live",
+                        auth_logon_delta = auth_delta,
+                        auth_logon_total = snapshot.auth_logon_sent_total,
+                        "auth logon sent"
+                    );
                 }
                 last_auth_logons = Some(snapshot.auth_logon_sent_total);
 
-                if matches!(format, OutputFormat::Text) {
-                    println!(
-                        "[STATS] bytes_in={} frames={} data_blocks={} drops={} server_lists={} servers={} sat_servers={} auth_logons={} watchdog_timeouts={} watchdog_exceptions={}",
-                        snapshot.bytes_in_total,
-                        snapshot.frame_events_total,
-                        live_stats.data_blocks_total,
-                        snapshot.event_queue_drop_total,
-                        snapshot.server_list_updates_total,
-                        live_stats.current_servers,
-                        live_stats.current_sat_servers,
-                        snapshot.auth_logon_sent_total,
-                        snapshot.watchdog_timeouts_total,
-                        snapshot.watchdog_exception_events_total
-                    );
-                }
-                let event = serde_json::json!({
-                    "type":"telemetry",
-                    "snapshot": snapshot,
-                    "stream_stats": {
-                        "connections_total": live_stats.connections_total,
-                        "disconnects_total": live_stats.disconnects_total,
-                        "data_blocks_total": live_stats.data_blocks_total,
-                        "server_list_updates_total": live_stats.server_list_updates_total,
-                        "current_servers": live_stats.current_servers,
-                        "current_sat_servers": live_stats.current_sat_servers,
-                    }
-                });
-                if matches!(format, OutputFormat::Json) {
-                    connection_events.push(event);
-                }
+                info!(
+                    command = "stream",
+                    mode = "live",
+                    bytes_in_total = snapshot.bytes_in_total,
+                    frame_events_total = snapshot.frame_events_total,
+                    data_blocks_total = live_stats.data_blocks_total,
+                    event_queue_drop_total = snapshot.event_queue_drop_total,
+                    server_list_updates_total = snapshot.server_list_updates_total,
+                    current_servers = live_stats.current_servers,
+                    current_sat_servers = live_stats.current_sat_servers,
+                    auth_logon_sent_total = snapshot.auth_logon_sent_total,
+                    watchdog_timeouts_total = snapshot.watchdog_timeouts_total,
+                    watchdog_exception_events_total = snapshot.watchdog_exception_events_total,
+                    "telemetry"
+                );
             }
             Ok(_) => {}
             Err(err) => {
-                let event = serde_json::json!({
-                    "type":"error",
-                    "error": err.to_string(),
-                });
-                if matches!(format, OutputFormat::Json) {
-                    connection_events.push(event);
-                }
+                warn!(command = "stream", mode = "live", error = %err, "stream live warning");
             }
         }
     }
@@ -365,41 +248,69 @@ async fn run_live_mode(
     drop(events);
     client.stop().await?;
 
-    match format {
-        OutputFormat::Text => {
-            println!(
-                "[OK] stream live complete events={} files={} server_lists={} servers={} sat_servers={} connections={} disconnects={}",
-                seen,
-                written_files.len(),
-                live_stats.server_list_updates_total,
-                live_stats.current_servers,
-                live_stats.current_sat_servers,
-                live_stats.connections_total,
-                live_stats.disconnects_total
-            );
-        }
-        OutputFormat::Json => println!(
-            "{}",
-            serde_json::to_string(&serde_json::json!({
-                "command":"stream",
-                "status":"ok",
-                "mode":"live",
-                "event_count": payload.len(),
-                "events": payload,
-                "connection_events": connection_events,
-                "written_files": written_files,
-                "file_events": file_events,
-                "stream_stats": {
-                    "connections_total": live_stats.connections_total,
-                    "disconnects_total": live_stats.disconnects_total,
-                    "data_blocks_total": live_stats.data_blocks_total,
-                    "server_list_updates_total": live_stats.server_list_updates_total,
-                    "current_servers": live_stats.current_servers,
-                    "current_sat_servers": live_stats.current_sat_servers,
-                }
-            }))?
-        ),
-    }
+    info!(
+        command = "stream",
+        mode = "live",
+        events = seen,
+        files = written_files.len(),
+        server_list_updates = live_stats.server_list_updates_total,
+        current_servers = live_stats.current_servers,
+        current_sat_servers = live_stats.current_sat_servers,
+        connections = live_stats.connections_total,
+        disconnects = live_stats.disconnects_total,
+        status = "ok",
+        "stream live complete"
+    );
 
     Ok(())
+}
+
+fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize, mode: &'static str) {
+    match frame {
+        FrameEvent::DataBlock(segment) => {
+            let product = detect_product_meta(&segment.filename);
+            let preview = text_preview(&segment.filename, &segment.content, text_preview_chars);
+            info!(
+                command = "stream",
+                mode,
+                event = "data_block",
+                filename = %segment.filename,
+                block_number = segment.block_number,
+                total_blocks = segment.total_blocks,
+                bytes = segment.content.len(),
+                timestamp_utc = unix_seconds(segment.timestamp_utc),
+                product_title = ?product.as_ref().map(|meta| meta.title.as_str()),
+                preview = preview.as_deref(),
+                "frame event"
+            );
+        }
+        FrameEvent::ServerListUpdate(list) => {
+            info!(
+                command = "stream",
+                mode,
+                event = "server_list",
+                servers = list.servers.len(),
+                sat_servers = list.sat_servers.len(),
+                "frame event"
+            );
+        }
+        FrameEvent::Warning(warning) => {
+            warn!(
+                command = "stream",
+                mode,
+                event = "warning",
+                warning = ?warning,
+                "frame warning"
+            );
+        }
+        other => {
+            info!(
+                command = "stream",
+                mode,
+                event = "other",
+                frame = ?other,
+                "frame event"
+            );
+        }
+    }
 }

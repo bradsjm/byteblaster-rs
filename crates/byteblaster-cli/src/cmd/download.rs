@@ -10,7 +10,7 @@ use byteblaster_core::{
 };
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Runs the download command.
 ///
@@ -55,6 +55,7 @@ fn run_capture_mode(
     std::fs::create_dir_all(output_dir)?;
     let mut assembler = FileAssembler::new(100);
     let mut written_files: Vec<String> = Vec::new();
+    let mut file_events = Vec::new();
 
     for event in events {
         if let FrameEvent::DataBlock(segment) = event
@@ -65,14 +66,26 @@ fn run_capture_mode(
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::write(&target, &file.data)?;
-            written_files.push(target.to_string_lossy().to_string());
+            let path = target.to_string_lossy().to_string();
+            let timestamp_utc = unix_seconds(file.timestamp_utc);
+            written_files.push(path.clone());
+            file_events.push(serde_json::json!({
+                "filename": file.filename,
+                "path": path,
+                "timestamp_utc": timestamp_utc,
+            }));
         }
     }
 
     match format {
         OutputFormat::Text => {
-            for path in &written_files {
-                emit_text_line(&format!("{} wrote path={path}", label_ok()));
+            for file_event in &file_events {
+                let path = file_event["path"].as_str().unwrap_or("");
+                let timestamp_utc = file_event["timestamp_utc"].as_u64().unwrap_or(0);
+                emit_text_line(&format!(
+                    "{} wrote path={path} timestamp_utc={timestamp_utc}",
+                    label_ok()
+                ));
             }
             emit_text_line(&format!(
                 "{} download capture complete files={}",
@@ -85,6 +98,7 @@ fn run_capture_mode(
             "status":"ok",
             "output_dir":output_dir,
             "written_files": written_files,
+            "file_events": file_events,
         }))?,
     }
     Ok(())
@@ -118,6 +132,7 @@ async fn run_live_mode(
     let mut events = client.events();
     let mut assembler = FileAssembler::new(100);
     let mut written_files = Vec::new();
+    let mut file_events = Vec::new();
     let mut seen = 0usize;
     let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 
@@ -137,10 +152,19 @@ async fn run_live_mode(
                     }
                     std::fs::write(&target, &file.data)?;
                     let path = target.to_string_lossy().to_string();
+                    let timestamp_utc = unix_seconds(file.timestamp_utc);
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!("{} wrote path={path}", label_ok()));
+                        emit_text_line(&format!(
+                            "{} wrote path={path} timestamp_utc={timestamp_utc}",
+                            label_ok()
+                        ));
                     }
-                    written_files.push(path);
+                    written_files.push(path.clone());
+                    file_events.push(serde_json::json!({
+                        "filename": file.filename,
+                        "path": path,
+                        "timestamp_utc": timestamp_utc,
+                    }));
                 }
             }
             Ok(ClientEvent::Frame(_)) => {
@@ -174,10 +198,17 @@ async fn run_live_mode(
             "mode":"live",
             "output_dir":output_dir,
             "written_files": written_files,
+            "file_events": file_events,
         }))?,
     }
 
     Ok(())
+}
+
+fn unix_seconds(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(String, u16)>> {

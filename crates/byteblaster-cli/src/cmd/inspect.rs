@@ -6,6 +6,7 @@
 use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder};
 use std::io::Read;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Runs the inspect command.
 ///
@@ -78,6 +79,7 @@ fn event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::V
                 "total_blocks":seg.total_blocks,
                 "length":seg.content.len(),
                 "version": format!("{:?}", seg.version),
+                "timestamp_utc": unix_seconds(seg.timestamp_utc),
             });
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 value["preview"] = serde_json::Value::String(preview);
@@ -134,4 +136,10 @@ fn is_text_like(filename: &str) -> bool {
         || upper.ends_with(".WMO")
         || upper.ends_with(".XML")
         || upper.ends_with(".JSON")
+}
+
+fn unix_seconds(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }

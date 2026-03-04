@@ -5,6 +5,7 @@
 
 use crate::output::{label_event, label_warn};
 use byteblaster_core::FrameEvent;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Returns the event type name for a frame event.
 ///
@@ -54,12 +55,13 @@ pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> Str
     match event {
         FrameEvent::DataBlock(seg) => {
             let mut line = format!(
-                "{} file={} block={}/{} bytes={}",
+                "{} file={} block={}/{} bytes={} timestamp_utc={}",
                 label_event(),
                 seg.filename,
                 seg.block_number,
                 seg.total_blocks,
-                seg.content.len()
+                seg.content.len(),
+                unix_seconds(seg.timestamp_utc)
             );
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 line.push_str(&format!(" preview={preview:?}"));
@@ -97,6 +99,7 @@ pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> ser
                 "total_blocks":seg.total_blocks,
                 "length":seg.content.len(),
                 "version": format!("{:?}", seg.version),
+                "timestamp_utc": unix_seconds(seg.timestamp_utc),
             });
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 value["preview"] = serde_json::Value::String(preview);
@@ -116,6 +119,12 @@ pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> ser
             "type":"unknown",
         }),
     }
+}
+
+fn unix_seconds(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// Generates a text preview for text-like files.

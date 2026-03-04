@@ -13,7 +13,7 @@ use byteblaster_core::{
 };
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Statistics tracked during live streaming.
 #[derive(Debug, Default)]
@@ -67,6 +67,7 @@ fn run_capture_mode(
     }
     let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
     let mut written_files = Vec::new();
+    let mut file_events = Vec::new();
 
     match format {
         OutputFormat::Text => {
@@ -83,8 +84,17 @@ fn run_capture_mode(
                         &file.filename,
                         &file.data,
                     )?;
-                    emit_text_line(&format!("{} wrote path={path}", label_ok()));
-                    written_files.push(path);
+                    let timestamp_utc = unix_seconds(file.timestamp_utc);
+                    emit_text_line(&format!(
+                        "{} wrote path={path} timestamp_utc={timestamp_utc}",
+                        label_ok()
+                    ));
+                    written_files.push(path.clone());
+                    file_events.push(serde_json::json!({
+                        "filename": file.filename,
+                        "path": path,
+                        "timestamp_utc": timestamp_utc,
+                    }));
                 }
             }
             emit_text_line(&format!(
@@ -107,7 +117,13 @@ fn run_capture_mode(
                         &file.filename,
                         &file.data,
                     )?;
-                    written_files.push(path);
+                    let timestamp_utc = unix_seconds(file.timestamp_utc);
+                    written_files.push(path.clone());
+                    file_events.push(serde_json::json!({
+                        "filename": file.filename,
+                        "path": path,
+                        "timestamp_utc": timestamp_utc,
+                    }));
                 }
             }
 
@@ -120,6 +136,7 @@ fn run_capture_mode(
                     .map(|event| frame_event_to_json(event, text_preview_chars))
                     .collect::<Vec<_>>(),
                 "written_files": written_files,
+                "file_events": file_events,
             }))?
         }
     }
@@ -161,6 +178,7 @@ async fn run_live_mode(
     let mut payload = Vec::new();
     let mut connection_events = Vec::new();
     let mut written_files = Vec::new();
+    let mut file_events = Vec::new();
     let mut live_stats = LiveStats::default();
     let mut last_auth_logons: Option<u64> = None;
     let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
@@ -214,10 +232,19 @@ async fn run_live_mode(
                         &file.filename,
                         &file.data,
                     )?;
+                    let timestamp_utc = unix_seconds(file.timestamp_utc);
                     if matches!(format, OutputFormat::Text) {
-                        emit_text_line(&format!("{} wrote path={path}", label_ok()));
+                        emit_text_line(&format!(
+                            "{} wrote path={path} timestamp_utc={timestamp_utc}",
+                            label_ok()
+                        ));
                     }
-                    written_files.push(path);
+                    written_files.push(path.clone());
+                    file_events.push(serde_json::json!({
+                        "filename": file.filename,
+                        "path": path,
+                        "timestamp_utc": timestamp_utc,
+                    }));
                 }
             }
             Ok(ClientEvent::Connected(endpoint)) => {
@@ -347,6 +374,7 @@ async fn run_live_mode(
             "events": payload,
             "connection_events": connection_events,
             "written_files": written_files,
+            "file_events": file_events,
             "stream_stats": {
                 "connections_total": live_stats.connections_total,
                 "disconnects_total": live_stats.disconnects_total,
@@ -359,6 +387,12 @@ async fn run_live_mode(
     }
 
     Ok(())
+}
+
+fn unix_seconds(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn write_completed_file(output_dir: &Path, filename: &str, data: &[u8]) -> anyhow::Result<String> {

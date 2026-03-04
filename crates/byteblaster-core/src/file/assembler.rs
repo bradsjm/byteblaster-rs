@@ -7,7 +7,7 @@ use crate::error::CoreError;
 use crate::protocol::model::QbtSegment;
 use bytes::Bytes;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::time::{Duration, Instant, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Default maximum number of files being assembled concurrently.
 const DEFAULT_MAX_INFLIGHT_FILES: usize = 256;
@@ -22,6 +22,8 @@ pub struct CompletedFile {
     pub filename: String,
     /// The complete file data.
     pub data: Bytes,
+    /// Protocol timestamp from the /FD frame header (UTC).
+    pub timestamp_utc: SystemTime,
 }
 
 /// Trait for segment assemblers that can collect and assemble file segments.
@@ -200,8 +202,8 @@ impl SegmentAssembler for FileAssembler {
             return Ok(None);
         }
 
-        let filename = match entry.parts.values().next() {
-            Some(first) => first.filename.clone(),
+        let (filename, timestamp_utc) = match entry.parts.values().next() {
+            Some(first) => (first.filename.clone(), first.timestamp_utc),
             None => return Ok(None),
         };
 
@@ -215,6 +217,7 @@ impl SegmentAssembler for FileAssembler {
         Ok(Some(CompletedFile {
             filename,
             data: Bytes::from(buffer),
+            timestamp_utc,
         }))
     }
 

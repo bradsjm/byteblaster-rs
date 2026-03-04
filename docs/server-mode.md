@@ -92,7 +92,7 @@ Response shape:
     {
       "filename": "nested/my file.txt",
       "size": 2140,
-      "timestamp": 1767488000
+      "timestamp_utc": 1767488000
     }
   ]
 }
@@ -103,7 +103,7 @@ Fields:
 - `files` (array): retained files
   - `filename` (string): logical filename from feed
   - `size` (number): bytes
-  - `timestamp` (number): UNIX timestamp seconds when file completed
+  - `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
 
 ## `GET /files/*filename`
 
@@ -303,6 +303,7 @@ Fields:
 {
   "filename":"nested/my file.txt",
   "size":2140,
+  "timestamp_utc":1767488000,
   "download_url":"/files/nested%2Fmy%20file.txt"
 }
 ```
@@ -311,6 +312,7 @@ Fields:
 
 - `filename` (string): completed file name
 - `size` (number): file bytes
+- `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
 - `download_url` (string): URL-encoded retrieval path for `GET /files/*filename`
 
 ## `event: telemetry`

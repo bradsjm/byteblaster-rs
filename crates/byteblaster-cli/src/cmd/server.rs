@@ -45,12 +45,20 @@ struct BroadcastEvent {
 
 #[derive(Debug, Clone)]
 enum EventKind {
-    Connected { endpoint: String },
+    Connected {
+        endpoint: String,
+    },
     Disconnected,
     Frame(FrameEvent),
-    FileComplete { filename: String, size: usize },
+    FileComplete {
+        filename: String,
+        size: usize,
+        timestamp_utc: u64,
+    },
     Telemetry(ClientTelemetrySnapshot),
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 impl EventKind {
@@ -78,9 +86,14 @@ impl EventKind {
             Self::Connected { endpoint } => serde_json::json!({ "endpoint": endpoint }),
             Self::Disconnected => serde_json::json!({}),
             Self::Frame(frame) => frame_event_to_json(frame, 0),
-            Self::FileComplete { filename, size } => serde_json::json!({
+            Self::FileComplete {
+                filename,
+                size,
+                timestamp_utc,
+            } => serde_json::json!({
                 "filename": filename,
                 "size": size,
+                "timestamp_utc": timestamp_utc,
                 "download_url": file_download_url(filename),
             }),
             Self::Telemetry(snapshot) => serde_json::json!(snapshot),
@@ -93,6 +106,7 @@ impl EventKind {
 struct RetainedFile {
     filename: String,
     data: Vec<u8>,
+    timestamp_utc: u64,
     completed_at: SystemTime,
 }
 
@@ -120,7 +134,13 @@ impl RetainedFiles {
         }
     }
 
-    fn insert(&mut self, filename: String, data: Vec<u8>, completed_at: SystemTime) {
+    fn insert(
+        &mut self,
+        filename: String,
+        data: Vec<u8>,
+        timestamp_utc: u64,
+        completed_at: SystemTime,
+    ) {
         self.evict_expired();
 
         if self.by_name.contains_key(&filename) {
@@ -132,6 +152,7 @@ impl RetainedFiles {
             RetainedFile {
                 filename,
                 data,
+                timestamp_utc,
                 completed_at,
             },
         );
@@ -154,11 +175,7 @@ impl RetainedFiles {
             .map(|file| RetainedFileMeta {
                 filename: file.filename.clone(),
                 size: file.size(),
-                timestamp: file
-                    .completed_at
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0),
+                timestamp_utc: file.timestamp_utc,
             })
             .collect()
     }
@@ -217,7 +234,7 @@ struct EventsQuery {
 struct RetainedFileMeta {
     filename: String,
     size: usize,
-    timestamp: u64,
+    timestamp_utc: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -518,20 +535,31 @@ fn handle_client_event(
 
                 if let Ok(Some(file)) = assembler.push(segment) {
                     let completed_at = SystemTime::now();
+                    let timestamp_utc = file
+                        .timestamp_utc
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
                     {
                         let mut guard = state
                             .retained_files
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner());
-                        guard.insert(file.filename.clone(), file.data.to_vec(), completed_at);
+                        guard.insert(
+                            file.filename.clone(),
+                            file.data.to_vec(),
+                            timestamp_utc,
+                            completed_at,
+                        );
                     }
                     log_info(
                         state.quiet,
                         &format!(
-                            "{} file complete name={} bytes={}",
+                            "{} file complete name={} bytes={} timestamp_utc={}",
                             label_info(),
                             file.filename,
-                            file.data.len()
+                            file.data.len(),
+                            timestamp_utc
                         ),
                     );
                     publish(
@@ -539,6 +567,7 @@ fn handle_client_event(
                         EventKind::FileComplete {
                             filename: file.filename,
                             size: file.data.len(),
+                            timestamp_utc,
                         },
                     );
                 }
@@ -1037,16 +1066,16 @@ mod tests {
     #[test]
     fn retained_files_evict_by_capacity_and_ttl() {
         let mut files = RetainedFiles::new(2, Duration::from_millis(50));
-        files.insert("a.txt".to_string(), vec![1], SystemTime::now());
-        files.insert("b.txt".to_string(), vec![2], SystemTime::now());
-        files.insert("c.txt".to_string(), vec![3], SystemTime::now());
+        files.insert("a.txt".to_string(), vec![1], 1, SystemTime::now());
+        files.insert("b.txt".to_string(), vec![2], 2, SystemTime::now());
+        files.insert("c.txt".to_string(), vec![3], 3, SystemTime::now());
 
         assert!(files.get("a.txt").is_none());
         assert!(files.get("b.txt").is_some());
         assert!(files.get("c.txt").is_some());
 
         let old = SystemTime::now() - Duration::from_secs(1);
-        files.insert("old.txt".to_string(), vec![9], old);
+        files.insert("old.txt".to_string(), vec![9], 9, old);
         assert!(files.get("old.txt").is_none());
     }
 
@@ -1077,6 +1106,7 @@ mod tests {
             guard.insert(
                 "nested/my file.txt".to_string(),
                 b"hello world".to_vec(),
+                1,
                 SystemTime::now(),
             );
         }
@@ -1185,10 +1215,12 @@ mod tests {
         let txt = EventKind::FileComplete {
             filename: "report.txt".to_string(),
             size: 2,
+            timestamp_utc: 1,
         };
         let zip = EventKind::FileComplete {
             filename: "report.zip".to_string(),
             size: 1,
+            timestamp_utc: 1,
         };
         let telemetry = EventKind::Telemetry(ClientTelemetrySnapshot::default());
 
@@ -1202,9 +1234,11 @@ mod tests {
         let value = EventKind::FileComplete {
             filename: "nested/my file.txt".to_string(),
             size: 11,
+            timestamp_utc: 1,
         }
         .to_json();
 
         assert_eq!(value["download_url"], "/files/nested%2Fmy%20file.txt");
+        assert_eq!(value["timestamp_utc"], 1);
     }
 }

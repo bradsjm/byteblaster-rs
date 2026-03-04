@@ -120,6 +120,8 @@ fn cli_download_writes_files() {
     assert_eq!(parsed["command"], "download");
     assert_eq!(parsed["status"], "ok");
     assert_eq!(parsed["written_files"].as_array().map(|v| v.len()), Some(1));
+    assert_eq!(parsed["file_events"].as_array().map(|v| v.len()), Some(1));
+    assert_eq!(parsed["file_events"][0]["timestamp_utc"], 1704070800);
 
     let expected = out_dir.path().join("out.txt");
     assert!(expected.exists(), "output file should exist");
@@ -169,6 +171,8 @@ fn cli_stream_optional_output_dir_writes_completed_files() {
     assert_eq!(parsed["command"], "stream");
     assert_eq!(parsed["status"], "ok");
     assert_eq!(parsed["written_files"].as_array().map(|v| v.len()), Some(1));
+    assert_eq!(parsed["file_events"].as_array().map(|v| v.len()), Some(1));
+    assert_eq!(parsed["file_events"][0]["timestamp_utc"], 1704070800);
 
     let expected = out_dir.path().join("stream.txt");
     assert!(expected.exists(), "output file should exist");

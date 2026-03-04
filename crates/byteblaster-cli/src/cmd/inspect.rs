@@ -7,6 +7,7 @@ use crate::OutputFormat;
 use crate::cmd::event_output::frame_event_to_json;
 use byteblaster_core::{FrameDecoder, ProtocolDecoder};
 use std::io::Read;
+use tracing::info;
 
 /// Runs the inspect command.
 ///
@@ -34,7 +35,12 @@ pub async fn run(
 
     match format {
         OutputFormat::Text => {
-            println!("[OK] inspect complete events={}", events.len());
+            info!(
+                command = "inspect",
+                event_count = events.len(),
+                status = "ok",
+                "inspect complete"
+            );
         }
         OutputFormat::Json => {
             let event_payload: Vec<serde_json::Value> = events

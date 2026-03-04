@@ -13,7 +13,7 @@ use byteblaster_core::{
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tracing::warn;
+use tracing::{info, warn};
 
 /// Runs the download command.
 ///
@@ -92,11 +92,14 @@ fn run_capture_mode(
             for file_event in &file_events {
                 let path = file_event["path"].as_str().unwrap_or("");
                 let timestamp_utc = file_event["timestamp_utc"].as_u64().unwrap_or(0);
-                println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
+                info!(command = "download", path = %path, timestamp_utc, "wrote file");
             }
-            println!(
-                "[OK] download capture complete files={}",
-                written_files.len()
+            info!(
+                command = "download",
+                mode = "capture",
+                files = written_files.len(),
+                status = "ok",
+                "download capture complete"
             );
         }
         OutputFormat::Json => println!(
@@ -165,7 +168,7 @@ async fn run_live_mode(
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     let filename = file.filename.clone();
                     if matches!(format, OutputFormat::Text) {
-                        println!("[OK] wrote path={path} timestamp_utc={timestamp_utc}");
+                        info!(command = "download", mode = "live", path = %path, timestamp_utc, "wrote file");
                     }
                     written_files.push(path.clone());
                     let mut file_event = serde_json::json!({
@@ -200,7 +203,13 @@ async fn run_live_mode(
 
     match format {
         OutputFormat::Text => {
-            println!("[OK] download live complete files={}", written_files.len());
+            info!(
+                command = "download",
+                mode = "live",
+                files = written_files.len(),
+                status = "ok",
+                "download live complete"
+            );
         }
         OutputFormat::Json => println!(
             "{}",

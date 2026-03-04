@@ -41,48 +41,6 @@ pub fn frame_event_filename(event: &FrameEvent) -> Option<&str> {
     }
 }
 
-/// Converts a frame event to a human-readable text representation.
-///
-/// # Arguments
-///
-/// * `event` - The frame event to convert
-/// * `text_preview_chars` - Maximum characters for content preview
-///
-/// # Returns
-///
-/// A formatted string suitable for text output
-pub fn frame_event_to_text(event: &FrameEvent, text_preview_chars: usize) -> String {
-    match event {
-        FrameEvent::DataBlock(seg) => {
-            let mut line = format!(
-                "[EVENT] file={} block={}/{} bytes={}",
-                seg.filename,
-                seg.block_number,
-                seg.total_blocks,
-                seg.content.len(),
-            );
-            if let Some(product) = detect_product_meta(&seg.filename) {
-                line.push_str(&format!(" title={:?}", product.title));
-            }
-            line.push_str(&format!(
-                " timestamp_utc={}",
-                unix_seconds(seg.timestamp_utc)
-            ));
-            if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
-                line.push_str(&format!(" preview={preview:?}"));
-            }
-            line
-        }
-        FrameEvent::ServerListUpdate(list) => format!(
-            "[EVENT] server_list servers={} sat_servers={}",
-            list.servers.len(),
-            list.sat_servers.len()
-        ),
-        FrameEvent::Warning(warning) => format!("[WARN] {:?}", warning),
-        _ => "unknown".to_string(),
-    }
-}
-
 /// Converts a frame event to a JSON representation.
 ///
 /// # Arguments

@@ -92,11 +92,9 @@ fn run_capture_mode(
             for file_event in &file_events {
                 let path = file_event["path"].as_str().unwrap_or("");
                 let timestamp_utc = file_event["timestamp_utc"].as_u64().unwrap_or(0);
-                info!(command = "download", path = %path, timestamp_utc, "wrote file");
+                info!(path = %path, timestamp_utc, "wrote file");
             }
             info!(
-                command = "download",
-                mode = "capture",
                 files = written_files.len(),
                 status = "ok",
                 "download capture complete"
@@ -168,7 +166,7 @@ async fn run_live_mode(
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     let filename = file.filename.clone();
                     if matches!(format, OutputFormat::Text) {
-                        info!(command = "download", mode = "live", path = %path, timestamp_utc, "wrote file");
+                        info!(path = %path, timestamp_utc, "wrote file");
                     }
                     written_files.push(path.clone());
                     let mut file_event = serde_json::json!({
@@ -204,8 +202,6 @@ async fn run_live_mode(
     match format {
         OutputFormat::Text => {
             info!(
-                command = "download",
-                mode = "live",
                 files = written_files.len(),
                 status = "ok",
                 "download live complete"

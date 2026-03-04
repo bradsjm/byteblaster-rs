@@ -36,7 +36,6 @@ pub async fn run(
     match format {
         OutputFormat::Text => {
             info!(
-                command = "inspect",
                 event_count = events.len(),
                 status = "ok",
                 "inspect complete"

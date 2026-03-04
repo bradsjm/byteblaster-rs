@@ -62,7 +62,7 @@ fn run_capture_mode(
     let mut written_files = Vec::new();
 
     for event in &events {
-        log_frame_event(event, text_preview_chars, "capture");
+        log_frame_event(event, text_preview_chars);
         if let Some(assembler) = assembler.as_mut()
             && let FrameEvent::DataBlock(segment) = event
             && let Some(file) = assembler.push(segment.clone())?
@@ -76,8 +76,6 @@ fn run_capture_mode(
             )?;
             let timestamp_utc = unix_seconds(file.timestamp_utc);
             info!(
-                command = "stream",
-                mode = "capture",
                 path = %path,
                 filename = %file.filename,
                 timestamp_utc,
@@ -88,8 +86,6 @@ fn run_capture_mode(
     }
 
     info!(
-        command = "stream",
-        mode = "capture",
         events = events.len(),
         files = written_files.len(),
         status = "ok",
@@ -146,7 +142,7 @@ async fn run_live_mode(
         match item {
             Ok(ClientEvent::Frame(frame)) => {
                 seen += 1;
-                log_frame_event(&frame, text_preview_chars, "live");
+                log_frame_event(&frame, text_preview_chars);
                 if matches!(frame, FrameEvent::DataBlock(_)) {
                     live_stats.data_blocks_total = live_stats.data_blocks_total.saturating_add(1);
                 }
@@ -156,8 +152,6 @@ async fn run_live_mode(
                     live_stats.current_servers = list.servers.len();
                     live_stats.current_sat_servers = list.sat_servers.len();
                     info!(
-                        command = "stream",
-                        mode = "live",
                         updates = live_stats.server_list_updates_total,
                         servers = list.servers.len(),
                         sat_servers = list.sat_servers.len(),
@@ -177,8 +171,6 @@ async fn run_live_mode(
                     )?;
                     let timestamp_utc = unix_seconds(file.timestamp_utc);
                     info!(
-                        command = "stream",
-                        mode = "live",
                         path = %path,
                         filename = %file.filename,
                         timestamp_utc,
@@ -190,8 +182,6 @@ async fn run_live_mode(
             Ok(ClientEvent::Connected(endpoint)) => {
                 live_stats.connections_total = live_stats.connections_total.saturating_add(1);
                 info!(
-                    command = "stream",
-                    mode = "live",
                     endpoint = %endpoint,
                     connections = live_stats.connections_total,
                     "connected"
@@ -200,8 +190,6 @@ async fn run_live_mode(
             Ok(ClientEvent::Disconnected) => {
                 live_stats.disconnects_total = live_stats.disconnects_total.saturating_add(1);
                 warn!(
-                    command = "stream",
-                    mode = "live",
                     disconnects = live_stats.disconnects_total,
                     "disconnected; switching server"
                 );
@@ -213,8 +201,6 @@ async fn run_live_mode(
                     .unwrap_or(0);
                 if auth_delta > 0 {
                     info!(
-                        command = "stream",
-                        mode = "live",
                         auth_logon_delta = auth_delta,
                         auth_logon_total = snapshot.auth_logon_sent_total,
                         "auth logon sent"
@@ -223,8 +209,6 @@ async fn run_live_mode(
                 last_auth_logons = Some(snapshot.auth_logon_sent_total);
 
                 info!(
-                    command = "stream",
-                    mode = "live",
                     bytes_in_total = snapshot.bytes_in_total,
                     frame_events_total = snapshot.frame_events_total,
                     data_blocks_total = live_stats.data_blocks_total,
@@ -240,7 +224,7 @@ async fn run_live_mode(
             }
             Ok(_) => {}
             Err(err) => {
-                warn!(command = "stream", mode = "live", error = %err, "stream live warning");
+                warn!(error = %err, "stream live warning");
             }
         }
     }
@@ -249,8 +233,6 @@ async fn run_live_mode(
     client.stop().await?;
 
     info!(
-        command = "stream",
-        mode = "live",
         events = seen,
         files = written_files.len(),
         server_list_updates = live_stats.server_list_updates_total,
@@ -265,14 +247,12 @@ async fn run_live_mode(
     Ok(())
 }
 
-fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize, mode: &'static str) {
+fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
     match frame {
         FrameEvent::DataBlock(segment) => {
             let product = detect_product_meta(&segment.filename);
             let preview = text_preview(&segment.filename, &segment.content, text_preview_chars);
             info!(
-                command = "stream",
-                mode,
                 event = "data_block",
                 filename = %segment.filename,
                 block_number = segment.block_number,
@@ -286,8 +266,6 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize, mode: &'static
         }
         FrameEvent::ServerListUpdate(list) => {
             info!(
-                command = "stream",
-                mode,
                 event = "server_list",
                 servers = list.servers.len(),
                 sat_servers = list.sat_servers.len(),
@@ -296,8 +274,6 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize, mode: &'static
         }
         FrameEvent::Warning(warning) => {
             warn!(
-                command = "stream",
-                mode,
                 event = "warning",
                 warning = ?warning,
                 "frame warning"
@@ -305,8 +281,6 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize, mode: &'static
         }
         other => {
             info!(
-                command = "stream",
-                mode,
                 event = "other",
                 frame = ?other,
                 "frame event"

@@ -3,15 +3,16 @@
 //! This module provides functionality to download and assemble files from
 //! capture files or live ByteBlaster servers.
 
+use crate::live::shared::{parse_servers_or_default, unix_seconds};
 use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
-    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler, parse_server,
+    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
 };
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tracing::warn;
 
 /// Runs the download command.
@@ -220,30 +221,4 @@ async fn run_live_mode(
     }
 
     Ok(())
-}
-
-fn unix_seconds(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(String, u16)>> {
-    if raw_servers.is_empty() {
-        return Ok(vec![
-            ("emwin.weathermessage.com".to_string(), 2211),
-            ("master.weathermessage.com".to_string(), 2211),
-            ("emwin.interweather.net".to_string(), 1000),
-            ("wxmesg.upstateweather.com".to_string(), 2211),
-        ]);
-    }
-
-    raw_servers
-        .iter()
-        .map(|entry| {
-            parse_server(entry).ok_or_else(|| {
-                anyhow::anyhow!("invalid --server entry: {entry} (expected host:port)")
-            })
-        })
-        .collect()
 }

@@ -4,17 +4,18 @@
 //! or live ByteBlaster servers, with optional file assembly and output.
 
 use crate::cmd::event_output::{frame_event_to_json, frame_event_to_text};
+use crate::live::shared::{parse_servers_or_default, unix_seconds, write_completed_file};
 use crate::output::{
     OutputFormat, emit_json_line, emit_text_line, label_info, label_ok, label_stats, label_warn,
 };
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
-    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler, parse_server,
+    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
 };
 use futures::StreamExt;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
+use std::time::Duration;
 
 /// Statistics tracked during live streaming.
 #[derive(Debug, Default)]
@@ -411,39 +412,4 @@ async fn run_live_mode(
     }
 
     Ok(())
-}
-
-fn unix_seconds(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-fn write_completed_file(output_dir: &Path, filename: &str, data: &[u8]) -> anyhow::Result<String> {
-    let target = output_dir.join(filename);
-    if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&target, data)?;
-    Ok(target.to_string_lossy().to_string())
-}
-
-fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(String, u16)>> {
-    if raw_servers.is_empty() {
-        return Ok(vec![
-            ("emwin.weathermessage.com".to_string(), 2211),
-            ("master.weathermessage.com".to_string(), 2211),
-            ("emwin.interweather.net".to_string(), 1000),
-            ("wxmesg.upstateweather.com".to_string(), 2211),
-        ]);
-    }
-
-    raw_servers
-        .iter()
-        .map(|entry| {
-            parse_server(entry).ok_or_else(|| {
-                anyhow::anyhow!("invalid --server entry: {entry} (expected host:port)")
-            })
-        })
-        .collect()
 }

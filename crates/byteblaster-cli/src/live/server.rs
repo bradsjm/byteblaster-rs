@@ -7,6 +7,7 @@
 //! - Supports CORS for browser clients
 
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
+use crate::live::shared::parse_servers_or_default;
 use crate::product_meta::{ProductMeta, detect_product_meta};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
@@ -17,7 +18,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, ClientTelemetrySnapshot, DecodeConfig,
-    FileAssembler, FrameEvent, SegmentAssembler, parse_server,
+    FileAssembler, FrameEvent, SegmentAssembler,
 };
 use futures::Stream;
 use futures::StreamExt;
@@ -899,26 +900,6 @@ fn percent_encode(input: &str) -> String {
         }
     }
     out
-}
-
-fn parse_servers_or_default(raw_servers: &[String]) -> anyhow::Result<Vec<(String, u16)>> {
-    if raw_servers.is_empty() {
-        return Ok(vec![
-            ("emwin.weathermessage.com".to_string(), 2211),
-            ("master.weathermessage.com".to_string(), 2211),
-            ("emwin.interweather.net".to_string(), 1000),
-            ("wxmesg.upstateweather.com".to_string(), 2211),
-        ]);
-    }
-
-    raw_servers
-        .iter()
-        .map(|entry| {
-            parse_server(entry).ok_or_else(|| {
-                anyhow::anyhow!("invalid --server entry: {entry} (expected host:port)")
-            })
-        })
-        .collect()
 }
 
 fn publish(state: &Arc<AppState>, kind: EventKind) {

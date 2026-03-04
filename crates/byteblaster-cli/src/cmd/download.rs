@@ -3,7 +3,7 @@
 //! This module provides functionality to download and assemble files from
 //! capture files or live ByteBlaster servers.
 
-use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok, label_warn};
+use crate::output::{OutputFormat, emit_json_line, emit_text_line, label_ok};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
@@ -12,6 +12,7 @@ use byteblaster_core::{
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tracing::warn;
 
 /// Runs the download command.
 ///
@@ -192,7 +193,7 @@ async fn run_live_mode(
             Ok(ClientEvent::Connected(_)) | Ok(ClientEvent::Disconnected) => {}
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{} download live warning: {err}", label_warn());
+                warn!(error = %err, "download live warning");
             }
         }
     }

@@ -7,7 +7,6 @@
 //! - Supports CORS for browser clients
 
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
-use crate::output::{label_error, label_info, label_ok, label_stats, label_warn};
 use crate::product_meta::{ProductMeta, detect_product_meta};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
@@ -34,6 +33,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, watch};
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{error, info};
 
 /// Capacity of the broadcast channel for events.
 const EVENT_CHANNEL_CAPACITY: usize = 4096;
@@ -319,10 +319,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let app = build_router(Arc::clone(&state), options.cors_origin)?;
 
     let listener = TcpListener::bind(bind_addr).await?;
-    log_info(
-        options.quiet,
-        &format!("{} server listening addr={bind_addr}", label_ok()),
-    );
+    log_info(options.quiet, &format!("server listening addr={bind_addr}"));
 
     let config = ClientConfig {
         email: options.email,
@@ -506,7 +503,7 @@ fn handle_client_event(
             }
             log_info(
                 state.quiet,
-                &format!("{} upstream connected endpoint={endpoint}", label_ok()),
+                &format!("upstream connected endpoint={endpoint}"),
             );
             publish(
                 state,
@@ -523,10 +520,7 @@ fn handle_client_event(
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 *guard = None;
             }
-            log_info(
-                state.quiet,
-                &format!("{} upstream disconnected", label_warn()),
-            );
+            log_info(state.quiet, "upstream disconnected");
             publish(state, EventKind::Disconnected);
         }
         Ok(ClientEvent::Telemetry(snapshot)) => {
@@ -569,8 +563,7 @@ fn handle_client_event(
                     log_info(
                         state.quiet,
                         &format!(
-                            "{} file complete name={} bytes={} timestamp_utc={}",
-                            label_info(),
+                            "file complete name={} bytes={} timestamp_utc={}",
                             file.filename,
                             file.data.len(),
                             timestamp_utc
@@ -596,8 +589,7 @@ fn handle_client_event(
                 log_info(
                     state.quiet,
                     &format!(
-                        "{} server list received servers={} sat_servers={}",
-                        label_info(),
+                        "server list received servers={} sat_servers={}",
                         list.servers.len(),
                         list.sat_servers.len()
                     ),
@@ -665,24 +657,24 @@ async fn run_stats_loop(
                 let servers = state.current_servers.load(Ordering::Relaxed);
                 let sat_servers = state.current_sat_servers.load(Ordering::Relaxed);
 
-                let uptime = state.started_at.elapsed().as_secs();
-                eprintln!(
-                    "{} uptime={}s bytes_in={} frames={} data_blocks={} drops={} server_lists={} servers={} sat_servers={} auth_logons={} watchdog_timeouts={} watchdog_exceptions={} files={} clients={} upstream={}",
-                    label_stats(),
-                    uptime,
-                    telemetry.bytes_in_total,
-                    telemetry.frame_events_total,
-                    data_blocks,
-                    telemetry.event_queue_drop_total,
-                    telemetry.server_list_updates_total,
+                let uptime_secs = state.started_at.elapsed().as_secs();
+                let upstream = endpoint.unwrap_or_else(|| "disconnected".to_string());
+                info!(
+                    uptime_secs,
+                    bytes_in_total = telemetry.bytes_in_total,
+                    frame_events_total = telemetry.frame_events_total,
+                    data_blocks_total = data_blocks,
+                    event_queue_drop_total = telemetry.event_queue_drop_total,
+                    server_list_updates_total = telemetry.server_list_updates_total,
                     servers,
                     sat_servers,
-                    telemetry.auth_logon_sent_total,
-                    telemetry.watchdog_timeouts_total,
-                    telemetry.watchdog_exception_events_total,
-                    files,
-                    clients,
-                    endpoint.unwrap_or_else(|| "disconnected".to_string())
+                    auth_logon_sent_total = telemetry.auth_logon_sent_total,
+                    watchdog_timeouts_total = telemetry.watchdog_timeouts_total,
+                    watchdog_exception_events_total = telemetry.watchdog_exception_events_total,
+                    retained_files = files,
+                    connected_clients = clients,
+                    upstream,
+                    "server stats snapshot"
                 );
             }
         }
@@ -699,19 +691,13 @@ async fn events_handler(
     if current >= state.max_clients {
         log_info(
             state.quiet,
-            &format!(
-                "{} rejecting client; limit reached peer={peer}",
-                label_warn()
-            ),
+            &format!("rejecting client; limit reached peer={peer}"),
         );
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
     state.connected_clients.fetch_add(1, Ordering::Relaxed);
-    log_info(
-        state.quiet,
-        &format!("{} sse client connected peer={peer}", label_info()),
-    );
+    log_info(state.quiet, &format!("sse client connected peer={peer}"));
 
     let rx = state.event_tx.subscribe();
     let shutdown_rx = state.shutdown_rx.clone();
@@ -764,12 +750,7 @@ async fn events_handler(
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(dropped)) => {
                         log_info(
                             st.state.quiet,
-                            &format!(
-                                "{} sse client lagged peer={} dropped={}",
-                                label_warn(),
-                                st.peer,
-                                dropped
-                            ),
+                            &format!("sse client lagged peer={} dropped={}", st.peer, dropped),
                         );
                         let warning = Event::default().event("warning").data(
                             serde_json::json!({
@@ -810,11 +791,7 @@ impl Drop for ClientGuard {
         self.state.connected_clients.fetch_sub(1, Ordering::Relaxed);
         log_info(
             self.state.quiet,
-            &format!(
-                "{} sse client disconnected peer={}",
-                label_info(),
-                self.peer
-            ),
+            &format!("sse client disconnected peer={}", self.peer),
         );
     }
 }
@@ -996,12 +973,12 @@ fn event_matches_filter(filter: Option<&str>, event: &EventKind) -> bool {
 
 fn log_info(quiet: bool, msg: &str) {
     if !quiet {
-        eprintln!("{msg}");
+        info!("{msg}");
     }
 }
 
 fn log_error(msg: &str) {
-    eprintln!("{} {msg}", label_error());
+    error!("{msg}");
 }
 
 fn build_cors_layer(cors_origin: Option<String>) -> anyhow::Result<CorsLayer> {

@@ -23,6 +23,7 @@ Contract:
 
 - command payloads are written to `stdout`
 - diagnostics and warnings are written to `stderr`
+- diagnostics use canonical `tracing-subscriber` formatting (configure via `RUST_LOG`)
 
 ## Live mode options
 

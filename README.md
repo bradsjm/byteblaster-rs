@@ -108,7 +108,7 @@ Optional stream file writing:
 
 CLI logging format:
 
-- Human-readable diagnostics use colorized level tags (for example `[OK]`, `[INFO]`, `[WARN]`, `[ERROR]`, `[STATS]`).
+- Diagnostics/logging use canonical `tracing-subscriber` formatting and `RUST_LOG` filtering.
 - Command payloads remain on `stdout`; diagnostics/logging remain on `stderr`.
 - This `stdout`/`stderr` split applies to all modes, including `relay`.
 

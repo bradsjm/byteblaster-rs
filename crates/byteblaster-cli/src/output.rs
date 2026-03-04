@@ -5,6 +5,7 @@
 
 use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tracing_subscriber::EnvFilter;
 
 /// Output format for CLI commands.
 #[derive(Debug, Clone, Copy)]
@@ -43,6 +44,15 @@ pub fn configure_color(policy: ColorPolicy) {
     COLOR_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+/// Configures canonical tracing logs to stderr.
+pub fn init_logging() {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_writer(std::io::stderr)
+        .try_init();
+}
+
 /// Applies ANSI color codes to text if colors are enabled.
 fn paint(text: &str, ansi: &str) -> String {
     if !COLOR_ENABLED.load(Ordering::Relaxed) {
@@ -69,11 +79,6 @@ pub fn label_info() -> String {
 /// Returns a yellow "[WARN]" label.
 pub fn label_warn() -> String {
     level_tag("WARN", "1;33")
-}
-
-/// Returns a red "[ERROR]" label.
-pub fn label_error() -> String {
-    level_tag("ERROR", "1;31")
 }
 
 /// Returns a gray "[STATS]" label.

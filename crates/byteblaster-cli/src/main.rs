@@ -167,14 +167,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    if matches!(&cli.command, Commands::Relay { .. }) {
-        relay::init_logging();
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .with_writer(std::io::stderr)
-            .init();
-    }
+    output::init_logging();
     let format = match cli.format {
         FormatArg::Text => output::OutputFormat::Text,
         FormatArg::Json => output::OutputFormat::Json,

@@ -51,3 +51,9 @@ docker run --rm -p 2211:2211 -p 9090:9090 \
 - `status` (`"ok"`)
 - `forwarding_paused` (bool)
 - `downstream_active_clients` (current count)
+
+## Diagnostics Channel Contract
+
+- Relay diagnostics and logs are emitted to `stderr` only.
+- Relay never emits diagnostics to `stdout`.
+- `stdout` remains reserved for command payload output.

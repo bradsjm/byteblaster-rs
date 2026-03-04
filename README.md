@@ -110,6 +110,7 @@ CLI logging format:
 
 - Human-readable diagnostics use colorized level tags (for example `[OK]`, `[INFO]`, `[WARN]`, `[ERROR]`, `[STATS]`).
 - Command payloads remain on `stdout`; diagnostics/logging remain on `stderr`.
+- This `stdout`/`stderr` split applies to all modes, including `relay`.
 
 Live server mode (SSE + JSON endpoints):
 

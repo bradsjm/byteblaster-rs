@@ -16,10 +16,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, broadcast, mpsc, watch};
 use tracing::{debug, error, info, warn};
-use tracing_subscriber::Layer;
-use tracing_subscriber::filter::filter_fn;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 
 const DEFAULT_SERVERS: &[&str] = &[
     "emwin.weathermessage.com:2211",
@@ -312,27 +308,9 @@ struct QueuedChunk {
 pub fn init_logging() {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let stdout_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stdout)
-        .with_filter(filter_fn(|metadata| {
-            matches!(
-                *metadata.level(),
-                tracing::Level::INFO | tracing::Level::DEBUG | tracing::Level::TRACE
-            )
-        }));
-    let stderr_layer = tracing_subscriber::fmt::layer()
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
         .with_writer(std::io::stderr)
-        .with_filter(filter_fn(|metadata| {
-            matches!(
-                *metadata.level(),
-                tracing::Level::WARN | tracing::Level::ERROR
-            )
-        }));
-
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(stdout_layer)
-        .with(stderr_layer)
         .try_init()
         .ok();
 }

@@ -1,7 +1,5 @@
 use crate::wxwire_receiver::codec::{WxWireDecoder, WxWireFrameDecoder};
-use crate::wxwire_receiver::config::{
-    WXWIRE_MAX_BACKOFF_SECS, WXWIRE_MIN_BACKOFF_SECS, WXWIRE_PRIMARY_HOST, WxWireReceiverConfig,
-};
+use crate::wxwire_receiver::config::{WXWIRE_PRIMARY_HOST, WxWireReceiverConfig};
 use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
 use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
 use crate::wxwire_receiver::transport::{WxWireTransport, XmppWxWireTransport};
@@ -12,6 +10,16 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, watch};
+use tracing::warn;
+
+#[cfg(not(test))]
+const RECONNECT_BACKOFF_INITIAL: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const RECONNECT_BACKOFF_INITIAL: Duration = Duration::from_millis(10);
+#[cfg(not(test))]
+const RECONNECT_BACKOFF_MAX: Duration = Duration::from_secs(30);
+#[cfg(test)]
+const RECONNECT_BACKOFF_MAX: Duration = Duration::from_millis(100);
 
 /// Snapshot of weather wire runtime telemetry counters.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -305,11 +313,28 @@ async fn run_weather_wire_loop(
         tokio::time::interval(Duration::from_secs(config.telemetry_emit_interval_secs));
     telemetry_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     telemetry_tick.tick().await;
-    let mut consecutive_failures = 0u32;
+    if *shutdown_rx.borrow() {
+        telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
+        try_send_event(
+            &event_tx,
+            Ok(WxWireReceiverEvent::Disconnected),
+            &mut telemetry,
+        );
+        update_telemetry_sink(&telemetry_sink, &telemetry);
+        return;
+    }
 
-    'outer: loop {
+    let connect_timeout = Duration::from_secs(config.connect_timeout_secs);
+    let mut transport: Option<Box<dyn WxWireTransport>> = None;
+    let mut last_message_time = Instant::now();
+    let mut reconnect_backoff = RECONNECT_BACKOFF_INITIAL;
+
+    loop {
         if *shutdown_rx.borrow() {
             telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
+            if let Some(mut connected) = transport.take() {
+                let _ = connected.disconnect().await;
+            }
             try_send_event(
                 &event_tx,
                 Ok(WxWireReceiverEvent::Disconnected),
@@ -319,92 +344,108 @@ async fn run_weather_wire_loop(
             return;
         }
 
-        telemetry.snapshot.reconnect_attempts_total = telemetry
-            .snapshot
-            .reconnect_attempts_total
-            .saturating_add(1);
-
-        let connect_timeout = Duration::from_secs(config.connect_timeout_secs);
-        let connect = connect_single_endpoint(
-            &transport_factory,
-            config.username.clone(),
-            config.password.clone(),
-            connect_timeout,
-            &mut telemetry,
-        )
-        .await;
-
-        let mut transport = match connect {
-            Ok(transport) => transport,
-            Err(err) => {
-                let warning =
-                    WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
-                        message: err.to_string(),
-                    });
-                dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
-                update_telemetry_sink(&telemetry_sink, &telemetry);
-                consecutive_failures = consecutive_failures.saturating_add(1);
-                let delay = next_backoff_secs(consecutive_failures);
-                tokio::time::sleep(Duration::from_secs(delay)).await;
-                continue;
-            }
-        };
-        consecutive_failures = 0;
-
-        try_send_event(
-            &event_tx,
-            Ok(WxWireReceiverEvent::Connected(transport.label())),
-            &mut telemetry,
-        );
-        update_telemetry_sink(&telemetry_sink, &telemetry);
-
-        let mut last_message_time = Instant::now();
-
-        loop {
-            if *shutdown_rx.borrow() {
-                telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
-                let _ = transport.disconnect().await;
-                try_send_event(
-                    &event_tx,
-                    Ok(WxWireReceiverEvent::Disconnected),
-                    &mut telemetry,
-                );
-                update_telemetry_sink(&telemetry_sink, &telemetry);
-                return;
-            }
-
-            enum NextAction {
-                Stay,
-                Reconnect,
-                Shutdown,
-            }
-
-            let action = {
-                let next_message = transport.next_message();
-                tokio::pin!(next_message);
-
-                let mut action = NextAction::Stay;
-                tokio::select! {
-                    _ = shutdown_rx.changed() => {
-                        telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
-                        action = NextAction::Shutdown;
+        if transport.is_none() {
+            match connect_single_endpoint(
+                &transport_factory,
+                config.username.clone(),
+                config.password.clone(),
+                connect_timeout,
+                &mut telemetry,
+            )
+            .await
+            {
+                Ok(connected) => {
+                    reconnect_backoff = RECONNECT_BACKOFF_INITIAL;
+                    last_message_time = Instant::now();
+                    let label = connected.label();
+                    try_send_event(
+                        &event_tx,
+                        Ok(WxWireReceiverEvent::Connected(label)),
+                        &mut telemetry,
+                    );
+                    update_telemetry_sink(&telemetry_sink, &telemetry);
+                    transport = Some(connected);
+                }
+                Err(err) => {
+                    warn!(error = %err, "wxwire connection attempt failed");
+                    let warning =
+                        WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
+                            message: err.to_string(),
+                        });
+                    dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
+                    update_telemetry_sink(&telemetry_sink, &telemetry);
+                    telemetry.snapshot.reconnect_attempts_total = telemetry
+                        .snapshot
+                        .reconnect_attempts_total
+                        .saturating_add(1);
+                    if wait_reconnect_backoff(&mut shutdown_rx, reconnect_backoff).await {
+                        continue;
                     }
-                    _ = telemetry_tick.tick() => {
-                        telemetry.snapshot.telemetry_events_emitted_total = telemetry
-                            .snapshot
-                            .telemetry_events_emitted_total
-                            .saturating_add(1);
-                        try_send_event(
-                            &event_tx,
-                            Ok(WxWireReceiverEvent::Telemetry(telemetry.snapshot.clone())),
-                            &mut telemetry,
-                        );
-                        update_telemetry_sink(&telemetry_sink, &telemetry);
+                    reconnect_backoff =
+                        (reconnect_backoff.saturating_mul(2)).min(RECONNECT_BACKOFF_MAX);
+                    continue;
+                }
+            }
+        }
+
+        let mut connected_transport = transport.take().expect("checked is_some above");
+
+        enum NextAction {
+            Stay,
+            Shutdown,
+            Reconnect,
+        }
+        let mut action = NextAction::Stay;
+
+        {
+            let next_stanza = connected_transport.next_stanza();
+            tokio::pin!(next_stanza);
+
+            tokio::select! {
+                _ = shutdown_rx.changed() => {
+                    telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
+                    action = NextAction::Shutdown;
+                }
+                _ = telemetry_tick.tick() => {
+                    telemetry.snapshot.telemetry_events_emitted_total = telemetry
+                        .snapshot
+                        .telemetry_events_emitted_total
+                        .saturating_add(1);
+                    try_send_event(
+                        &event_tx,
+                        Ok(WxWireReceiverEvent::Telemetry(telemetry.snapshot.clone())),
+                        &mut telemetry,
+                    );
+                    update_telemetry_sink(&telemetry_sink, &telemetry);
+                }
+                maybe_raw = ingress_rx.recv() => {
+                    if let Some(raw) = maybe_raw {
+                        last_message_time = Instant::now();
+                        match decoder.feed(&raw) {
+                            Ok(frame_events) => {
+                                telemetry.snapshot.decoded_messages_total = telemetry
+                                    .snapshot
+                                    .decoded_messages_total
+                                    .saturating_add(1);
+                                dispatch_frame_events(&event_tx, &handlers, frame_events, &mut telemetry);
+                                update_telemetry_sink(&telemetry_sink, &telemetry);
+                            }
+                            Err(err) => {
+                                let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::DecoderRecovered {
+                                    error: err.to_string(),
+                                });
+                                dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
+                                decoder.reset();
+                                update_telemetry_sink(&telemetry_sink, &telemetry);
+                            }
+                        }
                     }
-                    maybe_raw = ingress_rx.recv() => {
-                        if let Some(raw) = maybe_raw {
+                }
+                transport_event = tokio::time::timeout(Duration::from_secs(1), &mut next_stanza) => {
+                    match transport_event {
+                        Ok(Ok(stanza)) => {
                             last_message_time = Instant::now();
-                            match decoder.feed(&raw) {
+                            match decoder.feed(&stanza) {
                                 Ok(frame_events) => {
                                     telemetry.snapshot.decoded_messages_total = telemetry
                                         .snapshot
@@ -423,81 +464,78 @@ async fn run_weather_wire_loop(
                                 }
                             }
                         }
-                    }
-                    transport_event = tokio::time::timeout(Duration::from_secs(1), &mut next_message) => {
-                        match transport_event {
-                            Ok(Ok(message)) => {
-                                last_message_time = Instant::now();
-                                match decoder.feed_message(&message) {
-                                    Ok(frame_events) => {
-                                        telemetry.snapshot.decoded_messages_total = telemetry
-                                            .snapshot
-                                            .decoded_messages_total
-                                            .saturating_add(1);
-                                        dispatch_frame_events(&event_tx, &handlers, frame_events, &mut telemetry);
-                                        update_telemetry_sink(&telemetry_sink, &telemetry);
-                                    }
-                                    Err(err) => {
-                                        let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::DecoderRecovered {
-                                            error: err.to_string(),
-                                        });
-                                        dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
-                                        decoder.reset();
-                                        update_telemetry_sink(&telemetry_sink, &telemetry);
-                                    }
-                                }
-                            }
-                            Ok(Err(err)) => {
+                        Ok(Err(err)) => {
+                            warn!(error = %err, "wxwire transport error, reconnecting");
+                            let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
+                                message: err.to_string(),
+                            });
+                            dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
+                            update_telemetry_sink(&telemetry_sink, &telemetry);
+                            action = NextAction::Reconnect;
+                        }
+                        Err(_) => {
+                            if last_message_time.elapsed() >= Duration::from_secs(config.idle_timeout_secs) {
+                                let message = format!(
+                                    "no accepted room message for {}s",
+                                    config.idle_timeout_secs
+                                );
+                                warn!(%message, "wxwire idle timeout");
                                 let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
-                                    message: err.to_string(),
+                                    message,
                                 });
                                 dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
-                                action = NextAction::Reconnect;
-                            }
-                            Err(_) => {
-                                if last_message_time.elapsed() >= Duration::from_secs(config.idle_timeout_secs) {
-                                    telemetry.snapshot.idle_reconnects_total = telemetry
-                                        .snapshot
-                                        .idle_reconnects_total
-                                        .saturating_add(1);
-                                    let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::IdleTimeoutReconnect);
-                                    dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
-                                    action = NextAction::Reconnect;
-                                }
+                                update_telemetry_sink(&telemetry_sink, &telemetry);
+                                last_message_time = Instant::now();
                             }
                         }
                     }
                 }
-                action
-            };
-
-            match action {
-                NextAction::Stay => {}
-                NextAction::Shutdown => {
-                    let _ = transport.disconnect().await;
-                    try_send_event(
-                        &event_tx,
-                        Ok(WxWireReceiverEvent::Disconnected),
-                        &mut telemetry,
-                    );
-                    update_telemetry_sink(&telemetry_sink, &telemetry);
-                    return;
-                }
-                NextAction::Reconnect => {
-                    let _ = transport.disconnect().await;
-                    try_send_event(
-                        &event_tx,
-                        Ok(WxWireReceiverEvent::Disconnected),
-                        &mut telemetry,
-                    );
-                    update_telemetry_sink(&telemetry_sink, &telemetry);
-                    consecutive_failures = consecutive_failures.saturating_add(1);
-                    let delay = next_backoff_secs(consecutive_failures);
-                    tokio::time::sleep(Duration::from_secs(delay)).await;
-                    continue 'outer;
-                }
             }
         }
+
+        match action {
+            NextAction::Stay => {
+                transport = Some(connected_transport);
+            }
+            NextAction::Shutdown => {
+                let _ = connected_transport.disconnect().await;
+                try_send_event(
+                    &event_tx,
+                    Ok(WxWireReceiverEvent::Disconnected),
+                    &mut telemetry,
+                );
+                update_telemetry_sink(&telemetry_sink, &telemetry);
+                return;
+            }
+            NextAction::Reconnect => {
+                telemetry.snapshot.reconnect_attempts_total = telemetry
+                    .snapshot
+                    .reconnect_attempts_total
+                    .saturating_add(1);
+                let _ = connected_transport.disconnect().await;
+                try_send_event(
+                    &event_tx,
+                    Ok(WxWireReceiverEvent::Disconnected),
+                    &mut telemetry,
+                );
+                update_telemetry_sink(&telemetry_sink, &telemetry);
+                if wait_reconnect_backoff(&mut shutdown_rx, reconnect_backoff).await {
+                    continue;
+                }
+                reconnect_backoff =
+                    (reconnect_backoff.saturating_mul(2)).min(RECONNECT_BACKOFF_MAX);
+            }
+        }
+    }
+}
+
+async fn wait_reconnect_backoff(
+    shutdown_rx: &mut watch::Receiver<bool>,
+    duration: Duration,
+) -> bool {
+    tokio::select! {
+        _ = shutdown_rx.changed() => true,
+        _ = tokio::time::sleep(duration) => false,
     }
 }
 
@@ -528,12 +566,6 @@ fn default_transport_factory(
         .await?;
         Ok(Box::new(transport) as Box<dyn WxWireTransport>)
     })
-}
-
-fn next_backoff_secs(consecutive_failures: u32) -> u64 {
-    let exp = consecutive_failures.saturating_sub(1).min(16);
-    let scaled = WXWIRE_MIN_BACKOFF_SECS.saturating_mul(1u64 << exp);
-    scaled.clamp(WXWIRE_MIN_BACKOFF_SECS, WXWIRE_MAX_BACKOFF_SECS)
 }
 
 fn dispatch_frame_events(
@@ -643,14 +675,13 @@ mod tests {
     use futures::StreamExt;
     use std::pin::Pin;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::sync::mpsc;
-    use tokio_xmpp::parsers::message::Message;
-
     #[derive(Debug)]
     struct MockTransport {
         label: String,
-        rx: mpsc::Receiver<Message>,
+        rx: mpsc::Receiver<String>,
     }
 
     impl WxWireTransport for MockTransport {
@@ -658,17 +689,70 @@ mod tests {
             self.label.clone()
         }
 
-        fn next_message<'a>(
+        fn next_stanza<'a>(
             &'a mut self,
         ) -> Pin<
             Box<
                 dyn std::future::Future<
-                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<Message>,
+                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<String>,
                     > + Send
                     + 'a,
             >,
         > {
             Box::pin(async move {
+                self.rx.recv().await.ok_or_else(|| {
+                    crate::wxwire_receiver::error::WxWireReceiverError::Transport(
+                        "mock stream ended".to_string(),
+                    )
+                })
+            })
+        }
+
+        fn disconnect<'a>(
+            &'a mut self,
+        ) -> Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<()>,
+                    > + Send
+                    + 'a,
+            >,
+        > {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    #[derive(Debug)]
+    struct FlakyTransport {
+        label: String,
+        rx: mpsc::Receiver<String>,
+        fail_once: bool,
+    }
+
+    impl WxWireTransport for FlakyTransport {
+        fn label(&self) -> String {
+            self.label.clone()
+        }
+
+        fn next_stanza<'a>(
+            &'a mut self,
+        ) -> Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<String>,
+                    > + Send
+                    + 'a,
+            >,
+        > {
+            Box::pin(async move {
+                if self.fail_once {
+                    self.fail_once = false;
+                    return Err(
+                        crate::wxwire_receiver::error::WxWireReceiverError::Transport(
+                            "simulated socket failure".to_string(),
+                        ),
+                    );
+                }
                 self.rx.recv().await.ok_or_else(|| {
                     crate::wxwire_receiver::error::WxWireReceiverError::Transport(
                         "mock stream ended".to_string(),
@@ -706,9 +790,7 @@ mod tests {
         Arc::new(move |_username, _password, _timeout| {
             let (tx, rx) = mpsc::channel(8);
             let stanza = "<message xmlns='jabber:client' type='groupchat'><body>S</body><x xmlns='nwws-oi' id='id1' issue='2026-03-05T00:00:00Z' ttaaii='NOUS41' cccc='KOKX' awipsid='AFDOKX'>line</x></message>";
-            let elem: tokio_xmpp::minidom::Element = stanza.parse().expect("valid xml");
-            let msg = Message::try_from(elem).expect("valid message");
-            let _ = tx.try_send(msg);
+            let _ = tx.try_send(stanza.to_string());
             let label = "primary".to_string();
             Box::pin(async move {
                 Ok(Box::new(MockTransport { label, rx }) as Box<dyn WxWireTransport>)
@@ -798,12 +880,107 @@ mod tests {
         assert!(saw_file);
     }
 
-    #[test]
-    fn backoff_is_bounded_to_policy_window() {
-        assert_eq!(super::next_backoff_secs(0), 5);
-        assert_eq!(super::next_backoff_secs(1), 5);
-        assert_eq!(super::next_backoff_secs(2), 10);
-        assert_eq!(super::next_backoff_secs(3), 20);
-        assert_eq!(super::next_backoff_secs(20), 300);
+    #[tokio::test]
+    async fn initial_connect_failure_retries_and_recovers() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_for_factory = Arc::clone(&attempts);
+        let factory: TransportFactory = Arc::new(move |_username, _password, _timeout| {
+            let current = attempts_for_factory.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move {
+                if current == 0 {
+                    return Err(WxWireReceiverError::Transport(
+                        "initial connect failure".to_string(),
+                    ));
+                }
+                let (tx, rx) = mpsc::channel(8);
+                let stanza = "<message xmlns='jabber:client' type='groupchat'><body>S</body><x xmlns='nwws-oi' id='id1' issue='2026-03-05T00:00:00Z' ttaaii='NOUS41' cccc='KOKX' awipsid='AFDOKX'>line</x></message>";
+                let _ = tx.try_send(stanza.to_string());
+                Ok(Box::new(MockTransport {
+                    label: "recovered".to_string(),
+                    rx,
+                }) as Box<dyn WxWireTransport>)
+            })
+        });
+
+        let mut client = WxWireReceiver::builder(valid_config())
+            .with_transport_factory(factory)
+            .build()
+            .expect("client should build");
+        client.start().expect("client should start");
+
+        let mut events = client.events();
+        let mut saw_connected = false;
+        for _ in 0..40 {
+            if let Ok(Some(Ok(WxWireReceiverEvent::Connected(label)))) =
+                tokio::time::timeout(Duration::from_millis(100), events.next()).await
+                && label == "recovered"
+            {
+                saw_connected = true;
+                break;
+            }
+        }
+
+        drop(events);
+        client.stop().await.expect("stop should succeed");
+        assert!(saw_connected);
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[tokio::test]
+    async fn transport_error_emits_disconnected_and_reconnects() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_for_factory = Arc::clone(&attempts);
+        let factory: TransportFactory = Arc::new(move |_username, _password, _timeout| {
+            let current = attempts_for_factory.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move {
+                let (tx, rx) = mpsc::channel(8);
+                let stanza = "<message xmlns='jabber:client' type='groupchat'><body>S</body><x xmlns='nwws-oi' id='id1' issue='2026-03-05T00:00:00Z' ttaaii='NOUS41' cccc='KOKX' awipsid='AFDOKX'>line</x></message>";
+                let _ = tx.try_send(stanza.to_string());
+                if current == 0 {
+                    Ok(Box::new(FlakyTransport {
+                        label: "flaky".to_string(),
+                        rx,
+                        fail_once: true,
+                    }) as Box<dyn WxWireTransport>)
+                } else {
+                    Ok(Box::new(MockTransport {
+                        label: "reconnected".to_string(),
+                        rx,
+                    }) as Box<dyn WxWireTransport>)
+                }
+            })
+        });
+
+        let mut client = WxWireReceiver::builder(valid_config())
+            .with_transport_factory(factory)
+            .build()
+            .expect("client should build");
+        client.start().expect("client should start");
+
+        let mut events = client.events();
+        let mut saw_disconnected = false;
+        let mut saw_reconnected = false;
+        for _ in 0..60 {
+            if let Ok(Some(Ok(event))) =
+                tokio::time::timeout(Duration::from_millis(100), events.next()).await
+            {
+                match event {
+                    WxWireReceiverEvent::Disconnected => {
+                        saw_disconnected = true;
+                    }
+                    WxWireReceiverEvent::Connected(label) if label == "reconnected" => {
+                        saw_reconnected = true;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        drop(events);
+        client.stop().await.expect("stop should succeed");
+        assert!(saw_disconnected);
+        assert!(saw_reconnected);
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
     }
 }

@@ -56,8 +56,6 @@ pub enum WxWireReceiverWarning {
         /// Total dropped events since runtime start.
         total_dropped_events: u64,
     },
-    /// Idle timeout elapsed and reconnect was triggered.
-    IdleTimeoutReconnect,
     /// XMPP transport reported an error.
     TransportError {
         /// Underlying transport error message.

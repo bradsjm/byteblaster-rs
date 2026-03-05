@@ -3,12 +3,18 @@
 //! This module provides functionality to download and assemble files from
 //! capture files or live ByteBlaster servers.
 
+use crate::ReceiverKind;
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::shared::parse_servers_or_default;
 use byteblaster_core::qbt_receiver::{
     QbtDecodeConfig, QbtFileAssembler, QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder,
     QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverEvent, QbtSegmentAssembler,
 };
+use byteblaster_core::wxwire_receiver::client::{
+    WxWireReceiver, WxWireReceiverClient, WxWireReceiverEvent,
+};
+use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
+use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
 use futures::StreamExt;
 use std::io::Read;
 use std::path::PathBuf;
@@ -93,71 +99,146 @@ fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
 }
 
 async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Result<()> {
-    let email = live
-        .email
-        .ok_or_else(|| anyhow::anyhow!("live mode requires --email"))?;
-
-    let servers = parse_servers_or_default(&live.servers)?;
-    let config = QbtReceiverConfig {
-        email,
-        servers,
-        server_list_path: live.server_list_path.map(PathBuf::from),
-        follow_server_list_updates: true,
-        reconnect_delay_secs: 5,
-        connection_timeout_secs: 5,
-        watchdog_timeout_secs: 20,
-        max_exceptions: 10,
-        decode: QbtDecodeConfig::default(),
-    };
-
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
-
-    let mut client = QbtReceiver::builder(config).build()?;
-    client.start()?;
-    let mut events = client.events();
-    let mut assembler = QbtFileAssembler::new(100);
     let mut written_files = Vec::new();
     let mut file_events = Vec::new();
-    let mut seen = 0usize;
-    let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 
-    while seen < live.max_events {
-        let next = tokio::time::timeout(idle, events.next()).await;
-        let Some(item) = next.ok().flatten() else {
-            break;
-        };
+    match live.receiver {
+        ReceiverKind::Qbt => {
+            let email = live
+                .email
+                .ok_or_else(|| anyhow::anyhow!("live mode requires --email"))?;
+            if live.password.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--password is not supported with --receiver qbt"
+                ));
+            }
 
-        match item {
-            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::DataBlock(segment))) => {
-                seen += 1;
-                if let Some(file) = assembler.push(segment)? {
-                    let completed = persist_completed_file(
-                        output_dir_path.as_path(),
-                        &file.filename,
-                        &file.data,
-                        file.timestamp_utc,
-                    )?;
-                    written_files.push(completed.path);
-                    file_events.push(completed.event);
+            let servers = parse_servers_or_default(&live.servers)?;
+            let config = QbtReceiverConfig {
+                email,
+                servers,
+                server_list_path: live.server_list_path.map(PathBuf::from),
+                follow_server_list_updates: true,
+                reconnect_delay_secs: 5,
+                connection_timeout_secs: 5,
+                watchdog_timeout_secs: 20,
+                max_exceptions: 10,
+                decode: QbtDecodeConfig::default(),
+            };
+
+            let mut client = QbtReceiver::builder(config).build()?;
+            client.start()?;
+            let mut events = client.events();
+            let mut assembler = QbtFileAssembler::new(100);
+            let mut seen = 0usize;
+            let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
+
+            while seen < live.max_events {
+                let next = tokio::time::timeout(idle, events.next()).await;
+                let Some(item) = next.ok().flatten() else {
+                    break;
+                };
+
+                match item {
+                    Ok(QbtReceiverEvent::Frame(QbtFrameEvent::DataBlock(segment))) => {
+                        seen += 1;
+                        if let Some(file) = assembler.push(segment)? {
+                            let completed = persist_completed_file(
+                                output_dir_path.as_path(),
+                                &file.filename,
+                                &file.data,
+                                file.timestamp_utc,
+                            )?;
+                            written_files.push(completed.path);
+                            file_events.push(completed.event);
+                        }
+                    }
+                    Ok(QbtReceiverEvent::Frame(_)) => {
+                        seen += 1;
+                    }
+                    Ok(QbtReceiverEvent::Telemetry(_)) => {
+                        seen += 1;
+                    }
+                    Ok(QbtReceiverEvent::Connected(_)) | Ok(QbtReceiverEvent::Disconnected) => {}
+                    Ok(_) => {}
+                    Err(err) => {
+                        warn!(error = %err, "download live warning");
+                    }
                 }
             }
-            Ok(QbtReceiverEvent::Frame(_)) => {
-                seen += 1;
+
+            drop(events);
+            client.stop().await?;
+        }
+        ReceiverKind::Wxwire => {
+            if !live.servers.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "--server is not supported with --receiver wxwire"
+                ));
             }
-            Ok(QbtReceiverEvent::Telemetry(_)) => {
-                seen += 1;
+            if live.server_list_path.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--server-list-path is not supported with --receiver wxwire"
+                ));
             }
-            Ok(QbtReceiverEvent::Connected(_)) | Ok(QbtReceiverEvent::Disconnected) => {}
-            Ok(_) => {}
-            Err(err) => {
-                warn!(error = %err, "download live warning");
+            let username = live
+                .email
+                .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --email"))?;
+            let password = live
+                .password
+                .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --password"))?;
+
+            let mut client = WxWireReceiver::builder(WxWireReceiverConfig {
+                username,
+                password,
+                idle_timeout_secs: live.idle_timeout_secs.max(1),
+                ..WxWireReceiverConfig::default()
+            })
+            .build()?;
+            client.start()?;
+            let mut events = client.events();
+            let mut seen = 0usize;
+            let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
+
+            while seen < live.max_events {
+                let next = tokio::time::timeout(idle, events.next()).await;
+                let Some(item) = next.ok().flatten() else {
+                    break;
+                };
+
+                match item {
+                    Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(file))) => {
+                        seen += 1;
+                        let completed = persist_completed_file(
+                            output_dir_path.as_path(),
+                            &file.filename,
+                            &file.data,
+                            file.issue_utc,
+                        )?;
+                        written_files.push(completed.path);
+                        file_events.push(completed.event);
+                    }
+                    Ok(WxWireReceiverEvent::Frame(_)) => {
+                        seen += 1;
+                    }
+                    Ok(WxWireReceiverEvent::Telemetry(_)) => {
+                        seen += 1;
+                    }
+                    Ok(WxWireReceiverEvent::Connected(_))
+                    | Ok(WxWireReceiverEvent::Disconnected) => {}
+                    Ok(_) => {}
+                    Err(err) => {
+                        warn!(error = %err, "download wxwire live warning");
+                    }
+                }
             }
+
+            drop(events);
+            client.stop().await?;
         }
     }
-
-    drop(events);
-    client.stop().await?;
 
     println!(
         "{}",
@@ -165,6 +246,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
             "command":"download",
             "status":"ok",
             "mode":"live",
+            "receiver": format!("{:?}", live.receiver).to_ascii_lowercase(),
             "output_dir":output_dir,
             "written_files": written_files,
             "file_events": file_events,

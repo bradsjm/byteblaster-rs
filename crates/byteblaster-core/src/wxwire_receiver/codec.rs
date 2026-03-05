@@ -6,9 +6,11 @@ use bytes::Bytes;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use tokio_xmpp::minidom::Element;
-use tokio_xmpp::parsers::delay::Delay;
-use tokio_xmpp::parsers::message::Message;
+use xmpp_parsers::delay::Delay;
+use xmpp_parsers::message::Message;
+use xmpp_parsers::minidom::Element;
+
+const CLIENT_NS: &str = "jabber:client";
 
 /// Trait for Weather Wire stanza decoders.
 pub trait WxWireFrameDecoder {
@@ -31,7 +33,7 @@ pub struct WxWireDecoder;
 
 impl WxWireFrameDecoder for WxWireDecoder {
     fn feed(&mut self, stanza: &str) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError> {
-        let elem: Element = stanza.trim().parse().map_err(|err| {
+        let elem: Element = parse_message_element(stanza.trim()).map_err(|err| {
             WxWireReceiverError::InvalidStanza(format!("invalid xml stanza: {err}"))
         })?;
         let message = Message::try_from(elem).map_err(|_| {
@@ -69,6 +71,43 @@ impl WxWireFrameDecoder for WxWireDecoder {
     }
 
     fn reset(&mut self) {}
+}
+
+fn parse_message_element(stanza: &str) -> Result<Element, xmpp_parsers::minidom::Error> {
+    match stanza.parse::<Element>() {
+        Ok(element) => Ok(element),
+        Err(_) => add_default_client_ns_on_root(stanza).parse::<Element>(),
+    }
+}
+
+fn add_default_client_ns_on_root(xml: &str) -> String {
+    let Some(open_start) = xml.find('<') else {
+        return xml.to_string();
+    };
+    let Some(open_end_rel) = xml[open_start..].find('>') else {
+        return xml.to_string();
+    };
+    let open_end = open_start + open_end_rel;
+    let open_tag = &xml[open_start..=open_end];
+    if open_tag.starts_with("</") || open_tag.starts_with("<?") || open_tag.starts_with("<!") {
+        return xml.to_string();
+    }
+    if open_tag.contains("xmlns=") || open_tag.contains("xmlns:") {
+        return xml.to_string();
+    }
+
+    let insert_at = if open_tag.ends_with("/>") {
+        open_end - 1
+    } else {
+        open_end
+    };
+    let mut out = String::with_capacity(xml.len() + CLIENT_NS.len() + 16);
+    out.push_str(&xml[..insert_at]);
+    out.push_str(" xmlns='");
+    out.push_str(CLIENT_NS);
+    out.push('\'');
+    out.push_str(&xml[insert_at..]);
+    out
 }
 
 #[derive(Debug)]
@@ -271,6 +310,26 @@ line2</x>
                 )
             )
         }));
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
+        );
+    }
+
+    #[test]
+    fn decode_message_without_root_namespace() {
+        let stanza = r#"
+            <message type='groupchat' from='nwws@conference.nwws-oi.weather.gov/r.owens'>
+              <body>TEST SUBJECT</body>
+              <x xmlns="nwws-oi" id="a1" issue="2026-03-05T00:00:00Z" ttaaii="NOUS41" cccc="KOKX" awipsid="AFDOKX">line1
+
+line2</x>
+            </message>
+        "#;
+
+        let mut decoder = WxWireDecoder;
+        let events = decoder.feed(stanza).expect("decode should not fail");
         assert!(
             events
                 .iter()

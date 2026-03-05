@@ -6,10 +6,6 @@ pub const WXWIRE_PRIMARY_HOST: &str = "nwws-oi.weather.gov";
 pub const WXWIRE_PORT: u16 = 5222;
 /// Fixed MUC room name.
 pub const WXWIRE_ROOM: &str = "nwws@conference.nwws-oi.weather.gov";
-/// Minimum reconnect backoff delay in seconds.
-pub const WXWIRE_MIN_BACKOFF_SECS: u64 = 5;
-/// Maximum reconnect backoff delay in seconds.
-pub const WXWIRE_MAX_BACKOFF_SECS: u64 = 300;
 
 /// Runtime configuration for Weather Wire.
 #[derive(Debug, Clone)]
@@ -18,7 +14,7 @@ pub struct WxWireReceiverConfig {
     pub username: String,
     /// NWWS-OI password.
     pub password: String,
-    /// Idle timeout window before reconnect in seconds.
+    /// Idle timeout window for stalled-connection warnings in seconds.
     pub idle_timeout_secs: u64,
     /// Capacity of the event channel.
     pub event_channel_capacity: usize,

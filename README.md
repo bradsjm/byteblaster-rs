@@ -7,6 +7,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - `crates/byteblaster-core` - protocol + runtime library
 - `crates/byteblaster-cli` - command-line interface built on `byteblaster-core`
 - `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
+- `docs/weather-wire.md` - authoritative Weather Wire (XMPP) runtime contract
 - `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
 - `docs/relay-mode.md` - TCP relay mode behavior and metrics contract
 - `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` - historical external draft reference
@@ -17,6 +18,8 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - Stateful decoder for XOR-obfuscated ByteBlaster streams (`/PF`, `/ServerList`)
 - V1 + V2 segment handling with configurable checksum and compression policies
 - Client connection loop with reconnect/backoff, auth ticker, watchdog, and handler isolation
+- Weather Wire receiver runtime with custom XMPP transport (STARTTLS/SASL/bind/MUC join)
+- Weather Wire reconnect state machine with bounded backoff and XEP-0198 heartbeat/acks
 - Server-list parsing and persisted lifecycle management
 - File assembly with duplicate suppression
 - CLI commands for stream, download, inspect, and server flows
@@ -25,7 +28,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 ## Rust/toolchain
 
 - Edition: `2024`
-- MSRV/toolchain target: `1.85`
+- MSRV/toolchain target: `1.88`
 - Workspace lint: `unsafe_code = forbid`
 
 ## Build and quality gates
@@ -96,6 +99,8 @@ Live stream/download mode:
 cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --receiver wxwire --email you@example.com --password 'secret'
+cargo run -p byteblaster-cli -- download ./out --receiver wxwire --email you@example.com --password 'secret'
 ```
 
 Optional stream file writing:
@@ -114,6 +119,7 @@ Live server mode (SSE + JSON endpoints):
 
 ```bash
 cargo run -p byteblaster-cli -- server --email you@example.com --bind 127.0.0.1:8080
+cargo run -p byteblaster-cli -- server --receiver wxwire --email you@example.com --password 'secret' --bind 127.0.0.1:8080
 ```
 
 Useful server flags:

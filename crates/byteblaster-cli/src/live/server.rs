@@ -6,13 +6,14 @@
 //! - Provides health and metrics endpoints
 //! - Supports CORS for browser clients
 
+use crate::ReceiverKind;
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
 use crate::live::shared::parse_servers_or_default;
 use axum::http::HeaderValue;
-use byteblaster_core::qbt_receiver::{
-    QbtDecodeConfig, QbtFrameEvent, QbtReceiverConfig, QbtReceiverTelemetrySnapshot,
-};
+use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtFrameEvent, QbtReceiverConfig};
+use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
+use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -46,7 +47,8 @@ enum EventKind {
         endpoint: String,
     },
     Disconnected,
-    Frame(QbtFrameEvent),
+    QbtFrame(QbtFrameEvent),
+    WxWireFrame(WxWireReceiverFrameEvent),
     FileComplete {
         filename: String,
         size: usize,
@@ -56,7 +58,7 @@ enum EventKind {
         text_product_enrichment: Option<serde_json::Value>,
         text_product_warning: Option<serde_json::Value>,
     },
-    Telemetry(QbtReceiverTelemetrySnapshot),
+    Telemetry(serde_json::Value),
     Error {
         message: String,
     },
@@ -67,7 +69,12 @@ impl EventKind {
         match self {
             Self::Connected { .. } => "connected",
             Self::Disconnected => "disconnected",
-            Self::Frame(frame) => frame_event_name(frame),
+            Self::QbtFrame(frame) => frame_event_name(frame),
+            Self::WxWireFrame(frame) => match frame {
+                WxWireReceiverFrameEvent::File(_) => "file",
+                WxWireReceiverFrameEvent::Warning(_) => "warning",
+                _ => "unknown",
+            },
             Self::FileComplete { .. } => "file_complete",
             Self::Telemetry(_) => "telemetry",
             Self::Error { .. } => "error",
@@ -76,7 +83,12 @@ impl EventKind {
 
     fn filename(&self) -> Option<&str> {
         match self {
-            Self::Frame(frame) => frame_event_filename(frame),
+            Self::QbtFrame(frame) => frame_event_filename(frame),
+            Self::WxWireFrame(frame) => match frame {
+                WxWireReceiverFrameEvent::File(file) => Some(file.filename.as_str()),
+                WxWireReceiverFrameEvent::Warning(_) => None,
+                _ => None,
+            },
             Self::FileComplete { filename, .. } => Some(filename.as_str()),
             _ => None,
         }
@@ -86,7 +98,27 @@ impl EventKind {
         match self {
             Self::Connected { endpoint } => serde_json::json!({ "endpoint": endpoint }),
             Self::Disconnected => serde_json::json!({}),
-            Self::Frame(frame) => frame_event_to_json(frame, 0),
+            Self::QbtFrame(frame) => frame_event_to_json(frame, 0),
+            Self::WxWireFrame(frame) => match frame {
+                WxWireReceiverFrameEvent::File(file) => serde_json::json!({
+                    "type": "file",
+                    "filename": file.filename,
+                    "length": file.data.len(),
+                    "subject": file.subject,
+                    "id": file.id,
+                    "issue_utc": crate::live::shared::unix_seconds(file.issue_utc),
+                    "ttaaii": file.ttaaii,
+                    "cccc": file.cccc,
+                    "awipsid": file.awipsid,
+                }),
+                WxWireReceiverFrameEvent::Warning(warning) => serde_json::json!({
+                    "type": "warning",
+                    "warning": format!("{warning:?}"),
+                }),
+                _ => serde_json::json!({
+                    "type": "unknown",
+                }),
+            },
             Self::FileComplete {
                 filename,
                 size,
@@ -118,7 +150,7 @@ impl EventKind {
                 }
                 payload
             }
-            Self::Telemetry(snapshot) => serde_json::json!(snapshot),
+            Self::Telemetry(snapshot) => snapshot.clone(),
             Self::Error { message } => serde_json::json!({ "message": message }),
         }
     }
@@ -129,7 +161,7 @@ struct AppState {
     event_tx: broadcast::Sender<BroadcastEvent>,
     shutdown_rx: watch::Receiver<bool>,
     retained_files: Mutex<RetainedFiles>,
-    telemetry: Mutex<QbtReceiverTelemetrySnapshot>,
+    telemetry: Mutex<serde_json::Value>,
     connected_clients: AtomicUsize,
     max_clients: usize,
     next_event_id: AtomicU64,
@@ -175,7 +207,9 @@ struct RootResponse {
 
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
+    pub receiver: ReceiverKind,
     pub email: String,
+    pub password: Option<String>,
     pub raw_servers: Vec<String>,
     pub server_list_path: Option<String>,
     pub bind: String,
@@ -188,57 +222,104 @@ pub struct ServerOptions {
 }
 
 pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
-    let pin_servers = !options.raw_servers.is_empty();
-    let servers = parse_servers_or_default(&options.raw_servers)?;
-    let bind_addr = SocketAddr::from_str(&options.bind)
-        .map_err(|err| anyhow::anyhow!("invalid --bind value {}: {err}", options.bind))?;
+    let ServerOptions {
+        receiver,
+        email,
+        password,
+        raw_servers,
+        server_list_path,
+        bind,
+        cors_origin,
+        max_clients,
+        stats_interval_secs,
+        file_retention_secs,
+        max_retained_files,
+        quiet,
+    } = options;
+
+    let bind_addr = SocketAddr::from_str(&bind)
+        .map_err(|err| anyhow::anyhow!("invalid --bind value {bind}: {err}"))?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
     let state = Arc::new(AppState {
         event_tx: broadcast::channel(EVENT_CHANNEL_CAPACITY).0,
         shutdown_rx: shutdown_rx.clone(),
         retained_files: Mutex::new(RetainedFiles::new(
-            options.max_retained_files.max(1),
-            Duration::from_secs(options.file_retention_secs.max(1)),
+            max_retained_files.max(1),
+            Duration::from_secs(file_retention_secs.max(1)),
         )),
-        telemetry: Mutex::new(QbtReceiverTelemetrySnapshot::default()),
+        telemetry: Mutex::new(serde_json::json!({})),
         connected_clients: AtomicUsize::new(0),
-        max_clients: options.max_clients.max(1),
+        max_clients: max_clients.max(1),
         next_event_id: AtomicU64::new(1),
         data_blocks_total: AtomicU64::new(0),
         current_servers: AtomicUsize::new(0),
         current_sat_servers: AtomicUsize::new(0),
         started_at: Instant::now(),
         upstream_endpoint: Mutex::new(None),
-        quiet: options.quiet,
+        quiet,
     });
 
-    let cors = build_cors_layer(options.cors_origin)?;
+    let cors = build_cors_layer(cors_origin)?;
     let app = server_http::build_router(Arc::clone(&state), cors);
 
     let listener = TcpListener::bind(bind_addr).await?;
-    log_info(options.quiet, &format!("server listening addr={bind_addr}"));
+    log_info(quiet, &format!("server listening addr={bind_addr}"));
 
-    let config = QbtReceiverConfig {
-        email: options.email,
-        servers,
-        server_list_path: options.server_list_path.map(PathBuf::from),
-        follow_server_list_updates: !pin_servers,
-        reconnect_delay_secs: 5,
-        connection_timeout_secs: 5,
-        watchdog_timeout_secs: 20,
-        max_exceptions: 10,
-        decode: QbtDecodeConfig::default(),
+    let ingest_task = match receiver {
+        ReceiverKind::Qbt => {
+            if password.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--password is not supported with --receiver qbt"
+                ));
+            }
+            let pin_servers = !raw_servers.is_empty();
+            let servers = parse_servers_or_default(&raw_servers)?;
+            let config = QbtReceiverConfig {
+                email,
+                servers,
+                server_list_path: server_list_path.map(PathBuf::from),
+                follow_server_list_updates: !pin_servers,
+                reconnect_delay_secs: 5,
+                connection_timeout_secs: 5,
+                watchdog_timeout_secs: 20,
+                max_exceptions: 10,
+                decode: QbtDecodeConfig::default(),
+            };
+            tokio::spawn(server_ingest::run_qbt_ingest_loop(
+                config,
+                Arc::clone(&state),
+                shutdown_rx.clone(),
+            ))
+        }
+        ReceiverKind::Wxwire => {
+            if !raw_servers.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "--server is not supported with --receiver wxwire"
+                ));
+            }
+            if server_list_path.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--server-list-path is not supported with --receiver wxwire"
+                ));
+            }
+            let config = WxWireReceiverConfig {
+                username: email,
+                password: password
+                    .ok_or_else(|| anyhow::anyhow!("wxwire server mode requires --password"))?,
+                idle_timeout_secs: 90,
+                ..WxWireReceiverConfig::default()
+            };
+            tokio::spawn(server_ingest::run_wxwire_ingest_loop(
+                config,
+                Arc::clone(&state),
+                shutdown_rx.clone(),
+            ))
+        }
     };
-
-    let ingest_task = tokio::spawn(server_ingest::run_ingest_loop(
-        config,
-        Arc::clone(&state),
-        shutdown_rx.clone(),
-    ));
     let stats_task = tokio::spawn(server_ingest::run_stats_loop(
         Arc::clone(&state),
-        options.stats_interval_secs,
+        stats_interval_secs,
         shutdown_rx.clone(),
     ));
     let ctrlc_task = tokio::spawn({
@@ -360,7 +441,6 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
-    use byteblaster_core::qbt_receiver::QbtReceiverTelemetrySnapshot;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
@@ -373,7 +453,7 @@ mod tests {
             event_tx: broadcast::channel(32).0,
             shutdown_rx,
             retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
-            telemetry: std::sync::Mutex::new(QbtReceiverTelemetrySnapshot::default()),
+            telemetry: std::sync::Mutex::new(serde_json::json!({})),
             connected_clients: AtomicUsize::new(0),
             max_clients,
             next_event_id: AtomicU64::new(1),
@@ -628,7 +708,7 @@ mod tests {
             text_product_enrichment: None,
             text_product_warning: None,
         };
-        let telemetry = EventKind::Telemetry(QbtReceiverTelemetrySnapshot::default());
+        let telemetry = EventKind::Telemetry(serde_json::json!({}));
 
         assert!(event_matches_filter(Some("*.txt"), &txt));
         assert!(!event_matches_filter(Some("*.txt"), &zip));

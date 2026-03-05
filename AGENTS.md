@@ -6,11 +6,14 @@ Use this file as the operational contract for automated coding agents.
 ## Scope
 
 - Repository type: Rust workspace (Edition 2024).
-- Toolchain target: stable Rust, workspace `rust-version = 1.85`.
+- Toolchain target: stable Rust, workspace `rust-version = 1.88`.
 - Workspace members:
   - `crates/byteblaster-core`
   - `crates/byteblaster-cli`
-- Protocol behavior authority: `docs/protocol.md`.
+  - `crates/byteblaster-parser`
+- Protocol behavior authority:
+  - `docs/protocol.md` (QBT/EMWIN)
+  - `docs/weather-wire.md` (Weather Wire/XMPP)
 
 ## Repo Rules Snapshot
 
@@ -19,7 +22,7 @@ Use this file as the operational contract for automated coding agents.
 - If protocol behavior changes, update all three:
   - implementation
   - tests
-  - `docs/protocol.md`
+  - corresponding protocol spec doc (`docs/protocol.md` or `docs/weather-wire.md`)
 
 ## Build, Lint, and Test Commands
 
@@ -168,14 +171,15 @@ cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-ti
 ### File and module organization
 
 - Keep protocol parsing concerns under `byteblaster-core/src/protocol`.
-- Keep client runtime orchestration under `byteblaster-core/src/client`.
+- Keep QBT runtime orchestration under `byteblaster-core/src/client`.
+- Keep Weather Wire runtime concerns under `byteblaster-core/src/wxwire_receiver`.
 - Keep CLI command handling under `byteblaster-cli/src/cmd`.
 - Do not leak CLI-only concerns into core library modules.
 
 ## Documentation Requirements
 
-- Treat `docs/protocol.md` as normative.
-- Record protocol deltas/decisions directly in `docs/protocol.md`.
+- Treat `docs/protocol.md` and `docs/weather-wire.md` as normative for their respective receivers.
+- Record protocol deltas/decisions directly in the relevant spec doc.
 - Update crate README examples if user-facing behavior changes.
 
 ## Cursor/Copilot Rule Files

@@ -12,15 +12,19 @@ mod live;
 mod product_meta;
 mod relay;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::io::IsTerminal;
 use tracing_subscriber::EnvFilter;
 
 /// Options for live mode connections.
 #[derive(Debug, Clone)]
 struct LiveOptions {
+    /// Selected upstream receiver runtime.
+    receiver: ReceiverKind,
     /// User email for authentication.
     email: Option<String>,
+    /// Receiver password when required by backend.
+    password: Option<String>,
     /// Custom server endpoints.
     servers: Vec<String>,
     /// Path to persisted server list.
@@ -29,6 +33,15 @@ struct LiveOptions {
     max_events: usize,
     /// Idle timeout before disconnecting (in seconds).
     idle_timeout_secs: u64,
+}
+
+/// Supported upstream receiver backends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum ReceiverKind {
+    /// QBT/EMWIN TCP receiver.
+    Qbt,
+    /// Weather Wire XMPP receiver.
+    Wxwire,
 }
 
 /// Available CLI commands.
@@ -44,6 +57,12 @@ enum Commands {
         /// Email address for live mode authentication.
         #[arg(long)]
         email: Option<String>,
+        /// Password for receivers that require one (for example wxwire).
+        #[arg(long)]
+        password: Option<String>,
+        /// Receiver backend to use in live mode.
+        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
         #[arg(long = "server", value_delimiter = ',')]
         servers: Vec<String>,
@@ -66,6 +85,12 @@ enum Commands {
         /// Email address for live mode authentication.
         #[arg(long)]
         email: Option<String>,
+        /// Password for receivers that require one (for example wxwire).
+        #[arg(long)]
+        password: Option<String>,
+        /// Receiver backend to use in live mode.
+        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
         #[arg(long = "server", value_delimiter = ',')]
         servers: Vec<String>,
@@ -89,6 +114,12 @@ enum Commands {
         /// Email address for authentication.
         #[arg(long)]
         email: String,
+        /// Password for receivers that require one (for example wxwire).
+        #[arg(long)]
+        password: Option<String>,
+        /// Receiver backend to use.
+        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
         #[arg(long = "server", value_delimiter = ',')]
         servers: Vec<String>,
@@ -148,13 +179,17 @@ async fn main() -> anyhow::Result<()> {
             input,
             output_dir,
             email,
+            password,
+            receiver,
             servers,
             server_list_path,
             max_events,
             idle_timeout_secs,
         } => {
             let live = LiveOptions {
+                receiver,
                 email,
+                password,
                 servers,
                 server_list_path,
                 max_events: max_events.unwrap_or(usize::MAX),
@@ -166,13 +201,17 @@ async fn main() -> anyhow::Result<()> {
             output_dir,
             input,
             email,
+            password,
+            receiver,
             servers,
             server_list_path,
             max_events,
             idle_timeout_secs,
         } => {
             let live = LiveOptions {
+                receiver,
                 email,
+                password,
                 servers,
                 server_list_path,
                 max_events,
@@ -183,6 +222,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Inspect { input } => cmd::inspect::run(input, text_preview_chars).await,
         Commands::Server {
             email,
+            password,
+            receiver,
             servers,
             server_list_path,
             bind,
@@ -195,6 +236,8 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let options = cmd::server::ServerOptions {
                 email,
+                password,
+                receiver,
                 raw_servers: servers,
                 server_list_path,
                 bind,

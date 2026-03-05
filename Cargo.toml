@@ -34,7 +34,12 @@ time = { version = "0.3.47", features = ["parsing", "macros"] }
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 tower = "0.5"
-tokio-xmpp = { version = "5", default-features = true }
+tokio-rustls = "0.26"
+rustls-native-certs = "0.8"
+base64 = "0.22"
+minidom = "0.17"
+xmpp-parsers = "0.22"
+quick-xml = "0.38"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

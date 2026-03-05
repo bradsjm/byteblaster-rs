@@ -1,29 +1,35 @@
 use crate::wxwire_receiver::config::{WXWIRE_PORT, WXWIRE_ROOM};
 use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
-use futures::StreamExt;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use minidom::Element;
+use quick_xml::Reader;
+use quick_xml::events::Event as XmlEvent;
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::Once;
-use std::time::Duration;
-use tokio_xmpp::Client;
-use tokio_xmpp::Event;
-use tokio_xmpp::connect::DnsConfig;
-use tokio_xmpp::parsers::jid::BareJid;
-use tokio_xmpp::parsers::message::{Message, MessageType};
-use tokio_xmpp::parsers::muc::Muc;
-use tokio_xmpp::parsers::muc::muc::History;
-use tokio_xmpp::parsers::presence::Presence;
-use tokio_xmpp::xmlstream::Timeouts;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+use tracing::{debug, warn};
+use xmpp_parsers::jid::BareJid;
+
+const CLIENT_NS: &str = "jabber:client";
+const SM3_NS: &str = "urn:xmpp:sm:3";
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
 
 /// Abstraction over weather wire transport.
 pub trait WxWireTransport: Send {
     /// Label for diagnostics and client events.
     fn label(&self) -> String;
 
-    /// Reads one next weather-wire groupchat message.
-    fn next_message<'a>(
+    /// Reads one next weather-wire groupchat message stanza.
+    fn next_stanza<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<Message>> + Send + 'a>>;
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<String>> + Send + 'a>>;
 
     /// Disconnects and cleans up the transport.
     fn disconnect<'a>(
@@ -31,12 +37,45 @@ pub trait WxWireTransport: Send {
     ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + 'a>>;
 }
 
-/// Real XMPP transport backed by tokio-xmpp.
+#[derive(Debug)]
+enum XmppSocket {
+    Plain(TcpStream),
+    Tls(Box<TlsStream<TcpStream>>),
+}
+
+impl XmppSocket {
+    async fn read_some(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.read(buf).await,
+            Self::Tls(stream) => stream.read(buf).await,
+        }
+    }
+
+    async fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.write_all(bytes).await,
+            Self::Tls(stream) => stream.write_all(bytes).await,
+        }
+    }
+
+    async fn shutdown(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.shutdown().await,
+            Self::Tls(stream) => stream.shutdown().await,
+        }
+    }
+}
+
+/// Minimal XMPP transport with only the functionality needed for NWWS product reception.
 #[derive(Debug)]
 pub struct XmppWxWireTransport {
-    client: Option<Client>,
+    socket: Option<XmppSocket>,
     room_bare: BareJid,
     label: String,
+    read_buf: String,
+    sm_enabled: bool,
+    sm_handled_stanzas: u64,
+    last_heartbeat: Instant,
 }
 
 impl XmppWxWireTransport {
@@ -47,61 +86,198 @@ impl XmppWxWireTransport {
         password: &str,
         connect_timeout: Duration,
     ) -> WxWireReceiverResult<Self> {
-        ensure_tls_provider();
-
-        let bare_jid = BareJid::from_str(&format!("{username}@{endpoint_host}"))
-            .map_err(|err| WxWireReceiverError::Transport(format!("invalid jid: {err}")))?;
-
-        let dns = DnsConfig::no_srv(endpoint_host, WXWIRE_PORT);
-        let timeouts = Timeouts {
-            read_timeout: connect_timeout,
-            ..Timeouts::default()
-        };
-        let mut client = Client::new_starttls(bare_jid, password.to_string(), dns, timeouts);
+        let addr = format!("{endpoint_host}:{WXWIRE_PORT}");
+        let tcp = tokio::time::timeout(connect_timeout, TcpStream::connect(addr.as_str()))
+            .await
+            .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
+            .and_then(|result| {
+                result.map_err(|err| {
+                    WxWireReceiverError::Transport(format!("failed to connect tcp socket: {err}"))
+                })
+            })?;
 
         let room_bare = BareJid::from_str(WXWIRE_ROOM)
             .map_err(|err| WxWireReceiverError::Transport(format!("invalid room jid: {err}")))?;
 
-        let online = tokio::time::timeout(connect_timeout, async {
+        let mut session = XmppSession::new(endpoint_host.to_string(), XmppSocket::Plain(tcp));
+        session.open_stream(connect_timeout).await?;
+
+        let features = session
+            .wait_for_tag("stream:features", connect_timeout)
+            .await?;
+        if !features.contains("urn:ietf:params:xml:ns:xmpp-tls") {
+            return Err(WxWireReceiverError::Transport(
+                "server does not advertise STARTTLS".to_string(),
+            ));
+        }
+
+        session
+            .send_raw("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
+            .await?;
+        let proceed = session.wait_for_tag("proceed", connect_timeout).await?;
+        if !proceed.contains("urn:ietf:params:xml:ns:xmpp-tls") {
+            return Err(WxWireReceiverError::Transport(
+                "server did not proceed with STARTTLS".to_string(),
+            ));
+        }
+
+        session.upgrade_tls(connect_timeout).await?;
+        session.open_stream(connect_timeout).await?;
+
+        let sasl_features = session
+            .wait_for_tag("stream:features", connect_timeout)
+            .await?;
+        if !sasl_features.contains("urn:ietf:params:xml:ns:xmpp-sasl") {
+            return Err(WxWireReceiverError::Transport(
+                "server does not advertise SASL mechanisms".to_string(),
+            ));
+        }
+
+        let auth_payload = BASE64_STANDARD.encode(format!("\0{username}\0{password}"));
+        let auth = format!(
+            "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>{auth_payload}</auth>"
+        );
+        session.send_raw(auth.as_str()).await?;
+
+        let sasl_reply = session
+            .wait_for_any_tag(&["success", "failure"], connect_timeout)
+            .await?;
+        if sasl_reply.contains("<failure") {
+            return Err(WxWireReceiverError::Transport(format!(
+                "xmpp authentication failed: {sasl_reply}"
+            )));
+        }
+
+        session.open_stream(connect_timeout).await?;
+        let post_auth_features = session
+            .wait_for_tag("stream:features", connect_timeout)
+            .await?;
+        if !post_auth_features.contains("urn:ietf:params:xml:ns:xmpp-bind") {
+            return Err(WxWireReceiverError::Transport(
+                "server does not advertise resource binding".to_string(),
+            ));
+        }
+
+        let bind_id = format!("bb-bind-{}", chrono_like_suffix());
+        let bind_iq = format!(
+            "<iq type='set' id='{bind_id}'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/></iq>"
+        );
+        session.send_raw(bind_iq.as_str()).await?;
+
+        let bind_result = session.wait_for_tag("iq", connect_timeout).await?;
+        if !bind_result.contains(format!("id=\"{bind_id}\"").as_str())
+            && !bind_result.contains(format!("id='{bind_id}'").as_str())
+        {
+            return Err(WxWireReceiverError::Transport(format!(
+                "unexpected bind response: {bind_result}"
+            )));
+        }
+        if !bind_result.contains("type='result'") && !bind_result.contains("type=\"result\"") {
+            return Err(WxWireReceiverError::Transport(format!(
+                "resource bind failed: {bind_result}"
+            )));
+        }
+
+        let sm_enabled = if post_auth_features.contains(SM3_NS) {
+            session
+                .send_raw("<enable xmlns='urn:xmpp:sm:3' resume='true'/>")
+                .await?;
+            let sm_reply = session
+                .wait_for_any_tag(&["enabled", "failed"], connect_timeout)
+                .await?;
+            if sm_reply.contains("<failed") {
+                return Err(WxWireReceiverError::Transport(format!(
+                    "xmpp stream management enable failed: {sm_reply}"
+                )));
+            }
+            true
+        } else {
+            false
+        };
+
+        let nick = format!("bb{}", chrono_like_suffix());
+        let join = format!(
+            "<presence to='{WXWIRE_ROOM}/{nick}'><x xmlns='http://jabber.org/protocol/muc'><history maxstanzas='25'/></x></presence>"
+        );
+        session.send_raw(join.as_str()).await?;
+
+        let join_confirm = tokio::time::timeout(connect_timeout, async {
             loop {
-                let Some(event) = client.next().await else {
-                    return Err(WxWireReceiverError::Transport(
-                        "xmpp stream ended before online".to_string(),
-                    ));
-                };
-                match event {
-                    Event::Online { .. } => return Ok(()),
-                    Event::Disconnected(err) => {
-                        return Err(WxWireReceiverError::Transport(format!(
-                            "xmpp disconnected before online: {err}"
-                        )));
-                    }
-                    Event::Stanza(_) => {}
+                let stanza = session.wait_for_tag("presence", connect_timeout).await?;
+                if is_room_join_presence(stanza.as_str(), &room_bare, nick.as_str())? {
+                    return Ok(stanza);
                 }
             }
         })
         .await
-        .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))?;
-        online?;
+        .map_err(|_| {
+            WxWireReceiverError::Transport("xmpp join confirmation timeout".to_string())
+        })??;
 
-        let nick = format!("bb{}", chrono_like_suffix());
-        let room_full = room_bare.with_resource_str(nick.as_str()).map_err(|err| {
-            WxWireReceiverError::Transport(format!("invalid room resource jid: {err}"))
-        })?;
-
-        let join_presence = Presence::available()
-            .with_to(room_full)
-            .with_payload(Muc::new().with_history(History::new().with_maxstanzas(25)));
-        client
-            .send_stanza(join_presence.into())
-            .await
-            .map_err(|err| WxWireReceiverError::Transport(format!("failed to join room: {err}")))?;
+        if join_confirm.contains("type='error'") || join_confirm.contains("type=\"error\"") {
+            return Err(WxWireReceiverError::Transport(format!(
+                "xmpp room join rejected: {join_confirm}"
+            )));
+        }
 
         Ok(Self {
-            client: Some(client),
+            socket: session.socket,
             room_bare,
             label: format!("{endpoint_host}:{WXWIRE_PORT} room={WXWIRE_ROOM}"),
+            read_buf: session.read_buf,
+            sm_enabled,
+            sm_handled_stanzas: 0,
+            last_heartbeat: Instant::now(),
         })
+    }
+
+    async fn read_more(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
+        let socket = self.socket.as_mut().ok_or_else(|| {
+            WxWireReceiverError::Transport("xmpp client not connected".to_string())
+        })?;
+        let mut buf = [0u8; 8192];
+        let read = tokio::time::timeout(timeout, socket.read_some(&mut buf))
+            .await
+            .map_err(|_| WxWireReceiverError::Transport("xmpp read timeout".to_string()))
+            .and_then(|result| {
+                result.map_err(|err| {
+                    WxWireReceiverError::Transport(format!("xmpp read failed: {err}"))
+                })
+            })?;
+
+        if read == 0 {
+            return Err(WxWireReceiverError::Transport(
+                "xmpp stream ended".to_string(),
+            ));
+        }
+
+        let chunk = String::from_utf8_lossy(&buf[..read]);
+        self.read_buf.push_str(chunk.as_ref());
+        Ok(())
+    }
+
+    async fn send_raw(&mut self, xml: &str) -> WxWireReceiverResult<()> {
+        let socket = self.socket.as_mut().ok_or_else(|| {
+            WxWireReceiverError::Transport("xmpp client not connected".to_string())
+        })?;
+        socket
+            .write_all(xml.as_bytes())
+            .await
+            .map_err(|err| WxWireReceiverError::Transport(format!("xmpp write failed: {err}")))
+    }
+
+    async fn maybe_send_heartbeat(&mut self) -> WxWireReceiverResult<()> {
+        if !self.sm_enabled {
+            return Ok(());
+        }
+        if self.last_heartbeat.elapsed() < HEARTBEAT_INTERVAL {
+            return Ok(());
+        }
+
+        self.send_raw("<r xmlns='urn:xmpp:sm:3'/>").await?;
+        self.last_heartbeat = Instant::now();
+        debug!("sent xmpp sm heartbeat request");
+        Ok(())
     }
 }
 
@@ -110,51 +286,47 @@ impl WxWireTransport for XmppWxWireTransport {
         self.label.clone()
     }
 
-    fn next_message<'a>(
+    fn next_stanza<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<Message>> + Send + 'a>> {
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<String>> + Send + 'a>> {
         Box::pin(async move {
-            let client = self.client.as_mut().ok_or_else(|| {
-                WxWireReceiverError::Transport("xmpp client not connected".to_string())
-            })?;
             loop {
-                let Some(event) = client.next().await else {
-                    return Err(WxWireReceiverError::Transport(
-                        "xmpp stream ended".to_string(),
-                    ));
-                };
-
-                match event {
-                    Event::Online { .. } => {
+                if let Some(stanza) = pop_next_top_level_element(&mut self.read_buf) {
+                    let Ok(element) = parse_element_with_default_ns(stanza.as_str()) else {
+                        warn!(stanza = %stanza, "dropping unparsable top-level stanza");
+                        continue;
+                    };
+                    if element.name() == "r" && element.ns() == SM3_NS {
+                        let ack = format!("<a xmlns='{SM3_NS}' h='{}'/>", self.sm_handled_stanzas);
+                        self.send_raw(ack.as_str()).await?;
                         continue;
                     }
-                    Event::Disconnected(err) => {
-                        return Err(WxWireReceiverError::Transport(format!(
-                            "xmpp disconnected: {err}"
-                        )));
+                    if element.name() == "a" && element.ns() == SM3_NS {
+                        continue;
                     }
-                    Event::Stanza(stanza) => {
-                        let Ok(message) = Message::try_from(stanza) else {
-                            continue;
-                        };
-
-                        if message.type_ != MessageType::Groupchat {
-                            continue;
-                        }
-
-                        let from_room = message
-                            .from
-                            .as_ref()
-                            .map(|jid| jid.to_bare())
-                            .map(|bare| bare == self.room_bare)
-                            .unwrap_or(false);
-                        if !from_room {
-                            continue;
-                        }
-
-                        return Ok(message);
+                    if matches!(element.name(), "message" | "presence" | "iq") {
+                        self.sm_handled_stanzas = self.sm_handled_stanzas.saturating_add(1);
                     }
+                    if element.name() != "message" {
+                        continue;
+                    }
+                    let type_ok = element.attr("type") == Some("groupchat");
+                    if !type_ok {
+                        continue;
+                    }
+                    let from_room = element
+                        .attr("from")
+                        .and_then(|from| from.split_once('/').map(|(bare, _)| bare.to_string()))
+                        .map(|bare| bare == self.room_bare.to_string())
+                        .unwrap_or(false);
+                    if !from_room {
+                        continue;
+                    }
+                    return Ok(stanza);
                 }
+
+                self.maybe_send_heartbeat().await?;
+                self.read_more(Duration::from_secs(5)).await?;
             }
         })
     }
@@ -163,26 +335,379 @@ impl WxWireTransport for XmppWxWireTransport {
         &'a mut self,
     ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + 'a>> {
         Box::pin(async move {
-            if let Some(client) = self.client.take() {
-                client.send_end().await.map_err(|err| {
-                    WxWireReceiverError::Transport(format!("disconnect failed: {err}"))
-                })?;
+            if let Some(mut socket) = self.socket.take() {
+                let _ = socket.write_all(b"</stream:stream>").await;
+                let _ = socket.shutdown().await;
             }
             Ok(())
         })
     }
 }
 
+#[derive(Debug)]
+struct XmppSession {
+    endpoint_host: String,
+    socket: Option<XmppSocket>,
+    read_buf: String,
+}
+
+impl XmppSession {
+    fn new(endpoint_host: String, socket: XmppSocket) -> Self {
+        Self {
+            endpoint_host,
+            socket: Some(socket),
+            read_buf: String::new(),
+        }
+    }
+
+    async fn send_raw(&mut self, xml: &str) -> WxWireReceiverResult<()> {
+        self.socket
+            .as_mut()
+            .ok_or_else(|| WxWireReceiverError::Transport("xmpp socket not available".to_string()))?
+            .write_all(xml.as_bytes())
+            .await
+            .map_err(|err| WxWireReceiverError::Transport(format!("xmpp write failed: {err}")))
+    }
+
+    async fn open_stream(&mut self, _timeout: Duration) -> WxWireReceiverResult<()> {
+        let open = format!(
+            "<?xml version='1.0' encoding='utf-8'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' to='{}' version='1.0'>",
+            self.endpoint_host
+        );
+        self.send_raw(open.as_str()).await
+    }
+
+    async fn upgrade_tls(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
+        let plain = match self.socket.take().ok_or_else(|| {
+            WxWireReceiverError::Transport("xmpp socket not available".to_string())
+        })? {
+            XmppSocket::Plain(stream) => stream,
+            XmppSocket::Tls(stream) => {
+                self.socket = Some(XmppSocket::Tls(stream));
+                return Ok(());
+            }
+        };
+
+        let mut roots = RootCertStore::empty();
+        for cert in rustls_native_certs::load_native_certs().certs {
+            let _ = roots.add(cert);
+        }
+
+        let config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let connector = TlsConnector::from(std::sync::Arc::new(config));
+        let server_name = ServerName::try_from(self.endpoint_host.clone())
+            .map_err(|_| WxWireReceiverError::Transport("invalid tls server name".to_string()))?;
+
+        let tls = tokio::time::timeout(timeout, connector.connect(server_name, plain))
+            .await
+            .map_err(|_| WxWireReceiverError::Transport("tls handshake timeout".to_string()))
+            .and_then(|result| {
+                result.map_err(|err| {
+                    WxWireReceiverError::Transport(format!("tls handshake failed: {err}"))
+                })
+            })?;
+
+        self.socket = Some(XmppSocket::Tls(Box::new(tls)));
+        self.read_buf.clear();
+        Ok(())
+    }
+
+    async fn read_more(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
+        let mut buf = [0u8; 8192];
+        let socket = self.socket.as_mut().ok_or_else(|| {
+            WxWireReceiverError::Transport("xmpp socket not available".to_string())
+        })?;
+        let read = tokio::time::timeout(timeout, socket.read_some(&mut buf))
+            .await
+            .map_err(|_| WxWireReceiverError::Transport("xmpp read timeout".to_string()))
+            .and_then(|result| {
+                result.map_err(|err| {
+                    WxWireReceiverError::Transport(format!("xmpp read failed: {err}"))
+                })
+            })?;
+        if read == 0 {
+            return Err(WxWireReceiverError::Transport(
+                "xmpp stream ended".to_string(),
+            ));
+        }
+        let chunk = String::from_utf8_lossy(&buf[..read]);
+        self.read_buf.push_str(chunk.as_ref());
+        Ok(())
+    }
+
+    async fn wait_for_tag(&mut self, tag: &str, timeout: Duration) -> WxWireReceiverResult<String> {
+        self.wait_for_any_tag(&[tag], timeout).await
+    }
+
+    async fn wait_for_any_tag(
+        &mut self,
+        tags: &[&str],
+        timeout: Duration,
+    ) -> WxWireReceiverResult<String> {
+        loop {
+            while let Some(elem) = pop_next_top_level_element(&mut self.read_buf) {
+                if tags.iter().any(|tag| {
+                    stanza_root_tag_name(elem.as_str())
+                        .as_deref()
+                        .map(|name| name == *tag)
+                        .unwrap_or(false)
+                }) {
+                    return Ok(elem);
+                }
+            }
+            self.read_more(timeout).await?;
+        }
+    }
+}
+
 fn chrono_like_suffix() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     format!("{}", now.as_secs())
 }
 
-fn ensure_tls_provider() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        let _ = tokio_xmpp::rustls::crypto::aws_lc_rs::default_provider().install_default();
-    });
+fn pop_next_top_level_element(buf: &mut String) -> Option<String> {
+    if buf.is_empty() {
+        return None;
+    }
+
+    let mut reader = Reader::from_str(buf.as_str());
+    reader.config_mut().trim_text(false);
+
+    let mut depth: usize = 0;
+    let mut root_start: Option<usize> = None;
+    let mut last_pos: usize = 0;
+
+    loop {
+        let start = last_pos;
+        let event = match reader.read_event() {
+            Ok(event) => event,
+            Err(err) => {
+                if err.to_string().contains("Unexpected EOF") {
+                    return None;
+                }
+                let recover_from = start.saturating_add(1);
+                if recover_from < buf.len()
+                    && let Some(offset) = buf[recover_from..].find('<')
+                {
+                    buf.drain(..recover_from + offset);
+                } else {
+                    buf.clear();
+                }
+                return None;
+            }
+        };
+        let end = usize::try_from(reader.buffer_position()).unwrap_or(buf.len());
+        last_pos = end;
+
+        match event {
+            XmlEvent::Start(start_event) => {
+                let name_buf = start_event.name().as_ref().to_vec();
+                let Ok(name) = std::str::from_utf8(name_buf.as_slice()) else {
+                    buf.drain(..end);
+                    return None;
+                };
+                if depth == 0 && name == "stream:stream" {
+                    buf.drain(..end);
+                    return pop_next_top_level_element(buf);
+                }
+                if depth == 0 {
+                    root_start = Some(start);
+                }
+                depth = depth.saturating_add(1);
+            }
+            XmlEvent::Empty(start_event) => {
+                let name_buf = start_event.name().as_ref().to_vec();
+                let Ok(name) = std::str::from_utf8(name_buf.as_slice()) else {
+                    buf.drain(..end);
+                    return None;
+                };
+                if depth == 0 && name == "stream:stream" {
+                    buf.drain(..end);
+                    return pop_next_top_level_element(buf);
+                }
+                if depth == 0 {
+                    let stanza = buf[start..end].to_string();
+                    buf.drain(..end);
+                    return Some(stanza);
+                }
+            }
+            XmlEvent::End(_) => {
+                if depth > 0 {
+                    depth -= 1;
+                    if depth == 0
+                        && let Some(root) = root_start.take()
+                    {
+                        let stanza = buf[root..end].to_string();
+                        buf.drain(..end);
+                        return Some(stanza);
+                    }
+                } else {
+                    buf.drain(..end);
+                    return None;
+                }
+            }
+            XmlEvent::Text(text) => {
+                if depth == 0 && !text.as_ref().iter().all(|b| b.is_ascii_whitespace()) {
+                    buf.drain(..end);
+                    return pop_next_top_level_element(buf);
+                }
+            }
+            XmlEvent::Decl(_)
+            | XmlEvent::PI(_)
+            | XmlEvent::Comment(_)
+            | XmlEvent::DocType(_)
+            | XmlEvent::GeneralRef(_)
+            | XmlEvent::CData(_) => {}
+            XmlEvent::Eof => return None,
+        }
+    }
+}
+
+fn stanza_root_tag_name(stanza: &str) -> Option<String> {
+    let element = parse_element_with_default_ns(stanza).ok()?;
+    Some(element.name().to_string())
+}
+
+fn is_room_join_presence(
+    stanza: &str,
+    room_bare: &BareJid,
+    nick: &str,
+) -> WxWireReceiverResult<bool> {
+    let element = parse_element_with_default_ns(stanza).map_err(|err| {
+        WxWireReceiverError::Transport(format!("invalid join presence stanza: {err}"))
+    })?;
+
+    if element.name() != "presence" {
+        return Ok(false);
+    }
+
+    if element.attr("type") == Some("error") || element.attr("type") == Some("unavailable") {
+        return Ok(false);
+    }
+
+    let Some(from) = element.attr("from") else {
+        return Ok(false);
+    };
+
+    let Some((bare, resource)) = from.split_once('/') else {
+        return Ok(false);
+    };
+
+    Ok(bare == room_bare.to_string() && resource == nick)
+}
+
+fn parse_element_with_default_ns(xml: &str) -> Result<Element, minidom::Error> {
+    match xml.parse::<Element>() {
+        Ok(element) => Ok(element),
+        Err(_) => add_default_client_ns(xml).parse::<Element>(),
+    }
+}
+
+fn add_default_client_ns(xml: &str) -> String {
+    let Some(open_start) = xml.find('<') else {
+        return xml.to_string();
+    };
+    let Some(open_end_rel) = xml[open_start..].find('>') else {
+        return xml.to_string();
+    };
+    let open_end = open_start + open_end_rel;
+    let open_tag = &xml[open_start..=open_end];
+    if open_tag.starts_with("</") || open_tag.starts_with("<?") || open_tag.starts_with("<!") {
+        return xml.to_string();
+    }
+    if open_tag.contains("xmlns=") || open_tag.contains("xmlns:") {
+        return xml.to_string();
+    }
+
+    let insert_at = if open_tag.ends_with("/>") {
+        open_end - 1
+    } else {
+        open_end
+    };
+
+    let mut out = String::with_capacity(xml.len() + CLIENT_NS.len() + 16);
+    out.push_str(&xml[..insert_at]);
+    out.push_str(" xmlns='");
+    out.push_str(CLIENT_NS);
+    out.push('\'');
+    out.push_str(&xml[insert_at..]);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{add_default_client_ns, is_room_join_presence, pop_next_top_level_element};
+    use std::str::FromStr;
+    use xmpp_parsers::jid::BareJid;
+
+    #[test]
+    fn pop_next_top_level_element_returns_first_complete_match() {
+        let mut s = "abc<presence from='a/b'></presence><message>x</message>".to_string();
+        let presence = pop_next_top_level_element(&mut s).expect("presence present");
+        assert!(presence.starts_with("<presence"));
+        assert!(s.contains("<message>"));
+    }
+
+    #[test]
+    fn pop_next_top_level_element_handles_nested_self_closing_tag() {
+        let mut s = "<stream:features><ver xmlns='urn:xmpp:features:rosterver'/><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/></stream:features><iq/>".to_string();
+        let features = pop_next_top_level_element(&mut s).expect("features present");
+        assert!(features.contains("xmpp-bind"));
+        assert!(features.ends_with("</stream:features>"));
+        assert!(s.starts_with("<iq/>"));
+    }
+
+    #[test]
+    fn pop_next_top_level_element_skips_stream_open_tag() {
+        let mut s = "<stream:stream xmlns:stream='http://etherx.jabber.org/streams'><presence/>"
+            .to_string();
+        let presence = pop_next_top_level_element(&mut s).expect("presence present");
+        assert_eq!(presence, "<presence/>");
+    }
+
+    #[test]
+    fn pop_next_top_level_element_returns_features_from_same_buffer_as_stream_open() {
+        let mut s = "<stream:stream xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/></stream:features>".to_string();
+        let features = pop_next_top_level_element(&mut s).expect("features present");
+        assert!(features.starts_with("<stream:features"));
+        assert!(features.contains("xmpp-bind"));
+    }
+
+    #[test]
+    fn room_join_presence_requires_room_and_nick_match() {
+        let room = BareJid::from_str("nwws@conference.nwws-oi.weather.gov").expect("valid room");
+        let stanza =
+            "<presence xmlns='jabber:client' from='nwws@conference.nwws-oi.weather.gov/bb123'/>";
+        assert!(is_room_join_presence(stanza, &room, "bb123").expect("parse ok"));
+        assert!(!is_room_join_presence(stanza, &room, "bb999").expect("parse ok"));
+    }
+
+    #[test]
+    fn room_join_presence_without_xmlns_is_accepted() {
+        let room = BareJid::from_str("nwws@conference.nwws-oi.weather.gov").expect("valid room");
+        let stanza = "<presence from='nwws@conference.nwws-oi.weather.gov/bb123'/>";
+        assert!(is_room_join_presence(stanza, &room, "bb123").expect("parse ok"));
+    }
+
+    #[test]
+    fn add_default_client_ns_inserts_namespace_once() {
+        let xml = "<presence from='a@b/c'/>";
+        let patched = add_default_client_ns(xml);
+        assert!(patched.contains("xmlns='jabber:client'"));
+        assert_eq!(patched.matches("xmlns=").count(), 1);
+    }
+
+    #[test]
+    fn add_default_client_ns_keeps_child_namespace_and_adds_root_namespace() {
+        let xml =
+            "<presence from='a@b/c'><x xmlns='http://jabber.org/protocol/muc#user'/></presence>";
+        let patched = add_default_client_ns(xml);
+        assert!(patched.starts_with("<presence "));
+        assert!(patched.contains("xmlns='jabber:client'"));
+        assert!(patched.contains("xmlns='http://jabber.org/protocol/muc#user'"));
+    }
 }

@@ -1,17 +1,16 @@
 use crate::relay::auth::AuthParser;
 use crate::relay::config::{RelayArgs, RelayConfig};
 use crate::relay::server_list::{ServerListScanner, build_server_list_wire};
+use crate::relay::state::{AppState, ClientMeta, HealthSnapshot, MetricsSnapshot};
 use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
 use byteblaster_core::unstable::{build_logon_message, xor_ff};
 use bytes::Bytes;
-use serde::Serialize;
-use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -23,227 +22,6 @@ const UPSTREAM_REAUTH_INTERVAL_SECS: u64 = 115;
 const UPSTREAM_READ_BUFFER_BYTES: usize = 8192;
 const UPSTREAM_CHANNEL_CAPACITY: usize = 4096;
 const QUALITY_RESUME_THRESHOLD: f64 = 0.97;
-
-#[derive(Default)]
-struct Metrics {
-    upstream_connection_attempts_total: AtomicU64,
-    upstream_connection_success_total: AtomicU64,
-    upstream_connection_fail_total: AtomicU64,
-    upstream_disconnect_total: AtomicU64,
-    downstream_connections_accepted_total: AtomicU64,
-    downstream_connections_rejected_over_capacity_total: AtomicU64,
-    downstream_disconnect_auth_timeout_total: AtomicU64,
-    downstream_disconnect_slow_client_total: AtomicU64,
-    downstream_disconnect_lagged_total: AtomicU64,
-    downstream_active_clients: AtomicU64,
-    bytes_in_total: AtomicU64,
-    bytes_attempted_total: AtomicU64,
-    bytes_forwarded_total: AtomicU64,
-    bytes_dropped_total: AtomicU64,
-    forwarding_paused: AtomicBool,
-    forwarding_pause_events_total: AtomicU64,
-    rolling_quality_milli: AtomicU64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct ClientMeta {
-    email: String,
-    peer: String,
-    connected_at_unix_secs: u64,
-    last_auth_unix_secs: u64,
-}
-
-#[derive(Debug, Serialize)]
-struct MetricsSnapshot {
-    upstream_connection_attempts_total: u64,
-    upstream_connection_success_total: u64,
-    upstream_connection_fail_total: u64,
-    upstream_disconnect_total: u64,
-    downstream_connections_accepted_total: u64,
-    downstream_connections_rejected_over_capacity_total: u64,
-    downstream_disconnect_auth_timeout_total: u64,
-    downstream_disconnect_slow_client_total: u64,
-    downstream_disconnect_lagged_total: u64,
-    downstream_active_clients: u64,
-    bytes_in_total: u64,
-    bytes_attempted_total: u64,
-    bytes_forwarded_total: u64,
-    bytes_dropped_total: u64,
-    forwarding_paused: bool,
-    forwarding_pause_events_total: u64,
-    rolling_quality: f64,
-    active_users: Vec<ClientMeta>,
-}
-
-#[derive(Debug, Serialize)]
-struct HealthSnapshot {
-    status: &'static str,
-    forwarding_paused: bool,
-    downstream_active_clients: u64,
-}
-
-#[derive(Default, Clone, Copy)]
-struct QualityBucket {
-    attempted: u64,
-    forwarded: u64,
-}
-
-struct QualityWindow {
-    buckets: Vec<QualityBucket>,
-    index: usize,
-}
-
-impl QualityWindow {
-    fn new(size: usize) -> Self {
-        let window_size = size.max(1);
-        Self {
-            buckets: vec![QualityBucket::default(); window_size],
-            index: 0,
-        }
-    }
-
-    fn rotate(&mut self) {
-        self.index = (self.index + 1) % self.buckets.len();
-        self.buckets[self.index] = QualityBucket::default();
-    }
-
-    fn add_attempted(&mut self, bytes: u64) {
-        self.buckets[self.index].attempted =
-            self.buckets[self.index].attempted.saturating_add(bytes);
-    }
-
-    fn add_forwarded(&mut self, bytes: u64) {
-        self.buckets[self.index].forwarded =
-            self.buckets[self.index].forwarded.saturating_add(bytes);
-    }
-
-    fn ratio(&self) -> f64 {
-        let attempted = self
-            .buckets
-            .iter()
-            .fold(0_u64, |sum, bucket| sum.saturating_add(bucket.attempted));
-        let forwarded = self
-            .buckets
-            .iter()
-            .fold(0_u64, |sum, bucket| sum.saturating_add(bucket.forwarded));
-        if attempted == 0 {
-            1.0
-        } else {
-            forwarded as f64 / attempted as f64
-        }
-    }
-}
-
-struct AppState {
-    metrics: Metrics,
-    clients: Mutex<HashMap<u64, ClientMeta>>,
-    next_client_id: AtomicU64,
-    quality_window: Mutex<QualityWindow>,
-    latest_server_list_wire: RwLock<Bytes>,
-}
-
-impl AppState {
-    fn add_attempted(&self, bytes: u64) {
-        self.metrics
-            .bytes_attempted_total
-            .fetch_add(bytes, Ordering::Relaxed);
-        let mut window = self
-            .quality_window
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        window.add_attempted(bytes);
-    }
-
-    fn add_forwarded(&self, bytes: u64) {
-        self.metrics
-            .bytes_forwarded_total
-            .fetch_add(bytes, Ordering::Relaxed);
-        let mut window = self
-            .quality_window
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        window.add_forwarded(bytes);
-    }
-
-    fn set_latest_server_list_wire(&self, bytes: Bytes) {
-        let mut guard = self
-            .latest_server_list_wire
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *guard = bytes;
-    }
-
-    fn latest_server_list_wire(&self) -> Bytes {
-        self.latest_server_list_wire
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
-    }
-
-    fn metrics_snapshot(&self) -> MetricsSnapshot {
-        let users = self
-            .clients
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        MetricsSnapshot {
-            upstream_connection_attempts_total: self
-                .metrics
-                .upstream_connection_attempts_total
-                .load(Ordering::Relaxed),
-            upstream_connection_success_total: self
-                .metrics
-                .upstream_connection_success_total
-                .load(Ordering::Relaxed),
-            upstream_connection_fail_total: self
-                .metrics
-                .upstream_connection_fail_total
-                .load(Ordering::Relaxed),
-            upstream_disconnect_total: self
-                .metrics
-                .upstream_disconnect_total
-                .load(Ordering::Relaxed),
-            downstream_connections_accepted_total: self
-                .metrics
-                .downstream_connections_accepted_total
-                .load(Ordering::Relaxed),
-            downstream_connections_rejected_over_capacity_total: self
-                .metrics
-                .downstream_connections_rejected_over_capacity_total
-                .load(Ordering::Relaxed),
-            downstream_disconnect_auth_timeout_total: self
-                .metrics
-                .downstream_disconnect_auth_timeout_total
-                .load(Ordering::Relaxed),
-            downstream_disconnect_slow_client_total: self
-                .metrics
-                .downstream_disconnect_slow_client_total
-                .load(Ordering::Relaxed),
-            downstream_disconnect_lagged_total: self
-                .metrics
-                .downstream_disconnect_lagged_total
-                .load(Ordering::Relaxed),
-            downstream_active_clients: self
-                .metrics
-                .downstream_active_clients
-                .load(Ordering::Relaxed),
-            bytes_in_total: self.metrics.bytes_in_total.load(Ordering::Relaxed),
-            bytes_attempted_total: self.metrics.bytes_attempted_total.load(Ordering::Relaxed),
-            bytes_forwarded_total: self.metrics.bytes_forwarded_total.load(Ordering::Relaxed),
-            bytes_dropped_total: self.metrics.bytes_dropped_total.load(Ordering::Relaxed),
-            forwarding_paused: self.metrics.forwarding_paused.load(Ordering::Relaxed),
-            forwarding_pause_events_total: self
-                .metrics
-                .forwarding_pause_events_total
-                .load(Ordering::Relaxed),
-            rolling_quality: self.metrics.rolling_quality_milli.load(Ordering::Relaxed) as f64
-                / 1000.0,
-            active_users: users,
-        }
-    }
-}
 
 struct QueuedChunk {
     bytes: Bytes,
@@ -267,13 +45,10 @@ pub async fn run(args: RelayArgs) -> Result<()> {
     );
 
     let initial_server_list_wire = build_server_list_wire(&config.upstream_servers);
-    let state = Arc::new(AppState {
-        metrics: Metrics::default(),
-        clients: Mutex::new(HashMap::new()),
-        next_client_id: AtomicU64::new(1),
-        quality_window: Mutex::new(QualityWindow::new(config.quality_window_secs)),
-        latest_server_list_wire: RwLock::new(initial_server_list_wire),
-    });
+    let state = Arc::new(AppState::new(
+        initial_server_list_wire,
+        config.quality_window_secs,
+    ));
 
     let (upstream_tx, _) = broadcast::channel::<Bytes>(UPSTREAM_CHANNEL_CAPACITY);
     let (shutdown_tx, shutdown_rx) = watch::channel(false);

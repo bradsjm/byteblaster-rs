@@ -1,7 +1,7 @@
 //! Event output formatting utilities.
 //!
-//! This module provides functions for converting frame events to text and JSON
-//! representations for CLI output.
+//! This module provides functions for converting frame events to JSON for
+//! CLI output.
 
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::FrameEvent;

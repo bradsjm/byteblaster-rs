@@ -2,6 +2,7 @@ mod auth;
 mod config;
 mod runtime;
 mod server_list;
+mod state;
 
 pub use config::RelayArgs as RelayOptions;
 

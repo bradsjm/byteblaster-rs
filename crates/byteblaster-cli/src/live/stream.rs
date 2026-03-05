@@ -4,7 +4,8 @@
 //! or live ByteBlaster servers, with optional file assembly and output.
 
 use crate::cmd::event_output::text_preview;
-use crate::live::shared::{parse_servers_or_default, unix_seconds, write_completed_file};
+use crate::live::file_pipeline::persist_completed_file;
+use crate::live::shared::{parse_servers_or_default, unix_seconds};
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
@@ -67,21 +68,21 @@ fn run_capture_mode(
             && let FrameEvent::DataBlock(segment) = event
             && let Some(file) = assembler.push(segment.clone())?
         {
-            let path = write_completed_file(
+            let completed = persist_completed_file(
                 output_dir_path
                     .as_deref()
                     .expect("output dir configured when assembler enabled"),
                 &file.filename,
                 &file.data,
+                file.timestamp_utc,
             )?;
-            let timestamp_utc = unix_seconds(file.timestamp_utc);
             info!(
-                path = %path,
-                filename = %file.filename,
-                timestamp_utc,
+                path = %completed.path,
+                filename = %completed.filename,
+                timestamp_utc = completed.timestamp_utc,
                 "wrote file"
             );
-            written_files.push(path);
+            written_files.push(completed.path);
         }
     }
 
@@ -162,21 +163,21 @@ async fn run_live_mode(
                     && let FrameEvent::DataBlock(segment) = &frame
                     && let Some(file) = assembler.push(segment.clone())?
                 {
-                    let path = write_completed_file(
+                    let completed = persist_completed_file(
                         output_dir_path
                             .as_deref()
                             .expect("output dir configured when assembler enabled"),
                         &file.filename,
                         &file.data,
+                        file.timestamp_utc,
                     )?;
-                    let timestamp_utc = unix_seconds(file.timestamp_utc);
                     info!(
-                        path = %path,
-                        filename = %file.filename,
-                        timestamp_utc,
+                        path = %completed.path,
+                        filename = %completed.filename,
+                        timestamp_utc = completed.timestamp_utc,
                         "wrote file"
                     );
-                    written_files.push(path);
+                    written_files.push(completed.path);
                 }
             }
             Ok(ClientEvent::Connected(endpoint)) => {

@@ -93,16 +93,16 @@ cargo test -p byteblaster-core <test_name> -- --nocapture
 ## Local Run Commands
 
 ```bash
-cargo run -p byteblaster-cli -- --format json inspect path/to/capture.bin
-cargo run -p byteblaster-cli -- --format json stream path/to/capture.bin
-cargo run -p byteblaster-cli -- --format json download ./out path/to/capture.bin
+cargo run -p byteblaster-cli -- inspect path/to/capture.bin
+cargo run -p byteblaster-cli -- stream path/to/capture.bin
+cargo run -p byteblaster-cli -- download ./out path/to/capture.bin
 ```
 
 Live mode examples:
 
 ```bash
-cargo run -p byteblaster-cli -- --format json stream --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- --format text download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
+cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
 ```
 
 ## Code Style Guidelines

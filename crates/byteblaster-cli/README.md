@@ -17,7 +17,7 @@ CLI application for ByteBlaster protocol inspection, event streaming, and file d
 ## Output formats
 
 - `stream` always emits structured `tracing` logs to `stderr` and does not emit JSON payloads.
-- `inspect` and `download` support `--format text` (default) and `--format json`.
+- `inspect` and `download` emit machine-readable JSON payloads to `stdout`.
 
 Contract:
 
@@ -46,10 +46,10 @@ If `--server` is omitted, built-in default endpoints are used.
 Capture mode:
 
 ```bash
-cargo run -p byteblaster-cli -- inspect --format json ./capture.bin
+cargo run -p byteblaster-cli -- inspect ./capture.bin
 cargo run -p byteblaster-cli -- stream ./capture.bin
 cargo run -p byteblaster-cli -- stream --output-dir ./out ./capture.bin
-cargo run -p byteblaster-cli -- download --format json ./out ./capture.bin
+cargo run -p byteblaster-cli -- download ./out ./capture.bin
 ```
 
 Live mode:
@@ -57,7 +57,7 @@ Live mode:
 ```bash
 cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download --format text ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
 ```
 
 ## Development checks

@@ -52,12 +52,7 @@ fn cli_stream_json_fixture() {
 
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_byteblaster-cli"));
     let output = cmd
-        .args([
-            "inspect",
-            "--format",
-            "json",
-            fixture.path().to_string_lossy().as_ref(),
-        ])
+        .args(["inspect", fixture.path().to_string_lossy().as_ref()])
         .output()
         .expect("command should run");
     assert!(output.status.success(), "command should succeed");
@@ -101,8 +96,6 @@ fn cli_download_writes_files() {
     let output = cmd
         .args([
             "download",
-            "--format",
-            "json",
             out_dir.path().to_string_lossy().as_ref(),
             fixture.path().to_string_lossy().as_ref(),
         ])

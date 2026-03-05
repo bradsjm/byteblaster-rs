@@ -7,34 +7,28 @@
 //! - Supports CORS for browser clients
 
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
+use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
 use crate::live::shared::parse_servers_or_default;
-use crate::product_meta::{ProductMeta, detect_product_meta};
-use axum::extract::{ConnectInfo, Path, Query, State};
-use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{Html, IntoResponse, Redirect, Response};
-use axum::routing::get;
-use axum::{Json, Router};
-use byteblaster_core::{
-    ByteBlasterClient, Client, ClientConfig, ClientEvent, ClientTelemetrySnapshot, DecodeConfig,
-    FileAssembler, FrameEvent, SegmentAssembler,
-};
-use futures::Stream;
-use futures::StreamExt;
+use crate::product_meta::detect_product_meta;
+use axum::http::HeaderValue;
+use byteblaster_core::{ClientConfig, ClientTelemetrySnapshot, DecodeConfig, FrameEvent};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
-use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, watch};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
+
+mod server_http;
+mod server_ingest;
+
+#[cfg(test)]
+use server_http::{event_matches_filter, files_handler};
 
 /// Capacity of the broadcast channel for events.
 const EVENT_CHANNEL_CAPACITY: usize = 4096;
@@ -112,113 +106,6 @@ impl EventKind {
     }
 }
 
-#[derive(Debug, Clone)]
-struct RetainedFile {
-    filename: String,
-    data: Vec<u8>,
-    timestamp_utc: u64,
-    completed_at: SystemTime,
-}
-
-impl RetainedFile {
-    fn size(&self) -> usize {
-        self.data.len()
-    }
-}
-
-#[derive(Debug)]
-struct RetainedFiles {
-    by_name: HashMap<String, RetainedFile>,
-    order: VecDeque<String>,
-    max_entries: usize,
-    ttl: Duration,
-}
-
-impl RetainedFiles {
-    fn new(max_entries: usize, ttl: Duration) -> Self {
-        Self {
-            by_name: HashMap::new(),
-            order: VecDeque::new(),
-            max_entries: max_entries.max(1),
-            ttl: ttl.max(Duration::from_secs(1)),
-        }
-    }
-
-    fn insert(
-        &mut self,
-        filename: String,
-        data: Vec<u8>,
-        timestamp_utc: u64,
-        completed_at: SystemTime,
-    ) {
-        self.evict_expired();
-
-        if self.by_name.contains_key(&filename) {
-            self.order.retain(|name| name != &filename);
-        }
-        self.order.push_back(filename.clone());
-        self.by_name.insert(
-            filename.clone(),
-            RetainedFile {
-                filename,
-                data,
-                timestamp_utc,
-                completed_at,
-            },
-        );
-
-        while self.by_name.len() > self.max_entries {
-            if let Some(oldest) = self.order.pop_front() {
-                self.by_name.remove(&oldest);
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn list(&mut self) -> Vec<RetainedFileMeta> {
-        self.evict_expired();
-        self.order
-            .iter()
-            .rev()
-            .filter_map(|name| self.by_name.get(name))
-            .map(|file| RetainedFileMeta {
-                filename: file.filename.clone(),
-                size: file.size(),
-                timestamp_utc: file.timestamp_utc,
-                product: detect_product_meta(&file.filename),
-            })
-            .collect()
-    }
-
-    fn get(&mut self, filename: &str) -> Option<RetainedFile> {
-        self.evict_expired();
-        self.by_name.get(filename).cloned()
-    }
-
-    fn len(&mut self) -> usize {
-        self.evict_expired();
-        self.by_name.len()
-    }
-
-    fn evict_expired(&mut self) {
-        let now = SystemTime::now();
-        self.order.retain(|name| {
-            let Some(file) = self.by_name.get(name) else {
-                return false;
-            };
-            let age = now
-                .duration_since(file.completed_at)
-                .unwrap_or(Duration::from_secs(0));
-            if age > self.ttl {
-                self.by_name.remove(name);
-                return false;
-            }
-            true
-        });
-    }
-}
-
 #[derive(Debug)]
 struct AppState {
     event_tx: broadcast::Sender<BroadcastEvent>,
@@ -239,15 +126,6 @@ struct AppState {
 #[derive(Debug, Deserialize)]
 struct EventsQuery {
     filter: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct RetainedFileMeta {
-    filename: String,
-    size: usize,
-    timestamp_utc: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    product: Option<ProductMeta>,
 }
 
 #[derive(Debug, Serialize)]
@@ -317,7 +195,8 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         quiet: options.quiet,
     });
 
-    let app = build_router(Arc::clone(&state), options.cors_origin)?;
+    let cors = build_cors_layer(options.cors_origin)?;
+    let app = server_http::build_router(Arc::clone(&state), cors);
 
     let listener = TcpListener::bind(bind_addr).await?;
     log_info(options.quiet, &format!("server listening addr={bind_addr}"));
@@ -334,12 +213,12 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         decode: DecodeConfig::default(),
     };
 
-    let ingest_task = tokio::spawn(run_ingest_loop(
+    let ingest_task = tokio::spawn(server_ingest::run_ingest_loop(
         config,
         Arc::clone(&state),
         shutdown_rx.clone(),
     ));
-    let stats_task = tokio::spawn(run_stats_loop(
+    let stats_task = tokio::spawn(server_ingest::run_stats_loop(
         Arc::clone(&state),
         options.stats_interval_secs,
         shutdown_rx.clone(),
@@ -381,405 +260,12 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Result<Router> {
-    Ok(Router::new()
-        .route("/", get(root_handler))
-        .route("/dashboard", get(dashboard_handler))
-        .route("/dashboard/", get(dashboard_trailing_slash_handler))
-        .route("/events", get(events_handler))
-        .route("/files", get(files_handler))
-        .route("/files/*filename", get(file_download_handler))
-        .route("/health", get(health_handler))
-        .route("/metrics", get(metrics_handler))
-        .layer(build_cors_layer(cors_origin)?)
-        .with_state(state))
-}
-
-async fn root_handler() -> Json<RootResponse> {
-    Json(RootResponse {
-        service: "byteblaster-cli server",
-        endpoints: vec![
-            EndpointDoc {
-                method: "GET",
-                path: "/",
-                description: "API index with endpoint descriptions",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/events?filter=*.TXT",
-                description: "SSE stream of frame and server events; optional wildcard filename filter",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/dashboard",
-                description: "HTML admin dashboard UI (read-only)",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/files",
-                description: "List retained completed files",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/files/*filename",
-                description: "Download retained file by URL-encoded filename path",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/health",
-                description: "Server health summary",
-            },
-            EndpointDoc {
-                method: "GET",
-                path: "/metrics",
-                description: "JSON telemetry snapshot",
-            },
-        ],
-    })
-}
-
-async fn dashboard_handler() -> Html<&'static str> {
-    Html(DASHBOARD_HTML)
-}
-
-async fn dashboard_trailing_slash_handler() -> Redirect {
-    Redirect::permanent("/dashboard")
-}
-
 const DASHBOARD_HTML: &str = include_str!("../cmd/dashboard.html");
 
-async fn run_ingest_loop(
-    config: ClientConfig,
-    state: Arc<AppState>,
-    mut shutdown_rx: watch::Receiver<bool>,
-) {
-    let mut assembler = FileAssembler::new(100);
-    let mut client = match Client::builder(config).build() {
-        Ok(client) => client,
-        Err(err) => {
-            log_error(&format!("failed to build client: {err}"));
-            return;
-        }
-    };
-
-    if let Err(err) = client.start() {
-        log_error(&format!("failed to start client: {err}"));
-        return;
-    }
-
-    let mut events = client.events();
-    loop {
-        tokio::select! {
-            _ = shutdown_rx.changed() => {
-                break;
-            }
-            item = events.next() => {
-                let Some(item) = item else {
-                    break;
-                };
-                handle_client_event(item, &state, &mut assembler);
-            }
-        }
-    }
-
-    drop(events);
-    if let Err(err) = client.stop().await {
-        log_error(&format!("failed to stop client: {err}"));
-    }
-}
-
-fn handle_client_event(
-    item: Result<ClientEvent, byteblaster_core::CoreError>,
-    state: &Arc<AppState>,
-    assembler: &mut FileAssembler,
-) {
-    match item {
-        Ok(ClientEvent::Connected(endpoint)) => {
-            {
-                let mut guard = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = Some(endpoint.clone());
-            }
-            log_info(
-                state.quiet,
-                &format!("upstream connected endpoint={endpoint}"),
-            );
-            publish(
-                state,
-                EventKind::Connected {
-                    endpoint: endpoint.clone(),
-                },
-            );
-        }
-        Ok(ClientEvent::Disconnected) => {
-            {
-                let mut guard = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = None;
-            }
-            log_info(state.quiet, "upstream disconnected");
-            publish(state, EventKind::Disconnected);
-        }
-        Ok(ClientEvent::Telemetry(snapshot)) => {
-            {
-                let mut guard = state
-                    .telemetry
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = snapshot.clone();
-            }
-            publish(state, EventKind::Telemetry(snapshot));
-        }
-        Ok(ClientEvent::Frame(frame)) => match frame {
-            FrameEvent::DataBlock(segment) => {
-                state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
-                publish(
-                    state,
-                    EventKind::Frame(FrameEvent::DataBlock(segment.clone())),
-                );
-
-                if let Ok(Some(file)) = assembler.push(segment) {
-                    let completed_at = SystemTime::now();
-                    let timestamp_utc = file
-                        .timestamp_utc
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    {
-                        let mut guard = state
-                            .retained_files
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner());
-                        guard.insert(
-                            file.filename.clone(),
-                            file.data.to_vec(),
-                            timestamp_utc,
-                            completed_at,
-                        );
-                    }
-                    log_info(
-                        state.quiet,
-                        &format!(
-                            "file complete name={} bytes={} timestamp_utc={}",
-                            file.filename,
-                            file.data.len(),
-                            timestamp_utc
-                        ),
-                    );
-                    publish(
-                        state,
-                        EventKind::FileComplete {
-                            filename: file.filename,
-                            size: file.data.len(),
-                            timestamp_utc,
-                        },
-                    );
-                }
-            }
-            FrameEvent::ServerListUpdate(list) => {
-                state
-                    .current_servers
-                    .store(list.servers.len(), Ordering::Relaxed);
-                state
-                    .current_sat_servers
-                    .store(list.sat_servers.len(), Ordering::Relaxed);
-                log_info(
-                    state.quiet,
-                    &format!(
-                        "server list received servers={} sat_servers={}",
-                        list.servers.len(),
-                        list.sat_servers.len()
-                    ),
-                );
-                publish(state, EventKind::Frame(FrameEvent::ServerListUpdate(list)));
-            }
-            FrameEvent::Warning(warning) => {
-                publish(state, EventKind::Frame(FrameEvent::Warning(warning)));
-            }
-            _ => {}
-        },
-        Err(err) => {
-            log_error(&format!("client error: {err}"));
-            publish(
-                state,
-                EventKind::Error {
-                    message: err.to_string(),
-                },
-            );
-        }
-        Ok(_) => {}
-    }
-}
-
-async fn run_stats_loop(
-    state: Arc<AppState>,
-    stats_interval_secs: u64,
-    mut shutdown_rx: watch::Receiver<bool>,
-) {
-    if stats_interval_secs == 0 {
-        let _ = shutdown_rx.changed().await;
-        return;
-    }
-
-    let mut interval = tokio::time::interval(Duration::from_secs(stats_interval_secs.max(1)));
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-    loop {
-        tokio::select! {
-            _ = shutdown_rx.changed() => {
-                break;
-            }
-            _ = interval.tick() => {
-                if state.quiet {
-                    continue;
-                }
-
-                let telemetry = state
-                    .telemetry
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .clone();
-                let endpoint = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .clone();
-                let clients = state.connected_clients.load(Ordering::Relaxed);
-                let files = state
-                    .retained_files
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .len();
-                let data_blocks = state.data_blocks_total.load(Ordering::Relaxed);
-                let servers = state.current_servers.load(Ordering::Relaxed);
-                let sat_servers = state.current_sat_servers.load(Ordering::Relaxed);
-
-                let uptime_secs = state.started_at.elapsed().as_secs();
-                let upstream = endpoint.unwrap_or_else(|| "disconnected".to_string());
-                info!(
-                    uptime_secs,
-                    bytes_in_total = telemetry.bytes_in_total,
-                    frame_events_total = telemetry.frame_events_total,
-                    data_blocks_total = data_blocks,
-                    event_queue_drop_total = telemetry.event_queue_drop_total,
-                    server_list_updates_total = telemetry.server_list_updates_total,
-                    servers,
-                    sat_servers,
-                    auth_logon_sent_total = telemetry.auth_logon_sent_total,
-                    watchdog_timeouts_total = telemetry.watchdog_timeouts_total,
-                    watchdog_exception_events_total = telemetry.watchdog_exception_events_total,
-                    retained_files = files,
-                    connected_clients = clients,
-                    upstream,
-                    "server stats snapshot"
-                );
-            }
-        }
-    }
-}
-
-async fn events_handler(
-    State(state): State<Arc<AppState>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
-    Query(query): Query<EventsQuery>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let current = state.connected_clients.load(Ordering::Relaxed);
-    if current >= state.max_clients {
-        log_info(
-            state.quiet,
-            &format!("rejecting client; limit reached peer={peer}"),
-        );
-        return Err(StatusCode::TOO_MANY_REQUESTS);
-    }
-
-    state.connected_clients.fetch_add(1, Ordering::Relaxed);
-    log_info(state.quiet, &format!("sse client connected peer={peer}"));
-
-    let rx = state.event_tx.subscribe();
-    let shutdown_rx = state.shutdown_rx.clone();
-    let last_id = headers
-        .get("last-event-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(0);
-    let filter = query.filter;
-
-    let stream = futures::stream::unfold(
-        StreamState {
-            state: Arc::clone(&state),
-            rx: Some(rx),
-            last_id,
-            filter,
-            shutdown_rx,
-            peer,
-            _guard: Some(ClientGuard {
-                state: Arc::clone(&state),
-                peer,
-            }),
-        },
-        move |mut st| async move {
-            let rx = st.rx.as_mut()?;
-            loop {
-                tokio::select! {
-                    _ = st.shutdown_rx.changed() => return None,
-                    received = rx.recv() => match received {
-                    Ok(event) => {
-                        if event.id <= st.last_id {
-                            continue;
-                        }
-                        if !event_matches_filter(st.filter.as_deref(), &event.kind) {
-                            continue;
-                        }
-
-                        st.last_id = event.id;
-                        let payload = match serde_json::to_string(&event.kind.to_json()) {
-                            Ok(payload) => payload,
-                            Err(_) => "{}".to_string(),
-                        };
-                        let sse = Event::default()
-                            .id(event.id.to_string())
-                            .event(event.kind.event_name())
-                            .data(payload);
-                        return Some((Ok(sse), st));
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(dropped)) => {
-                        log_info(
-                            st.state.quiet,
-                            &format!("sse client lagged peer={} dropped={}", st.peer, dropped),
-                        );
-                        let warning = Event::default().event("warning").data(
-                            serde_json::json!({
-                                "message": "client lagged; events dropped",
-                                "dropped": dropped,
-                                "peer": st.peer,
-                            })
-                            .to_string(),
-                        );
-                        return Some((Ok(warning), st));
-                    }
-                    }
-                }
-            }
-        },
-    );
-
-    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))))
-}
-
-struct StreamState {
-    state: Arc<AppState>,
-    rx: Option<broadcast::Receiver<BroadcastEvent>>,
-    last_id: u64,
-    filter: Option<String>,
-    shutdown_rx: watch::Receiver<bool>,
-    peer: SocketAddr,
-    _guard: Option<ClientGuard>,
+#[cfg(test)]
+fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Result<axum::Router> {
+    let cors = build_cors_layer(cors_origin)?;
+    Ok(server_http::build_router(state, cors))
 }
 
 struct ClientGuard {
@@ -797,159 +283,14 @@ impl Drop for ClientGuard {
     }
 }
 
-async fn files_handler(State(state): State<Arc<AppState>>) -> Json<FilesResponse> {
-    let files = state
-        .retained_files
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .list();
-    Json(FilesResponse { files })
-}
-
-async fn file_download_handler(
-    State(state): State<Arc<AppState>>,
-    Path(filename): Path<String>,
-) -> Result<Response, StatusCode> {
-    let normalized = sanitize_requested_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
-
-    let file = state
-        .retained_files
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .get(&normalized)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let content_type = content_type_for_filename(&normalized);
-    let disposition = format!("attachment; filename=\"{}\"", file.filename);
-
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
-    if let Ok(value) = HeaderValue::from_str(&disposition) {
-        headers.insert(CONTENT_DISPOSITION, value);
-    }
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-    Ok((headers, file.data).into_response())
-}
-
-async fn health_handler(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
-    let connected_clients = state.connected_clients.load(Ordering::Relaxed);
-    let retained_files = state
-        .retained_files
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .len();
-    let upstream_endpoint = state
-        .upstream_endpoint
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-
-    Json(HealthResponse {
-        status: "ok",
-        connected_clients,
-        retained_files,
-        uptime_secs: state.started_at.elapsed().as_secs(),
-        upstream_endpoint,
-    })
-}
-
-async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<ClientTelemetrySnapshot> {
-    let snapshot = state
-        .telemetry
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-    Json(snapshot)
-}
-
-fn content_type_for_filename(filename: &str) -> &'static str {
-    let upper = filename.to_ascii_uppercase();
-    if upper.ends_with(".TXT") || upper.ends_with(".WMO") || upper.ends_with(".XML") {
-        "text/plain; charset=utf-8"
-    } else if upper.ends_with(".JSON") {
-        "application/json"
-    } else {
-        "application/octet-stream"
-    }
-}
-
-fn sanitize_requested_filename(raw: &str) -> Option<String> {
-    let trimmed = raw.trim_start_matches('/').trim();
-    if trimmed.is_empty() || trimmed.contains('\0') || trimmed.contains("..") {
-        return None;
-    }
-    if trimmed.starts_with('/') || trimmed.starts_with('\\') {
-        return None;
-    }
-    Some(trimmed.to_string())
-}
-
-fn file_download_url(filename: &str) -> String {
-    format!("/files/{}", percent_encode(filename))
-}
-
-fn percent_encode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for b in input.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(b));
-        } else {
-            out.push('%');
-            out.push_str(&format!("{b:02X}"));
-        }
-    }
-    out
-}
-
 fn publish(state: &Arc<AppState>, kind: EventKind) {
     let id = state.next_event_id.fetch_add(1, Ordering::Relaxed);
     let _ = state.event_tx.send(BroadcastEvent { id, kind });
 }
 
-fn wildcard_match(pattern: &str, text: &str) -> bool {
-    let p = pattern.to_ascii_lowercase();
-    let t = text.to_ascii_lowercase();
-
-    let p_bytes = p.as_bytes();
-    let t_bytes = t.as_bytes();
-    let mut pi = 0usize;
-    let mut ti = 0usize;
-    let mut star_idx = None;
-    let mut match_idx = 0usize;
-
-    while ti < t_bytes.len() {
-        if pi < p_bytes.len() && (p_bytes[pi] == t_bytes[ti]) {
-            pi += 1;
-            ti += 1;
-        } else if pi < p_bytes.len() && p_bytes[pi] == b'*' {
-            star_idx = Some(pi);
-            match_idx = ti;
-            pi += 1;
-        } else if let Some(star_pos) = star_idx {
-            pi = star_pos + 1;
-            match_idx += 1;
-            ti = match_idx;
-        } else {
-            return false;
-        }
-    }
-
-    while pi < p_bytes.len() && p_bytes[pi] == b'*' {
-        pi += 1;
-    }
-
-    pi == p_bytes.len()
-}
-
-fn event_matches_filter(filter: Option<&str>, event: &EventKind) -> bool {
-    match filter {
-        Some(pattern) => match event.filename() {
-            Some(filename) => wildcard_match(pattern, filename),
-            None => true,
-        },
-        None => true,
-    }
+#[cfg(test)]
+fn sanitize_requested_filename(raw: &str) -> Option<String> {
+    crate::live::server_support::sanitize_requested_filename(raw)
 }
 
 fn log_info(quiet: bool, msg: &str) {
@@ -981,9 +322,10 @@ fn build_cors_layer(cors_origin: Option<String>) -> anyhow::Result<CorsLayer> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AppState, EventKind, EventsQuery, RetainedFiles, build_router, event_matches_filter,
-        events_handler, files_handler, sanitize_requested_filename, wildcard_match,
+        AppState, EventKind, RetainedFiles, build_router, event_matches_filter, files_handler,
+        sanitize_requested_filename,
     };
+    use crate::live::server_support::wildcard_match;
     use axum::Json;
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
@@ -1057,15 +399,15 @@ mod tests {
         let state = test_state(1);
         state.connected_clients.store(1, Ordering::Relaxed);
 
-        let result = events_handler(
+        let result = crate::live::server::server_http::events_handler(
             State(state),
             ConnectInfo("127.0.0.1:4000".parse().expect("valid socket addr")),
             HeaderMap::new(),
-            Query(EventsQuery { filter: None }),
+            Query(super::EventsQuery { filter: None }),
         )
         .await;
 
-        assert_eq!(result.err(), Some(StatusCode::TOO_MANY_REQUESTS));
+        assert!(matches!(result, Err(StatusCode::TOO_MANY_REQUESTS)));
     }
 
     #[tokio::test]

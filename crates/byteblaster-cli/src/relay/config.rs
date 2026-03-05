@@ -1,15 +1,9 @@
+use crate::default_servers::default_upstream_servers;
 use anyhow::{Context, Result};
 use byteblaster_core::parse_server;
 use clap::Args;
 use std::net::SocketAddr;
 use std::time::Duration;
-
-const DEFAULT_SERVERS: &[&str] = &[
-    "emwin.weathermessage.com:2211",
-    "master.weathermessage.com:2211",
-    "emwin.interweather.net:1000",
-    "wxmesg.upstateweather.com:2211",
-];
 
 #[derive(Debug, Clone, Args)]
 pub struct RelayArgs {
@@ -58,13 +52,7 @@ pub struct RelayConfig {
 impl RelayConfig {
     pub fn from_args(args: RelayArgs) -> Result<Self> {
         let servers = if args.servers.is_empty() {
-            DEFAULT_SERVERS
-                .iter()
-                .map(|raw| {
-                    parse_server(raw)
-                        .ok_or_else(|| anyhow::anyhow!("invalid default server entry: {raw}"))
-                })
-                .collect::<Result<Vec<_>>>()?
+            default_upstream_servers()
         } else {
             args.servers
                 .iter()

@@ -48,7 +48,7 @@ Run via Docker (no local Rust toolchain required):
 
 ```bash
 docker run --rm ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --help
-docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --format json inspect /work/path/to/capture.bin
+docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest inspect /work/path/to/capture.bin
 docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --email you@example.com
 ```
 
@@ -87,9 +87,9 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
 Capture-file decode:
 
 ```bash
-cargo run -p byteblaster-cli -- inspect --format json path/to/capture.bin
+cargo run -p byteblaster-cli -- inspect path/to/capture.bin
 cargo run -p byteblaster-cli -- stream path/to/capture.bin
-cargo run -p byteblaster-cli -- download --format json ./out path/to/capture.bin
+cargo run -p byteblaster-cli -- download ./out path/to/capture.bin
 ```
 
 Live stream/download mode:
@@ -97,7 +97,7 @@ Live stream/download mode:
 ```bash
 cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
 cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download --format text ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
 ```
 
 Optional stream file writing:

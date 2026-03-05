@@ -1,13 +1,11 @@
 //! Inspect command for decoding capture files.
 //!
 //! This module provides functionality to read and decode ByteBlaster
-//! capture files, outputting the decoded events in text or JSON format.
+//! capture files, outputting decoded events as JSON.
 
-use crate::OutputFormat;
 use crate::cmd::event_output::frame_event_to_json;
 use byteblaster_core::{FrameDecoder, ProtocolDecoder};
 use std::io::Read;
-use tracing::info;
 
 /// Runs the inspect command.
 ///
@@ -16,47 +14,31 @@ use tracing::info;
 ///
 /// # Arguments
 ///
-/// * `format` - Output format (text or JSON)
 /// * `input` - Optional path to capture file (reads stdin if None)
 /// * `text_preview_chars` - Maximum characters for text content preview
 ///
 /// # Returns
 ///
 /// Ok on success, or an error if reading/decoding fails
-pub async fn run(
-    format: OutputFormat,
-    input: Option<String>,
-    text_preview_chars: usize,
-) -> anyhow::Result<()> {
+pub async fn run(input: Option<String>, text_preview_chars: usize) -> anyhow::Result<()> {
     let bytes = read_input(input.as_deref())?;
 
     let mut decoder = ProtocolDecoder::default();
     let events = decoder.feed(&bytes)?;
 
-    match format {
-        OutputFormat::Text => {
-            info!(
-                event_count = events.len(),
-                status = "ok",
-                "inspect complete"
-            );
-        }
-        OutputFormat::Json => {
-            let event_payload: Vec<serde_json::Value> = events
-                .iter()
-                .map(|event| frame_event_to_json(event, text_preview_chars))
-                .collect();
-            println!(
-                "{}",
-                serde_json::to_string(&serde_json::json!({
-                "command":"inspect",
-                "status":"ok",
-                "event_count": event_payload.len(),
-                "events": event_payload,
-                }))?
-            );
-        }
-    }
+    let event_payload: Vec<serde_json::Value> = events
+        .iter()
+        .map(|event| frame_event_to_json(event, text_preview_chars))
+        .collect();
+    println!(
+        "{}",
+        serde_json::to_string(&serde_json::json!({
+            "command":"inspect",
+            "status":"ok",
+            "event_count": event_payload.len(),
+            "events": event_payload,
+        }))?
+    );
 
     Ok(())
 }

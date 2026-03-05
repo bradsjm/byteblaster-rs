@@ -7,11 +7,12 @@
 //! - Running an HTTP server with SSE endpoints
 
 mod cmd;
+mod default_servers;
 mod live;
 mod product_meta;
 mod relay;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use std::io::IsTerminal;
 use tracing_subscriber::EnvFilter;
 
@@ -28,15 +29,6 @@ struct LiveOptions {
     max_events: usize,
     /// Idle timeout before disconnecting (in seconds).
     idle_timeout_secs: u64,
-}
-
-/// Output format for CLI commands.
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub(crate) enum OutputFormat {
-    /// Human-readable text output.
-    Text,
-    /// Machine-readable JSON output.
-    Json,
 }
 
 /// Available CLI commands.
@@ -67,9 +59,6 @@ enum Commands {
     },
     /// Download and assemble files from capture or live server.
     Download {
-        /// Output format for command results.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
         /// Output directory for downloaded files.
         output_dir: String,
         /// Path to capture file (omit for live mode).
@@ -92,9 +81,6 @@ enum Commands {
     },
     /// Inspect and decode a capture file.
     Inspect {
-        /// Output format for command results.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
         /// Path to capture file (omit to read from stdin).
         input: Option<String>,
     },
@@ -177,7 +163,6 @@ async fn main() -> anyhow::Result<()> {
             cmd::stream::run(input, output_dir, live, text_preview_chars).await
         }
         Commands::Download {
-            format,
             output_dir,
             input,
             email,
@@ -193,11 +178,9 @@ async fn main() -> anyhow::Result<()> {
                 max_events,
                 idle_timeout_secs,
             };
-            cmd::download::run(format, output_dir, input, live, text_preview_chars).await
+            cmd::download::run(output_dir, input, live, text_preview_chars).await
         }
-        Commands::Inspect { format, input } => {
-            cmd::inspect::run(format, input, text_preview_chars).await
-        }
+        Commands::Inspect { input } => cmd::inspect::run(input, text_preview_chars).await,
         Commands::Server {
             email,
             servers,

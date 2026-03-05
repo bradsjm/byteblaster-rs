@@ -232,22 +232,22 @@ fn build_filename(
     issue_utc: SystemTime,
 ) -> String {
     if !awipsid.is_empty() && awipsid != "NONE" {
-        return format!("{awipsid}.txt");
+        return format!("{awipsid}.TXT");
     }
 
     if !ttaaii.is_empty() && !cccc.is_empty() {
-        return format!("{ttaaii}_{cccc}.txt");
+        return format!("{ttaaii}_{cccc}.TXT");
     }
 
     if !id.is_empty() {
-        return format!("{id}.txt");
+        return format!("{id}.TXT");
     }
 
     let secs = issue_utc
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or_default();
-    format!("wxwire_{secs}.txt")
+    format!("wxwire_{secs}.TXT")
 }
 
 fn convert_to_noaaport(text: &str) -> String {
@@ -284,7 +284,7 @@ line2</x>
         });
 
         let file = file.expect("expected file event");
-        assert_eq!(file.filename, "AFDOKX.txt");
+        assert_eq!(file.filename, "AFDOKX.TXT");
         assert_eq!(file.awipsid, "AFDOKX");
         assert!(file.data.starts_with(&[0x01]));
         assert!(file.data.ends_with(&[0x03]));
@@ -307,7 +307,7 @@ line2</x>
         });
 
         let file = file.expect("expected file event");
-        assert_eq!(file.filename, "RWRMO.txt");
+        assert_eq!(file.filename, "RWRMO.TXT");
         assert_eq!(file.awipsid, "RWRMO");
         assert_eq!(file.ttaaii, "ASUS43");
         assert_eq!(file.cccc, "KLSX");

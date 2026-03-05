@@ -812,7 +812,7 @@ mod tests {
             if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(file))))) =
                 tokio::time::timeout(Duration::from_millis(250), events.next()).await
             {
-                saw_file = file.filename == "AFDOKX.txt";
+                saw_file = file.filename == "AFDOKX.TXT";
                 break;
             }
         }

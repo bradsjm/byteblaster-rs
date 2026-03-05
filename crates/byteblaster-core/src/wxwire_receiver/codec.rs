@@ -4,8 +4,8 @@ use crate::wxwire_receiver::model::{
 };
 use bytes::Bytes;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use xmpp_parsers::delay::Delay;
 use xmpp_parsers::message::Message;
 use xmpp_parsers::minidom::Element;
@@ -347,9 +347,11 @@ line2</x>
                 )
             )
         }));
-        assert!(events
-            .iter()
-            .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_))));
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
+        );
     }
 
     #[test]
@@ -365,8 +367,10 @@ line2</x>
 
         let mut decoder = WxWireDecoder;
         let events = decoder.feed(stanza).expect("decode should not fail");
-        assert!(events
-            .iter()
-            .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_))));
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
+        );
     }
 }

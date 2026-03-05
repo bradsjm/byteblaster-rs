@@ -20,6 +20,7 @@ use xmpp_parsers::jid::BareJid;
 const CLIENT_NS: &str = "jabber:client";
 const SM3_NS: &str = "urn:xmpp:sm:3";
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
+const MAX_READ_BUFFER_BYTES: usize = 1024 * 1024;
 
 /// Abstraction over weather wire transport.
 pub trait WxWireTransport: Send {
@@ -86,24 +87,35 @@ impl XmppWxWireTransport {
         password: &str,
         connect_timeout: Duration,
     ) -> WxWireReceiverResult<Self> {
+        let connect_deadline = Instant::now().checked_add(connect_timeout).ok_or_else(|| {
+            WxWireReceiverError::Transport("xmpp connect timeout overflow".to_string())
+        })?;
         let addr = format!("{endpoint_host}:{WXWIRE_PORT}");
-        let tcp = tokio::time::timeout(connect_timeout, TcpStream::connect(addr.as_str()))
-            .await
-            .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
-            .and_then(|result| {
-                result.map_err(|err| {
-                    WxWireReceiverError::Transport(format!("failed to connect tcp socket: {err}"))
-                })
-            })?;
+        let tcp = tokio::time::timeout(
+            remaining_connect_timeout(connect_deadline)?,
+            TcpStream::connect(addr.as_str()),
+        )
+        .await
+        .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
+        .and_then(|result| {
+            result.map_err(|err| {
+                WxWireReceiverError::Transport(format!("failed to connect tcp socket: {err}"))
+            })
+        })?;
 
         let room_bare = BareJid::from_str(WXWIRE_ROOM)
             .map_err(|err| WxWireReceiverError::Transport(format!("invalid room jid: {err}")))?;
 
         let mut session = XmppSession::new(endpoint_host.to_string(), XmppSocket::Plain(tcp));
-        session.open_stream(connect_timeout).await?;
+        session
+            .open_stream(remaining_connect_timeout(connect_deadline)?)
+            .await?;
 
         let features = session
-            .wait_for_tag("stream:features", connect_timeout)
+            .wait_for_tag(
+                "stream:features",
+                remaining_connect_timeout(connect_deadline)?,
+            )
             .await?;
         if !features.contains("urn:ietf:params:xml:ns:xmpp-tls") {
             return Err(WxWireReceiverError::Transport(
@@ -114,18 +126,27 @@ impl XmppWxWireTransport {
         session
             .send_raw("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
             .await?;
-        let proceed = session.wait_for_tag("proceed", connect_timeout).await?;
+        let proceed = session
+            .wait_for_tag("proceed", remaining_connect_timeout(connect_deadline)?)
+            .await?;
         if !proceed.contains("urn:ietf:params:xml:ns:xmpp-tls") {
             return Err(WxWireReceiverError::Transport(
                 "server did not proceed with STARTTLS".to_string(),
             ));
         }
 
-        session.upgrade_tls(connect_timeout).await?;
-        session.open_stream(connect_timeout).await?;
+        session
+            .upgrade_tls(remaining_connect_timeout(connect_deadline)?)
+            .await?;
+        session
+            .open_stream(remaining_connect_timeout(connect_deadline)?)
+            .await?;
 
         let sasl_features = session
-            .wait_for_tag("stream:features", connect_timeout)
+            .wait_for_tag(
+                "stream:features",
+                remaining_connect_timeout(connect_deadline)?,
+            )
             .await?;
         if !sasl_features.contains("urn:ietf:params:xml:ns:xmpp-sasl") {
             return Err(WxWireReceiverError::Transport(
@@ -140,7 +161,10 @@ impl XmppWxWireTransport {
         session.send_raw(auth.as_str()).await?;
 
         let sasl_reply = session
-            .wait_for_any_tag(&["success", "failure"], connect_timeout)
+            .wait_for_any_tag(
+                &["success", "failure"],
+                remaining_connect_timeout(connect_deadline)?,
+            )
             .await?;
         if sasl_reply.contains("<failure") {
             return Err(WxWireReceiverError::Transport(format!(
@@ -148,9 +172,14 @@ impl XmppWxWireTransport {
             )));
         }
 
-        session.open_stream(connect_timeout).await?;
+        session
+            .open_stream(remaining_connect_timeout(connect_deadline)?)
+            .await?;
         let post_auth_features = session
-            .wait_for_tag("stream:features", connect_timeout)
+            .wait_for_tag(
+                "stream:features",
+                remaining_connect_timeout(connect_deadline)?,
+            )
             .await?;
         if !post_auth_features.contains("urn:ietf:params:xml:ns:xmpp-bind") {
             return Err(WxWireReceiverError::Transport(
@@ -164,7 +193,9 @@ impl XmppWxWireTransport {
         );
         session.send_raw(bind_iq.as_str()).await?;
 
-        let bind_result = session.wait_for_tag("iq", connect_timeout).await?;
+        let bind_result = session
+            .wait_for_tag("iq", remaining_connect_timeout(connect_deadline)?)
+            .await?;
         if !bind_result.contains(format!("id=\"{bind_id}\"").as_str())
             && !bind_result.contains(format!("id='{bind_id}'").as_str())
         {
@@ -183,7 +214,10 @@ impl XmppWxWireTransport {
                 .send_raw("<enable xmlns='urn:xmpp:sm:3' resume='true'/>")
                 .await?;
             let sm_reply = session
-                .wait_for_any_tag(&["enabled", "failed"], connect_timeout)
+                .wait_for_any_tag(
+                    &["enabled", "failed"],
+                    remaining_connect_timeout(connect_deadline)?,
+                )
                 .await?;
             if sm_reply.contains("<failed") {
                 return Err(WxWireReceiverError::Transport(format!(
@@ -201,18 +235,21 @@ impl XmppWxWireTransport {
         );
         session.send_raw(join.as_str()).await?;
 
-        let join_confirm = tokio::time::timeout(connect_timeout, async {
-            loop {
-                let stanza = session.wait_for_tag("presence", connect_timeout).await?;
-                if is_room_join_presence(stanza.as_str(), &room_bare, nick.as_str())? {
-                    return Ok(stanza);
+        let join_confirm =
+            tokio::time::timeout(remaining_connect_timeout(connect_deadline)?, async {
+                loop {
+                    let stanza = session
+                        .wait_for_tag("presence", remaining_connect_timeout(connect_deadline)?)
+                        .await?;
+                    if is_room_join_presence(stanza.as_str(), &room_bare, nick.as_str())? {
+                        return Ok(stanza);
+                    }
                 }
-            }
-        })
-        .await
-        .map_err(|_| {
-            WxWireReceiverError::Transport("xmpp join confirmation timeout".to_string())
-        })??;
+            })
+            .await
+            .map_err(|_| {
+                WxWireReceiverError::Transport("xmpp join confirmation timeout".to_string())
+            })??;
 
         if join_confirm.contains("type='error'") || join_confirm.contains("type=\"error\"") {
             return Err(WxWireReceiverError::Transport(format!(
@@ -252,7 +289,11 @@ impl XmppWxWireTransport {
         }
 
         let chunk = String::from_utf8_lossy(&buf[..read]);
-        self.read_buf.push_str(chunk.as_ref());
+        append_with_read_limit(
+            &mut self.read_buf,
+            chunk.as_ref(),
+            "xmpp read buffer exceeded limit",
+        )?;
         Ok(())
     }
 
@@ -433,7 +474,11 @@ impl XmppSession {
             ));
         }
         let chunk = String::from_utf8_lossy(&buf[..read]);
-        self.read_buf.push_str(chunk.as_ref());
+        append_with_read_limit(
+            &mut self.read_buf,
+            chunk.as_ref(),
+            "xmpp handshake read buffer exceeded limit",
+        )?;
         Ok(())
     }
 
@@ -484,6 +529,25 @@ fn chrono_like_suffix() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     format!("{}", now.as_secs())
+}
+
+fn remaining_connect_timeout(deadline: Instant) -> WxWireReceiverResult<Duration> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .ok_or_else(|| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
+}
+
+fn append_with_read_limit(
+    read_buf: &mut String,
+    chunk: &str,
+    overflow_message: &str,
+) -> WxWireReceiverResult<()> {
+    if read_buf.len().saturating_add(chunk.len()) > MAX_READ_BUFFER_BYTES {
+        read_buf.clear();
+        return Err(WxWireReceiverError::Transport(overflow_message.to_string()));
+    }
+    read_buf.push_str(chunk);
+    Ok(())
 }
 
 fn pop_next_top_level_element(buf: &mut String) -> Option<String> {
@@ -685,8 +749,8 @@ fn add_default_client_ns(xml: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        add_default_client_ns, is_room_join_presence, pop_next_top_level_element,
-        stanza_root_tag_name,
+        add_default_client_ns, append_with_read_limit, is_room_join_presence,
+        pop_next_top_level_element, stanza_root_tag_name,
     };
     use std::str::FromStr;
     use xmpp_parsers::jid::BareJid;
@@ -760,8 +824,7 @@ mod tests {
 
     #[test]
     fn stanza_root_tag_name_recognizes_prefixed_features_without_local_xmlns() {
-        let stanza =
-            "<stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/></stream:features>";
+        let stanza = "<stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/></stream:features>";
         assert_eq!(
             stanza_root_tag_name(stanza).as_deref(),
             Some("stream:features")
@@ -772,5 +835,18 @@ mod tests {
     fn stanza_root_tag_name_recognizes_message_root() {
         let stanza = "<message type='groupchat'><body>hello</body></message>";
         assert_eq!(stanza_root_tag_name(stanza).as_deref(), Some("message"));
+    }
+
+    #[test]
+    fn append_with_read_limit_rejects_oversized_chunk() {
+        let mut buf = "x".repeat((1024 * 1024) - 4);
+        let err = append_with_read_limit(&mut buf, "12345", "buffer too large")
+            .expect_err("chunk should exceed max read buffer size");
+
+        assert_eq!(
+            err.to_string(),
+            "weather wire transport error: buffer too large"
+        );
+        assert!(buf.is_empty());
     }
 }

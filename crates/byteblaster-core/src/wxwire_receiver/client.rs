@@ -640,7 +640,7 @@ fn try_emit_backpressure_warning(
                 .saturating_add(1);
             telemetry.dropped_since_last_report = 0;
         }
-        Err(err) => record_dropped_event(err, telemetry),
+        Err(TrySendError::Full(_)) | Err(TrySendError::Closed(_)) => {}
     }
 }
 
@@ -982,5 +982,24 @@ mod tests {
         assert!(saw_disconnected);
         assert!(saw_reconnected);
         assert!(attempts.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[test]
+    fn failed_backpressure_warning_send_does_not_increment_drop_total() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.try_send(Ok(WxWireReceiverEvent::Disconnected))
+            .expect("channel should accept initial event");
+
+        let mut telemetry = super::RuntimeTelemetry::default();
+        telemetry.snapshot.event_queue_drop_total = 7;
+        telemetry.dropped_since_last_report = 3;
+
+        super::try_emit_backpressure_warning(&tx, &mut telemetry);
+
+        assert_eq!(telemetry.snapshot.event_queue_drop_total, 7);
+        assert_eq!(telemetry.dropped_since_last_report, 3);
+
+        let queued = rx.try_recv().expect("original event should remain");
+        assert!(matches!(queued, Ok(WxWireReceiverEvent::Disconnected)));
     }
 }

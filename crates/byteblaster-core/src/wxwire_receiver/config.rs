@@ -8,7 +8,7 @@ pub const WXWIRE_PORT: u16 = 5222;
 pub const WXWIRE_ROOM: &str = "nwws@conference.nwws-oi.weather.gov";
 
 /// Runtime configuration for Weather Wire.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WxWireReceiverConfig {
     /// NWWS-OI username.
     pub username: String,
@@ -24,6 +24,23 @@ pub struct WxWireReceiverConfig {
     pub telemetry_emit_interval_secs: u64,
     /// Timeout for establishing the XMPP connection and session.
     pub connect_timeout_secs: u64,
+}
+
+impl std::fmt::Debug for WxWireReceiverConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WxWireReceiverConfig")
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .field("idle_timeout_secs", &self.idle_timeout_secs)
+            .field("event_channel_capacity", &self.event_channel_capacity)
+            .field("inbound_channel_capacity", &self.inbound_channel_capacity)
+            .field(
+                "telemetry_emit_interval_secs",
+                &self.telemetry_emit_interval_secs,
+            )
+            .field("connect_timeout_secs", &self.connect_timeout_secs)
+            .finish()
+    }
 }
 
 impl Default for WxWireReceiverConfig {
@@ -113,5 +130,19 @@ mod tests {
         };
 
         assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn debug_redacts_password() {
+        let cfg = WxWireReceiverConfig {
+            username: "user".to_string(),
+            password: "super-secret".to_string(),
+            ..WxWireReceiverConfig::default()
+        };
+
+        let debug = format!("{cfg:?}");
+        assert!(debug.contains("username"));
+        assert!(debug.contains("<redacted>"));
+        assert!(!debug.contains("super-secret"));
     }
 }

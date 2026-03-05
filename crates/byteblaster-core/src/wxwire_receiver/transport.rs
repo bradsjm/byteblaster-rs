@@ -333,8 +333,22 @@ impl WxWireTransport for XmppWxWireTransport {
         Box::pin(async move {
             loop {
                 if let Some(stanza) = pop_next_top_level_element(&mut self.read_buf) {
+                    if !is_supported_top_level_stanza(stanza.as_str()) {
+                        debug!(
+                            root = stanza_root_tag_name(stanza.as_str())
+                                .as_deref()
+                                .unwrap_or("unknown"),
+                            "ignoring non-xmpp top-level element"
+                        );
+                        continue;
+                    }
                     let Ok(element) = parse_element_with_default_ns(stanza.as_str()) else {
-                        warn!(stanza = %stanza, "dropping unparsable top-level stanza");
+                        warn!(
+                            root = stanza_root_tag_name(stanza.as_str())
+                                .as_deref()
+                                .unwrap_or("unknown"),
+                            "dropping unparsable xmpp top-level stanza"
+                        );
                         continue;
                     };
                     if element.name() == "r" && element.ns() == SM3_NS {
@@ -680,6 +694,13 @@ fn stanza_root_tag_name(stanza: &str) -> Option<String> {
     }
 }
 
+fn is_supported_top_level_stanza(stanza: &str) -> bool {
+    matches!(
+        stanza_root_tag_name(stanza).as_deref(),
+        Some("message" | "presence" | "iq" | "r" | "a")
+    )
+}
+
 fn is_room_join_presence(
     stanza: &str,
     room_bare: &BareJid,
@@ -750,7 +771,7 @@ fn add_default_client_ns(xml: &str) -> String {
 mod tests {
     use super::{
         add_default_client_ns, append_with_read_limit, is_room_join_presence,
-        pop_next_top_level_element, stanza_root_tag_name,
+        is_supported_top_level_stanza, pop_next_top_level_element, stanza_root_tag_name,
     };
     use std::str::FromStr;
     use xmpp_parsers::jid::BareJid;
@@ -835,6 +856,16 @@ mod tests {
     fn stanza_root_tag_name_recognizes_message_root() {
         let stanza = "<message type='groupchat'><body>hello</body></message>";
         assert_eq!(stanza_root_tag_name(stanza).as_deref(), Some("message"));
+    }
+
+    #[test]
+    fn supported_top_level_stanza_accepts_xmpp_roots_only() {
+        assert!(is_supported_top_level_stanza("<message type='groupchat'/>"));
+        assert!(is_supported_top_level_stanza("<presence/>"));
+        assert!(is_supported_top_level_stanza("<iq/>"));
+        assert!(is_supported_top_level_stanza("<r xmlns='urn:xmpp:sm:3'/>"));
+        assert!(is_supported_top_level_stanza("<a xmlns='urn:xmpp:sm:3'/>"));
+        assert!(!is_supported_top_level_stanza("<site id='YRBA2'></site>"));
     }
 
     #[test]

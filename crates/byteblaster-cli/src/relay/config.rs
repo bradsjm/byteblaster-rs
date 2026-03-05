@@ -25,9 +25,8 @@
 //! - QbtReceiver buffer: `65536` bytes
 //! - Quality window: `60` seconds
 
-use crate::default_servers::default_upstream_servers;
 use anyhow::{Context, Result};
-use byteblaster_core::qbt_receiver::parse_qbt_server;
+use byteblaster_core::qbt_receiver::{QbtRelayConfig, parse_qbt_server};
 use clap::Args;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -62,24 +61,14 @@ pub struct RelayArgs {
 
 #[derive(Debug, Clone)]
 pub struct RelayConfig {
-    pub email: String,
-    pub upstream_servers: Vec<(String, u16)>,
-    pub bind_addr: SocketAddr,
-    pub max_clients: usize,
-    pub auth_timeout: Duration,
-    pub client_buffer_bytes: usize,
     pub metrics_bind_addr: SocketAddr,
-    pub reconnect_delay: Duration,
-    pub connect_timeout: Duration,
-    pub quality_window_secs: usize,
-    pub quality_pause_threshold: f64,
-    pub metrics_log_interval: Duration,
+    pub relay: QbtRelayConfig,
 }
 
 impl RelayConfig {
     pub fn from_args(args: RelayArgs) -> Result<Self> {
         let servers = if args.servers.is_empty() {
-            default_upstream_servers()
+            byteblaster_core::qbt_receiver::default_qbt_upstream_servers()
         } else {
             args.servers
                 .iter()
@@ -101,18 +90,20 @@ impl RelayConfig {
         let quality_pause_threshold = args.quality_pause_threshold.clamp(0.0, 1.0);
 
         Ok(Self {
-            email: args.email,
-            upstream_servers: servers,
-            bind_addr,
-            max_clients: args.max_clients.max(1),
-            auth_timeout: Duration::from_secs(args.auth_timeout_secs.max(1)),
-            client_buffer_bytes: args.client_buffer_bytes.max(1),
             metrics_bind_addr,
-            reconnect_delay: Duration::from_secs(args.reconnect_delay_secs.max(1)),
-            connect_timeout: Duration::from_secs(args.connect_timeout_secs.max(1)),
-            quality_window_secs: args.quality_window_secs.max(1),
-            quality_pause_threshold,
-            metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs.max(1)),
+            relay: QbtRelayConfig {
+                email: args.email,
+                upstream_servers: servers,
+                bind_addr,
+                max_clients: args.max_clients.max(1),
+                auth_timeout: Duration::from_secs(args.auth_timeout_secs.max(1)),
+                client_buffer_bytes: args.client_buffer_bytes.max(1),
+                reconnect_delay: Duration::from_secs(args.reconnect_delay_secs.max(1)),
+                connect_timeout: Duration::from_secs(args.connect_timeout_secs.max(1)),
+                quality_window_secs: args.quality_window_secs.max(1),
+                quality_pause_threshold,
+                metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs.max(1)),
+            },
         })
     }
 }

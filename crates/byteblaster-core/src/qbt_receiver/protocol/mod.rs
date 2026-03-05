@@ -61,3 +61,4 @@ pub mod codec;
 pub mod compression;
 pub mod model;
 pub mod server_list;
+pub mod server_list_wire;

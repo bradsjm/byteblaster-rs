@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 
+use crate::qbt_receiver::protocol::server_list_wire::build_server_list_wire;
+
 #[derive(Default)]
 pub(super) struct Metrics {
     pub(super) upstream_connection_attempts_total: AtomicU64,
@@ -26,15 +28,15 @@ pub(super) struct Metrics {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(super) struct ClientMeta {
-    pub(super) email: String,
-    pub(super) peer: String,
-    pub(super) connected_at_unix_secs: u64,
-    pub(super) last_auth_unix_secs: u64,
+pub struct QbtRelayClientMeta {
+    pub email: String,
+    pub peer: String,
+    pub connected_at_unix_secs: u64,
+    pub last_auth_unix_secs: u64,
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct MetricsSnapshot {
+pub struct QbtRelayMetricsSnapshot {
     upstream_connection_attempts_total: u64,
     upstream_connection_success_total: u64,
     upstream_connection_fail_total: u64,
@@ -52,14 +54,14 @@ pub(super) struct MetricsSnapshot {
     forwarding_paused: bool,
     forwarding_pause_events_total: u64,
     rolling_quality: f64,
-    active_users: Vec<ClientMeta>,
+    active_users: Vec<QbtRelayClientMeta>,
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct HealthSnapshot {
-    pub(super) status: &'static str,
-    pub(super) forwarding_paused: bool,
-    pub(super) downstream_active_clients: u64,
+pub struct QbtRelayHealthSnapshot {
+    pub status: &'static str,
+    pub forwarding_paused: bool,
+    pub downstream_active_clients: u64,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -114,53 +116,33 @@ impl QualityWindow {
     }
 }
 
-pub(super) struct AppState {
+pub struct QbtRelayState {
     pub(super) metrics: Metrics,
-    pub(super) clients: Mutex<HashMap<u64, ClientMeta>>,
+    pub(super) clients: Mutex<HashMap<u64, QbtRelayClientMeta>>,
     pub(super) next_client_id: AtomicU64,
     pub(super) quality_window: Mutex<QualityWindow>,
     latest_server_list_wire: RwLock<Bytes>,
 }
 
-impl AppState {
-    pub(super) fn add_attempted(&self, bytes: u64) {
-        self.metrics
-            .bytes_attempted_total
-            .fetch_add(bytes, Ordering::Relaxed);
-        let mut window = self
-            .quality_window
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        window.add_attempted(bytes);
+impl QbtRelayState {
+    pub fn from_upstream_servers(servers: &[(String, u16)], quality_window_secs: usize) -> Self {
+        Self {
+            metrics: Metrics::default(),
+            clients: Mutex::new(HashMap::new()),
+            next_client_id: AtomicU64::new(1),
+            quality_window: Mutex::new(QualityWindow::new(quality_window_secs)),
+            latest_server_list_wire: RwLock::new(build_server_list_wire(servers)),
+        }
     }
 
-    pub(super) fn add_forwarded(&self, bytes: u64) {
-        self.metrics
-            .bytes_forwarded_total
-            .fetch_add(bytes, Ordering::Relaxed);
-        let mut window = self
-            .quality_window
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        window.add_forwarded(bytes);
-    }
-
-    pub(super) fn set_latest_server_list_wire(&self, bytes: Bytes) {
-        let mut guard = self
-            .latest_server_list_wire
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *guard = bytes;
-    }
-
-    pub(super) fn latest_server_list_wire(&self) -> Bytes {
+    pub fn latest_server_list_wire(&self) -> Bytes {
         self.latest_server_list_wire
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
     }
 
-    pub(super) fn metrics_snapshot(&self) -> MetricsSnapshot {
+    pub fn metrics_snapshot(&self) -> QbtRelayMetricsSnapshot {
         let users = self
             .clients
             .lock()
@@ -168,7 +150,7 @@ impl AppState {
             .values()
             .cloned()
             .collect::<Vec<_>>();
-        MetricsSnapshot {
+        QbtRelayMetricsSnapshot {
             upstream_connection_attempts_total: self
                 .metrics
                 .upstream_connection_attempts_total
@@ -224,13 +206,44 @@ impl AppState {
         }
     }
 
-    pub(super) fn new(initial_server_list_wire: Bytes, quality_window_secs: usize) -> Self {
-        Self {
-            metrics: Metrics::default(),
-            clients: Mutex::new(HashMap::new()),
-            next_client_id: AtomicU64::new(1),
-            quality_window: Mutex::new(QualityWindow::new(quality_window_secs)),
-            latest_server_list_wire: RwLock::new(initial_server_list_wire),
+    pub fn health_snapshot(&self) -> QbtRelayHealthSnapshot {
+        QbtRelayHealthSnapshot {
+            status: "ok",
+            forwarding_paused: self.metrics.forwarding_paused.load(Ordering::Relaxed),
+            downstream_active_clients: self
+                .metrics
+                .downstream_active_clients
+                .load(Ordering::Relaxed),
         }
+    }
+
+    pub(super) fn add_attempted(&self, bytes: u64) {
+        self.metrics
+            .bytes_attempted_total
+            .fetch_add(bytes, Ordering::Relaxed);
+        let mut window = self
+            .quality_window
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        window.add_attempted(bytes);
+    }
+
+    pub(super) fn add_forwarded(&self, bytes: u64) {
+        self.metrics
+            .bytes_forwarded_total
+            .fetch_add(bytes, Ordering::Relaxed);
+        let mut window = self
+            .quality_window
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        window.add_forwarded(bytes);
+    }
+
+    pub(super) fn set_latest_server_list_wire(&self, bytes: Bytes) {
+        let mut guard = self
+            .latest_server_list_wire
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard = bytes;
     }
 }

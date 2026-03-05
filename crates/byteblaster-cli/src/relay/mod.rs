@@ -16,11 +16,8 @@
 //!
 //! ## Components
 //!
-//! - [`auth`]: Downstream client authentication management
-//! - [`config`]: Relay configuration and command-line arguments
-//! - [`runtime`]: Main relay runtime implementation
-//! - [`server_list`]: Server list handling for downstream clients
-//! - [`state`]: Relay state management including telemetry and quality tracking
+//! - [`config`]: Relay command-line parsing and mapping to core runtime config
+//! - [`runtime`]: CLI adapter that runs the core relay engine and exposes metrics HTTP endpoints
 //!
 //! ## Endpoints
 //!
@@ -34,11 +31,8 @@
 //! backpressure-aware operation and protects downstream clients from receiving
 //! corrupted or incomplete data.
 
-mod auth;
 mod config;
 mod runtime;
-mod server_list;
-mod state;
 
 pub use config::RelayArgs as RelayOptions;
 

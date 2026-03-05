@@ -6,7 +6,7 @@ use anyhow::{Context, Result, anyhow};
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use byteblaster_core::unstable::{build_logon_message, xor_ff};
+use byteblaster_core::unstable::qbt_receiver::{build_logon_message, xor_ff};
 use bytes::Bytes;
 use std::net::SocketAddr;
 use std::sync::Arc;

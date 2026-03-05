@@ -1,53 +1,24 @@
 //! # byteblaster-core
 //!
-//! Core library for ByteBlaster protocol decoding, client runtime, and file assembly.
-//!
-//! This crate provides the foundational components for working with the ByteBlaster
-//! protocol, including:
-//! - Protocol decoding and encoding
-//! - Client connection management with reconnect and failover
-//! - File assembly from segmented data blocks
-//! - Stream abstractions for async data processing
+//! Core library for ByteBlaster protocol receivers.
 
-mod client;
-mod config;
-mod error;
-mod file;
-mod protocol;
-mod stream;
-mod weather_wire;
-
-// Public API exports
-
-pub use client::{ByteBlasterClient, Client, ClientBuilder, ClientEvent, ClientTelemetrySnapshot};
-pub use config::{ChecksumPolicy, ClientConfig, DecodeConfig, V2CompressionPolicy};
-pub use error::{ConfigError, CoreError, CoreResult, ProtocolError};
-pub use file::{CompletedFile, FileAssembler, SegmentAssembler};
-pub use protocol::checksum::calculate_checksum;
-pub use protocol::codec::{FrameDecoder, FrameEncoder, ProtocolDecoder};
-pub use protocol::model::{
-    AuthMessage, FrameEvent, ProtocolVersion, ProtocolWarning, QbtSegment, ServerList,
-};
-pub use protocol::server_list::parse_server;
-pub use weather_wire::client::{
-    WeatherWireClient, WxWireClientBuilder, WxWireClientEvent, WxWireClientImpl,
-    WxWireTelemetrySnapshot,
-};
-pub use weather_wire::codec::{WxWireDecoder, WxWireFrameDecoder};
-pub use weather_wire::config::{
-    WXWIRE_MAX_BACKOFF_SECS, WXWIRE_MIN_BACKOFF_SECS, WXWIRE_PORT, WXWIRE_PRIMARY_HOST,
-    WXWIRE_ROOM, WxWireConfig,
-};
-pub use weather_wire::error::{WeatherWireError, WeatherWireResult};
-pub use weather_wire::model::{WeatherWireFile, WeatherWireFrameEvent, WeatherWireWarning};
+pub mod qbt_receiver;
+pub mod wxwire_receiver;
 
 /// Unstable API surface. Items in this module may change without stability guarantees.
 pub mod unstable {
-    pub use crate::client::reconnect::{EndpointRotator, next_backoff_secs};
-    pub use crate::client::watchdog::{HealthObserver, Watchdog};
-    pub use crate::protocol::auth::{build_logon_message, xor_ff};
-    pub use crate::protocol::server_list::{parse_server_list_frame, parse_simple_server_list};
-    pub use crate::stream::file_stream::FileStream;
-    pub use crate::stream::segment_stream::SegmentStream;
-    pub use crate::weather_wire::client::UnstableWxWireIngress;
+    pub mod qbt_receiver {
+        pub use crate::qbt_receiver::client::reconnect::{EndpointRotator, next_backoff_secs};
+        pub use crate::qbt_receiver::client::watchdog::{HealthObserver, Watchdog};
+        pub use crate::qbt_receiver::protocol::auth::{build_logon_message, xor_ff};
+        pub use crate::qbt_receiver::protocol::server_list::{
+            parse_server_list_frame, parse_simple_server_list,
+        };
+        pub use crate::qbt_receiver::stream::file_stream::QbtFileStream;
+        pub use crate::qbt_receiver::stream::segment_stream::QbtSegmentStream;
+    }
+
+    pub mod wxwire_receiver {
+        pub use crate::wxwire_receiver::client::UnstableWxWireReceiverIngress;
+    }
 }

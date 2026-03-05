@@ -38,8 +38,8 @@
 //! - `timeout_secs`: Maximum time without data reception (minimum 1 second)
 //! - `max_exceptions`: Maximum number of consecutive exceptions allowed
 //!
-//! These values come from the [`ClientConfig.watchdog_timeout_secs`] and
-//! [`ClientConfig.max_exceptions`] fields.
+//! These values come from the [`QbtReceiverConfig.watchdog_timeout_secs`] and
+//! [`QbtReceiverConfig.max_exceptions`] fields.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};

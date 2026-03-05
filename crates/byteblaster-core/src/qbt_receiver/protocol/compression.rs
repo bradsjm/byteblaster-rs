@@ -3,7 +3,7 @@
 //! This module provides zlib compression detection and decompression
 //! for V2 protocol frames that use compression.
 
-use crate::error::ProtocolError;
+use crate::qbt_receiver::error::QbtProtocolError;
 use std::io::Read;
 
 /// Checks if the input has a valid zlib header.
@@ -39,16 +39,16 @@ pub fn has_zlib_header(input: &[u8]) -> bool {
 ///
 /// # Returns
 ///
-/// Decompressed bytes on success, or a `ProtocolError::Decompression` on failure
+/// Decompressed bytes on success, or a `QbtProtocolError::Decompression` on failure
 ///
 /// # Errors
 ///
 /// Returns an error if the data is not valid zlib compressed data
-pub fn decompress_zlib(input: &[u8]) -> Result<Vec<u8>, ProtocolError> {
+pub fn decompress_zlib(input: &[u8]) -> Result<Vec<u8>, QbtProtocolError> {
     let mut decoder = flate2::read::ZlibDecoder::new(input);
     let mut out = Vec::new();
     decoder
         .read_to_end(&mut out)
-        .map_err(|e| ProtocolError::Decompression(e.to_string()))?;
+        .map_err(|e| QbtProtocolError::Decompression(e.to_string()))?;
     Ok(out)
 }

@@ -1,11 +1,10 @@
-use crate::error::{CoreError, CoreResult};
-use crate::weather_wire::codec::{WxWireDecoder, WxWireFrameDecoder};
-use crate::weather_wire::config::{
-    WXWIRE_MAX_BACKOFF_SECS, WXWIRE_MIN_BACKOFF_SECS, WXWIRE_PRIMARY_HOST, WxWireConfig,
+use crate::wxwire_receiver::codec::{WxWireDecoder, WxWireFrameDecoder};
+use crate::wxwire_receiver::config::{
+    WXWIRE_MAX_BACKOFF_SECS, WXWIRE_MIN_BACKOFF_SECS, WXWIRE_PRIMARY_HOST, WxWireReceiverConfig,
 };
-use crate::weather_wire::error::WeatherWireResult;
-use crate::weather_wire::model::{WeatherWireFrameEvent, WeatherWireWarning};
-use crate::weather_wire::transport::{WxWireTransport, XmppWxWireTransport};
+use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
+use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
+use crate::wxwire_receiver::transport::{WxWireTransport, XmppWxWireTransport};
 use futures::{Stream, stream};
 use std::future::Future;
 use std::pin::Pin;
@@ -21,7 +20,7 @@ use tokio::sync::{mpsc, watch};
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[non_exhaustive]
-pub struct WxWireTelemetrySnapshot {
+pub struct WxWireReceiverTelemetrySnapshot {
     /// Total client starts.
     pub starts_total: u64,
     /// Total stop requests.
@@ -50,69 +49,72 @@ pub struct WxWireTelemetrySnapshot {
 
 #[derive(Debug, Default)]
 struct RuntimeTelemetry {
-    snapshot: WxWireTelemetrySnapshot,
+    snapshot: WxWireReceiverTelemetrySnapshot,
     dropped_since_last_report: u64,
 }
 
 /// Events emitted by the weather wire client.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum WxWireClientEvent {
+pub enum WxWireReceiverEvent {
     /// Frame-level event (file or warning).
-    Frame(WeatherWireFrameEvent),
+    Frame(WxWireReceiverFrameEvent),
     /// Connected endpoint label.
     Connected(String),
     /// Disconnected from endpoint.
     Disconnected,
     /// Periodic telemetry snapshot.
-    Telemetry(WxWireTelemetrySnapshot),
+    Telemetry(WxWireReceiverTelemetrySnapshot),
 }
 
 /// Weather wire event handler callback type.
-pub type WxWireEventHandler = Arc<dyn Fn(&WeatherWireFrameEvent) -> CoreResult<()> + Send + Sync>;
+pub type WxWireReceiverEventHandler =
+    Arc<dyn Fn(&WxWireReceiverFrameEvent) -> WxWireReceiverResult<()> + Send + Sync>;
 
 type TransportFuture =
-    Pin<Box<dyn Future<Output = WeatherWireResult<Box<dyn WxWireTransport>>> + Send>>;
+    Pin<Box<dyn Future<Output = WxWireReceiverResult<Box<dyn WxWireTransport>>> + Send>>;
 type TransportFactory = Arc<dyn Fn(String, String, Duration) -> TransportFuture + Send + Sync>;
 
 /// Trait for weather wire clients.
-pub trait WeatherWireClient: Send {
+pub trait WxWireReceiverClient: Send {
     /// Starts the runtime loop.
-    fn start(&mut self) -> CoreResult<()>;
+    fn start(&mut self) -> WxWireReceiverResult<()>;
 
     /// Stops the runtime loop.
-    fn stop(&mut self) -> Pin<Box<dyn std::future::Future<Output = CoreResult<()>> + Send + '_>>;
+    fn stop(
+        &mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + '_>>;
 
     /// Returns a stream of runtime events.
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<WxWireClientEvent, CoreError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Stream<Item = Result<WxWireReceiverEvent, WxWireReceiverError>> + Send + '_>>;
 }
 
 /// Unstable ingress surface for raw stanza injection.
-pub trait UnstableWxWireIngress {
+pub trait UnstableWxWireReceiverIngress {
     /// Submits one raw XMPP stanza string to the runtime decoder.
-    fn submit_raw_stanza(&self, stanza: String) -> CoreResult<()>;
+    fn submit_raw_stanza(&self, stanza: String) -> WxWireReceiverResult<()>;
 }
 
 /// Builder for validated weather wire client construction.
 #[derive(Clone)]
-pub struct WxWireClientBuilder {
-    config: WxWireConfig,
+pub struct WxWireReceiverBuilder {
+    config: WxWireReceiverConfig,
     transport_factory: TransportFactory,
 }
 
-impl std::fmt::Debug for WxWireClientBuilder {
+impl std::fmt::Debug for WxWireReceiverBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WxWireClientBuilder")
+        f.debug_struct("WxWireReceiverBuilder")
             .field("config", &self.config)
             .finish()
     }
 }
 
-impl WxWireClientBuilder {
+impl WxWireReceiverBuilder {
     /// Creates a new builder.
-    pub fn new(config: WxWireConfig) -> Self {
+    pub fn new(config: WxWireReceiverConfig) -> Self {
         Self {
             config,
             transport_factory: Arc::new(default_transport_factory),
@@ -128,9 +130,9 @@ impl WxWireClientBuilder {
     }
 
     /// Validates config and builds a client instance.
-    pub fn build(self) -> Result<WxWireClientImpl, CoreError> {
-        self.config.validate().map_err(CoreError::from)?;
-        Ok(WxWireClientImpl {
+    pub fn build(self) -> Result<WxWireReceiver, WxWireReceiverError> {
+        self.config.validate()?;
+        Ok(WxWireReceiver {
             config: self.config,
             running: false,
             event_rx: None,
@@ -138,28 +140,28 @@ impl WxWireClientBuilder {
             join_handle: None,
             ingress_tx: None,
             handlers: Vec::new(),
-            telemetry: Arc::new(Mutex::new(WxWireTelemetrySnapshot::default())),
+            telemetry: Arc::new(Mutex::new(WxWireReceiverTelemetrySnapshot::default())),
             transport_factory: self.transport_factory,
         })
     }
 }
 
 /// Weather wire client runtime.
-pub struct WxWireClientImpl {
-    config: WxWireConfig,
+pub struct WxWireReceiver {
+    config: WxWireReceiverConfig,
     running: bool,
-    event_rx: Option<mpsc::Receiver<Result<WxWireClientEvent, CoreError>>>,
+    event_rx: Option<mpsc::Receiver<Result<WxWireReceiverEvent, WxWireReceiverError>>>,
     shutdown_tx: Option<watch::Sender<bool>>,
     join_handle: Option<tokio::task::JoinHandle<()>>,
     ingress_tx: Option<mpsc::Sender<String>>,
-    handlers: Vec<WxWireEventHandler>,
-    telemetry: Arc<Mutex<WxWireTelemetrySnapshot>>,
+    handlers: Vec<WxWireReceiverEventHandler>,
+    telemetry: Arc<Mutex<WxWireReceiverTelemetrySnapshot>>,
     transport_factory: TransportFactory,
 }
 
-impl std::fmt::Debug for WxWireClientImpl {
+impl std::fmt::Debug for WxWireReceiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WxWireClientImpl")
+        f.debug_struct("WxWireReceiver")
             .field("config", &self.config)
             .field("running", &self.running)
             .field("handler_count", &self.handlers.len())
@@ -167,57 +169,56 @@ impl std::fmt::Debug for WxWireClientImpl {
     }
 }
 
-impl WxWireClientImpl {
+impl WxWireReceiver {
     /// Returns a builder for the weather wire client.
-    pub fn builder(config: WxWireConfig) -> WxWireClientBuilder {
-        WxWireClientBuilder::new(config)
+    pub fn builder(config: WxWireReceiverConfig) -> WxWireReceiverBuilder {
+        WxWireReceiverBuilder::new(config)
     }
 
     /// Returns runtime config.
-    pub fn config(&self) -> &WxWireConfig {
+    pub fn config(&self) -> &WxWireReceiverConfig {
         &self.config
     }
 
     /// Adds an event handler callback.
-    pub fn subscribe(&mut self, handler: WxWireEventHandler) {
+    pub fn subscribe(&mut self, handler: WxWireReceiverEventHandler) {
         self.handlers.push(handler);
     }
 
     /// Returns a snapshot of current telemetry counters.
-    pub fn telemetry_snapshot(&self) -> WxWireTelemetrySnapshot {
+    pub fn telemetry_snapshot(&self) -> WxWireReceiverTelemetrySnapshot {
         self.telemetry
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
     }
 
-    fn submit_raw_stanza_internal(&self, stanza: String) -> CoreResult<()> {
-        let tx = self
-            .ingress_tx
-            .as_ref()
-            .ok_or_else(|| CoreError::Lifecycle("weather wire client not running".to_string()))?;
+    fn submit_raw_stanza_internal(&self, stanza: String) -> WxWireReceiverResult<()> {
+        let tx = self.ingress_tx.as_ref().ok_or_else(|| {
+            WxWireReceiverError::Lifecycle("weather wire client not running".to_string())
+        })?;
 
         tx.try_send(stanza).map_err(|err| match err {
             TrySendError::Full(_) => {
-                CoreError::Lifecycle("weather wire ingress queue full".to_string())
+                WxWireReceiverError::Lifecycle("weather wire ingress queue full".to_string())
             }
             TrySendError::Closed(_) => {
-                CoreError::Lifecycle("weather wire ingress queue closed".to_string())
+                WxWireReceiverError::Lifecycle("weather wire ingress queue closed".to_string())
             }
         })
     }
 }
 
-impl UnstableWxWireIngress for WxWireClientImpl {
-    fn submit_raw_stanza(&self, stanza: String) -> CoreResult<()> {
+impl UnstableWxWireReceiverIngress for WxWireReceiver {
+    fn submit_raw_stanza(&self, stanza: String) -> WxWireReceiverResult<()> {
         self.submit_raw_stanza_internal(stanza)
     }
 }
 
-impl WeatherWireClient for WxWireClientImpl {
-    fn start(&mut self) -> CoreResult<()> {
+impl WxWireReceiverClient for WxWireReceiver {
+    fn start(&mut self) -> WxWireReceiverResult<()> {
         if self.running {
-            return Err(CoreError::Lifecycle(
+            return Err(WxWireReceiverError::Lifecycle(
                 "weather wire client already running".to_string(),
             ));
         }
@@ -251,7 +252,9 @@ impl WeatherWireClient for WxWireClientImpl {
         Ok(())
     }
 
-    fn stop(&mut self) -> Pin<Box<dyn std::future::Future<Output = CoreResult<()>> + Send + '_>> {
+    fn stop(
+        &mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + '_>> {
         Box::pin(async move {
             if !self.running {
                 return Ok(());
@@ -274,7 +277,8 @@ impl WeatherWireClient for WxWireClientImpl {
 
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<WxWireClientEvent, CoreError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<WxWireReceiverEvent, WxWireReceiverError>> + Send + '_>>
+    {
         match self.event_rx.take() {
             Some(rx) => Box::pin(stream::unfold(rx, |mut rx| async move {
                 rx.recv().await.map(|item| (item, rx))
@@ -285,12 +289,12 @@ impl WeatherWireClient for WxWireClientImpl {
 }
 
 async fn run_weather_wire_loop(
-    config: WxWireConfig,
-    event_tx: mpsc::Sender<Result<WxWireClientEvent, CoreError>>,
+    config: WxWireReceiverConfig,
+    event_tx: mpsc::Sender<Result<WxWireReceiverEvent, WxWireReceiverError>>,
     mut ingress_rx: mpsc::Receiver<String>,
     mut shutdown_rx: watch::Receiver<bool>,
-    handlers: Vec<WxWireEventHandler>,
-    telemetry_sink: Arc<Mutex<WxWireTelemetrySnapshot>>,
+    handlers: Vec<WxWireReceiverEventHandler>,
+    telemetry_sink: Arc<Mutex<WxWireReceiverTelemetrySnapshot>>,
     transport_factory: TransportFactory,
 ) {
     let mut telemetry = RuntimeTelemetry::default();
@@ -308,7 +312,7 @@ async fn run_weather_wire_loop(
             telemetry.snapshot.stops_total = telemetry.snapshot.stops_total.saturating_add(1);
             try_send_event(
                 &event_tx,
-                Ok(WxWireClientEvent::Disconnected),
+                Ok(WxWireReceiverEvent::Disconnected),
                 &mut telemetry,
             );
             update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -333,9 +337,10 @@ async fn run_weather_wire_loop(
         let mut transport = match connect {
             Ok(transport) => transport,
             Err(err) => {
-                let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::TransportError {
-                    message: err.to_string(),
-                });
+                let warning =
+                    WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
+                        message: err.to_string(),
+                    });
                 dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
                 update_telemetry_sink(&telemetry_sink, &telemetry);
                 consecutive_failures = consecutive_failures.saturating_add(1);
@@ -348,7 +353,7 @@ async fn run_weather_wire_loop(
 
         try_send_event(
             &event_tx,
-            Ok(WxWireClientEvent::Connected(transport.label())),
+            Ok(WxWireReceiverEvent::Connected(transport.label())),
             &mut telemetry,
         );
         update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -361,7 +366,7 @@ async fn run_weather_wire_loop(
                 let _ = transport.disconnect().await;
                 try_send_event(
                     &event_tx,
-                    Ok(WxWireClientEvent::Disconnected),
+                    Ok(WxWireReceiverEvent::Disconnected),
                     &mut telemetry,
                 );
                 update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -391,7 +396,7 @@ async fn run_weather_wire_loop(
                             .saturating_add(1);
                         try_send_event(
                             &event_tx,
-                            Ok(WxWireClientEvent::Telemetry(telemetry.snapshot.clone())),
+                            Ok(WxWireReceiverEvent::Telemetry(telemetry.snapshot.clone())),
                             &mut telemetry,
                         );
                         update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -409,7 +414,7 @@ async fn run_weather_wire_loop(
                                     update_telemetry_sink(&telemetry_sink, &telemetry);
                                 }
                                 Err(err) => {
-                                    let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::DecoderRecovered {
+                                    let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::DecoderRecovered {
                                         error: err.to_string(),
                                     });
                                     dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
@@ -433,7 +438,7 @@ async fn run_weather_wire_loop(
                                         update_telemetry_sink(&telemetry_sink, &telemetry);
                                     }
                                     Err(err) => {
-                                        let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::DecoderRecovered {
+                                        let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::DecoderRecovered {
                                             error: err.to_string(),
                                         });
                                         dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
@@ -443,7 +448,7 @@ async fn run_weather_wire_loop(
                                 }
                             }
                             Ok(Err(err)) => {
-                                let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::TransportError {
+                                let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::TransportError {
                                     message: err.to_string(),
                                 });
                                 dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
@@ -455,7 +460,7 @@ async fn run_weather_wire_loop(
                                         .snapshot
                                         .idle_reconnects_total
                                         .saturating_add(1);
-                                    let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::IdleTimeoutReconnect);
+                                    let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::IdleTimeoutReconnect);
                                     dispatch_frame_events(&event_tx, &handlers, vec![warning], &mut telemetry);
                                     action = NextAction::Reconnect;
                                 }
@@ -472,7 +477,7 @@ async fn run_weather_wire_loop(
                     let _ = transport.disconnect().await;
                     try_send_event(
                         &event_tx,
-                        Ok(WxWireClientEvent::Disconnected),
+                        Ok(WxWireReceiverEvent::Disconnected),
                         &mut telemetry,
                     );
                     update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -482,7 +487,7 @@ async fn run_weather_wire_loop(
                     let _ = transport.disconnect().await;
                     try_send_event(
                         &event_tx,
-                        Ok(WxWireClientEvent::Disconnected),
+                        Ok(WxWireReceiverEvent::Disconnected),
                         &mut telemetry,
                     );
                     update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -502,7 +507,7 @@ async fn connect_single_endpoint(
     password: String,
     connect_timeout: Duration,
     telemetry: &mut RuntimeTelemetry,
-) -> WeatherWireResult<Box<dyn WxWireTransport>> {
+) -> WxWireReceiverResult<Box<dyn WxWireTransport>> {
     telemetry.snapshot.connect_attempts_total =
         telemetry.snapshot.connect_attempts_total.saturating_add(1);
     factory(username, password, connect_timeout).await
@@ -532,17 +537,17 @@ fn next_backoff_secs(consecutive_failures: u32) -> u64 {
 }
 
 fn dispatch_frame_events(
-    event_tx: &mpsc::Sender<Result<WxWireClientEvent, CoreError>>,
-    handlers: &[WxWireEventHandler],
-    frame_events: Vec<WeatherWireFrameEvent>,
+    event_tx: &mpsc::Sender<Result<WxWireReceiverEvent, WxWireReceiverError>>,
+    handlers: &[WxWireReceiverEventHandler],
+    frame_events: Vec<WxWireReceiverFrameEvent>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     for frame_event in frame_events {
-        if matches!(frame_event, WeatherWireFrameEvent::File(_)) {
+        if matches!(frame_event, WxWireReceiverFrameEvent::File(_)) {
             telemetry.snapshot.files_emitted_total =
                 telemetry.snapshot.files_emitted_total.saturating_add(1);
         }
-        if matches!(frame_event, WeatherWireFrameEvent::Warning(_)) {
+        if matches!(frame_event, WxWireReceiverFrameEvent::Warning(_)) {
             telemetry.snapshot.warning_events_total =
                 telemetry.snapshot.warning_events_total.saturating_add(1);
         }
@@ -551,26 +556,27 @@ fn dispatch_frame_events(
             if let Err(err) = handler(&frame_event) {
                 telemetry.snapshot.handler_failures_total =
                     telemetry.snapshot.handler_failures_total.saturating_add(1);
-                let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::HandlerError {
-                    message: err.to_string(),
-                });
+                let warning =
+                    WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::HandlerError {
+                        message: err.to_string(),
+                    });
                 telemetry.snapshot.warning_events_total =
                     telemetry.snapshot.warning_events_total.saturating_add(1);
-                try_send_event(event_tx, Ok(WxWireClientEvent::Frame(warning)), telemetry);
+                try_send_event(event_tx, Ok(WxWireReceiverEvent::Frame(warning)), telemetry);
             }
         }
 
         try_send_event(
             event_tx,
-            Ok(WxWireClientEvent::Frame(frame_event)),
+            Ok(WxWireReceiverEvent::Frame(frame_event)),
             telemetry,
         );
     }
 }
 
 fn try_send_event(
-    event_tx: &mpsc::Sender<Result<WxWireClientEvent, CoreError>>,
-    event: Result<WxWireClientEvent, CoreError>,
+    event_tx: &mpsc::Sender<Result<WxWireReceiverEvent, WxWireReceiverError>>,
+    event: Result<WxWireReceiverEvent, WxWireReceiverError>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     try_emit_backpressure_warning(event_tx, telemetry);
@@ -580,19 +586,19 @@ fn try_send_event(
 }
 
 fn try_emit_backpressure_warning(
-    event_tx: &mpsc::Sender<Result<WxWireClientEvent, CoreError>>,
+    event_tx: &mpsc::Sender<Result<WxWireReceiverEvent, WxWireReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     if telemetry.dropped_since_last_report == 0 {
         return;
     }
 
-    let warning = WeatherWireFrameEvent::Warning(WeatherWireWarning::BackpressureDrop {
+    let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::BackpressureDrop {
         dropped_since_last_report: telemetry.dropped_since_last_report,
         total_dropped_events: telemetry.snapshot.event_queue_drop_total,
     });
 
-    match event_tx.try_send(Ok(WxWireClientEvent::Frame(warning))) {
+    match event_tx.try_send(Ok(WxWireReceiverEvent::Frame(warning))) {
         Ok(()) => {
             telemetry.snapshot.warning_events_total =
                 telemetry.snapshot.warning_events_total.saturating_add(1);
@@ -607,7 +613,7 @@ fn try_emit_backpressure_warning(
 }
 
 fn record_dropped_event(
-    err: TrySendError<Result<WxWireClientEvent, CoreError>>,
+    err: TrySendError<Result<WxWireReceiverEvent, WxWireReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     if matches!(err, TrySendError::Full(_)) {
@@ -617,7 +623,10 @@ fn record_dropped_event(
     }
 }
 
-fn update_telemetry_sink(sink: &Arc<Mutex<WxWireTelemetrySnapshot>>, telemetry: &RuntimeTelemetry) {
+fn update_telemetry_sink(
+    sink: &Arc<Mutex<WxWireReceiverTelemetrySnapshot>>,
+    telemetry: &RuntimeTelemetry,
+) {
     let mut guard = sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     *guard = telemetry.snapshot.clone();
 }
@@ -625,12 +634,12 @@ fn update_telemetry_sink(sink: &Arc<Mutex<WxWireTelemetrySnapshot>>, telemetry: 
 #[cfg(test)]
 mod tests {
     use super::{
-        TransportFactory, UnstableWxWireIngress, WeatherWireClient, WxWireClientEvent,
-        WxWireClientImpl, WxWireConfig, WxWireEventHandler,
+        TransportFactory, UnstableWxWireReceiverIngress, WxWireReceiver, WxWireReceiverClient,
+        WxWireReceiverConfig, WxWireReceiverEvent, WxWireReceiverEventHandler,
     };
-    use crate::error::CoreError;
-    use crate::weather_wire::model::{WeatherWireFrameEvent, WeatherWireWarning};
-    use crate::weather_wire::transport::WxWireTransport;
+    use crate::wxwire_receiver::error::WxWireReceiverError;
+    use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
+    use crate::wxwire_receiver::transport::WxWireTransport;
     use futures::StreamExt;
     use std::pin::Pin;
     use std::sync::Arc;
@@ -654,14 +663,14 @@ mod tests {
         ) -> Pin<
             Box<
                 dyn std::future::Future<
-                        Output = crate::weather_wire::error::WeatherWireResult<Message>,
+                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<Message>,
                     > + Send
                     + 'a,
             >,
         > {
             Box::pin(async move {
                 self.rx.recv().await.ok_or_else(|| {
-                    crate::weather_wire::error::WeatherWireError::Transport(
+                    crate::wxwire_receiver::error::WxWireReceiverError::Transport(
                         "mock stream ended".to_string(),
                     )
                 })
@@ -672,8 +681,9 @@ mod tests {
             &'a mut self,
         ) -> Pin<
             Box<
-                dyn std::future::Future<Output = crate::weather_wire::error::WeatherWireResult<()>>
-                    + Send
+                dyn std::future::Future<
+                        Output = crate::wxwire_receiver::error::WxWireReceiverResult<()>,
+                    > + Send
                     + 'a,
             >,
         > {
@@ -681,14 +691,14 @@ mod tests {
         }
     }
 
-    fn valid_config() -> WxWireConfig {
-        WxWireConfig {
+    fn valid_config() -> WxWireReceiverConfig {
+        WxWireReceiverConfig {
             username: "user".to_string(),
             password: "pass".to_string(),
             idle_timeout_secs: 1,
             telemetry_emit_interval_secs: 1,
             connect_timeout_secs: 1,
-            ..WxWireConfig::default()
+            ..WxWireReceiverConfig::default()
         }
     }
 
@@ -708,7 +718,7 @@ mod tests {
 
     #[tokio::test]
     async fn client_emits_file_frame_for_valid_message() {
-        let mut client = WxWireClientImpl::builder(valid_config())
+        let mut client = WxWireReceiver::builder(valid_config())
             .with_transport_factory(mock_factory())
             .build()
             .expect("client should build");
@@ -717,7 +727,7 @@ mod tests {
         let mut events = client.events();
         let mut saw_file = false;
         for _ in 0..12 {
-            if let Ok(Some(Ok(WxWireClientEvent::Frame(WeatherWireFrameEvent::File(file))))) =
+            if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(file))))) =
                 tokio::time::timeout(Duration::from_millis(250), events.next()).await
             {
                 saw_file = file.filename == "AFDOKX.txt";
@@ -732,10 +742,11 @@ mod tests {
 
     #[tokio::test]
     async fn handler_error_isolated() {
-        let bad: WxWireEventHandler =
-            Arc::new(|_evt: &WeatherWireFrameEvent| Err(CoreError::Lifecycle("boom".to_string())));
+        let bad: WxWireReceiverEventHandler = Arc::new(|_evt: &WxWireReceiverFrameEvent| {
+            Err(WxWireReceiverError::Lifecycle("boom".to_string()))
+        });
 
-        let mut client = WxWireClientImpl::builder(valid_config())
+        let mut client = WxWireReceiver::builder(valid_config())
             .with_transport_factory(mock_factory())
             .build()
             .expect("client should build");
@@ -745,8 +756,8 @@ mod tests {
         let mut events = client.events();
         let mut saw_handler_warning = false;
         for _ in 0..12 {
-            if let Ok(Some(Ok(WxWireClientEvent::Frame(WeatherWireFrameEvent::Warning(
-                WeatherWireWarning::HandlerError { .. },
+            if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::Warning(
+                WxWireReceiverWarning::HandlerError { .. },
             ))))) = tokio::time::timeout(Duration::from_millis(250), events.next()).await
             {
                 saw_handler_warning = true;
@@ -761,7 +772,7 @@ mod tests {
 
     #[tokio::test]
     async fn unstable_raw_ingress_works() {
-        let mut client = WxWireClientImpl::builder(valid_config())
+        let mut client = WxWireReceiver::builder(valid_config())
             .with_transport_factory(mock_factory())
             .build()
             .expect("client should build");
@@ -774,7 +785,7 @@ mod tests {
         let mut events = client.events();
         let mut saw_file = false;
         for _ in 0..20 {
-            if let Ok(Some(Ok(WxWireClientEvent::Frame(WeatherWireFrameEvent::File(_))))) =
+            if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(_))))) =
                 tokio::time::timeout(Duration::from_millis(250), events.next()).await
             {
                 saw_file = true;

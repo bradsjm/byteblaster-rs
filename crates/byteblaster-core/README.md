@@ -21,31 +21,27 @@ Core Rust library for ByteBlaster protocol parsing, client runtime, and file ass
 
 ## Public modules
 
-- `config`
-- `error`
-- `protocol`
-- `client`
-- `file`
-- `stream`
+- `qbt_receiver`
+- `wxwire_receiver`
 
 ## Re-exported entry points
 
 See `src/lib.rs` for current canonical exports.
 
-Key exported types include:
+Key exported QBT receiver types include:
 
-- `Client`, `ClientBuilder`, `ClientEvent`
-- `ClientConfig`, `DecodeConfig`, `ChecksumPolicy`, `V2CompressionPolicy`
-- `FrameEvent`, `QbtSegment`, `ServerList`
-- `FileAssembler`, `CompletedFile`
+- `QbtReceiver`, `QbtReceiverBuilder`, `QbtReceiverEvent`
+- `QbtReceiverConfig`, `QbtDecodeConfig`, `QbtChecksumPolicy`, `QbtV2CompressionPolicy`
+- `QbtFrameEvent`, `QbtSegment`, `QbtServerList`
+- `QbtFileAssembler`, `QbtCompletedFile`
 
 ## Example (decoder)
 
 ```rust
-use byteblaster_core::protocol::codec::{FrameDecoder, ProtocolDecoder};
+use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
 
 fn decode_wire_chunk(wire: &[u8]) {
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let events = decoder.feed(wire).expect("decode failed");
     println!("decoded {} event(s)", events.len());
 }
@@ -70,12 +66,10 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
 Minimal usage example:
 
 ```rust
-use byteblaster_core::{ClientConfig, ProtocolDecoder};
+use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
 
 fn main() {
-    let _config = ClientConfig::default();
-
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let events = decoder.feed(&[]).expect("decode should not fail");
     println!("decoded {} event(s)", events.len());
 }

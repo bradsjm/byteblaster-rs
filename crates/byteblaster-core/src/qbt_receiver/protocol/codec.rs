@@ -9,14 +9,14 @@
 //! - Server list parsing
 //! - Text padding trimming
 
-use crate::config::{DecodeConfig, V2CompressionPolicy};
-use crate::error::ProtocolError;
-use crate::protocol::checksum::verify_checksum;
-use crate::protocol::compression::{decompress_zlib, has_zlib_header};
-use crate::protocol::model::{
-    AuthMessage, FrameEvent, ProtocolVersion, ProtocolWarning, QbtSegment,
+use crate::qbt_receiver::config::{QbtDecodeConfig, QbtV2CompressionPolicy};
+use crate::qbt_receiver::error::QbtProtocolError;
+use crate::qbt_receiver::protocol::checksum::verify_checksum;
+use crate::qbt_receiver::protocol::compression::{decompress_zlib, has_zlib_header};
+use crate::qbt_receiver::protocol::model::{
+    QbtAuthMessage, QbtFrameEvent, QbtProtocolVersion, QbtProtocolWarning, QbtSegment,
 };
-use crate::protocol::server_list::parse_server_list_frame;
+use crate::qbt_receiver::protocol::server_list::parse_server_list_frame;
 use bytes::{Bytes, BytesMut};
 use regex::Regex;
 use std::sync::OnceLock;
@@ -34,7 +34,7 @@ const HEADER_SIZE: usize = 80;
 const V1_BODY_SIZE: usize = 1024;
 
 /// Trait for frame decoders that can process wire data.
-pub trait FrameDecoder {
+pub trait QbtFrameDecoder {
     /// Feeds a chunk of wire data to the decoder.
     ///
     /// # Arguments
@@ -44,14 +44,14 @@ pub trait FrameDecoder {
     /// # Returns
     ///
     /// A vector of decoded frame events
-    fn feed(&mut self, chunk: &[u8]) -> Result<Vec<FrameEvent>, ProtocolError>;
+    fn feed(&mut self, chunk: &[u8]) -> Result<Vec<QbtFrameEvent>, QbtProtocolError>;
 
     /// Resets the decoder state.
     fn reset(&mut self);
 }
 
 /// Trait for frame encoders that can create wire data.
-pub trait FrameEncoder {
+pub trait QbtFrameEncoder {
     /// Encodes an authentication message.
     ///
     /// # Arguments
@@ -61,7 +61,7 @@ pub trait FrameEncoder {
     /// # Returns
     ///
     /// Encoded bytes ready for transmission
-    fn encode_auth(&self, auth: &AuthMessage) -> Result<Bytes, ProtocolError>;
+    fn encode_auth(&self, auth: &QbtAuthMessage) -> Result<Bytes, QbtProtocolError>;
 }
 
 /// Internal state machine for the protocol decoder.
@@ -70,7 +70,7 @@ pub trait FrameEncoder {
 /// - `Resync`: Looking for sync bytes to start a new frame
 /// - `StartFrame`: Skipping padding after sync
 /// - `FrameType`: Detecting the type of frame (data block or server list)
-/// - `ServerList`: Processing server list frame content
+/// - `QbtServerList`: Processing server list frame content
 /// - `BlockHeader`: Parsing data block header fields
 /// - `BlockBody`: Reading the body content
 /// - `Validate`: Validating checksum and emitting the segment
@@ -83,7 +83,7 @@ enum DecoderState {
     /// Detecting frame type from the first non-null byte.
     FrameType,
     /// Processing server list frame content.
-    ServerList,
+    QbtServerList,
     /// Parsing 80-byte header for data blocks.
     BlockHeader,
     /// Reading body content based on header length.
@@ -109,13 +109,13 @@ struct PendingSegment {
     /// Body length in bytes (1024 for V1, variable for V2).
     length: usize,
     /// Protocol version determined by presence of /DL field.
-    version: ProtocolVersion,
+    version: QbtProtocolVersion,
     /// Body content bytes.
     content: Bytes,
     /// Timestamp parsed from the /FD header field.
     timestamp_utc: SystemTime,
     /// Warnings collected during parsing.
-    warnings: Vec<ProtocolWarning>,
+    warnings: Vec<QbtProtocolWarning>,
     /// Whether decompression failed (V2 only).
     decompression_failed: bool,
 }
@@ -133,16 +133,16 @@ struct PendingSegment {
 /// # Example
 ///
 /// ```
-/// use byteblaster_core::{ProtocolDecoder, FrameDecoder};
+/// use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
 ///
-/// let mut decoder = ProtocolDecoder::default();
+/// let mut decoder = QbtProtocolDecoder::default();
 /// // Feed XOR-encoded wire data
 /// let events = decoder.feed(&[]).expect("decode should not fail");
 /// ```
 #[derive(Debug)]
-pub struct ProtocolDecoder {
+pub struct QbtProtocolDecoder {
     /// Decoder configuration.
-    config: DecodeConfig,
+    config: QbtDecodeConfig,
     /// Internal buffer for accumulating partial frames.
     buffer: BytesMut,
     /// Current decoder state.
@@ -151,19 +151,19 @@ pub struct ProtocolDecoder {
     pending: Option<PendingSegment>,
 }
 
-impl Default for ProtocolDecoder {
+impl Default for QbtProtocolDecoder {
     fn default() -> Self {
-        Self::new(DecodeConfig::default())
+        Self::new(QbtDecodeConfig::default())
     }
 }
 
-impl ProtocolDecoder {
+impl QbtProtocolDecoder {
     /// Creates a new protocol decoder with the given configuration.
     ///
     /// # Arguments
     ///
     /// * `config` - Decoder configuration options
-    pub fn new(config: DecodeConfig) -> Self {
+    pub fn new(config: QbtDecodeConfig) -> Self {
         Self {
             config,
             buffer: BytesMut::new(),
@@ -176,12 +176,12 @@ impl ProtocolDecoder {
     ///
     /// This is the main state machine dispatch. It processes as much
     /// data as possible and returns whether progress was made.
-    fn process_buffer(&mut self, out: &mut Vec<FrameEvent>) -> Result<bool, ProtocolError> {
+    fn process_buffer(&mut self, out: &mut Vec<QbtFrameEvent>) -> Result<bool, QbtProtocolError> {
         match self.state {
             DecoderState::Resync => Ok(self.find_sync()),
             DecoderState::StartFrame => Ok(self.skip_padding()),
             DecoderState::FrameType => Ok(self.detect_frame_type()),
-            DecoderState::ServerList => self.process_server_list(out),
+            DecoderState::QbtServerList => self.process_server_list(out),
             DecoderState::BlockHeader => self.process_block_header(),
             DecoderState::BlockBody => self.process_block_body(),
             DecoderState::Validate => self.validate_and_emit(out),
@@ -239,7 +239,7 @@ impl ProtocolDecoder {
     ///
     /// Frame types:
     /// - `/PF` - Data block frame (transitions to BlockHeader state)
-    /// - `/Se` or `/ServerList/` - Server list frame (transitions to ServerList state)
+    /// - `/Se` or `/ServerList/` - Server list frame (transitions to QbtServerList state)
     /// - Anything else - Invalid, resync
     fn detect_frame_type(&mut self) -> bool {
         if self.buffer.is_empty() {
@@ -262,7 +262,7 @@ impl ProtocolDecoder {
         }
 
         if self.buffer.starts_with(b"/Se") || self.buffer.starts_with(b"/ServerList/") {
-            self.state = DecoderState::ServerList;
+            self.state = DecoderState::QbtServerList;
             return true;
         }
 
@@ -271,23 +271,26 @@ impl ProtocolDecoder {
         true
     }
 
-    fn process_server_list(&mut self, out: &mut Vec<FrameEvent>) -> Result<bool, ProtocolError> {
+    fn process_server_list(
+        &mut self,
+        out: &mut Vec<QbtFrameEvent>,
+    ) -> Result<bool, QbtProtocolError> {
         let Some(end_idx) = self.buffer.iter().position(|b| *b == 0) else {
             return Ok(false);
         };
 
         let frame = self.buffer.split_to(end_idx + 1);
         let content = String::from_utf8(frame[..end_idx].to_vec())
-            .map_err(|e| ProtocolError::InvalidUtf8(e.to_string()))?;
+            .map_err(|e| QbtProtocolError::InvalidUtf8(e.to_string()))?;
 
         let (server_list, warnings) = parse_server_list_frame(&content)?;
-        out.push(FrameEvent::ServerListUpdate(server_list));
-        out.extend(warnings.into_iter().map(FrameEvent::Warning));
+        out.push(QbtFrameEvent::ServerListUpdate(server_list));
+        out.extend(warnings.into_iter().map(QbtFrameEvent::Warning));
         self.state = DecoderState::StartFrame;
         Ok(true)
     }
 
-    fn process_block_header(&mut self) -> Result<bool, ProtocolError> {
+    fn process_block_header(&mut self) -> Result<bool, QbtProtocolError> {
         if self.buffer.len() < HEADER_SIZE {
             return Ok(false);
         }
@@ -299,9 +302,9 @@ impl ProtocolDecoder {
         Ok(true)
     }
 
-    fn process_block_body(&mut self) -> Result<bool, ProtocolError> {
+    fn process_block_body(&mut self) -> Result<bool, QbtProtocolError> {
         let Some(pending) = self.pending.as_mut() else {
-            return Err(ProtocolError::InvalidFrameType);
+            return Err(QbtProtocolError::InvalidFrameType);
         };
 
         if self.buffer.len() < pending.length {
@@ -311,10 +314,10 @@ impl ProtocolDecoder {
         let body = self.buffer.split_to(pending.length);
         let mut content = body.to_vec();
 
-        if pending.version == ProtocolVersion::V2 {
+        if pending.version == QbtProtocolVersion::V2 {
             let should_attempt = match self.config.compression_policy {
-                V2CompressionPolicy::RequireZlibHeader => has_zlib_header(&content),
-                V2CompressionPolicy::TryAlways => true,
+                QbtV2CompressionPolicy::RequireZlibHeader => has_zlib_header(&content),
+                QbtV2CompressionPolicy::TryAlways => true,
             };
 
             if should_attempt {
@@ -322,11 +325,13 @@ impl ProtocolDecoder {
                     Ok(decompressed) => content = decompressed,
                     Err(err) => {
                         pending.decompression_failed = true;
-                        pending.warnings.push(ProtocolWarning::DecompressionFailed {
-                            filename: pending.filename.clone(),
-                            block_number: pending.block_number,
-                            reason: err.to_string(),
-                        });
+                        pending
+                            .warnings
+                            .push(QbtProtocolWarning::DecompressionFailed {
+                                filename: pending.filename.clone(),
+                                block_number: pending.block_number,
+                                reason: err.to_string(),
+                            });
                     }
                 }
             }
@@ -337,15 +342,18 @@ impl ProtocolDecoder {
         Ok(true)
     }
 
-    fn validate_and_emit(&mut self, out: &mut Vec<FrameEvent>) -> Result<bool, ProtocolError> {
+    fn validate_and_emit(
+        &mut self,
+        out: &mut Vec<QbtFrameEvent>,
+    ) -> Result<bool, QbtProtocolError> {
         let Some(mut pending) = self.pending.take() else {
-            return Err(ProtocolError::InvalidFrameType);
+            return Err(QbtProtocolError::InvalidFrameType);
         };
 
         self.state = DecoderState::StartFrame;
 
         for warning in pending.warnings.drain(..) {
-            out.push(FrameEvent::Warning(warning));
+            out.push(QbtFrameEvent::Warning(warning));
         }
 
         if pending.decompression_failed {
@@ -363,7 +371,7 @@ impl ProtocolDecoder {
             return Ok(true);
         }
 
-        let expected = if pending.version == ProtocolVersion::V1 {
+        let expected = if pending.version == QbtProtocolVersion::V1 {
             (pending.checksum & 0xFFFF) as i64
         } else {
             pending.checksum as i64
@@ -371,10 +379,12 @@ impl ProtocolDecoder {
 
         let valid_checksum = verify_checksum(&pending.content, expected);
         if !valid_checksum {
-            out.push(FrameEvent::Warning(ProtocolWarning::ChecksumMismatch {
-                filename: pending.filename.clone(),
-                block_number: pending.block_number,
-            }));
+            out.push(QbtFrameEvent::Warning(
+                QbtProtocolWarning::ChecksumMismatch {
+                    filename: pending.filename.clone(),
+                    block_number: pending.block_number,
+                },
+            ));
             return Ok(true);
         }
 
@@ -383,7 +393,7 @@ impl ProtocolDecoder {
             pending.content = Bytes::from(trimmed);
         }
 
-        out.push(FrameEvent::DataBlock(QbtSegment {
+        out.push(QbtFrameEvent::DataBlock(QbtSegment {
             filename: pending.filename,
             block_number: pending.block_number,
             total_blocks: pending.total_blocks,
@@ -399,8 +409,8 @@ impl ProtocolDecoder {
     }
 }
 
-impl FrameDecoder for ProtocolDecoder {
-    fn feed(&mut self, chunk: &[u8]) -> Result<Vec<FrameEvent>, ProtocolError> {
+impl QbtFrameDecoder for QbtProtocolDecoder {
+    fn feed(&mut self, chunk: &[u8]) -> Result<Vec<QbtFrameEvent>, QbtProtocolError> {
         let decoded: Vec<u8> = chunk.iter().map(|b| b ^ 0xFF).collect();
         self.buffer.extend_from_slice(&decoded);
 
@@ -409,12 +419,15 @@ impl FrameDecoder for ProtocolDecoder {
             let progressed = match self.process_buffer(&mut out) {
                 Ok(progressed) => progressed,
                 Err(err) => {
-                    out.push(FrameEvent::Warning(ProtocolWarning::DecoderRecovered {
-                        error: err.to_string(),
-                    }));
+                    out.push(QbtFrameEvent::Warning(
+                        QbtProtocolWarning::DecoderRecovered {
+                            error: err.to_string(),
+                        },
+                    ));
                     self.pending = None;
                     self.state = DecoderState::Resync;
-                    if matches!(err, ProtocolError::InvalidFrameType) && !self.buffer.is_empty() {
+                    if matches!(err, QbtProtocolError::InvalidFrameType) && !self.buffer.is_empty()
+                    {
                         let _ = self.buffer.split_to(1);
                         true
                     } else {
@@ -437,30 +450,30 @@ impl FrameDecoder for ProtocolDecoder {
     }
 }
 
-fn parse_header(input: &[u8], max_v2_body_size: usize) -> Result<PendingSegment, ProtocolError> {
+fn parse_header(input: &[u8], max_v2_body_size: usize) -> Result<PendingSegment, QbtProtocolError> {
     let header =
-        std::str::from_utf8(input).map_err(|e| ProtocolError::InvalidUtf8(e.to_string()))?;
+        std::str::from_utf8(input).map_err(|e| QbtProtocolError::InvalidUtf8(e.to_string()))?;
     let captures = header_regex()
         .captures(header)
-        .ok_or(ProtocolError::InvalidHeader)?;
+        .ok_or(QbtProtocolError::InvalidHeader)?;
 
     let filename = captures
         .name("pf")
         .map(|m| m.as_str().to_string())
-        .ok_or(ProtocolError::MissingField("/PF"))?;
+        .ok_or(QbtProtocolError::MissingField("/PF"))?;
     let block_number = capture_u32(&captures, "pn", "/PN")?;
     let total_blocks = capture_u32(&captures, "pt", "/PT")?;
     let checksum = capture_u32(&captures, "cs", "/CS")?;
     let fd = captures
         .name("fd")
         .map(|m| m.as_str())
-        .ok_or(ProtocolError::MissingField("/FD"))?;
+        .ok_or(QbtProtocolError::MissingField("/FD"))?;
 
     let (timestamp_utc, warnings) = match parse_fd_timestamp(fd) {
         Some(ts) => (ts, Vec::new()),
         None => (
             SystemTime::now(),
-            vec![ProtocolWarning::TimestampParseFallback {
+            vec![QbtProtocolWarning::TimestampParseFallback {
                 raw: fd.to_string(),
             }],
         ),
@@ -468,13 +481,14 @@ fn parse_header(input: &[u8], max_v2_body_size: usize) -> Result<PendingSegment,
 
     let dl = capture_optional_u32(&captures, "dl")?;
     let (version, length) = if let Some(dl) = dl {
-        let len = usize::try_from(dl).map_err(|_| ProtocolError::InvalidBodyLength(dl as usize))?;
+        let len =
+            usize::try_from(dl).map_err(|_| QbtProtocolError::InvalidBodyLength(dl as usize))?;
         if len == 0 || len > max_v2_body_size {
-            return Err(ProtocolError::InvalidBodyLength(len));
+            return Err(QbtProtocolError::InvalidBodyLength(len));
         }
-        (ProtocolVersion::V2, len)
+        (QbtProtocolVersion::V2, len)
     } else {
-        (ProtocolVersion::V1, V1_BODY_SIZE)
+        (QbtProtocolVersion::V1, V1_BODY_SIZE)
     };
 
     Ok(PendingSegment {
@@ -519,18 +533,18 @@ fn capture_u32(
     caps: &regex::Captures<'_>,
     group: &str,
     field_tag: &'static str,
-) -> Result<u32, ProtocolError> {
+) -> Result<u32, QbtProtocolError> {
     caps.name(group)
-        .ok_or(ProtocolError::MissingField(field_tag))?
+        .ok_or(QbtProtocolError::MissingField(field_tag))?
         .as_str()
         .parse::<u32>()
-        .map_err(|_| ProtocolError::InvalidHeader)
+        .map_err(|_| QbtProtocolError::InvalidHeader)
 }
 
 fn capture_optional_u32(
     caps: &regex::Captures<'_>,
     group: &str,
-) -> Result<Option<u32>, ProtocolError> {
+) -> Result<Option<u32>, QbtProtocolError> {
     let Some(value) = caps.name(group) else {
         return Ok(None);
     };
@@ -538,7 +552,7 @@ fn capture_optional_u32(
         .as_str()
         .parse::<u32>()
         .map(Some)
-        .map_err(|_| ProtocolError::InvalidHeader)
+        .map_err(|_| QbtProtocolError::InvalidHeader)
 }
 
 fn is_text_or_wmo(filename: &str) -> bool {
@@ -562,7 +576,7 @@ fn trim_text_padding(content: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::checksum::calculate_checksum;
+    use crate::qbt_receiver::protocol::checksum::calculate_qbt_checksum;
     use flate2::{Compression, write::ZlibEncoder};
     use std::io::Write;
 
@@ -605,15 +619,19 @@ mod tests {
     #[test]
     fn find_sync_recovers_after_garbage() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("A.TXT", 1, 1, checksum, None);
 
         let mut wire = xor_encode(b"garbage");
         wire.extend(frame_with_body(header, &body));
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
     }
 
     #[test]
@@ -622,7 +640,7 @@ mod tests {
         let err = parse_header(&invalid, 1024).expect_err("invalid header should fail");
         assert!(matches!(
             err,
-            ProtocolError::InvalidHeader | ProtocolError::MissingField(_)
+            QbtProtocolError::InvalidHeader | QbtProtocolError::MissingField(_)
         ));
     }
 
@@ -635,14 +653,14 @@ mod tests {
         assert_eq!(parsed.total_blocks, 2);
         assert_eq!(parsed.checksum, 1234);
         assert_eq!(parsed.length, 1024);
-        assert_eq!(parsed.version, ProtocolVersion::V1);
+        assert_eq!(parsed.version, QbtProtocolVersion::V1);
     }
 
     #[test]
     fn v2_dl_bounds() {
         let too_big = build_header("B.DAT", 1, 1, 1, Some(2048));
         let err = parse_header(&too_big, 1024).expect_err("too-large dl should fail");
-        assert!(matches!(err, ProtocolError::InvalidBodyLength(2048)));
+        assert!(matches!(err, QbtProtocolError::InvalidBodyLength(2048)));
     }
 
     #[test]
@@ -652,29 +670,37 @@ mod tests {
         let header = build_header("A.TXT", 1, 1, bad_checksum, None);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::new(DecodeConfig {
-            checksum_policy: crate::config::ChecksumPolicy::StrictDrop,
-            ..DecodeConfig::default()
+        let mut decoder = QbtProtocolDecoder::new(QbtDecodeConfig {
+            checksum_policy: crate::qbt_receiver::config::QbtChecksumPolicy::StrictDrop,
+            ..QbtDecodeConfig::default()
         });
 
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(!events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
         assert!(events.iter().any(|e| matches!(
             e,
-            FrameEvent::Warning(ProtocolWarning::ChecksumMismatch { .. })
+            QbtFrameEvent::Warning(QbtProtocolWarning::ChecksumMismatch { .. })
         )));
     }
 
     #[test]
     fn fillfile_filtered() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("FILLFILE.TXT", 1, 1, checksum, None);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(!events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
     }
 
     #[test]
@@ -683,17 +709,17 @@ mod tests {
         body[..5].copy_from_slice(b"HELLO");
         body[5] = b' ';
         body[6] = b'\n';
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("A.WMO", 1, 1, checksum, None);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
 
         let data = events
             .iter()
             .find_map(|evt| match evt {
-                FrameEvent::DataBlock(seg) => Some(seg.content.clone()),
+                QbtFrameEvent::DataBlock(seg) => Some(seg.content.clone()),
                 _ => None,
             })
             .expect("expected data segment");
@@ -704,7 +730,7 @@ mod tests {
     #[test]
     fn unknown_frame_resync() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("A.TXT", 1, 1, checksum, None);
 
         let mut decoded = Vec::new();
@@ -715,9 +741,13 @@ mod tests {
         decoded.extend_from_slice(&body);
         let wire = xor_encode(&decoded);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
     }
 
     #[test]
@@ -727,30 +757,34 @@ mod tests {
         let header = build_header("mask.txt", 1, 1, 65_537, None);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::new(DecodeConfig {
-            checksum_policy: crate::config::ChecksumPolicy::StrictDrop,
-            ..DecodeConfig::default()
+        let mut decoder = QbtProtocolDecoder::new(QbtDecodeConfig {
+            checksum_policy: crate::qbt_receiver::config::QbtChecksumPolicy::StrictDrop,
+            ..QbtDecodeConfig::default()
         });
 
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
     }
 
     #[test]
     fn v2_header_gate() {
         let body = b"HELLO";
-        let checksum = calculate_checksum(body) as u32;
+        let checksum = calculate_qbt_checksum(body) as u32;
         let header = build_header("gated.dat", 1, 1, checksum, Some(body.len()));
         let wire = frame_with_body(header, body);
 
-        let mut decoder = ProtocolDecoder::new(DecodeConfig {
-            compression_policy: V2CompressionPolicy::RequireZlibHeader,
-            ..DecodeConfig::default()
+        let mut decoder = QbtProtocolDecoder::new(QbtDecodeConfig {
+            compression_policy: QbtV2CompressionPolicy::RequireZlibHeader,
+            ..QbtDecodeConfig::default()
         });
 
         let events = decoder.feed(&wire).expect("decode should succeed");
         let segment = events.iter().find_map(|evt| match evt {
-            FrameEvent::DataBlock(seg) => Some(seg),
+            QbtFrameEvent::DataBlock(seg) => Some(seg),
             _ => None,
         });
         let segment = segment.expect("expected v2 segment");
@@ -766,14 +800,14 @@ mod tests {
             .expect("write to zlib encoder should work");
         let compressed = encoder.finish().expect("zlib finish should work");
 
-        let checksum = calculate_checksum(plain) as u32;
+        let checksum = calculate_qbt_checksum(plain) as u32;
         let header = build_header("zlib.dat", 1, 1, checksum, Some(compressed.len()));
         let wire = frame_with_body(header, &compressed);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
         let segment = events.iter().find_map(|evt| match evt {
-            FrameEvent::DataBlock(seg) => Some(seg),
+            QbtFrameEvent::DataBlock(seg) => Some(seg),
             _ => None,
         });
         let segment = segment.expect("expected v2 segment");
@@ -783,27 +817,31 @@ mod tests {
     #[test]
     fn v2_decompress_failure_drops_segment_and_emits_warning() {
         let bogus = vec![0x78, 0x9C, 0xFF, 0x00, 0x00];
-        let checksum = calculate_checksum(&bogus) as u32;
+        let checksum = calculate_qbt_checksum(&bogus) as u32;
         let header = build_header("badzlib.dat", 1, 1, checksum, Some(bogus.len()));
         let wire = frame_with_body(header, &bogus);
 
-        let mut decoder = ProtocolDecoder::new(DecodeConfig {
-            compression_policy: V2CompressionPolicy::RequireZlibHeader,
-            ..DecodeConfig::default()
+        let mut decoder = QbtProtocolDecoder::new(QbtDecodeConfig {
+            compression_policy: QbtV2CompressionPolicy::RequireZlibHeader,
+            ..QbtDecodeConfig::default()
         });
 
         let events = decoder.feed(&wire).expect("decode should succeed");
-        assert!(!events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
         assert!(events.iter().any(|e| matches!(
             e,
-            FrameEvent::Warning(ProtocolWarning::DecompressionFailed { .. })
+            QbtFrameEvent::Warning(QbtProtocolWarning::DecompressionFailed { .. })
         )));
     }
 
     #[test]
     fn invalid_server_list_utf8_recovers_and_decodes_next_frame() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("recover.txt", 1, 1, checksum, None);
 
         let mut decoded = Vec::new();
@@ -815,28 +853,28 @@ mod tests {
         decoded.extend_from_slice(&body);
         let wire = xor_encode(&decoded);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should recover");
 
         assert!(events.iter().any(|evt| matches!(
             evt,
-            FrameEvent::Warning(ProtocolWarning::DecoderRecovered { .. })
+            QbtFrameEvent::Warning(QbtProtocolWarning::DecoderRecovered { .. })
         )));
         assert!(
             events
                 .iter()
-                .any(|evt| matches!(evt, FrameEvent::DataBlock(_)))
+                .any(|evt| matches!(evt, QbtFrameEvent::DataBlock(_)))
         );
     }
 
     #[test]
     fn frame_type_waits_for_partial_prefix() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let header = build_header("split.txt", 1, 1, checksum, None);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let mut events = Vec::new();
         events.extend(
             decoder
@@ -849,13 +887,17 @@ mod tests {
                 .expect("second chunk should decode"),
         );
 
-        assert!(events.iter().any(|e| matches!(e, FrameEvent::DataBlock(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, QbtFrameEvent::DataBlock(_)))
+        );
     }
 
     #[test]
     fn fd_parse_failure_emits_warning_and_uses_fallback() {
         let body = [b'A'; V1_BODY_SIZE];
-        let checksum = calculate_checksum(&body) as u32;
+        let checksum = calculate_qbt_checksum(&body) as u32;
         let mut raw =
             format!("/PFbadfd.txt /PN 1 /PT 1 /CS {checksum} /FD99/99/2024 99:99:99 AM\r\n");
         while raw.len() < 80 {
@@ -865,17 +907,17 @@ mod tests {
         header.copy_from_slice(&raw.as_bytes()[..80]);
         let wire = frame_with_body(header, &body);
 
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let events = decoder.feed(&wire).expect("decode should succeed");
 
         assert!(events.iter().any(|evt| matches!(
             evt,
-            FrameEvent::Warning(ProtocolWarning::TimestampParseFallback { .. })
+            QbtFrameEvent::Warning(QbtProtocolWarning::TimestampParseFallback { .. })
         )));
         assert!(
             events
                 .iter()
-                .any(|evt| matches!(evt, FrameEvent::DataBlock(_)))
+                .any(|evt| matches!(evt, QbtFrameEvent::DataBlock(_)))
         );
     }
 }

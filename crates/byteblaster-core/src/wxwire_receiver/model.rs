@@ -5,7 +5,7 @@ use std::time::SystemTime;
 /// A fully assembled Weather Wire product file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct WeatherWireFile {
+pub struct WxWireReceiverFile {
     /// Filename synthesized from weather product metadata.
     pub filename: String,
     /// Raw NOAAPort-formatted payload bytes.
@@ -29,7 +29,7 @@ pub struct WeatherWireFile {
 /// Warning events produced by weather wire decode/runtime.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum WeatherWireWarning {
+pub enum WxWireReceiverWarning {
     /// Expected NWWS namespace stanza was missing.
     MissingNwwsNamespace,
     /// Stanza body was empty.
@@ -68,9 +68,9 @@ pub enum WeatherWireWarning {
 /// Frame events emitted by the weather wire decoder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum WeatherWireFrameEvent {
+pub enum WxWireReceiverFrameEvent {
     /// Fully assembled weather product file.
-    File(WeatherWireFile),
+    File(WxWireReceiverFile),
     /// Non-fatal warning.
-    Warning(WeatherWireWarning),
+    Warning(WxWireReceiverWarning),
 }

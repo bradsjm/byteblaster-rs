@@ -19,7 +19,7 @@
 //! - [`checksum`]: Checksum calculation and verification for data integrity
 //! - [`codec`]: Stateful frame decoder with sync recovery and resync handling
 //! - [`compression`]: V2 zlib decompression with configurable policies
-//! - [`model`]: Protocol data models (FrameEvent, QbtSegment, ServerList, etc.)
+//! - [`model`]: Protocol data models (QbtFrameEvent, QbtSegment, QbtServerList, etc.)
 //! - [`server_list`]: Server list frame parsing with multiple format support
 //!
 //! ## Frame Types
@@ -35,19 +35,19 @@
 //! ## Checksum Validation
 //!
 //! Frames include checksums for data integrity. The decoder supports
-//! multiple policies via [`ChecksumPolicy`]:
+//! multiple policies via [`QbtChecksumPolicy`]:
 //! - `StrictDrop`: Drops segments with invalid checksums and emits a warning
 //!
 //! ## Compression Policies
 //!
 //! V2 frames may be compressed using zlib. The decoder supports
-//! multiple policies via [`V2CompressionPolicy`]:
+//! multiple policies via [`QbtV2CompressionPolicy`]:
 //! - `RequireZlibHeader`: Only attempts decompression if zlib header is present
 //! - `TryAlways`: Always attempts decompression regardless of header
 //!
 //! ## Decoder State Machine
 //!
-//! The [`ProtocolDecoder`] maintains internal state to handle:
+//! The [`QbtProtocolDecoder`] maintains internal state to handle:
 //! - Chunk-boundary prefix splits (frame headers split across TCP packets)
 //! - Sync recovery after corruption or unknown frames
 //! - Frame type identification and validation

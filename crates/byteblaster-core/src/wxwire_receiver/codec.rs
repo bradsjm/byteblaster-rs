@@ -1,5 +1,7 @@
-use crate::weather_wire::error::WeatherWireError;
-use crate::weather_wire::model::{WeatherWireFile, WeatherWireFrameEvent, WeatherWireWarning};
+use crate::wxwire_receiver::error::WxWireReceiverError;
+use crate::wxwire_receiver::model::{
+    WxWireReceiverFile, WxWireReceiverFrameEvent, WxWireReceiverWarning,
+};
 use bytes::Bytes;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use time::OffsetDateTime;
@@ -11,13 +13,13 @@ use tokio_xmpp::parsers::message::Message;
 /// Trait for Weather Wire stanza decoders.
 pub trait WxWireFrameDecoder {
     /// Feeds one stanza XML string into the decoder.
-    fn feed(&mut self, stanza: &str) -> Result<Vec<WeatherWireFrameEvent>, WeatherWireError>;
+    fn feed(&mut self, stanza: &str) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError>;
 
     /// Feeds one parsed XMPP message into the decoder.
     fn feed_message(
         &mut self,
         message: &Message,
-    ) -> Result<Vec<WeatherWireFrameEvent>, WeatherWireError>;
+    ) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError>;
 
     /// Resets decoder state.
     fn reset(&mut self);
@@ -28,13 +30,12 @@ pub trait WxWireFrameDecoder {
 pub struct WxWireDecoder;
 
 impl WxWireFrameDecoder for WxWireDecoder {
-    fn feed(&mut self, stanza: &str) -> Result<Vec<WeatherWireFrameEvent>, WeatherWireError> {
-        let elem: Element = stanza
-            .trim()
-            .parse()
-            .map_err(|err| WeatherWireError::InvalidStanza(format!("invalid xml stanza: {err}")))?;
+    fn feed(&mut self, stanza: &str) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError> {
+        let elem: Element = stanza.trim().parse().map_err(|err| {
+            WxWireReceiverError::InvalidStanza(format!("invalid xml stanza: {err}"))
+        })?;
         let message = Message::try_from(elem).map_err(|_| {
-            WeatherWireError::InvalidStanza("not an xmpp <message/> stanza".to_string())
+            WxWireReceiverError::InvalidStanza("not an xmpp <message/> stanza".to_string())
         })?;
         self.feed_message(&message)
     }
@@ -42,25 +43,25 @@ impl WxWireFrameDecoder for WxWireDecoder {
     fn feed_message(
         &mut self,
         message: &Message,
-    ) -> Result<Vec<WeatherWireFrameEvent>, WeatherWireError> {
+    ) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError> {
         let mut out = Vec::new();
         match parse_message_to_file(message) {
             Ok(parsed) => {
                 if let Some(warning) = parsed.warning {
-                    out.push(WeatherWireFrameEvent::Warning(warning));
+                    out.push(WxWireReceiverFrameEvent::Warning(warning));
                 }
-                out.push(WeatherWireFrameEvent::File(parsed.file));
+                out.push(WxWireReceiverFrameEvent::File(parsed.file));
                 Ok(out)
             }
-            Err(WeatherWireError::InvalidStanza(reason)) => {
+            Err(WxWireReceiverError::InvalidStanza(reason)) => {
                 let warning = if reason.contains("missing nwws-oi payload") {
-                    WeatherWireWarning::MissingNwwsNamespace
+                    WxWireReceiverWarning::MissingNwwsNamespace
                 } else if reason.contains("empty nwws body") {
-                    WeatherWireWarning::EmptyBody
+                    WxWireReceiverWarning::EmptyBody
                 } else {
-                    WeatherWireWarning::DecoderRecovered { error: reason }
+                    WxWireReceiverWarning::DecoderRecovered { error: reason }
                 };
-                out.push(WeatherWireFrameEvent::Warning(warning));
+                out.push(WxWireReceiverFrameEvent::Warning(warning));
                 Ok(out)
             }
             Err(err) => Err(err),
@@ -72,11 +73,11 @@ impl WxWireFrameDecoder for WxWireDecoder {
 
 #[derive(Debug)]
 struct ParsedMessage {
-    file: WeatherWireFile,
-    warning: Option<WeatherWireWarning>,
+    file: WxWireReceiverFile,
+    warning: Option<WxWireReceiverWarning>,
 }
 
-fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WeatherWireError> {
+fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WxWireReceiverError> {
     let subject = message
         .get_best_body_cloned(vec![""])
         .map(|(_, body)| body)
@@ -91,11 +92,11 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WeatherWire
         .payloads
         .iter()
         .find(|payload| payload.name() == "x" && payload.ns() == "nwws-oi")
-        .ok_or_else(|| WeatherWireError::InvalidStanza("missing nwws-oi payload".to_string()))?;
+        .ok_or_else(|| WxWireReceiverError::InvalidStanza("missing nwws-oi payload".to_string()))?;
 
     let body = x_payload.text().trim().to_string();
     if body.is_empty() {
-        return Err(WeatherWireError::InvalidStanza(
+        return Err(WxWireReceiverError::InvalidStanza(
             "empty nwws body".to_string(),
         ));
     }
@@ -127,7 +128,7 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WeatherWire
     let noaaport = convert_to_noaaport(body.as_str());
 
     Ok(ParsedMessage {
-        file: WeatherWireFile {
+        file: WxWireReceiverFile {
             filename,
             data: Bytes::from(noaaport.into_bytes()),
             subject,
@@ -142,14 +143,14 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WeatherWire
     })
 }
 
-fn parse_timestamp_or_now(raw: &str) -> (SystemTime, Option<WeatherWireWarning>) {
+fn parse_timestamp_or_now(raw: &str) -> (SystemTime, Option<WxWireReceiverWarning>) {
     match parse_rfc3339_to_system_time(raw) {
         Some(ts) => (ts, None),
         None => {
             let warning = if raw.is_empty() {
                 None
             } else {
-                Some(WeatherWireWarning::TimestampParseFallback {
+                Some(WxWireReceiverWarning::TimestampParseFallback {
                     raw: raw.to_string(),
                 })
             };
@@ -209,7 +210,7 @@ fn convert_to_noaaport(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{WxWireDecoder, WxWireFrameDecoder};
-    use crate::weather_wire::model::{WeatherWireFrameEvent, WeatherWireWarning};
+    use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
 
     #[test]
     fn decode_valid_stanza_to_file_event() {
@@ -226,7 +227,7 @@ line2</x>
         let events = decoder.feed(stanza).expect("decode should not fail");
 
         let file = events.iter().find_map(|event| match event {
-            WeatherWireFrameEvent::File(file) => Some(file),
+            WxWireReceiverFrameEvent::File(file) => Some(file),
             _ => None,
         });
 
@@ -245,7 +246,7 @@ line2</x>
         assert!(events.iter().any(|event| {
             matches!(
                 event,
-                WeatherWireFrameEvent::Warning(WeatherWireWarning::MissingNwwsNamespace)
+                WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::MissingNwwsNamespace)
             )
         }));
     }
@@ -265,13 +266,15 @@ line2</x>
         assert!(events.iter().any(|event| {
             matches!(
                 event,
-                WeatherWireFrameEvent::Warning(WeatherWireWarning::TimestampParseFallback { .. })
+                WxWireReceiverFrameEvent::Warning(
+                    WxWireReceiverWarning::TimestampParseFallback { .. }
+                )
             )
         }));
         assert!(
             events
                 .iter()
-                .any(|event| matches!(event, WeatherWireFrameEvent::File(_)))
+                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
         );
     }
 }

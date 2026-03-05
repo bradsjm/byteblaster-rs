@@ -8,14 +8,14 @@ use std::path::PathBuf;
 
 /// Policy for handling checksum validation failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChecksumPolicy {
+pub enum QbtChecksumPolicy {
     /// Drop segments with invalid checksums and emit a warning.
     StrictDrop,
 }
 
 /// Policy for handling V2 protocol compression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum V2CompressionPolicy {
+pub enum QbtV2CompressionPolicy {
     /// Only attempt decompression if the data has a valid zlib header.
     RequireZlibHeader,
     /// Always attempt decompression regardless of header.
@@ -24,20 +24,20 @@ pub enum V2CompressionPolicy {
 
 /// Configuration for the protocol decoder.
 #[derive(Debug, Clone)]
-pub struct DecodeConfig {
+pub struct QbtDecodeConfig {
     /// Checksum validation policy.
-    pub checksum_policy: ChecksumPolicy,
+    pub checksum_policy: QbtChecksumPolicy,
     /// Compression handling policy for V2 frames.
-    pub compression_policy: V2CompressionPolicy,
+    pub compression_policy: QbtV2CompressionPolicy,
     /// Maximum allowed body size for V2 frames (in bytes).
     pub max_v2_body_size: usize,
 }
 
-impl Default for DecodeConfig {
+impl Default for QbtDecodeConfig {
     fn default() -> Self {
         Self {
-            checksum_policy: ChecksumPolicy::StrictDrop,
-            compression_policy: V2CompressionPolicy::RequireZlibHeader,
+            checksum_policy: QbtChecksumPolicy::StrictDrop,
+            compression_policy: QbtV2CompressionPolicy::RequireZlibHeader,
             max_v2_body_size: 1024,
         }
     }
@@ -45,7 +45,7 @@ impl Default for DecodeConfig {
 
 /// Configuration for the ByteBlaster client.
 #[derive(Debug, Clone)]
-pub struct ClientConfig {
+pub struct QbtReceiverConfig {
     /// User email address for authentication.
     pub email: String,
     /// List of server endpoints as (host, port) tuples.
@@ -63,22 +63,22 @@ pub struct ClientConfig {
     /// Maximum number of exceptions before triggering watchdog timeout.
     pub max_exceptions: u32,
     /// Decoder configuration.
-    pub decode: DecodeConfig,
+    pub decode: QbtDecodeConfig,
 }
 
-impl ClientConfig {
+impl QbtReceiverConfig {
     /// Validates the configuration.
     ///
     /// # Errors
     ///
-    /// Returns `ConfigError::EmptyEmail` if email is empty or whitespace.
-    /// Returns `ConfigError::NoServers` if no servers are configured.
-    pub fn validate(&self) -> Result<(), crate::error::ConfigError> {
+    /// Returns `QbtReceiverConfigError::EmptyEmail` if email is empty or whitespace.
+    /// Returns `QbtReceiverConfigError::NoServers` if no servers are configured.
+    pub fn validate(&self) -> Result<(), crate::qbt_receiver::error::QbtReceiverConfigError> {
         if self.email.trim().is_empty() {
-            return Err(crate::error::ConfigError::EmptyEmail);
+            return Err(crate::qbt_receiver::error::QbtReceiverConfigError::EmptyEmail);
         }
         if self.servers.is_empty() {
-            return Err(crate::error::ConfigError::NoServers);
+            return Err(crate::qbt_receiver::error::QbtReceiverConfigError::NoServers);
         }
         Ok(())
     }

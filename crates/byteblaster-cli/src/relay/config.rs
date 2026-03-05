@@ -22,12 +22,12 @@
 //! - Bind: `0.0.0.0:2211`
 //! - Max clients: `100`
 //! - Auth timeout: `720` seconds
-//! - Client buffer: `65536` bytes
+//! - QbtReceiver buffer: `65536` bytes
 //! - Quality window: `60` seconds
 
 use crate::default_servers::default_upstream_servers;
 use anyhow::{Context, Result};
-use byteblaster_core::parse_server;
+use byteblaster_core::qbt_receiver::parse_qbt_server;
 use clap::Args;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -84,7 +84,7 @@ impl RelayConfig {
             args.servers
                 .iter()
                 .map(|raw| {
-                    parse_server(raw)
+                    parse_qbt_server(raw)
                         .ok_or_else(|| anyhow::anyhow!("invalid --server entry: {raw}"))
                 })
                 .collect::<Result<Vec<_>>>()?

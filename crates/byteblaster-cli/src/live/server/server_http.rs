@@ -227,7 +227,7 @@ pub(super) async fn health_handler(State(state): State<Arc<AppState>>) -> Json<H
 
 pub(super) async fn metrics_handler(
     State(state): State<Arc<AppState>>,
-) -> Json<byteblaster_core::ClientTelemetrySnapshot> {
+) -> Json<byteblaster_core::qbt_receiver::QbtReceiverTelemetrySnapshot> {
     let snapshot = state
         .telemetry
         .lock()

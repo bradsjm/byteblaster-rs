@@ -1,4 +1,4 @@
-use crate::weather_wire::error::WeatherWireError;
+use crate::wxwire_receiver::error::WxWireReceiverError;
 
 /// Primary NWWS-OI endpoint hostname.
 pub const WXWIRE_PRIMARY_HOST: &str = "nwws-oi.weather.gov";
@@ -13,7 +13,7 @@ pub const WXWIRE_MAX_BACKOFF_SECS: u64 = 300;
 
 /// Runtime configuration for Weather Wire.
 #[derive(Debug, Clone)]
-pub struct WxWireConfig {
+pub struct WxWireReceiverConfig {
     /// NWWS-OI username.
     pub username: String,
     /// NWWS-OI password.
@@ -30,7 +30,7 @@ pub struct WxWireConfig {
     pub connect_timeout_secs: u64,
 }
 
-impl Default for WxWireConfig {
+impl Default for WxWireReceiverConfig {
     fn default() -> Self {
         Self {
             username: String::new(),
@@ -44,46 +44,46 @@ impl Default for WxWireConfig {
     }
 }
 
-impl WxWireConfig {
+impl WxWireReceiverConfig {
     /// Validates configuration fields.
-    pub fn validate(&self) -> Result<(), WeatherWireError> {
+    pub fn validate(&self) -> Result<(), WxWireReceiverError> {
         if self.username.trim().is_empty() {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "username must not be empty".to_string(),
             ));
         }
 
         if self.password.trim().is_empty() {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "password must not be empty".to_string(),
             ));
         }
 
         if self.idle_timeout_secs == 0 {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "idle_timeout_secs must be >= 1".to_string(),
             ));
         }
 
         if self.event_channel_capacity == 0 {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "event_channel_capacity must be >= 1".to_string(),
             ));
         }
 
         if self.inbound_channel_capacity == 0 {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "inbound_channel_capacity must be >= 1".to_string(),
             ));
         }
 
         if self.telemetry_emit_interval_secs == 0 {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "telemetry_emit_interval_secs must be >= 1".to_string(),
             ));
         }
         if self.connect_timeout_secs == 0 {
-            return Err(WeatherWireError::InvalidConfig(
+            return Err(WxWireReceiverError::InvalidConfig(
                 "connect_timeout_secs must be >= 1".to_string(),
             ));
         }
@@ -94,26 +94,26 @@ impl WxWireConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::WxWireConfig;
+    use super::WxWireReceiverConfig;
 
     #[test]
     fn validate_rejects_missing_credentials() {
-        let cfg = WxWireConfig::default();
+        let cfg = WxWireReceiverConfig::default();
         assert!(cfg.validate().is_err());
 
-        let cfg = WxWireConfig {
+        let cfg = WxWireReceiverConfig {
             username: "user".to_string(),
-            ..WxWireConfig::default()
+            ..WxWireReceiverConfig::default()
         };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn validate_accepts_valid_config() {
-        let cfg = WxWireConfig {
+        let cfg = WxWireReceiverConfig {
             username: "user".to_string(),
             password: "pass".to_string(),
-            ..WxWireConfig::default()
+            ..WxWireReceiverConfig::default()
         };
 
         assert!(cfg.validate().is_ok());

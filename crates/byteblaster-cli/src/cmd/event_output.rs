@@ -4,7 +4,7 @@
 //! CLI output.
 
 use crate::product_meta::detect_product_meta;
-use byteblaster_core::FrameEvent;
+use byteblaster_core::qbt_receiver::QbtFrameEvent;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Returns the event type name for a frame event.
@@ -16,11 +16,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// # Returns
 ///
 /// A static string representing the event type
-pub fn frame_event_name(event: &FrameEvent) -> &'static str {
+pub fn frame_event_name(event: &QbtFrameEvent) -> &'static str {
     match event {
-        FrameEvent::DataBlock(_) => "data_block",
-        FrameEvent::ServerListUpdate(_) => "server_list",
-        FrameEvent::Warning(_) => "warning",
+        QbtFrameEvent::DataBlock(_) => "data_block",
+        QbtFrameEvent::ServerListUpdate(_) => "server_list",
+        QbtFrameEvent::Warning(_) => "warning",
         _ => "unknown",
     }
 }
@@ -34,9 +34,9 @@ pub fn frame_event_name(event: &FrameEvent) -> &'static str {
 /// # Returns
 ///
 /// The filename if the event is a data block, None otherwise
-pub fn frame_event_filename(event: &FrameEvent) -> Option<&str> {
+pub fn frame_event_filename(event: &QbtFrameEvent) -> Option<&str> {
     match event {
-        FrameEvent::DataBlock(seg) => Some(seg.filename.as_str()),
+        QbtFrameEvent::DataBlock(seg) => Some(seg.filename.as_str()),
         _ => None,
     }
 }
@@ -51,9 +51,9 @@ pub fn frame_event_filename(event: &FrameEvent) -> Option<&str> {
 /// # Returns
 ///
 /// A JSON value representing the event
-pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> serde_json::Value {
+pub fn frame_event_to_json(event: &QbtFrameEvent, text_preview_chars: usize) -> serde_json::Value {
     match event {
-        FrameEvent::DataBlock(seg) => {
+        QbtFrameEvent::DataBlock(seg) => {
             let mut value = serde_json::json!({
                 "type":"data_block",
                 "filename":seg.filename,
@@ -73,12 +73,12 @@ pub fn frame_event_to_json(event: &FrameEvent, text_preview_chars: usize) -> ser
             }
             value
         }
-        FrameEvent::ServerListUpdate(list) => serde_json::json!({
+        QbtFrameEvent::ServerListUpdate(list) => serde_json::json!({
             "type":"server_list",
             "servers": list.servers,
             "sat_servers": list.sat_servers,
         }),
-        FrameEvent::Warning(w) => serde_json::json!({
+        QbtFrameEvent::Warning(w) => serde_json::json!({
             "type":"warning",
             "warning": format!("{:?}", w),
         }),

@@ -10,7 +10,9 @@ use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_eve
 use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
 use crate::live::shared::parse_servers_or_default;
 use axum::http::HeaderValue;
-use byteblaster_core::{ClientConfig, ClientTelemetrySnapshot, DecodeConfig, FrameEvent};
+use byteblaster_core::qbt_receiver::{
+    QbtDecodeConfig, QbtFrameEvent, QbtReceiverConfig, QbtReceiverTelemetrySnapshot,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -44,7 +46,7 @@ enum EventKind {
         endpoint: String,
     },
     Disconnected,
-    Frame(FrameEvent),
+    Frame(QbtFrameEvent),
     FileComplete {
         filename: String,
         size: usize,
@@ -54,7 +56,7 @@ enum EventKind {
         text_product_enrichment: Option<serde_json::Value>,
         text_product_warning: Option<serde_json::Value>,
     },
-    Telemetry(ClientTelemetrySnapshot),
+    Telemetry(QbtReceiverTelemetrySnapshot),
     Error {
         message: String,
     },
@@ -127,7 +129,7 @@ struct AppState {
     event_tx: broadcast::Sender<BroadcastEvent>,
     shutdown_rx: watch::Receiver<bool>,
     retained_files: Mutex<RetainedFiles>,
-    telemetry: Mutex<ClientTelemetrySnapshot>,
+    telemetry: Mutex<QbtReceiverTelemetrySnapshot>,
     connected_clients: AtomicUsize,
     max_clients: usize,
     next_event_id: AtomicU64,
@@ -199,7 +201,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
             options.max_retained_files.max(1),
             Duration::from_secs(options.file_retention_secs.max(1)),
         )),
-        telemetry: Mutex::new(ClientTelemetrySnapshot::default()),
+        telemetry: Mutex::new(QbtReceiverTelemetrySnapshot::default()),
         connected_clients: AtomicUsize::new(0),
         max_clients: options.max_clients.max(1),
         next_event_id: AtomicU64::new(1),
@@ -217,7 +219,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let listener = TcpListener::bind(bind_addr).await?;
     log_info(options.quiet, &format!("server listening addr={bind_addr}"));
 
-    let config = ClientConfig {
+    let config = QbtReceiverConfig {
         email: options.email,
         servers,
         server_list_path: options.server_list_path.map(PathBuf::from),
@@ -226,7 +228,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         connection_timeout_secs: 5,
         watchdog_timeout_secs: 20,
         max_exceptions: 10,
-        decode: DecodeConfig::default(),
+        decode: QbtDecodeConfig::default(),
     };
 
     let ingest_task = tokio::spawn(server_ingest::run_ingest_loop(
@@ -358,7 +360,7 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
-    use byteblaster_core::ClientTelemetrySnapshot;
+    use byteblaster_core::qbt_receiver::QbtReceiverTelemetrySnapshot;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
@@ -371,7 +373,7 @@ mod tests {
             event_tx: broadcast::channel(32).0,
             shutdown_rx,
             retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
-            telemetry: std::sync::Mutex::new(ClientTelemetrySnapshot::default()),
+            telemetry: std::sync::Mutex::new(QbtReceiverTelemetrySnapshot::default()),
             connected_clients: AtomicUsize::new(0),
             max_clients,
             next_event_id: AtomicU64::new(1),
@@ -626,7 +628,7 @@ mod tests {
             text_product_enrichment: None,
             text_product_warning: None,
         };
-        let telemetry = EventKind::Telemetry(ClientTelemetrySnapshot::default());
+        let telemetry = EventKind::Telemetry(QbtReceiverTelemetrySnapshot::default());
 
         assert!(event_matches_filter(Some("*.txt"), &txt));
         assert!(!event_matches_filter(Some("*.txt"), &zip));

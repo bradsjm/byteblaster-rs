@@ -1,5 +1,5 @@
 use crate::default_servers::default_upstream_servers;
-use byteblaster_core::parse_server;
+use byteblaster_core::qbt_receiver::parse_qbt_server;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn unix_seconds(time: SystemTime) -> u64 {
@@ -18,7 +18,7 @@ pub(crate) fn parse_servers_or_default(
     raw_servers
         .iter()
         .map(|entry| {
-            parse_server(entry).ok_or_else(|| {
+            parse_qbt_server(entry).ok_or_else(|| {
                 anyhow::anyhow!("invalid --server entry: {entry} (expected host:port)")
             })
         })

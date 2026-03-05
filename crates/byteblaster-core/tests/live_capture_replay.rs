@@ -1,4 +1,6 @@
-use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder, ProtocolWarning};
+use byteblaster_core::qbt_receiver::{
+    QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder, QbtProtocolWarning,
+};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -82,7 +84,7 @@ fn run_case(case: &ReplayCase) {
         .unwrap_or_else(|err| panic!("case {} missing wire file {wire_path:?}: {err}", case.id));
     let chunk_bytes = case.chunk_bytes.unwrap_or(wire.len().max(1)).max(1);
 
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let mut all_events = Vec::new();
     let mut first_error: Option<String> = None;
 
@@ -134,11 +136,11 @@ fn repo_path(relative_path: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path)
 }
 
-fn assert_case_events(case: &ReplayCase, events: &[FrameEvent]) {
+fn assert_case_events(case: &ReplayCase, events: &[QbtFrameEvent]) {
     if let Some(min_data_blocks) = case.expected.min_data_blocks {
         let data_block_count = events
             .iter()
-            .filter(|evt| matches!(evt, FrameEvent::DataBlock(_)))
+            .filter(|evt| matches!(evt, QbtFrameEvent::DataBlock(_)))
             .count();
         assert!(
             data_block_count >= min_data_blocks,
@@ -170,18 +172,18 @@ fn assert_case_events(case: &ReplayCase, events: &[FrameEvent]) {
     }
 }
 
-fn event_token(event: &FrameEvent) -> &'static str {
+fn event_token(event: &QbtFrameEvent) -> &'static str {
     match event {
-        FrameEvent::DataBlock(_) => "DataBlock",
-        FrameEvent::ServerListUpdate(_) => "ServerListUpdate",
-        FrameEvent::Warning(warning) => match warning {
-            ProtocolWarning::ChecksumMismatch { .. } => "Warning:ChecksumMismatch",
-            ProtocolWarning::DecompressionFailed { .. } => "Warning:DecompressionFailed",
-            ProtocolWarning::DecoderRecovered { .. } => "Warning:DecoderRecovered",
-            ProtocolWarning::MalformedServerEntry { .. } => "Warning:MalformedServerEntry",
-            ProtocolWarning::TimestampParseFallback { .. } => "Warning:TimestampParseFallback",
-            ProtocolWarning::HandlerError { .. } => "Warning:HandlerError",
-            ProtocolWarning::BackpressureDrop { .. } => "Warning:BackpressureDrop",
+        QbtFrameEvent::DataBlock(_) => "DataBlock",
+        QbtFrameEvent::ServerListUpdate(_) => "ServerListUpdate",
+        QbtFrameEvent::Warning(warning) => match warning {
+            QbtProtocolWarning::ChecksumMismatch { .. } => "Warning:ChecksumMismatch",
+            QbtProtocolWarning::DecompressionFailed { .. } => "Warning:DecompressionFailed",
+            QbtProtocolWarning::DecoderRecovered { .. } => "Warning:DecoderRecovered",
+            QbtProtocolWarning::MalformedServerEntry { .. } => "Warning:MalformedServerEntry",
+            QbtProtocolWarning::TimestampParseFallback { .. } => "Warning:TimestampParseFallback",
+            QbtProtocolWarning::HandlerError { .. } => "Warning:HandlerError",
+            QbtProtocolWarning::BackpressureDrop { .. } => "Warning:BackpressureDrop",
             _ => "Warning:Unknown",
         },
         _ => "Unknown",

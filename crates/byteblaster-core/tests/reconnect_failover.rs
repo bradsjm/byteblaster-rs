@@ -1,7 +1,9 @@
-use byteblaster_core::unstable::{EndpointRotator, HealthObserver, Watchdog, next_backoff_secs};
-use byteblaster_core::{
-    ByteBlasterClient, Client, ClientConfig, ClientEvent, CoreError, DecodeConfig,
-    calculate_checksum,
+use byteblaster_core::qbt_receiver::{
+    QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverError,
+    QbtReceiverEvent, calculate_qbt_checksum,
+};
+use byteblaster_core::unstable::qbt_receiver::{
+    EndpointRotator, HealthObserver, Watchdog, next_backoff_secs,
 };
 use futures::StreamExt;
 use std::sync::Arc;
@@ -30,7 +32,7 @@ fn build_header(filename: &str, checksum: u32) -> [u8; 80] {
 
 fn encoded_valid_data_frame() -> Vec<u8> {
     let body = [b'R'; 1024];
-    let checksum = calculate_checksum(&body) as u32;
+    let checksum = calculate_qbt_checksum(&body) as u32;
     let header = build_header("reconnect.bin", checksum);
 
     let mut decoded = Vec::new();
@@ -139,7 +141,7 @@ async fn watchdog_timeout_reconnects_without_termination() {
         Arc::clone(&accepted_connections),
     );
 
-    let mut client = Client::builder(ClientConfig {
+    let mut client = QbtReceiver::builder(QbtReceiverConfig {
         email: "test@example.com".to_string(),
         servers: vec![
             ("127.0.0.1".to_string(), address_a.port()),
@@ -151,7 +153,7 @@ async fn watchdog_timeout_reconnects_without_termination() {
         connection_timeout_secs: 1,
         watchdog_timeout_secs: 1,
         max_exceptions: 10,
-        decode: DecodeConfig::default(),
+        decode: QbtDecodeConfig::default(),
     })
     .build()
     .expect("client should build");
@@ -169,10 +171,12 @@ async fn watchdog_timeout_reconnects_without_termination() {
         }
 
         match tokio::time::timeout(Duration::from_millis(300), events.next()).await {
-            Ok(Some(Ok(ClientEvent::Connected(_)))) => {
+            Ok(Some(Ok(QbtReceiverEvent::Connected(_)))) => {
                 connected_events = connected_events.saturating_add(1);
             }
-            Ok(Some(Err(CoreError::Lifecycle(message)))) if message == "watchdog timeout" => {
+            Ok(Some(Err(QbtReceiverError::Lifecycle(message))))
+                if message == "watchdog timeout" =>
+            {
                 watchdog_timeout_errors = watchdog_timeout_errors.saturating_add(1);
             }
             Ok(Some(_)) => {}

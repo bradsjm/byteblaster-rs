@@ -1,4 +1,6 @@
-use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder, calculate_checksum};
+use byteblaster_core::qbt_receiver::{
+    QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder, calculate_qbt_checksum,
+};
 use proptest::prelude::*;
 
 const SYNC: &[u8; 6] = b"\0\0\0\0\0\0";
@@ -21,7 +23,7 @@ fn build_header(filename: &str, block: u32, total: u32, checksum: u32) -> [u8; 8
 }
 
 fn frame_with_body(filename: &str, body: &[u8]) -> Vec<u8> {
-    let checksum = u32::from(calculate_checksum(body));
+    let checksum = u32::from(calculate_qbt_checksum(body));
     let header = build_header(filename, 1, 1, checksum);
     let mut decoded = Vec::new();
     decoded.extend_from_slice(SYNC);
@@ -30,16 +32,16 @@ fn frame_with_body(filename: &str, body: &[u8]) -> Vec<u8> {
     xor_encode(&decoded)
 }
 
-fn summary(events: &[FrameEvent]) -> Vec<(String, usize)> {
+fn summary(events: &[QbtFrameEvent]) -> Vec<(String, usize)> {
     events
         .iter()
         .map(|evt| match evt {
-            FrameEvent::DataBlock(seg) => ("data".to_string(), seg.content.len()),
-            FrameEvent::ServerListUpdate(list) => (
+            QbtFrameEvent::DataBlock(seg) => ("data".to_string(), seg.content.len()),
+            QbtFrameEvent::ServerListUpdate(list) => (
                 "servers".to_string(),
                 list.servers.len() + list.sat_servers.len(),
             ),
-            FrameEvent::Warning(_) => ("warning".to_string(), 0),
+            QbtFrameEvent::Warning(_) => ("warning".to_string(), 0),
             _ => ("unknown".to_string(), 0),
         })
         .collect()
@@ -48,7 +50,7 @@ fn summary(events: &[FrameEvent]) -> Vec<(String, usize)> {
 proptest! {
     #[test]
     fn random_wire_input_never_panics(data in proptest::collection::vec(any::<u8>(), 0..4096)) {
-        let mut decoder = ProtocolDecoder::default();
+        let mut decoder = QbtProtocolDecoder::default();
         let _ = decoder.feed(&data);
     }
 
@@ -58,10 +60,10 @@ proptest! {
         let wire = frame_with_body("prop.txt", &body);
         let split_idx = split.min(wire.len());
 
-        let mut single = ProtocolDecoder::default();
+        let mut single = QbtProtocolDecoder::default();
         let single_events = single.feed(&wire).expect("single decode must succeed");
 
-        let mut chunked = ProtocolDecoder::default();
+        let mut chunked = QbtProtocolDecoder::default();
         let mut events = Vec::new();
         events.extend(chunked.feed(&wire[..split_idx]).expect("first chunk decode must succeed"));
         events.extend(chunked.feed(&wire[split_idx..]).expect("second chunk decode must succeed"));

@@ -8,8 +8,8 @@
 //! - [`segment_stream`]: Provides an async stream of [`QbtSegment`] events
 //!   from a client, filtering for data-bearing frames and converting them
 //!   to segments with metadata
-//! - [`file_stream`]: Provides an async stream of [`CompletedFile`] events
-//!   by combining a [`SegmentStream`] with a [`FileAssembler`], emitting
+//! - [`file_stream`]: Provides an async stream of [`QbtCompletedFile`] events
+//!   by combining a [`QbtSegmentStream`] with a [`QbtFileAssembler`], emitting
 //!   fully assembled files as they complete
 //!
 //! ## Usage Pattern
@@ -17,7 +17,7 @@
 //! These streams are designed to be used with Tokio's async runtime and
 //! can be composed with other stream operations. The typical flow is:
 //!
-//! 1. Create stream channels with [`SegmentStream`] and [`FileStream`]
+//! 1. Create stream channels with [`QbtSegmentStream`] and [`QbtFileStream`]
 //! 2. Forward decoded segments into the segment stream sender
 //! 3. Assemble and forward completed files into the file stream sender
 //! 4. Process the resulting file stream receiver (write to disk, upload, etc.)
@@ -31,10 +31,10 @@
 //! ## Example
 //!
 //! ```rust
-//! use byteblaster_core::unstable::{FileStream, SegmentStream};
+//! use byteblaster_core::unstable::qbt_receiver::{QbtFileStream, QbtSegmentStream};
 //!
-//! let segment_stream = SegmentStream::new(1_024);
-//! let file_stream = FileStream::new(256);
+//! let segment_stream = QbtSegmentStream::new(1_024);
+//! let file_stream = QbtFileStream::new(256);
 //!
 //! let _segment_tx = segment_stream.tx.clone();
 //! let _file_tx = file_stream.tx.clone();

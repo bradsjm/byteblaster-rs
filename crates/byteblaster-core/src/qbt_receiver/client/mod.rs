@@ -1,4 +1,4 @@
-//! Client runtime for ByteBlaster protocol connections.
+//! QbtReceiver runtime for ByteBlaster protocol connections.
 //!
 //! This module provides a full-featured client implementation with:
 //! - Connection management with timeout and retry
@@ -13,12 +13,12 @@ pub mod reconnect;
 pub mod server_list_manager;
 pub mod watchdog;
 
-use crate::config::ClientConfig;
-use crate::error::{CoreError, CoreResult};
-use crate::protocol::auth::{REAUTH_INTERVAL_SECS, build_logon_message, xor_ff};
-use crate::protocol::codec::{FrameDecoder, ProtocolDecoder};
-use crate::protocol::model::FrameEvent;
-use crate::{protocol::model::AuthMessage, protocol::model::ProtocolWarning};
+use crate::qbt_receiver::config::QbtReceiverConfig;
+use crate::qbt_receiver::error::{QbtReceiverError, QbtReceiverResult};
+use crate::qbt_receiver::protocol::auth::{REAUTH_INTERVAL_SECS, build_logon_message, xor_ff};
+use crate::qbt_receiver::protocol::codec::{QbtFrameDecoder, QbtProtocolDecoder};
+use crate::qbt_receiver::protocol::model::QbtFrameEvent;
+use crate::qbt_receiver::protocol::model::{QbtAuthMessage, QbtProtocolWarning};
 use futures::{Stream, stream};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -50,7 +50,7 @@ const MAX_CONNECT_TIMEOUT_SECS: u64 = 5;
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[non_exhaustive]
-pub struct ClientTelemetrySnapshot {
+pub struct QbtReceiverTelemetrySnapshot {
     /// Total connection attempts made.
     pub connection_attempts_total: u64,
     /// Total successful connections.
@@ -93,7 +93,7 @@ pub struct ClientTelemetrySnapshot {
 #[derive(Debug, Default)]
 struct RuntimeTelemetry {
     /// Current snapshot of counters.
-    snapshot: ClientTelemetrySnapshot,
+    snapshot: QbtReceiverTelemetrySnapshot,
     /// Events dropped since last backpressure warning.
     dropped_since_last_report: u64,
 }
@@ -101,76 +101,80 @@ struct RuntimeTelemetry {
 /// Events emitted by the ByteBlaster client.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum ClientEvent {
+pub enum QbtReceiverEvent {
     /// A protocol frame event (data block, server list, or warning).
-    Frame(FrameEvent),
+    Frame(QbtFrameEvent),
     /// Connected to a server endpoint.
     Connected(String),
     /// Disconnected from the current endpoint.
     Disconnected,
     /// Periodic telemetry snapshot.
-    Telemetry(ClientTelemetrySnapshot),
+    Telemetry(QbtReceiverTelemetrySnapshot),
 }
 
 /// Type alias for event handler callbacks.
 ///
 /// Handlers receive frame events and can return errors which will be
 /// converted to warnings and emitted to other handlers.
-pub type EventHandler = Arc<dyn Fn(&FrameEvent) -> CoreResult<()> + Send + Sync>;
+pub type QbtReceiverEventHandler =
+    Arc<dyn Fn(&QbtFrameEvent) -> QbtReceiverResult<()> + Send + Sync>;
 
 /// Trait for ByteBlaster client implementations.
 ///
 /// This trait defines the interface for starting, stopping, and
 /// receiving events from a client connection.
-pub trait ByteBlasterClient: Send {
+pub trait QbtReceiverClient: Send {
     /// Starts the client connection loop.
     ///
     /// # Errors
     ///
     /// Returns an error if the client is already running.
-    fn start(&mut self) -> CoreResult<()>;
+    fn start(&mut self) -> QbtReceiverResult<()>;
 
     /// Stops the client and cleans up resources.
     ///
     /// # Errors
     ///
     /// Returns an error if cleanup fails.
-    fn stop(&mut self) -> Pin<Box<dyn std::future::Future<Output = CoreResult<()>> + Send + '_>>;
+    fn stop(
+        &mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = QbtReceiverResult<()>> + Send + '_>>;
 
     /// Returns a stream of client events.
     ///
     /// This can only be called once; subsequent calls return an empty stream.
-    fn events(&mut self)
-    -> Pin<Box<dyn Stream<Item = Result<ClientEvent, CoreError>> + Send + '_>>;
+    fn events(
+        &mut self,
+    ) -> Pin<Box<dyn Stream<Item = Result<QbtReceiverEvent, QbtReceiverError>> + Send + '_>>;
 }
 
-/// Builder for constructing a [`Client`] with validation.
+/// Builder for constructing a [`QbtReceiver`] with validation.
 #[derive(Debug, Clone)]
-pub struct ClientBuilder {
-    config: ClientConfig,
+pub struct QbtReceiverBuilder {
+    config: QbtReceiverConfig,
 }
 
-impl ClientBuilder {
+impl QbtReceiverBuilder {
     /// Creates a new client builder with the given configuration.
-    pub fn new(config: ClientConfig) -> Self {
+    pub fn new(config: QbtReceiverConfig) -> Self {
         Self { config }
     }
 
-    /// Builds a [`Client`] after validating the configuration.
+    /// Builds a [`QbtReceiver`] after validating the configuration.
     ///
     /// # Errors
     ///
-    /// Returns a [`ConfigError`](crate::error::ConfigError) if validation fails.
-    pub fn build(self) -> Result<Client, CoreError> {
+    /// Returns a [`QbtReceiverConfigError`](crate::qbt_receiver::error::QbtReceiverConfigError) if validation fails.
+    pub fn build(self) -> Result<QbtReceiver, QbtReceiverError> {
         self.config.validate()?;
-        Ok(Client {
+        Ok(QbtReceiver {
             config: self.config,
             running: false,
             event_rx: None,
             shutdown_tx: None,
             join_handle: None,
             handlers: Vec::new(),
-            telemetry: Arc::new(Mutex::new(ClientTelemetrySnapshot::default())),
+            telemetry: Arc::new(Mutex::new(QbtReceiverTelemetrySnapshot::default())),
         })
     }
 }
@@ -178,28 +182,28 @@ impl ClientBuilder {
 /// ByteBlaster client implementation.
 ///
 /// This is the main client type that manages the connection lifecycle,
-/// event streaming, and telemetry. Use [`Client::builder`] to construct
+/// event streaming, and telemetry. Use [`QbtReceiver::builder`] to construct
 /// an instance with validated configuration.
-pub struct Client {
-    /// Client configuration.
-    config: ClientConfig,
+pub struct QbtReceiver {
+    /// QbtReceiver configuration.
+    config: QbtReceiverConfig,
     /// Whether the client is currently running.
     running: bool,
     /// Event receiver channel (taken when events() is called).
-    event_rx: Option<mpsc::Receiver<Result<ClientEvent, CoreError>>>,
+    event_rx: Option<mpsc::Receiver<Result<QbtReceiverEvent, QbtReceiverError>>>,
     /// Shutdown signal sender.
     shutdown_tx: Option<watch::Sender<bool>>,
     /// Background task handle.
     join_handle: Option<tokio::task::JoinHandle<()>>,
     /// Registered event handlers.
-    handlers: Vec<EventHandler>,
+    handlers: Vec<QbtReceiverEventHandler>,
     /// Shared telemetry snapshot.
-    telemetry: Arc<Mutex<ClientTelemetrySnapshot>>,
+    telemetry: Arc<Mutex<QbtReceiverTelemetrySnapshot>>,
 }
 
-impl std::fmt::Debug for Client {
+impl std::fmt::Debug for QbtReceiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Client")
+        f.debug_struct("QbtReceiver")
             .field("config", &self.config)
             .field("running", &self.running)
             .field("handler_count", &self.handlers.len())
@@ -207,21 +211,21 @@ impl std::fmt::Debug for Client {
     }
 }
 
-impl Client {
+impl QbtReceiver {
     /// Creates a client builder with the given configuration.
-    pub fn builder(config: ClientConfig) -> ClientBuilder {
-        ClientBuilder::new(config)
+    pub fn builder(config: QbtReceiverConfig) -> QbtReceiverBuilder {
+        QbtReceiverBuilder::new(config)
     }
 
-    pub fn config(&self) -> &ClientConfig {
+    pub fn config(&self) -> &QbtReceiverConfig {
         &self.config
     }
 
-    pub fn subscribe(&mut self, handler: EventHandler) {
+    pub fn subscribe(&mut self, handler: QbtReceiverEventHandler) {
         self.handlers.push(handler);
     }
 
-    pub fn telemetry_snapshot(&self) -> ClientTelemetrySnapshot {
+    pub fn telemetry_snapshot(&self) -> QbtReceiverTelemetrySnapshot {
         self.telemetry
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -229,10 +233,12 @@ impl Client {
     }
 }
 
-impl ByteBlasterClient for Client {
-    fn start(&mut self) -> CoreResult<()> {
+impl QbtReceiverClient for QbtReceiver {
+    fn start(&mut self) -> QbtReceiverResult<()> {
         if self.running {
-            return Err(CoreError::Lifecycle("client already running".to_string()));
+            return Err(QbtReceiverError::Lifecycle(
+                "client already running".to_string(),
+            ));
         }
 
         let (event_tx, event_rx) = mpsc::channel(EVENT_CHANNEL_CAPACITY);
@@ -252,7 +258,9 @@ impl ByteBlasterClient for Client {
         Ok(())
     }
 
-    fn stop(&mut self) -> Pin<Box<dyn std::future::Future<Output = CoreResult<()>> + Send + '_>> {
+    fn stop(
+        &mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = QbtReceiverResult<()>> + Send + '_>> {
         Box::pin(async move {
             if !self.running {
                 return Ok(());
@@ -274,7 +282,7 @@ impl ByteBlasterClient for Client {
 
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<ClientEvent, CoreError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<QbtReceiverEvent, QbtReceiverError>> + Send + '_>> {
         match self.event_rx.take() {
             Some(rx) => Box::pin(stream::unfold(rx, |mut rx| async move {
                 rx.recv().await.map(|item| (item, rx))
@@ -285,11 +293,11 @@ impl ByteBlasterClient for Client {
 }
 
 async fn run_connection_loop(
-    config: ClientConfig,
-    event_tx: mpsc::Sender<Result<ClientEvent, CoreError>>,
+    config: QbtReceiverConfig,
+    event_tx: mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
     mut shutdown_rx: watch::Receiver<bool>,
-    handlers: Vec<EventHandler>,
-    telemetry_sink: Arc<Mutex<ClientTelemetrySnapshot>>,
+    handlers: Vec<QbtReceiverEventHandler>,
+    telemetry_sink: Arc<Mutex<QbtReceiverTelemetrySnapshot>>,
 ) {
     let mut telemetry = RuntimeTelemetry::default();
     let mut server_list =
@@ -310,7 +318,9 @@ async fn run_connection_loop(
         let Some((host, port)) = server_list.next_endpoint() else {
             try_send_event(
                 &event_tx,
-                Err(CoreError::Lifecycle("no servers configured".to_string())),
+                Err(QbtReceiverError::Lifecycle(
+                    "no servers configured".to_string(),
+                )),
                 &mut telemetry,
             );
             update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -340,7 +350,7 @@ async fn run_connection_loop(
                     .saturating_add(1);
                 try_send_event(
                     &event_tx,
-                    Ok(ClientEvent::Connected(endpoint_label(&host, port))),
+                    Ok(QbtReceiverEvent::Connected(endpoint_label(&host, port))),
                     &mut telemetry,
                 );
                 update_telemetry_sink(&telemetry_sink, &telemetry);
@@ -367,7 +377,11 @@ async fn run_connection_loop(
 
                 telemetry.snapshot.disconnect_total =
                     telemetry.snapshot.disconnect_total.saturating_add(1);
-                try_send_event(&event_tx, Ok(ClientEvent::Disconnected), &mut telemetry);
+                try_send_event(
+                    &event_tx,
+                    Ok(QbtReceiverEvent::Disconnected),
+                    &mut telemetry,
+                );
                 update_telemetry_sink(&telemetry_sink, &telemetry);
             }
             Err(err) => {
@@ -376,7 +390,7 @@ async fn run_connection_loop(
                 if config.follow_server_list_updates {
                     server_list.mark_bad_endpoint(&(host.clone(), port));
                 }
-                try_send_event(&event_tx, Err(CoreError::Io(err)), &mut telemetry);
+                try_send_event(&event_tx, Err(QbtReceiverError::Io(err)), &mut telemetry);
                 update_telemetry_sink(&telemetry_sink, &telemetry);
             }
         }
@@ -388,20 +402,20 @@ async fn run_connection_loop(
 }
 
 struct ConnectedSessionContext<'a> {
-    config: &'a ClientConfig,
-    event_tx: &'a mpsc::Sender<Result<ClientEvent, CoreError>>,
+    config: &'a QbtReceiverConfig,
+    event_tx: &'a mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
     shutdown_rx: &'a mut watch::Receiver<bool>,
-    handlers: &'a [EventHandler],
+    handlers: &'a [QbtReceiverEventHandler],
     server_list: &'a mut ServerListManager,
     telemetry: &'a mut RuntimeTelemetry,
-    telemetry_sink: &'a Arc<Mutex<ClientTelemetrySnapshot>>,
+    telemetry_sink: &'a Arc<Mutex<QbtReceiverTelemetrySnapshot>>,
 }
 
 async fn run_connected_session(
     mut stream: tokio::net::TcpStream,
     ctx: &mut ConnectedSessionContext<'_>,
-) -> CoreResult<()> {
-    let mut decoder = ProtocolDecoder::new(ctx.config.decode.clone());
+) -> QbtReceiverResult<()> {
+    let mut decoder = QbtProtocolDecoder::new(ctx.config.decode.clone());
     let watchdog = Watchdog::new(ctx.config.watchdog_timeout_secs, ctx.config.max_exceptions);
     let mut auth_interval = tokio::time::interval(Duration::from_secs(REAUTH_INTERVAL_SECS));
     auth_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -410,7 +424,7 @@ async fn run_connected_session(
         tokio::time::interval(Duration::from_secs(TELEMETRY_EMIT_INTERVAL_SECS));
     telemetry_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-    let auth = AuthMessage {
+    let auth = QbtAuthMessage {
         email: ctx.config.email.clone(),
     };
     let initial = xor_ff(build_logon_message(&auth.email).as_bytes());
@@ -446,7 +460,7 @@ async fn run_connected_session(
                     .saturating_add(1);
                 try_send_event(
                     ctx.event_tx,
-                    Ok(ClientEvent::Telemetry(ctx.telemetry.snapshot.clone())),
+                    Ok(QbtReceiverEvent::Telemetry(ctx.telemetry.snapshot.clone())),
                     ctx.telemetry,
                 );
                 update_telemetry_sink(ctx.telemetry_sink, ctx.telemetry);
@@ -485,7 +499,7 @@ async fn run_connected_session(
                                     .saturating_add(count_decompression_failures(&events) as u64);
                                 for event in &events {
                                     if ctx.config.follow_server_list_updates
-                                        && let FrameEvent::ServerListUpdate(list) = event
+                                        && let QbtFrameEvent::ServerListUpdate(list) = event
                                         && let Err(err) = ctx.server_list.apply_server_list(list.clone()) {
                                         try_send_event(ctx.event_tx, Err(err), ctx.telemetry);
                                     }
@@ -500,7 +514,7 @@ async fn run_connected_session(
                                     .watchdog_exception_events_total
                                     .saturating_add(1);
                                 decoder.reset();
-                                try_send_event(ctx.event_tx, Err(CoreError::Protocol(err)), ctx.telemetry);
+                                try_send_event(ctx.event_tx, Err(QbtReceiverError::Protocol(err)), ctx.telemetry);
                                 update_telemetry_sink(ctx.telemetry_sink, ctx.telemetry);
                             }
                         }
@@ -512,7 +526,7 @@ async fn run_connected_session(
                             .watchdog_exception_events_total
                             .saturating_add(1);
                         update_telemetry_sink(ctx.telemetry_sink, ctx.telemetry);
-                        return Err(CoreError::Io(err));
+                        return Err(QbtReceiverError::Io(err));
                     }
                     Err(_elapsed) => {
                         if watchdog.should_close() {
@@ -521,7 +535,7 @@ async fn run_connected_session(
                                 .watchdog_timeouts_total
                                 .saturating_add(1);
                             update_telemetry_sink(ctx.telemetry_sink, ctx.telemetry);
-                            return Err(CoreError::Lifecycle("watchdog timeout".to_string()));
+                            return Err(QbtReceiverError::Lifecycle("watchdog timeout".to_string()));
                         }
                     }
                 }
@@ -531,9 +545,9 @@ async fn run_connected_session(
 }
 
 fn dispatch_events(
-    event_tx: &mpsc::Sender<Result<ClientEvent, CoreError>>,
-    handlers: &[EventHandler],
-    events: Vec<FrameEvent>,
+    event_tx: &mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
+    handlers: &[QbtReceiverEventHandler],
+    events: Vec<QbtFrameEvent>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     for event in events {
@@ -541,69 +555,69 @@ fn dispatch_events(
             if let Err(err) = handler(&event) {
                 telemetry.snapshot.handler_failures_total =
                     telemetry.snapshot.handler_failures_total.saturating_add(1);
-                let warning = FrameEvent::Warning(ProtocolWarning::HandlerError {
+                let warning = QbtFrameEvent::Warning(QbtProtocolWarning::HandlerError {
                     message: err.to_string(),
                 });
-                try_send_event(event_tx, Ok(ClientEvent::Frame(warning)), telemetry);
+                try_send_event(event_tx, Ok(QbtReceiverEvent::Frame(warning)), telemetry);
             }
         }
-        try_send_event(event_tx, Ok(ClientEvent::Frame(event)), telemetry);
+        try_send_event(event_tx, Ok(QbtReceiverEvent::Frame(event)), telemetry);
     }
 }
 
-fn count_decoder_recoveries(events: &[FrameEvent]) -> usize {
+fn count_decoder_recoveries(events: &[QbtFrameEvent]) -> usize {
     events
         .iter()
         .filter(|event| {
             matches!(
                 event,
-                FrameEvent::Warning(ProtocolWarning::DecoderRecovered { .. })
+                QbtFrameEvent::Warning(QbtProtocolWarning::DecoderRecovered { .. })
             )
         })
         .count()
 }
 
-fn count_data_blocks(events: &[FrameEvent]) -> usize {
+fn count_data_blocks(events: &[QbtFrameEvent]) -> usize {
     events
         .iter()
-        .filter(|event| matches!(event, FrameEvent::DataBlock(_)))
+        .filter(|event| matches!(event, QbtFrameEvent::DataBlock(_)))
         .count()
 }
 
-fn count_server_list_updates(events: &[FrameEvent]) -> usize {
+fn count_server_list_updates(events: &[QbtFrameEvent]) -> usize {
     events
         .iter()
-        .filter(|event| matches!(event, FrameEvent::ServerListUpdate(_)))
+        .filter(|event| matches!(event, QbtFrameEvent::ServerListUpdate(_)))
         .count()
 }
 
-fn count_checksum_mismatches(events: &[FrameEvent]) -> usize {
+fn count_checksum_mismatches(events: &[QbtFrameEvent]) -> usize {
     events
         .iter()
         .filter(|event| {
             matches!(
                 event,
-                FrameEvent::Warning(ProtocolWarning::ChecksumMismatch { .. })
+                QbtFrameEvent::Warning(QbtProtocolWarning::ChecksumMismatch { .. })
             )
         })
         .count()
 }
 
-fn count_decompression_failures(events: &[FrameEvent]) -> usize {
+fn count_decompression_failures(events: &[QbtFrameEvent]) -> usize {
     events
         .iter()
         .filter(|event| {
             matches!(
                 event,
-                FrameEvent::Warning(ProtocolWarning::DecompressionFailed { .. })
+                QbtFrameEvent::Warning(QbtProtocolWarning::DecompressionFailed { .. })
             )
         })
         .count()
 }
 
 fn try_send_event(
-    event_tx: &mpsc::Sender<Result<ClientEvent, CoreError>>,
-    event: Result<ClientEvent, CoreError>,
+    event_tx: &mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
+    event: Result<QbtReceiverEvent, QbtReceiverError>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     try_emit_backpressure_warning(event_tx, telemetry);
@@ -613,20 +627,20 @@ fn try_send_event(
 }
 
 fn try_emit_backpressure_warning(
-    event_tx: &mpsc::Sender<Result<ClientEvent, CoreError>>,
+    event_tx: &mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     if telemetry.dropped_since_last_report == 0 {
         return;
     }
 
-    let warning = FrameEvent::Warning(ProtocolWarning::BackpressureDrop {
+    let warning = QbtFrameEvent::Warning(QbtProtocolWarning::BackpressureDrop {
         dropped_since_last_report: telemetry.dropped_since_last_report,
         total_dropped_events: telemetry.snapshot.event_queue_drop_total,
         decoder_recovery_events: telemetry.snapshot.decoder_recovery_events_total,
     });
 
-    match event_tx.try_send(Ok(ClientEvent::Frame(warning))) {
+    match event_tx.try_send(Ok(QbtReceiverEvent::Frame(warning))) {
         Ok(()) => {
             telemetry.snapshot.backpressure_warning_emitted_total = telemetry
                 .snapshot
@@ -639,7 +653,7 @@ fn try_emit_backpressure_warning(
 }
 
 fn record_dropped_event(
-    err: TrySendError<Result<ClientEvent, CoreError>>,
+    err: TrySendError<Result<QbtReceiverEvent, QbtReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
     if matches!(err, TrySendError::Full(_)) {
@@ -650,7 +664,7 @@ fn record_dropped_event(
 }
 
 fn update_telemetry_sink(
-    telemetry_sink: &Arc<Mutex<ClientTelemetrySnapshot>>,
+    telemetry_sink: &Arc<Mutex<QbtReceiverTelemetrySnapshot>>,
     telemetry: &RuntimeTelemetry,
 ) {
     let mut guard = telemetry_sink
@@ -662,11 +676,12 @@ fn update_telemetry_sink(
 #[cfg(test)]
 mod tests {
     use super::{
-        ClientEvent, ClientTelemetrySnapshot, RuntimeTelemetry, dispatch_events, try_send_event,
+        QbtReceiverEvent, QbtReceiverTelemetrySnapshot, RuntimeTelemetry, dispatch_events,
+        try_send_event,
     };
-    use crate::client::EventHandler;
-    use crate::error::CoreError;
-    use crate::protocol::model::{FrameEvent, ProtocolWarning, ServerList};
+    use crate::qbt_receiver::client::QbtReceiverEventHandler;
+    use crate::qbt_receiver::error::QbtReceiverError;
+    use crate::qbt_receiver::protocol::model::{QbtFrameEvent, QbtProtocolWarning, QbtServerList};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::sync::mpsc;
@@ -676,17 +691,20 @@ mod tests {
         let called_ok = Arc::new(AtomicUsize::new(0));
         let called_ok_clone = Arc::clone(&called_ok);
 
-        let bad: EventHandler = Arc::new(|_evt: &FrameEvent| -> Result<(), CoreError> {
-            Err(CoreError::Lifecycle("boom".to_string()))
-        });
-        let good: EventHandler = Arc::new(move |_evt: &FrameEvent| -> Result<(), CoreError> {
-            called_ok_clone.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        });
+        let bad: QbtReceiverEventHandler =
+            Arc::new(|_evt: &QbtFrameEvent| -> Result<(), QbtReceiverError> {
+                Err(QbtReceiverError::Lifecycle("boom".to_string()))
+            });
+        let good: QbtReceiverEventHandler = Arc::new(
+            move |_evt: &QbtFrameEvent| -> Result<(), QbtReceiverError> {
+                called_ok_clone.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            },
+        );
 
         let handlers = vec![bad, good];
         let (tx, mut rx) = mpsc::channel(16);
-        let events = vec![FrameEvent::ServerListUpdate(ServerList::default())];
+        let events = vec![QbtFrameEvent::ServerListUpdate(QbtServerList::default())];
         let mut telemetry = RuntimeTelemetry::default();
 
         dispatch_events(&tx, &handlers, events, &mut telemetry);
@@ -697,12 +715,12 @@ mod tests {
             tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await
         {
             match item {
-                Some(Ok(ClientEvent::Frame(FrameEvent::Warning(
-                    ProtocolWarning::HandlerError { .. },
+                Some(Ok(QbtReceiverEvent::Frame(QbtFrameEvent::Warning(
+                    QbtProtocolWarning::HandlerError { .. },
                 )))) => {
                     saw_warning = true;
                 }
-                Some(Ok(ClientEvent::Frame(FrameEvent::ServerListUpdate(_)))) => {
+                Some(Ok(QbtReceiverEvent::Frame(QbtFrameEvent::ServerListUpdate(_)))) => {
                     saw_frame = true;
                 }
                 Some(_) => {}
@@ -722,21 +740,21 @@ mod tests {
     async fn backpressure_drop_emits_warning_with_counters() {
         let (tx, mut rx) = mpsc::channel(1);
         let mut telemetry = RuntimeTelemetry {
-            snapshot: ClientTelemetrySnapshot {
+            snapshot: QbtReceiverTelemetrySnapshot {
                 decoder_recovery_events_total: 3,
                 event_queue_drop_total: 0,
-                ..ClientTelemetrySnapshot::default()
+                ..QbtReceiverTelemetrySnapshot::default()
             },
             dropped_since_last_report: 0,
         };
 
-        tx.try_send(Ok(ClientEvent::Disconnected))
+        tx.try_send(Ok(QbtReceiverEvent::Disconnected))
             .expect("seed event should fit");
 
         try_send_event(
             &tx,
-            Ok(ClientEvent::Frame(FrameEvent::ServerListUpdate(
-                ServerList::default(),
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::ServerListUpdate(
+                QbtServerList::default(),
             ))),
             &mut telemetry,
         );
@@ -748,8 +766,8 @@ mod tests {
 
         try_send_event(
             &tx,
-            Ok(ClientEvent::Frame(FrameEvent::ServerListUpdate(
-                ServerList::default(),
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::ServerListUpdate(
+                QbtServerList::default(),
             ))),
             &mut telemetry,
         );
@@ -760,11 +778,13 @@ mod tests {
             .expect("channel should still be open");
 
         match warning_item {
-            Ok(ClientEvent::Frame(FrameEvent::Warning(ProtocolWarning::BackpressureDrop {
-                dropped_since_last_report,
-                total_dropped_events,
-                decoder_recovery_events,
-            }))) => {
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::Warning(
+                QbtProtocolWarning::BackpressureDrop {
+                    dropped_since_last_report,
+                    total_dropped_events,
+                    decoder_recovery_events,
+                },
+            ))) => {
                 assert_eq!(dropped_since_last_report, 1);
                 assert_eq!(total_dropped_events, 1);
                 assert_eq!(decoder_recovery_events, 3);
@@ -780,18 +800,18 @@ mod tests {
     async fn backpressure_drop_warning_reports_and_resets_window() {
         let (tx, mut rx) = mpsc::channel(4);
         let mut telemetry = RuntimeTelemetry {
-            snapshot: ClientTelemetrySnapshot {
+            snapshot: QbtReceiverTelemetrySnapshot {
                 decoder_recovery_events_total: 5,
                 event_queue_drop_total: 7,
-                ..ClientTelemetrySnapshot::default()
+                ..QbtReceiverTelemetrySnapshot::default()
             },
             dropped_since_last_report: 2,
         };
 
         try_send_event(
             &tx,
-            Ok(ClientEvent::Frame(FrameEvent::ServerListUpdate(
-                ServerList::default(),
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::ServerListUpdate(
+                QbtServerList::default(),
             ))),
             &mut telemetry,
         );
@@ -809,11 +829,13 @@ mod tests {
             .expect("second item should exist");
 
         match first {
-            Ok(ClientEvent::Frame(FrameEvent::Warning(ProtocolWarning::BackpressureDrop {
-                dropped_since_last_report,
-                total_dropped_events,
-                decoder_recovery_events,
-            }))) => {
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::Warning(
+                QbtProtocolWarning::BackpressureDrop {
+                    dropped_since_last_report,
+                    total_dropped_events,
+                    decoder_recovery_events,
+                },
+            ))) => {
                 assert_eq!(dropped_since_last_report, 2);
                 assert_eq!(total_dropped_events, 7);
                 assert_eq!(decoder_recovery_events, 5);
@@ -823,7 +845,7 @@ mod tests {
 
         assert!(matches!(
             second,
-            Ok(ClientEvent::Frame(FrameEvent::ServerListUpdate(_)))
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::ServerListUpdate(_)))
         ));
     }
 }

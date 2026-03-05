@@ -2,21 +2,21 @@
 //!
 //! This module provides a simple channel-based stream for completed files.
 
-use crate::file::assembler::CompletedFile;
+use crate::qbt_receiver::file::assembler::QbtCompletedFile;
 use tokio::sync::mpsc;
 
 /// A bidirectional channel for completed file streaming.
 ///
 /// This structure holds both the sender and receiver ends of a channel
 /// for streaming completed files between components.
-pub struct FileStream {
+pub struct QbtFileStream {
     /// Sender end of the file stream channel.
-    pub tx: mpsc::Sender<CompletedFile>,
+    pub tx: mpsc::Sender<QbtCompletedFile>,
     /// Receiver end of the file stream channel.
-    pub rx: mpsc::Receiver<CompletedFile>,
+    pub rx: mpsc::Receiver<QbtCompletedFile>,
 }
 
-impl FileStream {
+impl QbtFileStream {
     /// Creates a new file stream with the given buffer capacity.
     ///
     /// # Arguments

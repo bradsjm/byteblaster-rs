@@ -23,8 +23,8 @@
 //! format includes both primary and satellite server lists along with
 //! a version identifier for compatibility tracking.
 
-use crate::error::{CoreError, CoreResult};
-use crate::protocol::model::ServerList;
+use crate::qbt_receiver::error::{QbtReceiverError, QbtReceiverResult};
+use crate::qbt_receiver::protocol::model::QbtServerList;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::collections::hash_map::RandomState;
@@ -36,7 +36,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Clone)]
 pub struct ServerListManager {
     path: Option<PathBuf>,
-    current: ServerList,
+    current: QbtServerList,
     primary_available: VecDeque<(String, u16)>,
     satellite_available: VecDeque<(String, u16)>,
     shuffle_nonce: u64,
@@ -53,7 +53,7 @@ impl ServerListManager {
     pub fn new(path: Option<PathBuf>, default_servers: Vec<(String, u16)>) -> Self {
         let mut manager = Self {
             path,
-            current: ServerList {
+            current: QbtServerList {
                 servers: default_servers,
                 sat_servers: Vec::new(),
             },
@@ -65,7 +65,7 @@ impl ServerListManager {
         manager
     }
 
-    pub fn load(&mut self) -> CoreResult<()> {
+    pub fn load(&mut self) -> QbtReceiverResult<()> {
         let Some(path) = &self.path else {
             return Ok(());
         };
@@ -75,11 +75,11 @@ impl ServerListManager {
         }
 
         let bytes = fs::read(path)?;
-        let persisted: PersistedServerList =
-            serde_json::from_slice(&bytes).map_err(|e| CoreError::Lifecycle(e.to_string()))?;
+        let persisted: PersistedServerList = serde_json::from_slice(&bytes)
+            .map_err(|e| QbtReceiverError::Lifecycle(e.to_string()))?;
 
         if !persisted.servers.is_empty() || !persisted.sat_servers.is_empty() {
-            self.current = ServerList {
+            self.current = QbtServerList {
                 servers: persisted.servers,
                 sat_servers: persisted.sat_servers,
             };
@@ -89,7 +89,7 @@ impl ServerListManager {
         Ok(())
     }
 
-    pub fn save(&self) -> CoreResult<()> {
+    pub fn save(&self) -> QbtReceiverResult<()> {
         let Some(path) = &self.path else {
             return Ok(());
         };
@@ -97,9 +97,9 @@ impl ServerListManager {
         save_atomic(path, &self.current)
     }
 
-    pub fn apply_server_list(&mut self, list: ServerList) -> CoreResult<()> {
+    pub fn apply_server_list(&mut self, list: QbtServerList) -> QbtReceiverResult<()> {
         if list.servers.is_empty() && list.sat_servers.is_empty() {
-            return Err(CoreError::Lifecycle(
+            return Err(QbtReceiverError::Lifecycle(
                 "server list update contained no valid endpoints".to_string(),
             ));
         }
@@ -176,15 +176,16 @@ fn entropy_seed() -> u64 {
     hasher.finish()
 }
 
-fn save_atomic(path: &Path, server_list: &ServerList) -> CoreResult<()> {
+fn save_atomic(path: &Path, server_list: &QbtServerList) -> QbtReceiverResult<()> {
     let persisted = PersistedServerList {
         servers: server_list.servers.clone(),
         sat_servers: server_list.sat_servers.clone(),
         version: "1.0".to_string(),
     };
 
-    let data = serde_json::to_vec_pretty(&persisted)
-        .map_err(|e| CoreError::Lifecycle(format!("failed to serialize server list: {e}")))?;
+    let data = serde_json::to_vec_pretty(&persisted).map_err(|e| {
+        QbtReceiverError::Lifecycle(format!("failed to serialize server list: {e}"))
+    })?;
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -199,13 +200,13 @@ fn save_atomic(path: &Path, server_list: &ServerList) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::ServerListManager;
-    use crate::protocol::model::ServerList;
+    use crate::qbt_receiver::protocol::model::QbtServerList;
     use std::collections::HashSet;
 
     #[test]
     fn uses_primary_servers_before_satellite_servers() {
         let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
-        mgr.apply_server_list(ServerList {
+        mgr.apply_server_list(QbtServerList {
             servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
             sat_servers: vec![("sat".to_string(), 3)],
         })
@@ -226,7 +227,7 @@ mod tests {
     #[test]
     fn falls_back_to_satellite_when_primary_pool_is_exhausted() {
         let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
-        mgr.apply_server_list(ServerList {
+        mgr.apply_server_list(QbtServerList {
             servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
             sat_servers: vec![("sat".to_string(), 3)],
         })
@@ -243,7 +244,7 @@ mod tests {
     #[test]
     fn mark_bad_endpoint_removes_until_next_list_update() {
         let mut mgr = ServerListManager::new(None, vec![("a".to_string(), 1)]);
-        mgr.apply_server_list(ServerList {
+        mgr.apply_server_list(QbtServerList {
             servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
             sat_servers: vec![("sat".to_string(), 3)],
         })
@@ -255,7 +256,7 @@ mod tests {
             assert_ne!(endpoint, ("b".to_string(), 2));
         }
 
-        mgr.apply_server_list(ServerList {
+        mgr.apply_server_list(QbtServerList {
             servers: vec![("a".to_string(), 1), ("b".to_string(), 2)],
             sat_servers: vec![("sat".to_string(), 3)],
         })

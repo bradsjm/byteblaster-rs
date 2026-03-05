@@ -1,12 +1,12 @@
 use thiserror::Error;
 
 /// Result alias for weather wire components.
-pub type WeatherWireResult<T> = Result<T, WeatherWireError>;
+pub type WxWireReceiverResult<T> = Result<T, WxWireReceiverError>;
 
 /// Errors emitted by weather wire decoding and runtime components.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum WeatherWireError {
+pub enum WxWireReceiverError {
     /// Invalid weather wire configuration.
     #[error("invalid weather wire config: {0}")]
     InvalidConfig(String),

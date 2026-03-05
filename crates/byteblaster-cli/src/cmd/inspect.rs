@@ -4,7 +4,7 @@
 //! capture files, outputting decoded events as JSON.
 
 use crate::cmd::event_output::frame_event_to_json;
-use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder};
+use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder};
 use std::io::Read;
 
 const CAPTURE_READ_BUFFER_BYTES: usize = 64 * 1024;
@@ -43,14 +43,14 @@ pub async fn run(input: Option<String>, text_preview_chars: usize) -> anyhow::Re
 }
 
 /// Reads and decodes input from a file path or stdin.
-fn decode_input(path: Option<&str>) -> anyhow::Result<Vec<FrameEvent>> {
+fn decode_input(path: Option<&str>) -> anyhow::Result<Vec<QbtFrameEvent>> {
     let mut reader: Box<dyn Read> = if let Some(path) = path {
         Box::new(std::fs::File::open(path)?)
     } else {
         Box::new(std::io::stdin())
     };
 
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let mut events = Vec::new();
     let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
 

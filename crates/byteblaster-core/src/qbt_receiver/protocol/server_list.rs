@@ -3,8 +3,8 @@
 //! This module handles parsing of server list frames received from
 //! the ByteBlaster servers, including both primary and satellite servers.
 
-use crate::error::ProtocolError;
-use crate::protocol::model::{ProtocolWarning, ServerList};
+use crate::qbt_receiver::error::QbtProtocolError;
+use crate::qbt_receiver::protocol::model::{QbtProtocolWarning, QbtServerList};
 
 /// Parses a single server endpoint from a string.
 ///
@@ -21,12 +21,12 @@ use crate::protocol::model::{ProtocolWarning, ServerList};
 /// # Example
 ///
 /// ```
-/// use byteblaster_core::parse_server;
+/// use byteblaster_core::qbt_receiver::parse_qbt_server;
 ///
-/// let result = parse_server("example.com:2211");
+/// let result = parse_qbt_server("example.com:2211");
 /// assert_eq!(result, Some(("example.com".to_string(), 2211)));
 /// ```
-pub fn parse_server(input: &str) -> Option<(String, u16)> {
+pub fn parse_qbt_server(input: &str) -> Option<(String, u16)> {
     let (host, port) = input.rsplit_once(':')?;
     let parsed_port = port.parse::<u16>().ok()?;
     Some((host.to_string(), parsed_port))
@@ -43,23 +43,23 @@ pub fn parse_server(input: &str) -> Option<(String, u16)> {
 ///
 /// # Returns
 ///
-/// A tuple of (ServerList, warnings) on success
+/// A tuple of (QbtServerList, warnings) on success
 ///
 /// # Errors
 ///
-/// Returns `ProtocolError::UnsupportedFrame` if the content doesn't start with `/ServerList/`
+/// Returns `QbtProtocolError::UnsupportedFrame` if the content doesn't start with `/ServerList/`
 pub fn parse_server_list_frame(
     content: &str,
-) -> Result<(ServerList, Vec<ProtocolWarning>), ProtocolError> {
+) -> Result<(QbtServerList, Vec<QbtProtocolWarning>), QbtProtocolError> {
     if !content.starts_with("/ServerList/") {
-        return Err(ProtocolError::UnsupportedFrame);
+        return Err(QbtProtocolError::UnsupportedFrame);
     }
 
     let payload = content.trim_end_matches('\0');
     let mut warnings = Vec::new();
-    let mut out = ServerList::default();
+    let mut out = QbtServerList::default();
 
-    let full_marker = "\\ServerList\\/SatServers/";
+    let full_marker = "\\QbtServerList\\/SatServers/";
     let sat_end_marker = "\\SatServers\\";
 
     let servers_part;
@@ -92,16 +92,16 @@ pub fn parse_server_list_frame(
 fn parse_list_entries(
     input: &str,
     delimiter: char,
-    warnings: &mut Vec<ProtocolWarning>,
+    warnings: &mut Vec<QbtProtocolWarning>,
 ) -> Vec<(String, u16)> {
     input
         .split(delimiter)
         .map(str::trim)
         .filter(|entry| !entry.is_empty())
-        .filter_map(|entry| match parse_server(entry) {
+        .filter_map(|entry| match parse_qbt_server(entry) {
             Some(parsed) => Some(parsed),
             None => {
-                warnings.push(ProtocolWarning::MalformedServerEntry {
+                warnings.push(QbtProtocolWarning::MalformedServerEntry {
                     entry: entry.to_string(),
                 });
                 None
@@ -113,8 +113,8 @@ fn parse_list_entries(
 /// Parses a server list frame, returning an empty list on failure.
 ///
 /// This is a convenience function that discards warnings and returns
-/// an empty ServerList on parse failure.
-pub fn parse_simple_server_list(content: &str) -> ServerList {
+/// an empty QbtServerList on parse failure.
+pub fn parse_simple_server_list(content: &str) -> QbtServerList {
     parse_server_list_frame(content)
         .map(|(list, _warnings)| list)
         .unwrap_or_default()
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn server_list_full_parse() {
-        let content = "/ServerList/a.example:2211|b.example:1000\\ServerList\\/SatServers/s1:3000+s2:3001\\SatServers\\\0";
+        let content = "/ServerList/a.example:2211|b.example:1000\\QbtServerList\\/SatServers/s1:3000+s2:3001\\SatServers\\\0";
         let (list, warnings) = parse_server_list_frame(content).expect("full list should parse");
         assert_eq!(list.servers.len(), 2);
         assert_eq!(list.sat_servers.len(), 2);

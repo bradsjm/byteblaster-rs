@@ -1,5 +1,5 @@
-use crate::weather_wire::config::{WXWIRE_PORT, WXWIRE_ROOM};
-use crate::weather_wire::error::{WeatherWireError, WeatherWireResult};
+use crate::wxwire_receiver::config::{WXWIRE_PORT, WXWIRE_ROOM};
+use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
 use futures::StreamExt;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -23,12 +23,12 @@ pub trait WxWireTransport: Send {
     /// Reads one next weather-wire groupchat message.
     fn next_message<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WeatherWireResult<Message>> + Send + 'a>>;
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<Message>> + Send + 'a>>;
 
     /// Disconnects and cleans up the transport.
     fn disconnect<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WeatherWireResult<()>> + Send + 'a>>;
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + 'a>>;
 }
 
 /// Real XMPP transport backed by tokio-xmpp.
@@ -46,11 +46,11 @@ impl XmppWxWireTransport {
         username: &str,
         password: &str,
         connect_timeout: Duration,
-    ) -> WeatherWireResult<Self> {
+    ) -> WxWireReceiverResult<Self> {
         ensure_tls_provider();
 
         let bare_jid = BareJid::from_str(&format!("{username}@{endpoint_host}"))
-            .map_err(|err| WeatherWireError::Transport(format!("invalid jid: {err}")))?;
+            .map_err(|err| WxWireReceiverError::Transport(format!("invalid jid: {err}")))?;
 
         let dns = DnsConfig::no_srv(endpoint_host, WXWIRE_PORT);
         let timeouts = Timeouts {
@@ -60,19 +60,19 @@ impl XmppWxWireTransport {
         let mut client = Client::new_starttls(bare_jid, password.to_string(), dns, timeouts);
 
         let room_bare = BareJid::from_str(WXWIRE_ROOM)
-            .map_err(|err| WeatherWireError::Transport(format!("invalid room jid: {err}")))?;
+            .map_err(|err| WxWireReceiverError::Transport(format!("invalid room jid: {err}")))?;
 
         let online = tokio::time::timeout(connect_timeout, async {
             loop {
                 let Some(event) = client.next().await else {
-                    return Err(WeatherWireError::Transport(
+                    return Err(WxWireReceiverError::Transport(
                         "xmpp stream ended before online".to_string(),
                     ));
                 };
                 match event {
                     Event::Online { .. } => return Ok(()),
                     Event::Disconnected(err) => {
-                        return Err(WeatherWireError::Transport(format!(
+                        return Err(WxWireReceiverError::Transport(format!(
                             "xmpp disconnected before online: {err}"
                         )));
                     }
@@ -81,12 +81,12 @@ impl XmppWxWireTransport {
             }
         })
         .await
-        .map_err(|_| WeatherWireError::Transport("xmpp connect timeout".to_string()))?;
+        .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))?;
         online?;
 
         let nick = format!("bb{}", chrono_like_suffix());
         let room_full = room_bare.with_resource_str(nick.as_str()).map_err(|err| {
-            WeatherWireError::Transport(format!("invalid room resource jid: {err}"))
+            WxWireReceiverError::Transport(format!("invalid room resource jid: {err}"))
         })?;
 
         let join_presence = Presence::available()
@@ -95,7 +95,7 @@ impl XmppWxWireTransport {
         client
             .send_stanza(join_presence.into())
             .await
-            .map_err(|err| WeatherWireError::Transport(format!("failed to join room: {err}")))?;
+            .map_err(|err| WxWireReceiverError::Transport(format!("failed to join room: {err}")))?;
 
         Ok(Self {
             client: Some(client),
@@ -112,14 +112,16 @@ impl WxWireTransport for XmppWxWireTransport {
 
     fn next_message<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WeatherWireResult<Message>> + Send + 'a>> {
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<Message>> + Send + 'a>> {
         Box::pin(async move {
             let client = self.client.as_mut().ok_or_else(|| {
-                WeatherWireError::Transport("xmpp client not connected".to_string())
+                WxWireReceiverError::Transport("xmpp client not connected".to_string())
             })?;
             loop {
                 let Some(event) = client.next().await else {
-                    return Err(WeatherWireError::Transport("xmpp stream ended".to_string()));
+                    return Err(WxWireReceiverError::Transport(
+                        "xmpp stream ended".to_string(),
+                    ));
                 };
 
                 match event {
@@ -127,7 +129,7 @@ impl WxWireTransport for XmppWxWireTransport {
                         continue;
                     }
                     Event::Disconnected(err) => {
-                        return Err(WeatherWireError::Transport(format!(
+                        return Err(WxWireReceiverError::Transport(format!(
                             "xmpp disconnected: {err}"
                         )));
                     }
@@ -159,11 +161,11 @@ impl WxWireTransport for XmppWxWireTransport {
 
     fn disconnect<'a>(
         &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = WeatherWireResult<()>> + Send + 'a>> {
+    ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + 'a>> {
         Box::pin(async move {
             if let Some(client) = self.client.take() {
                 client.send_end().await.map_err(|err| {
-                    WeatherWireError::Transport(format!("disconnect failed: {err}"))
+                    WxWireReceiverError::Transport(format!("disconnect failed: {err}"))
                 })?;
             }
             Ok(())

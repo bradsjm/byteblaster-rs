@@ -26,7 +26,7 @@
 //! ## Integration
 //!
 //! This module builds on top of `byteblaster-core`'s client runtime,
-//! using the [`ByteBlasterClient`] to manage connections and receive events.
+//! using the [`QbtReceiverClient`] to manage connections and receive events.
 //! It adapts the core client events into CLI-specific outputs and HTTP/SSE
 //! responses.
 

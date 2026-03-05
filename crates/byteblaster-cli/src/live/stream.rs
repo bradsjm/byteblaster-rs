@@ -7,9 +7,9 @@ use crate::cmd::event_output::text_preview;
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::shared::{parse_servers_or_default, unix_seconds};
 use crate::product_meta::detect_product_meta;
-use byteblaster_core::{
-    ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
-    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
+use byteblaster_core::qbt_receiver::{
+    QbtDecodeConfig, QbtFileAssembler, QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder,
+    QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverEvent, QbtSegmentAssembler,
 };
 use futures::StreamExt;
 use std::io::Read;
@@ -56,12 +56,12 @@ fn run_capture_mode(
 ) -> anyhow::Result<()> {
     let mut reader = std::fs::File::open(input_path)?;
     let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let output_dir_path = output_dir.map(PathBuf::from);
     if let Some(path) = &output_dir_path {
         std::fs::create_dir_all(path)?;
     }
-    let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
+    let mut assembler = output_dir_path.as_ref().map(|_| QbtFileAssembler::new(100));
     let mut written_files = Vec::new();
     let mut events_total = 0usize;
 
@@ -76,7 +76,7 @@ fn run_capture_mode(
             events_total += 1;
             log_frame_event(&event, text_preview_chars);
             if let Some(assembler) = assembler.as_mut()
-                && let FrameEvent::DataBlock(segment) = event
+                && let QbtFrameEvent::DataBlock(segment) = event
                 && let Some(file) = assembler.push(segment)?
             {
                 let completed = persist_completed_file(
@@ -114,7 +114,7 @@ async fn run_live_mode(
 
     let pin_servers = !live.servers.is_empty();
     let servers = parse_servers_or_default(&live.servers)?;
-    let config = ClientConfig {
+    let config = QbtReceiverConfig {
         email,
         servers,
         server_list_path: live.server_list_path.map(PathBuf::from),
@@ -123,17 +123,17 @@ async fn run_live_mode(
         connection_timeout_secs: 5,
         watchdog_timeout_secs: 49,
         max_exceptions: 10,
-        decode: DecodeConfig::default(),
+        decode: QbtDecodeConfig::default(),
     };
 
-    let mut client = Client::builder(config).build()?;
+    let mut client = QbtReceiver::builder(config).build()?;
     client.start()?;
     let mut events = client.events();
     let output_dir_path = output_dir.map(PathBuf::from);
     if let Some(path) = &output_dir_path {
         std::fs::create_dir_all(path)?;
     }
-    let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
+    let mut assembler = output_dir_path.as_ref().map(|_| QbtFileAssembler::new(100));
 
     let mut seen = 0usize;
     let mut written_files = Vec::new();
@@ -148,13 +148,13 @@ async fn run_live_mode(
         };
 
         match item {
-            Ok(ClientEvent::Frame(frame)) => {
+            Ok(QbtReceiverEvent::Frame(frame)) => {
                 seen += 1;
                 log_frame_event(&frame, text_preview_chars);
-                if matches!(frame, FrameEvent::DataBlock(_)) {
+                if matches!(frame, QbtFrameEvent::DataBlock(_)) {
                     live_stats.data_blocks_total = live_stats.data_blocks_total.saturating_add(1);
                 }
-                if let FrameEvent::ServerListUpdate(list) = &frame {
+                if let QbtFrameEvent::ServerListUpdate(list) = &frame {
                     live_stats.server_list_updates_total =
                         live_stats.server_list_updates_total.saturating_add(1);
                     live_stats.current_servers = list.servers.len();
@@ -167,7 +167,7 @@ async fn run_live_mode(
                     );
                 }
                 if let Some(assembler) = assembler.as_mut()
-                    && let FrameEvent::DataBlock(segment) = &frame
+                    && let QbtFrameEvent::DataBlock(segment) = &frame
                     && let Some(file) = assembler.push(segment.clone())?
                 {
                     let completed = persist_completed_file(
@@ -182,7 +182,7 @@ async fn run_live_mode(
                     written_files.push(completed.path);
                 }
             }
-            Ok(ClientEvent::Connected(endpoint)) => {
+            Ok(QbtReceiverEvent::Connected(endpoint)) => {
                 live_stats.connections_total = live_stats.connections_total.saturating_add(1);
                 info!(
                     endpoint = %endpoint,
@@ -190,14 +190,14 @@ async fn run_live_mode(
                     "connected"
                 );
             }
-            Ok(ClientEvent::Disconnected) => {
+            Ok(QbtReceiverEvent::Disconnected) => {
                 live_stats.disconnects_total = live_stats.disconnects_total.saturating_add(1);
                 warn!(
                     disconnects = live_stats.disconnects_total,
                     "disconnected; switching server"
                 );
             }
-            Ok(ClientEvent::Telemetry(snapshot)) => {
+            Ok(QbtReceiverEvent::Telemetry(snapshot)) => {
                 seen += 1;
                 let auth_delta = last_auth_logons
                     .map(|prev| snapshot.auth_logon_sent_total.saturating_sub(prev))
@@ -250,9 +250,9 @@ async fn run_live_mode(
     Ok(())
 }
 
-fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
+fn log_frame_event(frame: &QbtFrameEvent, text_preview_chars: usize) {
     match frame {
-        FrameEvent::DataBlock(segment) => {
+        QbtFrameEvent::DataBlock(segment) => {
             let product = detect_product_meta(&segment.filename);
             let preview = text_preview(&segment.filename, &segment.content, text_preview_chars);
             info!(
@@ -270,7 +270,7 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
                 "frame event"
             );
         }
-        FrameEvent::ServerListUpdate(list) => {
+        QbtFrameEvent::ServerListUpdate(list) => {
             info!(
                 event = "server_list",
                 servers = list.servers.len(),
@@ -278,7 +278,7 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
                 "frame event"
             );
         }
-        FrameEvent::Warning(warning) => {
+        QbtFrameEvent::Warning(warning) => {
             warn!(
                 event = "warning",
                 warning = ?warning,

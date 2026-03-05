@@ -3,8 +3,8 @@
 //! This module provides functionality for assembling complete files from
 //! individual data segments received over the ByteBlaster protocol.
 
-use crate::error::CoreError;
-use crate::protocol::model::QbtSegment;
+use crate::qbt_receiver::error::QbtReceiverError;
+use crate::qbt_receiver::protocol::model::QbtSegment;
 use bytes::Bytes;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -17,7 +17,7 @@ const DEFAULT_INFLIGHT_TTL_SECS: u64 = 90;
 
 /// A completed file with its filename and data.
 #[derive(Debug, Clone)]
-pub struct CompletedFile {
+pub struct QbtCompletedFile {
     /// The filename of the completed file.
     pub filename: String,
     /// The complete file data.
@@ -27,7 +27,7 @@ pub struct CompletedFile {
 }
 
 /// Trait for segment assemblers that can collect and assemble file segments.
-pub trait SegmentAssembler {
+pub trait QbtSegmentAssembler {
     /// Pushes a segment into the assembler.
     ///
     /// # Arguments
@@ -36,8 +36,8 @@ pub trait SegmentAssembler {
     ///
     /// # Returns
     ///
-    /// `Some(CompletedFile)` if this segment completes a file, `None` otherwise
-    fn push(&mut self, segment: QbtSegment) -> Result<Option<CompletedFile>, CoreError>;
+    /// `Some(QbtCompletedFile)` if this segment completes a file, `None` otherwise
+    fn push(&mut self, segment: QbtSegment) -> Result<Option<QbtCompletedFile>, QbtReceiverError>;
 
     /// Clears all in-progress and completed files.
     fn clear(&mut self);
@@ -52,7 +52,7 @@ pub trait SegmentAssembler {
 /// - Evicts stale entries based on TTL
 /// - Limits concurrent inflight files
 #[derive(Debug, Default)]
-pub struct FileAssembler {
+pub struct QbtFileAssembler {
     /// Inflight files being assembled, keyed by file_key().
     by_key: HashMap<String, InflightFile>,
     /// Recently completed file keys (for duplicate suppression).
@@ -78,7 +78,7 @@ struct InflightFile {
     last_seen: Instant,
 }
 
-impl FileAssembler {
+impl QbtFileAssembler {
     /// Creates a new file assembler with default limits.
     ///
     /// # Arguments
@@ -161,8 +161,8 @@ impl FileAssembler {
     }
 }
 
-impl SegmentAssembler for FileAssembler {
-    fn push(&mut self, segment: QbtSegment) -> Result<Option<CompletedFile>, CoreError> {
+impl QbtSegmentAssembler for QbtFileAssembler {
+    fn push(&mut self, segment: QbtSegment) -> Result<Option<QbtCompletedFile>, QbtReceiverError> {
         if segment.filename.eq_ignore_ascii_case("FILLFILE.TXT") {
             return Ok(None);
         }
@@ -214,7 +214,7 @@ impl SegmentAssembler for FileAssembler {
 
         self.by_key.remove(&key);
         self.remember_completed(key);
-        Ok(Some(CompletedFile {
+        Ok(Some(QbtCompletedFile {
             filename,
             data: Bytes::from(buffer),
             timestamp_utc,
@@ -230,8 +230,8 @@ impl SegmentAssembler for FileAssembler {
 
 #[cfg(test)]
 mod tests {
-    use super::{FileAssembler, SegmentAssembler};
-    use crate::protocol::model::{ProtocolVersion, QbtSegment};
+    use super::{QbtFileAssembler, QbtSegmentAssembler};
+    use crate::qbt_receiver::protocol::model::{QbtProtocolVersion, QbtSegment};
     use bytes::Bytes;
     use std::time::{Duration, SystemTime};
 
@@ -243,7 +243,7 @@ mod tests {
             content: Bytes::from_static(content),
             checksum: 0,
             length: content.len(),
-            version: ProtocolVersion::V1,
+            version: QbtProtocolVersion::V1,
             timestamp_utc: SystemTime::UNIX_EPOCH,
             source: None,
         }
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn reconstructs_when_all_blocks_arrive() {
-        let mut asm = FileAssembler::new(100);
+        let mut asm = QbtFileAssembler::new(100);
         assert!(
             asm.push(seg("a.txt", 1, 2, b"ABC"))
                 .expect("push should succeed")
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn suppresses_duplicate_completed_files() {
-        let mut asm = FileAssembler::new(10);
+        let mut asm = QbtFileAssembler::new(10);
         let _ = asm
             .push(seg("dup.txt", 1, 1, b"X"))
             .expect("push should succeed");
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn skips_fillfile() {
-        let mut asm = FileAssembler::new(10);
+        let mut asm = QbtFileAssembler::new(10);
         let out = asm
             .push(seg("FILLFILE.TXT", 1, 1, b"ignored"))
             .expect("push should succeed");
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn inflight_entries_expire_by_ttl() {
-        let mut asm = FileAssembler::with_limits(10, 10, Duration::from_millis(1));
+        let mut asm = QbtFileAssembler::with_limits(10, 10, Duration::from_millis(1));
         assert!(
             asm.push(seg("ttl.txt", 1, 2, b"A"))
                 .expect("push should succeed")
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn inflight_entries_are_bounded() {
-        let mut asm = FileAssembler::with_limits(10, 1, Duration::from_secs(60));
+        let mut asm = QbtFileAssembler::with_limits(10, 1, Duration::from_secs(60));
         assert!(
             asm.push(seg("a.txt", 1, 2, b"A"))
                 .expect("push should succeed")

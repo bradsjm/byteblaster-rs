@@ -23,7 +23,7 @@ pub const REAUTH_INTERVAL_SECS: u64 = 115;
 /// # Example
 ///
 /// ```
-/// use byteblaster_core::unstable::build_logon_message;
+/// use byteblaster_core::unstable::qbt_receiver::build_logon_message;
 ///
 /// let msg = build_logon_message("user@example.com");
 /// assert_eq!(msg, "ByteBlast Client|NM-user@example.com|V2");
@@ -48,7 +48,7 @@ pub fn build_logon_message(email: &str) -> String {
 /// # Example
 ///
 /// ```
-/// use byteblaster_core::unstable::xor_ff;
+/// use byteblaster_core::unstable::qbt_receiver::xor_ff;
 ///
 /// let encoded = xor_ff(b"Hello");
 /// // Each byte is XORed with 0xFF

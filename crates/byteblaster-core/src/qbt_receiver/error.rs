@@ -1,43 +1,32 @@
-//! Error types for byteblaster-core.
-//!
-//! This module defines the error hierarchy used throughout the crate,
-//! providing typed errors for configuration, protocol, and I/O failures.
+//! Error types for byteblaster-core QBT receiver.
 
-use crate::weather_wire::error::WeatherWireError;
 use thiserror::Error;
 
-/// Result type alias using [`CoreError`] as the error type.
-pub type CoreResult<T> = Result<T, CoreError>;
+/// Result type alias using [`QbtReceiverError`] as the error type.
+pub type QbtReceiverResult<T> = Result<T, QbtReceiverError>;
 
-/// Primary error type for the byteblaster-core crate.
-///
-/// This enum represents all possible errors that can occur when using
-/// the core library. It is marked as `#[non_exhaustive]` to allow
-/// future variants to be added without breaking changes.
+/// Primary error type for QBT receiver components.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum CoreError {
+pub enum QbtReceiverError {
     /// Configuration validation failed.
     #[error("invalid config: {0}")]
-    Config(#[from] ConfigError),
+    Config(#[from] QbtReceiverConfigError),
     /// Protocol parsing or validation error.
     #[error("protocol error: {0}")]
-    Protocol(#[from] ProtocolError),
+    Protocol(#[from] QbtProtocolError),
     /// Underlying I/O operation failed.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     /// Client lifecycle operation failed (start/stop).
     #[error("client lifecycle error: {0}")]
     Lifecycle(String),
-    /// Weather Wire runtime/decoder error.
-    #[error("weather wire error: {0}")]
-    WeatherWire(#[from] WeatherWireError),
 }
 
-/// Errors related to client configuration validation.
+/// Errors related to receiver configuration validation.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum ConfigError {
+pub enum QbtReceiverConfigError {
     /// Email address is empty or whitespace-only.
     #[error("email must not be empty")]
     EmptyEmail,
@@ -49,7 +38,7 @@ pub enum ConfigError {
 /// Errors related to protocol parsing and validation.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum ProtocolError {
+pub enum QbtProtocolError {
     /// Frame header does not match expected format.
     #[error("invalid frame header")]
     InvalidHeader,

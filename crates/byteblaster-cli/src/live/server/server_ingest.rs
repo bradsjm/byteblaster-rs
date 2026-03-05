@@ -1,8 +1,8 @@
 use super::{AppState, EventKind};
 use anyhow::{Context, Result};
-use byteblaster_core::{
-    ByteBlasterClient, Client, ClientConfig, ClientEvent, FileAssembler, FrameEvent,
-    SegmentAssembler,
+use byteblaster_core::qbt_receiver::{
+    QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
+    QbtReceiverEvent, QbtSegmentAssembler,
 };
 use futures::StreamExt;
 use std::sync::Arc;
@@ -12,12 +12,12 @@ use tokio::sync::watch;
 use tracing::info;
 
 pub(super) async fn run_ingest_loop(
-    config: ClientConfig,
+    config: QbtReceiverConfig,
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
-    let mut assembler = FileAssembler::new(100);
-    let mut client = Client::builder(config)
+    let mut assembler = QbtFileAssembler::new(100);
+    let mut client = QbtReceiver::builder(config)
         .build()
         .context("failed to build upstream client")?;
     client.start().context("failed to start upstream client")?;
@@ -47,12 +47,12 @@ pub(super) async fn run_ingest_loop(
 }
 
 fn handle_client_event(
-    item: Result<ClientEvent, byteblaster_core::CoreError>,
+    item: Result<QbtReceiverEvent, byteblaster_core::qbt_receiver::QbtReceiverError>,
     state: &Arc<AppState>,
-    assembler: &mut FileAssembler,
+    assembler: &mut QbtFileAssembler,
 ) {
     match item {
-        Ok(ClientEvent::Connected(endpoint)) => {
+        Ok(QbtReceiverEvent::Connected(endpoint)) => {
             {
                 let mut guard = state
                     .upstream_endpoint
@@ -71,7 +71,7 @@ fn handle_client_event(
                 },
             );
         }
-        Ok(ClientEvent::Disconnected) => {
+        Ok(QbtReceiverEvent::Disconnected) => {
             {
                 let mut guard = state
                     .upstream_endpoint
@@ -82,7 +82,7 @@ fn handle_client_event(
             super::log_info(state.quiet, "upstream disconnected");
             super::publish(state, EventKind::Disconnected);
         }
-        Ok(ClientEvent::Telemetry(snapshot)) => {
+        Ok(QbtReceiverEvent::Telemetry(snapshot)) => {
             {
                 let mut guard = state
                     .telemetry
@@ -92,12 +92,12 @@ fn handle_client_event(
             }
             super::publish(state, EventKind::Telemetry(snapshot));
         }
-        Ok(ClientEvent::Frame(frame)) => match frame {
-            FrameEvent::DataBlock(segment) => {
+        Ok(QbtReceiverEvent::Frame(frame)) => match frame {
+            QbtFrameEvent::DataBlock(segment) => {
                 state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
                 super::publish(
                     state,
-                    EventKind::Frame(FrameEvent::DataBlock(segment.clone())),
+                    EventKind::Frame(QbtFrameEvent::DataBlock(segment.clone())),
                 );
 
                 match assembler.push(segment) {
@@ -150,7 +150,7 @@ fn handle_client_event(
                     }
                 }
             }
-            FrameEvent::ServerListUpdate(list) => {
+            QbtFrameEvent::ServerListUpdate(list) => {
                 state
                     .current_servers
                     .store(list.servers.len(), Ordering::Relaxed);
@@ -165,10 +165,13 @@ fn handle_client_event(
                         list.sat_servers.len()
                     ),
                 );
-                super::publish(state, EventKind::Frame(FrameEvent::ServerListUpdate(list)));
+                super::publish(
+                    state,
+                    EventKind::Frame(QbtFrameEvent::ServerListUpdate(list)),
+                );
             }
-            FrameEvent::Warning(warning) => {
-                super::publish(state, EventKind::Frame(FrameEvent::Warning(warning)));
+            QbtFrameEvent::Warning(warning) => {
+                super::publish(state, EventKind::Frame(QbtFrameEvent::Warning(warning)));
             }
             _ => {}
         },

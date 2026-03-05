@@ -4,7 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use byteblaster_core::unstable::{build_logon_message, xor_ff};
+use byteblaster_core::unstable::qbt_receiver::{build_logon_message, xor_ff};
 use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};

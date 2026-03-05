@@ -15,7 +15,7 @@
 //! - Tracking incomplete files in memory
 //! - Accumulating segments regardless of arrival order
 //! - Detecting file completion when all expected blocks are received
-//! - Emitting [`CompletedFile`] events for fully assembled files
+//! - Emitting [`QbtCompletedFile`] events for fully assembled files
 //!
 //! ## Duplicate Suppression
 //!
@@ -26,11 +26,11 @@
 //!
 //! ## Types
 //!
-//! - [`SegmentAssembler`]: Low-level assembler that accumulates segments
+//! - [`QbtSegmentAssembler`]: Low-level assembler that accumulates segments
 //!   and emits completion events for individual files
-//! - [`FileAssembler`]: Higher-level convenience wrapper around [`SegmentAssembler`]
+//! - [`QbtFileAssembler`]: Higher-level convenience wrapper around [`QbtSegmentAssembler`]
 //!   with built-in file writing to disk
-//! - [`CompletedFile`]: Result of successful assembly containing filename,
+//! - [`QbtCompletedFile`]: Result of successful assembly containing filename,
 //!   size, timestamp, and the assembled bytes
 //!
 //! ## Memory Management
@@ -45,4 +45,4 @@
 
 pub mod assembler;
 
-pub use assembler::{CompletedFile, FileAssembler, SegmentAssembler};
+pub use assembler::{QbtCompletedFile, QbtFileAssembler, QbtSegmentAssembler};

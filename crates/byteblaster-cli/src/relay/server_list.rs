@@ -1,4 +1,4 @@
-use byteblaster_core::unstable::xor_ff;
+use byteblaster_core::unstable::qbt_receiver::xor_ff;
 use bytes::Bytes;
 
 #[derive(Default)]

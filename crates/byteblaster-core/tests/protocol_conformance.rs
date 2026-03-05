@@ -64,12 +64,12 @@ const REQUIRED_TEST_TARGET_SYMBOLS: &[&str] = &[
 ];
 
 const SEARCH_PATHS: &[&str] = &[
-    "src/protocol/codec.rs",
-    "src/protocol/checksum.rs",
-    "src/protocol/server_list.rs",
-    "src/client/mod.rs",
-    "src/client/reconnect.rs",
-    "src/client/watchdog.rs",
+    "src/qbt_receiver/protocol/codec.rs",
+    "src/qbt_receiver/protocol/checksum.rs",
+    "src/qbt_receiver/protocol/server_list.rs",
+    "src/qbt_receiver/client/mod.rs",
+    "src/qbt_receiver/client/reconnect.rs",
+    "src/qbt_receiver/client/watchdog.rs",
     "tests/protocol_parity.rs",
     "tests/reconnect_failover.rs",
     "tests/live_capture_replay.rs",

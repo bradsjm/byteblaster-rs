@@ -61,15 +61,13 @@ Add the crate from this monorepo:
 byteblaster-core = { git = "https://github.com/bradsjm/byteblaster-rs", tag = "v0.1.0", package = "byteblaster-core" }
 ```
 
-Use stable top-level exports from the crate root:
+Use protocol-specific namespaces from the crate root:
 
 ```rust
-use byteblaster_core::{ClientConfig, ProtocolDecoder};
+use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
 
 fn main() {
-    let _config = ClientConfig::default();
-
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let events = decoder.feed(&[]).expect("decode should not fail");
     println!("decoded {} event(s)", events.len());
 }

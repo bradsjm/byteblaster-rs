@@ -11,7 +11,7 @@ use std::time::SystemTime;
 /// Protocol version identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum ProtocolVersion {
+pub enum QbtProtocolVersion {
     /// Version 1: Fixed 1024-byte body size.
     V1,
     /// Version 2: Variable body size with optional compression.
@@ -35,7 +35,7 @@ pub struct QbtSegment {
     /// Length of the body in bytes.
     pub length: usize,
     /// Protocol version used for this segment.
-    pub version: ProtocolVersion,
+    pub version: QbtProtocolVersion,
     /// Timestamp from the frame header (UTC).
     pub timestamp_utc: SystemTime,
     /// Source address of the segment (if known).
@@ -45,7 +45,7 @@ pub struct QbtSegment {
 /// List of available servers for connection.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct ServerList {
+pub struct QbtServerList {
     /// Primary server endpoints as (host, port) tuples.
     pub servers: Vec<(String, u16)>,
     /// Satellite server endpoints as (host, port) tuples.
@@ -55,7 +55,7 @@ pub struct ServerList {
 /// Warning events that can occur during protocol processing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum ProtocolWarning {
+pub enum QbtProtocolWarning {
     /// Checksum validation failed for a data block.
     ChecksumMismatch {
         /// Filename of the affected block.
@@ -106,19 +106,19 @@ pub enum ProtocolWarning {
 /// Events emitted by the protocol decoder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum FrameEvent {
+pub enum QbtFrameEvent {
     /// A data block was successfully decoded.
     DataBlock(QbtSegment),
     /// Server list update received.
-    ServerListUpdate(ServerList),
+    ServerListUpdate(QbtServerList),
     /// Warning condition detected.
-    Warning(ProtocolWarning),
+    Warning(QbtProtocolWarning),
 }
 
 /// Authentication message sent during connection.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct AuthMessage {
+pub struct QbtAuthMessage {
     /// User email address for authentication.
     pub email: String,
 }

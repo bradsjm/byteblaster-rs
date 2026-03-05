@@ -5,9 +5,9 @@
 
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::shared::parse_servers_or_default;
-use byteblaster_core::{
-    ByteBlasterClient, Client, ClientConfig, ClientEvent, DecodeConfig, FileAssembler,
-    FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
+use byteblaster_core::qbt_receiver::{
+    QbtDecodeConfig, QbtFileAssembler, QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder,
+    QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverEvent, QbtSegmentAssembler,
 };
 use futures::StreamExt;
 use std::io::Read;
@@ -47,12 +47,12 @@ pub async fn run(
 
 fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
     let mut reader = std::fs::File::open(input_path)?;
-    let mut decoder = ProtocolDecoder::default();
+    let mut decoder = QbtProtocolDecoder::default();
     let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
 
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
-    let mut assembler = FileAssembler::new(100);
+    let mut assembler = QbtFileAssembler::new(100);
     let mut written_files: Vec<String> = Vec::new();
     let mut file_events = Vec::new();
 
@@ -64,7 +64,7 @@ fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
 
         let events = decoder.feed(&buf[..n])?;
         for event in events {
-            if let FrameEvent::DataBlock(segment) = event
+            if let QbtFrameEvent::DataBlock(segment) = event
                 && let Some(file) = assembler.push(segment)?
             {
                 let completed = persist_completed_file(
@@ -98,7 +98,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
         .ok_or_else(|| anyhow::anyhow!("live mode requires --email"))?;
 
     let servers = parse_servers_or_default(&live.servers)?;
-    let config = ClientConfig {
+    let config = QbtReceiverConfig {
         email,
         servers,
         server_list_path: live.server_list_path.map(PathBuf::from),
@@ -107,16 +107,16 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
         connection_timeout_secs: 5,
         watchdog_timeout_secs: 20,
         max_exceptions: 10,
-        decode: DecodeConfig::default(),
+        decode: QbtDecodeConfig::default(),
     };
 
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
 
-    let mut client = Client::builder(config).build()?;
+    let mut client = QbtReceiver::builder(config).build()?;
     client.start()?;
     let mut events = client.events();
-    let mut assembler = FileAssembler::new(100);
+    let mut assembler = QbtFileAssembler::new(100);
     let mut written_files = Vec::new();
     let mut file_events = Vec::new();
     let mut seen = 0usize;
@@ -129,7 +129,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
         };
 
         match item {
-            Ok(ClientEvent::Frame(FrameEvent::DataBlock(segment))) => {
+            Ok(QbtReceiverEvent::Frame(QbtFrameEvent::DataBlock(segment))) => {
                 seen += 1;
                 if let Some(file) = assembler.push(segment)? {
                     let completed = persist_completed_file(
@@ -142,13 +142,13 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
                     file_events.push(completed.event);
                 }
             }
-            Ok(ClientEvent::Frame(_)) => {
+            Ok(QbtReceiverEvent::Frame(_)) => {
                 seen += 1;
             }
-            Ok(ClientEvent::Telemetry(_)) => {
+            Ok(QbtReceiverEvent::Telemetry(_)) => {
                 seen += 1;
             }
-            Ok(ClientEvent::Connected(_)) | Ok(ClientEvent::Disconnected) => {}
+            Ok(QbtReceiverEvent::Connected(_)) | Ok(QbtReceiverEvent::Disconnected) => {}
             Ok(_) => {}
             Err(err) => {
                 warn!(error = %err, "download live warning");

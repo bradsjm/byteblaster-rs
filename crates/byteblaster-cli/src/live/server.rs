@@ -9,7 +9,6 @@
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
 use crate::live::shared::parse_servers_or_default;
-use crate::product_meta::detect_product_meta;
 use axum::http::HeaderValue;
 use byteblaster_core::{ClientConfig, ClientTelemetrySnapshot, DecodeConfig, FrameEvent};
 use serde::{Deserialize, Serialize};
@@ -50,6 +49,10 @@ enum EventKind {
         filename: String,
         size: usize,
         timestamp_utc: u64,
+        product: Option<crate::product_meta::ProductMeta>,
+        text_product_header: Option<serde_json::Value>,
+        text_product_enrichment: Option<serde_json::Value>,
+        text_product_warning: Option<serde_json::Value>,
     },
     Telemetry(ClientTelemetrySnapshot),
     Error {
@@ -86,6 +89,10 @@ impl EventKind {
                 filename,
                 size,
                 timestamp_utc,
+                product,
+                text_product_header,
+                text_product_enrichment,
+                text_product_warning,
             } => {
                 let mut payload = serde_json::json!({
                     "filename": filename,
@@ -93,10 +100,19 @@ impl EventKind {
                     "timestamp_utc": timestamp_utc,
                     "download_url": file_download_url(filename),
                 });
-                if let Some(product) = detect_product_meta(filename)
+                if let Some(product) = product
                     && let Ok(product_json) = serde_json::to_value(product)
                 {
                     payload["product"] = product_json;
+                }
+                if let Some(text_product_header) = text_product_header {
+                    payload["text_product_header"] = text_product_header.clone();
+                }
+                if let Some(text_product_enrichment) = text_product_enrichment {
+                    payload["text_product_enrichment"] = text_product_enrichment.clone();
+                }
+                if let Some(text_product_warning) = text_product_warning {
+                    payload["text_product_warning"] = text_product_warning.clone();
                 }
                 payload
             }
@@ -485,6 +501,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn files_endpoint_includes_text_product_details_when_parseable() {
+        let state = test_state(10);
+        {
+            let mut guard = state
+                .retained_files
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            guard.insert(
+                "AFDBOX.TXT".to_string(),
+                b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n".to_vec(),
+                1,
+                SystemTime::now(),
+            );
+        }
+
+        let Json(response) = files_handler(State(state)).await;
+        let value = serde_json::to_value(response).expect("files response should serialize");
+        assert_eq!(value["files"][0]["text_product_header"]["ttaaii"], "FXUS61");
+        assert_eq!(value["files"][0]["text_product_header"]["afos"], "AFDBOX");
+        assert_eq!(
+            value["files"][0]["text_product_enrichment"]["pil_nnn"],
+            "AFD"
+        );
+        assert!(value["files"][0].get("text_product_warning").is_none());
+    }
+
+    #[tokio::test]
     async fn root_endpoint_lists_available_routes() {
         let state = test_state(10);
         let app = build_router(state, None).expect("router should build");
@@ -569,11 +612,19 @@ mod tests {
             filename: "report.txt".to_string(),
             size: 2,
             timestamp_utc: 1,
+            product: None,
+            text_product_header: None,
+            text_product_enrichment: None,
+            text_product_warning: None,
         };
         let zip = EventKind::FileComplete {
             filename: "report.zip".to_string(),
             size: 1,
             timestamp_utc: 1,
+            product: None,
+            text_product_header: None,
+            text_product_enrichment: None,
+            text_product_warning: None,
         };
         let telemetry = EventKind::Telemetry(ClientTelemetrySnapshot::default());
 
@@ -588,10 +639,44 @@ mod tests {
             filename: "nested/my file.txt".to_string(),
             size: 11,
             timestamp_utc: 1,
+            product: None,
+            text_product_header: None,
+            text_product_enrichment: None,
+            text_product_warning: None,
         }
         .to_json();
 
         assert_eq!(value["download_url"], "/files/nested%2Fmy%20file.txt");
         assert_eq!(value["timestamp_utc"], 1);
+    }
+
+    #[test]
+    fn file_complete_event_includes_text_product_details() {
+        let value = EventKind::FileComplete {
+            filename: "AFDBOX.TXT".to_string(),
+            size: 42,
+            timestamp_utc: 1,
+            product: None,
+            text_product_header: Some(serde_json::json!({
+                "ttaaii": "FXUS61",
+                "cccc": "KBOX",
+                "ddhhmm": "022101",
+                "bbb": serde_json::Value::Null,
+                "afos": "AFDBOX"
+            })),
+            text_product_enrichment: Some(serde_json::json!({
+                "pil_nnn": "AFD",
+                "pil_description": "Area Forecast Discussion",
+                "bbb_kind": serde_json::Value::Null,
+            })),
+            text_product_warning: None,
+        }
+        .to_json();
+
+        assert_eq!(value["text_product_header"]["ttaaii"], "FXUS61");
+        assert_eq!(
+            value["text_product_enrichment"]["pil_description"],
+            "Area Forecast Discussion"
+        );
     }
 }

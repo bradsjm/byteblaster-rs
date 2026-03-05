@@ -2,6 +2,7 @@
 members = [
     "crates/byteblaster-core",
     "crates/byteblaster-cli",
+    "crates/byteblaster-parser",
 ]
 resolver = "3"
 

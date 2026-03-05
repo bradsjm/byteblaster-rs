@@ -10,6 +10,7 @@ homepage.workspace = true
 
 [dependencies]
 byteblaster-core = { path = "../byteblaster-core", features = ["telemetry-serde"] }
+byteblaster-parser = { path = "../byteblaster-parser" }
 tokio.workspace = true
 anyhow.workspace = true
 clap.workspace = true

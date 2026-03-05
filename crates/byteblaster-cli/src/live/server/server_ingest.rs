@@ -108,7 +108,7 @@ fn handle_client_event(
                             .duration_since(SystemTime::UNIX_EPOCH)
                             .map(|d| d.as_secs())
                             .unwrap_or(0);
-                        {
+                        let retained_meta = {
                             let mut guard = state
                                 .retained_files
                                 .lock()
@@ -118,8 +118,20 @@ fn handle_client_event(
                                 file.data.to_vec(),
                                 timestamp_utc,
                                 completed_at,
-                            );
-                        }
+                            )
+                        };
+                        super::publish(
+                            state,
+                            EventKind::FileComplete {
+                                filename: retained_meta.filename,
+                                size: retained_meta.size,
+                                timestamp_utc: retained_meta.timestamp_utc,
+                                product: retained_meta.product,
+                                text_product_header: retained_meta.text_product_header,
+                                text_product_enrichment: retained_meta.text_product_enrichment,
+                                text_product_warning: retained_meta.text_product_warning,
+                            },
+                        );
                         super::log_info(
                             state.quiet,
                             &format!(
@@ -128,14 +140,6 @@ fn handle_client_event(
                                 file.data.len(),
                                 timestamp_utc
                             ),
-                        );
-                        super::publish(
-                            state,
-                            EventKind::FileComplete {
-                                filename: file.filename,
-                                size: file.data.len(),
-                                timestamp_utc,
-                            },
                         );
                     }
                     Ok(None) => {}

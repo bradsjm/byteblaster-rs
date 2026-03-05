@@ -87,12 +87,7 @@ fn run_capture_mode(
                     &file.data,
                     file.timestamp_utc,
                 )?;
-                info!(
-                    path = %completed.path,
-                    filename = %completed.filename,
-                    timestamp_utc = completed.timestamp_utc,
-                    "wrote file"
-                );
+                log_completed_file(&completed);
                 written_files.push(completed.path);
             }
         }
@@ -183,12 +178,7 @@ async fn run_live_mode(
                         &file.data,
                         file.timestamp_utc,
                     )?;
-                    info!(
-                        path = %completed.path,
-                        filename = %completed.filename,
-                        timestamp_utc = completed.timestamp_utc,
-                        "wrote file"
-                    );
+                    log_completed_file(&completed);
                     written_files.push(completed.path);
                 }
             }
@@ -303,4 +293,20 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
             );
         }
     }
+}
+
+fn log_completed_file(completed: &crate::live::file_pipeline::CompletedFileRecord) {
+    let header = completed.event.get("text_product_header");
+    let enrichment = completed.event.get("text_product_enrichment");
+    let warning = completed.event.get("text_product_warning");
+    info!(
+        path = %completed.path,
+        filename = %completed.filename,
+        timestamp_utc = completed.timestamp_utc,
+        text_product_afos = header.and_then(|value| value.get("afos")).and_then(|value| value.as_str()),
+        text_product_ttaaii = header.and_then(|value| value.get("ttaaii")).and_then(|value| value.as_str()),
+        text_product_pil_nnn = enrichment.and_then(|value| value.get("pil_nnn")).and_then(|value| value.as_str()),
+        text_product_warning_code = warning.and_then(|value| value.get("code")).and_then(|value| value.as_str()),
+        "wrote file"
+    );
 }

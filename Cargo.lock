@@ -179,6 +179,7 @@ dependencies = [
  "anyhow",
  "axum",
  "byteblaster-core",
+ "byteblaster-parser",
  "bytes",
  "clap",
  "futures",
@@ -210,6 +211,14 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "byteblaster-parser"
+version = "0.2.0"
+dependencies = [
+ "regex",
+ "thiserror",
 ]
 
 [[package]]

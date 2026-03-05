@@ -273,8 +273,6 @@ jobs:
             for FILE_PATH in "${RELEASE_FILES[@]}"; do
               printf -- '- `%s`\n' "$(basename "$FILE_PATH")"
             done
-            printf '\n## Install (bash)\n'
-            printf '`curl --proto '\''=https'\'' --tlsv1.2 -LsSf https://github.com/bradsjm/byteblaster-rs/releases/download/%s/%s | sh`\n' "${{ needs.plan.outputs.tag }}" "$INSTALLER_FILE"
           } > "$NOTES_FILE"
 
           echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"

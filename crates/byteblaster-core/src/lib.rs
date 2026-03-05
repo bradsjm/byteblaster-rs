@@ -2,6 +2,7 @@
 //!
 //! Core library for ByteBlaster protocol receivers.
 
+pub mod ingest;
 pub mod qbt_receiver;
 pub mod wxwire_receiver;
 

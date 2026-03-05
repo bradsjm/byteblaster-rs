@@ -6,15 +6,12 @@
 use crate::ReceiverKind;
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::shared::parse_servers_or_default;
+use byteblaster_core::ingest::{IngestEvent, QbtIngestStream, WxWireIngestStream};
 use byteblaster_core::qbt_receiver::{
     QbtDecodeConfig, QbtFileAssembler, QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder,
-    QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverEvent, QbtSegmentAssembler,
+    QbtReceiver, QbtReceiverConfig, QbtSegmentAssembler,
 };
-use byteblaster_core::wxwire_receiver::client::{
-    WxWireReceiver, WxWireReceiverClient, WxWireReceiverEvent,
-};
-use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
-use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
+use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
 use futures::StreamExt;
 use std::io::Read;
 use std::path::PathBuf;
@@ -128,10 +125,10 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
                 decode: QbtDecodeConfig::default(),
             };
 
-            let mut client = QbtReceiver::builder(config).build()?;
-            client.start()?;
-            let mut events = client.events();
-            let mut assembler = QbtFileAssembler::new(100);
+            let receiver = QbtReceiver::builder(config).build()?;
+            let mut ingest = QbtIngestStream::new(receiver);
+            ingest.start()?;
+            let mut events = ingest.events();
             let mut seen = 0usize;
             let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 
@@ -142,26 +139,21 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
                 };
 
                 match item {
-                    Ok(QbtReceiverEvent::Frame(QbtFrameEvent::DataBlock(segment))) => {
+                    Ok(IngestEvent::Product(product)) => {
                         seen += 1;
-                        if let Some(file) = assembler.push(segment)? {
-                            let completed = persist_completed_file(
-                                output_dir_path.as_path(),
-                                &file.filename,
-                                &file.data,
-                                file.timestamp_utc,
-                            )?;
-                            written_files.push(completed.path);
-                            file_events.push(completed.event);
-                        }
+                        let completed = persist_completed_file(
+                            output_dir_path.as_path(),
+                            &product.filename,
+                            &product.data,
+                            product.source_timestamp_utc,
+                        )?;
+                        written_files.push(completed.path);
+                        file_events.push(completed.event);
                     }
-                    Ok(QbtReceiverEvent::Frame(_)) => {
+                    Ok(IngestEvent::Telemetry(_)) | Ok(IngestEvent::Warning(_)) => {
                         seen += 1;
                     }
-                    Ok(QbtReceiverEvent::Telemetry(_)) => {
-                        seen += 1;
-                    }
-                    Ok(QbtReceiverEvent::Connected(_)) | Ok(QbtReceiverEvent::Disconnected) => {}
+                    Ok(IngestEvent::Connected { .. }) | Ok(IngestEvent::Disconnected) => {}
                     Ok(_) => {}
                     Err(err) => {
                         warn!(error = %err, "download live warning");
@@ -170,7 +162,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
             }
 
             drop(events);
-            client.stop().await?;
+            ingest.stop().await?;
         }
         ReceiverKind::Wxwire => {
             if !live.servers.is_empty() {
@@ -190,15 +182,16 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
                 .password
                 .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --password"))?;
 
-            let mut client = WxWireReceiver::builder(WxWireReceiverConfig {
+            let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
                 username,
                 password,
                 idle_timeout_secs: live.idle_timeout_secs.max(1),
                 ..WxWireReceiverConfig::default()
             })
             .build()?;
-            client.start()?;
-            let mut events = client.events();
+            let mut ingest = WxWireIngestStream::new(receiver);
+            ingest.start()?;
+            let mut events = ingest.events();
             let mut seen = 0usize;
             let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 
@@ -209,25 +202,21 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
                 };
 
                 match item {
-                    Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(file))) => {
+                    Ok(IngestEvent::Product(product)) => {
                         seen += 1;
                         let completed = persist_completed_file(
                             output_dir_path.as_path(),
-                            &file.filename,
-                            &file.data,
-                            file.issue_utc,
+                            &product.filename,
+                            &product.data,
+                            product.source_timestamp_utc,
                         )?;
                         written_files.push(completed.path);
                         file_events.push(completed.event);
                     }
-                    Ok(WxWireReceiverEvent::Frame(_)) => {
+                    Ok(IngestEvent::Telemetry(_)) | Ok(IngestEvent::Warning(_)) => {
                         seen += 1;
                     }
-                    Ok(WxWireReceiverEvent::Telemetry(_)) => {
-                        seen += 1;
-                    }
-                    Ok(WxWireReceiverEvent::Connected(_))
-                    | Ok(WxWireReceiverEvent::Disconnected) => {}
+                    Ok(IngestEvent::Connected { .. }) | Ok(IngestEvent::Disconnected) => {}
                     Ok(_) => {}
                     Err(err) => {
                         warn!(error = %err, "download wxwire live warning");
@@ -236,7 +225,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
             }
 
             drop(events);
-            client.stop().await?;
+            ingest.stop().await?;
         }
     }
 

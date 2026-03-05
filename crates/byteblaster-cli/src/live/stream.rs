@@ -8,15 +8,15 @@ use crate::cmd::event_output::text_preview;
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::shared::{parse_servers_or_default, unix_seconds};
 use crate::product_meta::detect_product_meta;
+use byteblaster_core::ingest::{
+    IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, QbtIngestStream, ReceivedProduct,
+    WxWireIngestStream,
+};
 use byteblaster_core::qbt_receiver::{
     QbtDecodeConfig, QbtFileAssembler, QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder,
-    QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverEvent, QbtSegmentAssembler,
+    QbtReceiver, QbtReceiverConfig, QbtSegmentAssembler,
 };
-use byteblaster_core::wxwire_receiver::client::{
-    WxWireReceiver, WxWireReceiverClient, WxWireReceiverEvent,
-};
-use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
-use byteblaster_core::wxwire_receiver::model::{WxWireReceiverFile, WxWireReceiverFrameEvent};
+use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
 use futures::StreamExt;
 use std::io::Read;
 use std::path::PathBuf;
@@ -32,14 +32,8 @@ struct LiveStats {
     connections_total: u64,
     /// Total disconnections.
     disconnects_total: u64,
-    /// Total server list updates received.
-    server_list_updates_total: u64,
-    /// Current number of primary servers.
-    current_servers: usize,
-    /// Current number of satellite servers.
-    current_sat_servers: usize,
-    /// Total data blocks received.
-    data_blocks_total: u64,
+    /// Total products received.
+    products_total: u64,
 }
 
 pub async fn run(
@@ -145,10 +139,10 @@ async fn run_live_mode(
                 decode: QbtDecodeConfig::default(),
             };
 
-            let mut client = QbtReceiver::builder(config).build()?;
-            client.start()?;
-            let mut events = client.events();
-            let mut assembler = output_dir_path.as_ref().map(|_| QbtFileAssembler::new(100));
+            let receiver = QbtReceiver::builder(config).build()?;
+            let mut ingest = QbtIngestStream::new(receiver);
+            ingest.start()?;
+            let mut events = ingest.events();
 
             let mut seen = 0usize;
             let mut live_stats = LiveStats::default();
@@ -162,42 +156,22 @@ async fn run_live_mode(
                 };
 
                 match item {
-                    Ok(QbtReceiverEvent::Frame(frame)) => {
+                    Ok(IngestEvent::Product(product)) => {
                         seen += 1;
-                        log_frame_event(&frame, text_preview_chars);
-                        if matches!(frame, QbtFrameEvent::DataBlock(_)) {
-                            live_stats.data_blocks_total =
-                                live_stats.data_blocks_total.saturating_add(1);
-                        }
-                        if let QbtFrameEvent::ServerListUpdate(list) = &frame {
-                            live_stats.server_list_updates_total =
-                                live_stats.server_list_updates_total.saturating_add(1);
-                            live_stats.current_servers = list.servers.len();
-                            live_stats.current_sat_servers = list.sat_servers.len();
-                            info!(
-                                updates = live_stats.server_list_updates_total,
-                                servers = list.servers.len(),
-                                sat_servers = list.sat_servers.len(),
-                                "server list received"
-                            );
-                        }
-                        if let Some(assembler) = assembler.as_mut()
-                            && let QbtFrameEvent::DataBlock(segment) = &frame
-                            && let Some(file) = assembler.push(segment.clone())?
-                        {
+                        live_stats.products_total = live_stats.products_total.saturating_add(1);
+                        log_product_event(&product, text_preview_chars);
+                        if let Some(output_dir) = output_dir_path.as_deref() {
                             let completed = persist_completed_file(
-                                output_dir_path
-                                    .as_deref()
-                                    .expect("output dir configured when assembler enabled"),
-                                &file.filename,
-                                &file.data,
-                                file.timestamp_utc,
+                                output_dir,
+                                &product.filename,
+                                &product.data,
+                                product.source_timestamp_utc,
                             )?;
                             log_completed_file(&completed);
                             written_files.push(completed.path);
                         }
                     }
-                    Ok(QbtReceiverEvent::Connected(endpoint)) => {
+                    Ok(IngestEvent::Connected { endpoint }) => {
                         live_stats.connections_total =
                             live_stats.connections_total.saturating_add(1);
                         info!(
@@ -206,7 +180,7 @@ async fn run_live_mode(
                             "connected"
                         );
                     }
-                    Ok(QbtReceiverEvent::Disconnected) => {
+                    Ok(IngestEvent::Disconnected) => {
                         live_stats.disconnects_total =
                             live_stats.disconnects_total.saturating_add(1);
                         warn!(
@@ -214,7 +188,7 @@ async fn run_live_mode(
                             "disconnected; switching server"
                         );
                     }
-                    Ok(QbtReceiverEvent::Telemetry(snapshot)) => {
+                    Ok(IngestEvent::Telemetry(IngestTelemetry::Qbt(snapshot))) => {
                         seen += 1;
                         let auth_delta = last_auth_logons
                             .map(|prev| snapshot.auth_logon_sent_total.saturating_sub(prev))
@@ -231,17 +205,18 @@ async fn run_live_mode(
                         info!(
                             bytes_in_total = snapshot.bytes_in_total,
                             frame_events_total = snapshot.frame_events_total,
-                            data_blocks_total = live_stats.data_blocks_total,
+                            products_total = live_stats.products_total,
                             event_queue_drop_total = snapshot.event_queue_drop_total,
-                            server_list_updates_total = snapshot.server_list_updates_total,
-                            current_servers = live_stats.current_servers,
-                            current_sat_servers = live_stats.current_sat_servers,
                             auth_logon_sent_total = snapshot.auth_logon_sent_total,
                             watchdog_timeouts_total = snapshot.watchdog_timeouts_total,
                             watchdog_exception_events_total =
                                 snapshot.watchdog_exception_events_total,
                             "telemetry"
                         );
+                    }
+                    Ok(IngestEvent::Warning(warning)) => {
+                        seen += 1;
+                        log_ingest_warning(&warning);
                     }
                     Ok(_) => {}
                     Err(err) => {
@@ -251,14 +226,12 @@ async fn run_live_mode(
             }
 
             drop(events);
-            client.stop().await?;
+            ingest.stop().await?;
 
             info!(
                 events = seen,
                 files = written_files.len(),
-                server_list_updates = live_stats.server_list_updates_total,
-                current_servers = live_stats.current_servers,
-                current_sat_servers = live_stats.current_sat_servers,
+                products = live_stats.products_total,
                 connections = live_stats.connections_total,
                 disconnects = live_stats.disconnects_total,
                 receiver = "qbt",
@@ -284,19 +257,21 @@ async fn run_live_mode(
                 .password
                 .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --password"))?;
 
-            let mut client = WxWireReceiver::builder(WxWireReceiverConfig {
+            let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
                 username,
                 password,
                 idle_timeout_secs: live.idle_timeout_secs.max(1),
                 ..WxWireReceiverConfig::default()
             })
             .build()?;
-            client.start()?;
-            let mut events = client.events();
+            let mut ingest = WxWireIngestStream::new(receiver);
+            ingest.start()?;
+            let mut events = ingest.events();
             let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
             let mut seen = 0usize;
             let mut connections_total = 0u64;
             let mut disconnects_total = 0u64;
+            let mut products_total = 0u64;
 
             while seen < live.max_events {
                 let next = tokio::time::timeout(idle, events.next()).await;
@@ -305,23 +280,22 @@ async fn run_live_mode(
                 };
 
                 match item {
-                    Ok(WxWireReceiverEvent::Frame(frame)) => {
+                    Ok(IngestEvent::Product(product)) => {
                         seen += 1;
-                        log_wxwire_frame_event(&frame, text_preview_chars);
-                        if let Some(output_dir) = output_dir_path.as_deref()
-                            && let WxWireReceiverFrameEvent::File(file) = &frame
-                        {
+                        products_total = products_total.saturating_add(1);
+                        log_product_event(&product, text_preview_chars);
+                        if let Some(output_dir) = output_dir_path.as_deref() {
                             let completed = persist_completed_file(
                                 output_dir,
-                                &file.filename,
-                                &file.data,
-                                file.issue_utc,
+                                &product.filename,
+                                &product.data,
+                                product.source_timestamp_utc,
                             )?;
                             log_completed_file(&completed);
                             written_files.push(completed.path);
                         }
                     }
-                    Ok(WxWireReceiverEvent::Connected(endpoint)) => {
+                    Ok(IngestEvent::Connected { endpoint }) => {
                         connections_total = connections_total.saturating_add(1);
                         info!(
                             endpoint = %endpoint,
@@ -329,23 +303,28 @@ async fn run_live_mode(
                             "connected"
                         );
                     }
-                    Ok(WxWireReceiverEvent::Disconnected) => {
+                    Ok(IngestEvent::Disconnected) => {
                         disconnects_total = disconnects_total.saturating_add(1);
                         warn!(
                             disconnects = disconnects_total,
                             "disconnected; reconnecting"
                         );
                     }
-                    Ok(WxWireReceiverEvent::Telemetry(snapshot)) => {
+                    Ok(IngestEvent::Telemetry(IngestTelemetry::WxWire(snapshot))) => {
                         seen += 1;
                         info!(
                             decoded_messages_total = snapshot.decoded_messages_total,
                             files_emitted_total = snapshot.files_emitted_total,
+                            products_total,
                             warning_events_total = snapshot.warning_events_total,
                             event_queue_drop_total = snapshot.event_queue_drop_total,
                             reconnect_attempts_total = snapshot.reconnect_attempts_total,
                             "telemetry"
                         );
+                    }
+                    Ok(IngestEvent::Warning(warning)) => {
+                        seen += 1;
+                        log_ingest_warning(&warning);
                     }
                     Ok(_) => {}
                     Err(err) => {
@@ -355,11 +334,12 @@ async fn run_live_mode(
             }
 
             drop(events);
-            client.stop().await?;
+            ingest.stop().await?;
 
             info!(
                 events = seen,
                 files = written_files.len(),
+                products = products_total,
                 connections = connections_total,
                 disconnects = disconnects_total,
                 receiver = "wxwire",
@@ -433,46 +413,70 @@ fn log_completed_file(completed: &crate::live::file_pipeline::CompletedFileRecor
     );
 }
 
-fn log_wxwire_frame_event(frame: &WxWireReceiverFrameEvent, text_preview_chars: usize) {
-    match frame {
-        WxWireReceiverFrameEvent::File(file) => {
-            log_wxwire_file_event(file, text_preview_chars);
+fn log_product_event(product: &ReceivedProduct, text_preview_chars: usize) {
+    let meta = detect_product_meta(&product.filename);
+    let preview = text_preview(&product.filename, &product.data, text_preview_chars);
+    match &product.origin {
+        ProductOrigin::Qbt => {
+            info!(
+                event = "product",
+                source = "qbt",
+                filename = %product.filename,
+                bytes = product.data.len(),
+                timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                product_title = meta
+                    .as_ref()
+                    .map(|value| value.title.as_str())
+                    .unwrap_or(""),
+                preview = preview.as_deref(),
+                "ingest event"
+            );
         }
-        WxWireReceiverFrameEvent::Warning(warning) => {
-            warn!(
-                event = "warning",
-                warning = ?warning,
-                "frame warning"
+        ProductOrigin::WxWire {
+            message_id,
+            subject,
+            delay_stamp_utc,
+        } => {
+            info!(
+                event = "product",
+                source = "wxwire",
+                filename = %product.filename,
+                bytes = product.data.len(),
+                timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                message_id = %message_id,
+                subject = %subject,
+                delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
+                product_title = meta
+                    .as_ref()
+                    .map(|value| value.title.as_str())
+                    .unwrap_or(""),
+                preview = preview.as_deref(),
+                "ingest event"
             );
         }
         _ => {
             info!(
-                event = "other",
-                frame = ?frame,
-                "frame event"
+                event = "product",
+                source = "unknown",
+                filename = %product.filename,
+                bytes = product.data.len(),
+                timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                "ingest event"
             );
         }
     }
 }
 
-fn log_wxwire_file_event(file: &WxWireReceiverFile, text_preview_chars: usize) {
-    let product = detect_product_meta(&file.filename);
-    let preview = text_preview(&file.filename, &file.data, text_preview_chars);
-    info!(
-        event = "file",
-        filename = %file.filename,
-        bytes = file.data.len(),
-        issue_utc = unix_seconds(file.issue_utc),
-        ttaaii = %file.ttaaii,
-        cccc = %file.cccc,
-        awipsid = %file.awipsid,
-        id = %file.id,
-        subject = %file.subject,
-        product_title = product
-            .as_ref()
-            .map(|meta| meta.title.as_str())
-            .unwrap_or(""),
-        preview = preview.as_deref(),
-        "frame event"
-    );
+fn log_ingest_warning(warning: &IngestWarning) {
+    match warning {
+        IngestWarning::Qbt(value) => {
+            warn!(event = "warning", source = "qbt", warning = ?value, "ingest warning");
+        }
+        IngestWarning::WxWire(value) => {
+            warn!(event = "warning", source = "wxwire", warning = ?value, "ingest warning");
+        }
+        _ => {
+            warn!(event = "warning", source = "unknown", warning = ?warning, "ingest warning");
+        }
+    }
 }

@@ -1,14 +1,15 @@
 use super::{AppState, EventKind};
 use anyhow::{Context, Result};
+use byteblaster_core::ingest::{
+    IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, QbtIngestStream,
+    WxWireIngestStream,
+};
 use byteblaster_core::qbt_receiver::{
-    QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
-    QbtReceiverEvent, QbtSegmentAssembler,
+    QbtFrameEvent, QbtProtocolWarning, QbtReceiver, QbtReceiverConfig,
 };
-use byteblaster_core::wxwire_receiver::client::{
-    WxWireReceiver, WxWireReceiverClient, WxWireReceiverEvent,
+use byteblaster_core::wxwire_receiver::{
+    WxWireReceiver, WxWireReceiverConfig, WxWireReceiverFrameEvent,
 };
-use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
-use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
 use futures::StreamExt;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -21,13 +22,13 @@ pub(super) async fn run_qbt_ingest_loop(
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
-    let mut assembler = QbtFileAssembler::new(100);
-    let mut client = QbtReceiver::builder(config)
+    let receiver = QbtReceiver::builder(config)
         .build()
         .context("failed to build upstream client")?;
-    client.start().context("failed to start upstream client")?;
+    let mut ingest = QbtIngestStream::new(receiver);
+    ingest.start().context("failed to start upstream client")?;
 
-    let mut events = client.events();
+    let mut events = ingest.events();
     loop {
         tokio::select! {
             _ = shutdown_rx.changed() => {
@@ -37,13 +38,13 @@ pub(super) async fn run_qbt_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_qbt_client_event(item, &state, &mut assembler);
+                handle_ingest_event(item, &state);
             }
         }
     }
 
     drop(events);
-    client
+    ingest
         .stop()
         .await
         .context("failed to stop upstream client")?;
@@ -56,12 +57,13 @@ pub(super) async fn run_wxwire_ingest_loop(
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
-    let mut client = WxWireReceiver::builder(config)
+    let receiver = WxWireReceiver::builder(config)
         .build()
         .context("failed to build upstream client")?;
-    client.start().context("failed to start upstream client")?;
+    let mut ingest = WxWireIngestStream::new(receiver);
+    ingest.start().context("failed to start upstream client")?;
 
-    let mut events = client.events();
+    let mut events = ingest.events();
     loop {
         tokio::select! {
             _ = shutdown_rx.changed() => {
@@ -71,13 +73,13 @@ pub(super) async fn run_wxwire_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_wxwire_client_event(item, &state);
+                handle_ingest_event(item, &state);
             }
         }
     }
 
     drop(events);
-    client
+    ingest
         .stop()
         .await
         .context("failed to stop upstream client")?;
@@ -85,13 +87,9 @@ pub(super) async fn run_wxwire_ingest_loop(
     Ok(())
 }
 
-fn handle_qbt_client_event(
-    item: Result<QbtReceiverEvent, byteblaster_core::qbt_receiver::QbtReceiverError>,
-    state: &Arc<AppState>,
-    assembler: &mut QbtFileAssembler,
-) {
+fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppState>) {
     match item {
-        Ok(QbtReceiverEvent::Connected(endpoint)) => {
+        Ok(IngestEvent::Connected { endpoint }) => {
             {
                 let mut guard = state
                     .upstream_endpoint
@@ -110,7 +108,7 @@ fn handle_qbt_client_event(
                 },
             );
         }
-        Ok(QbtReceiverEvent::Disconnected) => {
+        Ok(IngestEvent::Disconnected) => {
             {
                 let mut guard = state
                     .upstream_endpoint
@@ -121,214 +119,92 @@ fn handle_qbt_client_event(
             super::log_info(state.quiet, "upstream disconnected");
             super::publish(state, EventKind::Disconnected);
         }
-        Ok(QbtReceiverEvent::Telemetry(snapshot)) => {
-            {
-                let mut guard = state
-                    .telemetry
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = serde_json::to_value(&snapshot).unwrap_or_else(|_| serde_json::json!({}));
-            }
-            super::publish(
-                state,
-                EventKind::Telemetry(
-                    serde_json::to_value(&snapshot).unwrap_or_else(|_| serde_json::json!({})),
-                ),
-            );
-        }
-        Ok(QbtReceiverEvent::Frame(frame)) => match frame {
-            QbtFrameEvent::DataBlock(segment) => {
-                state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
-                super::publish(
-                    state,
-                    EventKind::QbtFrame(QbtFrameEvent::DataBlock(segment.clone())),
-                );
-
-                match assembler.push(segment) {
-                    Ok(Some(file)) => {
-                        let completed_at = SystemTime::now();
-                        let timestamp_utc = file
-                            .timestamp_utc
-                            .duration_since(SystemTime::UNIX_EPOCH)
-                            .map(|d| d.as_secs())
-                            .unwrap_or(0);
-                        let retained_meta = {
-                            let mut guard = state
-                                .retained_files
-                                .lock()
-                                .unwrap_or_else(|poisoned| poisoned.into_inner());
-                            guard.insert(
-                                file.filename.clone(),
-                                file.data.to_vec(),
-                                timestamp_utc,
-                                completed_at,
-                            )
-                        };
-                        super::publish(
-                            state,
-                            EventKind::FileComplete {
-                                filename: retained_meta.filename,
-                                size: retained_meta.size,
-                                timestamp_utc: retained_meta.timestamp_utc,
-                                product: retained_meta.product,
-                                text_product_header: retained_meta.text_product_header,
-                                text_product_enrichment: retained_meta.text_product_enrichment,
-                                text_product_warning: retained_meta.text_product_warning,
-                            },
-                        );
-                        super::log_info(
-                            state.quiet,
-                            &format!(
-                                "file complete name={} bytes={} timestamp_utc={}",
-                                file.filename,
-                                file.data.len(),
-                                timestamp_utc
-                            ),
-                        );
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        let message = format!("assembler error: {error}");
-                        super::log_error(&message);
-                        super::publish(state, EventKind::Error { message });
-                    }
+        Ok(IngestEvent::Telemetry(snapshot)) => {
+            let telemetry_value = match snapshot {
+                IngestTelemetry::Qbt(value) => {
+                    serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!({}))
                 }
-            }
-            QbtFrameEvent::ServerListUpdate(list) => {
-                state
-                    .current_servers
-                    .store(list.servers.len(), Ordering::Relaxed);
-                state
-                    .current_sat_servers
-                    .store(list.sat_servers.len(), Ordering::Relaxed);
-                super::log_info(
-                    state.quiet,
-                    &format!(
-                        "server list received servers={} sat_servers={}",
-                        list.servers.len(),
-                        list.sat_servers.len()
-                    ),
-                );
-                super::publish(
-                    state,
-                    EventKind::QbtFrame(QbtFrameEvent::ServerListUpdate(list)),
-                );
-            }
-            QbtFrameEvent::Warning(warning) => {
-                super::publish(state, EventKind::QbtFrame(QbtFrameEvent::Warning(warning)));
-            }
-            _ => {}
-        },
-        Err(err) => {
-            super::log_error(&format!("client error: {err}"));
-            super::publish(
-                state,
-                EventKind::Error {
-                    message: err.to_string(),
-                },
-            );
-        }
-        Ok(_) => {}
-    }
-}
-
-fn handle_wxwire_client_event(
-    item: Result<
-        WxWireReceiverEvent,
-        byteblaster_core::wxwire_receiver::error::WxWireReceiverError,
-    >,
-    state: &Arc<AppState>,
-) {
-    match item {
-        Ok(WxWireReceiverEvent::Connected(endpoint)) => {
-            {
-                let mut guard = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = Some(endpoint.clone());
-            }
-            super::log_info(
-                state.quiet,
-                &format!("upstream connected endpoint={endpoint}"),
-            );
-            super::publish(
-                state,
-                EventKind::Connected {
-                    endpoint: endpoint.clone(),
-                },
-            );
-        }
-        Ok(WxWireReceiverEvent::Disconnected) => {
-            {
-                let mut guard = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = None;
-            }
-            super::log_info(state.quiet, "upstream disconnected");
-            super::publish(state, EventKind::Disconnected);
-        }
-        Ok(WxWireReceiverEvent::Telemetry(snapshot)) => {
+                IngestTelemetry::WxWire(value) => {
+                    serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!({}))
+                }
+                _ => serde_json::json!({}),
+            };
             {
                 let mut guard = state
                     .telemetry
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                *guard = serde_json::to_value(&snapshot).unwrap_or_else(|_| serde_json::json!({}));
+                *guard = telemetry_value.clone();
             }
+            super::publish(state, EventKind::Telemetry(telemetry_value));
+        }
+        Ok(IngestEvent::Product(product)) => {
+            if matches!(product.origin, ProductOrigin::Qbt) {
+                state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
+            }
+
+            let completed_at = SystemTime::now();
+            let timestamp_utc = product
+                .source_timestamp_utc
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|duration| duration.as_secs())
+                .unwrap_or(0);
+            let retained_meta = {
+                let mut guard = state
+                    .retained_files
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                guard.insert(
+                    product.filename.clone(),
+                    product.data.to_vec(),
+                    timestamp_utc,
+                    completed_at,
+                )
+            };
             super::publish(
                 state,
-                EventKind::Telemetry(
-                    serde_json::to_value(&snapshot).unwrap_or_else(|_| serde_json::json!({})),
+                EventKind::FileComplete {
+                    filename: retained_meta.filename,
+                    size: retained_meta.size,
+                    timestamp_utc: retained_meta.timestamp_utc,
+                    product: retained_meta.product,
+                    text_product_header: retained_meta.text_product_header,
+                    text_product_enrichment: retained_meta.text_product_enrichment,
+                    text_product_warning: retained_meta.text_product_warning,
+                },
+            );
+            super::log_info(
+                state.quiet,
+                &format!(
+                    "file complete name={} bytes={} timestamp_utc={}",
+                    product.filename,
+                    product.data.len(),
+                    timestamp_utc
                 ),
             );
         }
-        Ok(WxWireReceiverEvent::Frame(frame)) => {
-            super::publish(state, EventKind::WxWireFrame(frame.clone()));
-            if let WxWireReceiverFrameEvent::File(file) = frame {
-                let completed_at = SystemTime::now();
-                let timestamp_utc = file
-                    .issue_utc
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
-                let retained_meta = {
-                    let mut guard = state
-                        .retained_files
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    guard.insert(
-                        file.filename.clone(),
-                        file.data.to_vec(),
-                        timestamp_utc,
-                        completed_at,
-                    )
-                };
+        Ok(IngestEvent::Warning(warning)) => match warning {
+            IngestWarning::Qbt(value) => {
+                if let QbtProtocolWarning::BackpressureDrop { .. } = value {
+                    super::log_info(state.quiet, "qbt ingest backpressure warning");
+                }
+                super::publish(state, EventKind::QbtFrame(QbtFrameEvent::Warning(value)));
+            }
+            IngestWarning::WxWire(value) => {
                 super::publish(
                     state,
-                    EventKind::FileComplete {
-                        filename: retained_meta.filename,
-                        size: retained_meta.size,
-                        timestamp_utc: retained_meta.timestamp_utc,
-                        product: retained_meta.product,
-                        text_product_header: retained_meta.text_product_header,
-                        text_product_enrichment: retained_meta.text_product_enrichment,
-                        text_product_warning: retained_meta.text_product_warning,
+                    EventKind::WxWireFrame(WxWireReceiverFrameEvent::Warning(value)),
+                );
+            }
+            _ => {
+                super::publish(
+                    state,
+                    EventKind::Error {
+                        message: format!("ingest warning: {warning:?}"),
                     },
                 );
-                super::log_info(
-                    state.quiet,
-                    &format!(
-                        "file complete name={} bytes={} timestamp_utc={}",
-                        file.filename,
-                        file.data.len(),
-                        timestamp_utc
-                    ),
-                );
             }
-        }
+        },
         Err(err) => {
             super::log_error(&format!("client error: {err}"));
             super::publish(

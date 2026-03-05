@@ -12,9 +12,12 @@ use byteblaster_core::{
     FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
 };
 use futures::StreamExt;
+use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 use tracing::{info, warn};
+
+const CAPTURE_READ_BUFFER_BYTES: usize = 64 * 1024;
 
 /// Statistics tracked during live streaming.
 #[derive(Debug, Default)]
@@ -51,43 +54,52 @@ fn run_capture_mode(
     output_dir: Option<&str>,
     text_preview_chars: usize,
 ) -> anyhow::Result<()> {
-    let bytes = std::fs::read(input_path)?;
-
+    let mut reader = std::fs::File::open(input_path)?;
+    let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
     let mut decoder = ProtocolDecoder::default();
-    let events = decoder.feed(&bytes)?;
     let output_dir_path = output_dir.map(PathBuf::from);
     if let Some(path) = &output_dir_path {
         std::fs::create_dir_all(path)?;
     }
     let mut assembler = output_dir_path.as_ref().map(|_| FileAssembler::new(100));
     let mut written_files = Vec::new();
+    let mut events_total = 0usize;
 
-    for event in &events {
-        log_frame_event(event, text_preview_chars);
-        if let Some(assembler) = assembler.as_mut()
-            && let FrameEvent::DataBlock(segment) = event
-            && let Some(file) = assembler.push(segment.clone())?
-        {
-            let completed = persist_completed_file(
-                output_dir_path
-                    .as_deref()
-                    .expect("output dir configured when assembler enabled"),
-                &file.filename,
-                &file.data,
-                file.timestamp_utc,
-            )?;
-            info!(
-                path = %completed.path,
-                filename = %completed.filename,
-                timestamp_utc = completed.timestamp_utc,
-                "wrote file"
-            );
-            written_files.push(completed.path);
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+
+        let events = decoder.feed(&buf[..n])?;
+        for event in events {
+            events_total += 1;
+            log_frame_event(&event, text_preview_chars);
+            if let Some(assembler) = assembler.as_mut()
+                && let FrameEvent::DataBlock(segment) = event
+                && let Some(file) = assembler.push(segment)?
+            {
+                let completed = persist_completed_file(
+                    output_dir_path
+                        .as_deref()
+                        .expect("output dir configured when assembler enabled"),
+                    &file.filename,
+                    &file.data,
+                    file.timestamp_utc,
+                )?;
+                info!(
+                    path = %completed.path,
+                    filename = %completed.filename,
+                    timestamp_utc = completed.timestamp_utc,
+                    "wrote file"
+                );
+                written_files.push(completed.path);
+            }
         }
     }
 
     info!(
-        events = events.len(),
+        events = events_total,
         files = written_files.len(),
         status = "ok",
         "stream capture complete"
@@ -260,7 +272,10 @@ fn log_frame_event(frame: &FrameEvent, text_preview_chars: usize) {
                 total_blocks = segment.total_blocks,
                 bytes = segment.content.len(),
                 timestamp_utc = unix_seconds(segment.timestamp_utc),
-                product_title = ?product.as_ref().map(|meta| meta.title.as_str()),
+                product_title = product
+                    .as_ref()
+                    .map(|meta| meta.title.as_str())
+                    .unwrap_or(""),
                 preview = preview.as_deref(),
                 "frame event"
             );

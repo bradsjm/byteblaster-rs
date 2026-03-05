@@ -2,7 +2,7 @@ use crate::relay::auth::AuthParser;
 use crate::relay::config::{RelayArgs, RelayConfig};
 use crate::relay::server_list::{ServerListScanner, build_server_list_wire};
 use crate::relay::state::{AppState, ClientMeta, HealthSnapshot, MetricsSnapshot};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -21,6 +21,7 @@ const INITIAL_AUTH_TIMEOUT_SECS: u64 = 30;
 const UPSTREAM_REAUTH_INTERVAL_SECS: u64 = 115;
 const UPSTREAM_READ_BUFFER_BYTES: usize = 8192;
 const UPSTREAM_CHANNEL_CAPACITY: usize = 4096;
+const CLIENT_WRITER_QUEUE_CAPACITY: usize = 1024;
 const QUALITY_RESUME_THRESHOLD: f64 = 0.97;
 
 struct QueuedChunk {
@@ -103,22 +104,37 @@ pub async fn run(args: RelayArgs) -> Result<()> {
 
     if let Err(join_err) = upstream_task.await {
         error!(error = %join_err, "upstream task join failed");
+        return Err(anyhow!("upstream task join failed: {join_err}"));
     }
     match accept_task.await {
         Ok(Ok(())) => {}
-        Ok(Err(err)) => error!(error = %err, "accept loop failed"),
-        Err(join_err) => error!(error = %join_err, "accept task join failed"),
+        Ok(Err(err)) => {
+            error!(error = %err, "accept loop failed");
+            return Err(anyhow!("accept loop failed: {err}"));
+        }
+        Err(join_err) => {
+            error!(error = %join_err, "accept task join failed");
+            return Err(anyhow!("accept task join failed: {join_err}"));
+        }
     }
     if let Err(join_err) = quality_task.await {
         error!(error = %join_err, "quality task join failed");
+        return Err(anyhow!("quality task join failed: {join_err}"));
     }
     match metrics_task.await {
         Ok(Ok(())) => {}
-        Ok(Err(err)) => error!(error = %err, "metrics server failed"),
-        Err(join_err) => error!(error = %join_err, "metrics task join failed"),
+        Ok(Err(err)) => {
+            error!(error = %err, "metrics server failed");
+            return Err(anyhow!("metrics server failed: {err}"));
+        }
+        Err(join_err) => {
+            error!(error = %join_err, "metrics task join failed");
+            return Err(anyhow!("metrics task join failed: {join_err}"));
+        }
     }
     if let Err(join_err) = metrics_log_task.await {
         error!(error = %join_err, "metrics log task join failed");
+        return Err(anyhow!("metrics log task join failed: {join_err}"));
     }
 
     info!("relay stopped");
@@ -209,12 +225,12 @@ async fn run_upstream_loop(
         info!(endpoint = %format!("{}:{}", endpoint.0, endpoint.1), "upstream connected");
 
         let initial_auth = xor_ff(build_logon_message(&config.email).as_bytes());
-        if stream.write_all(&initial_auth).await.is_err() {
+        if let Err(err) = stream.write_all(&initial_auth).await {
             state
                 .metrics
                 .upstream_disconnect_total
                 .fetch_add(1, Ordering::Relaxed);
-            warn!("upstream disconnected while sending initial auth");
+            warn!(error = %err, "upstream disconnected while sending initial auth");
             continue;
         }
 
@@ -230,9 +246,9 @@ async fn run_upstream_loop(
                 }
                 _ = auth_interval.tick() => {
                     let auth = xor_ff(build_logon_message(&config.email).as_bytes());
-                    if stream.write_all(&auth).await.is_err() {
+                    if let Err(err) = stream.write_all(&auth).await {
                         state.metrics.upstream_disconnect_total.fetch_add(1, Ordering::Relaxed);
-                        warn!("upstream disconnected during periodic re-auth");
+                        warn!(error = %err, "upstream disconnected during periodic re-auth");
                         break;
                     }
                 }
@@ -252,9 +268,9 @@ async fn run_upstream_loop(
                             }
                             let _ = upstream_tx.send(bytes);
                         }
-                        Err(_) => {
+                        Err(err) => {
                             state.metrics.upstream_disconnect_total.fetch_add(1, Ordering::Relaxed);
-                            warn!("upstream read failed");
+                            warn!(error = %err, "upstream read failed");
                             break;
                         }
                     }
@@ -285,18 +301,26 @@ async fn run_accept_loop(
             _ = shutdown_rx.changed() => return Ok(()),
             accept = listener.accept() => {
                 let (stream, peer) = accept.context("accept failed")?;
-                if state.metrics.downstream_active_clients.load(Ordering::Relaxed) as usize >= config.max_clients {
+                if state.metrics.downstream_active_clients
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                        (current < config.max_clients as u64).then_some(current + 1)
+                    })
+                    .is_err()
+                {
                     state.metrics.downstream_connections_rejected_over_capacity_total.fetch_add(1, Ordering::Relaxed);
                     warn!(peer = %peer, max_clients = config.max_clients, "rejecting downstream client over capacity");
                     let mut socket = stream;
                     let server_list = state.latest_server_list_wire();
-                    let _ = socket.write_all(&server_list).await;
-                    let _ = socket.shutdown().await;
+                    if let Err(err) = socket.write_all(&server_list).await {
+                        debug!(peer = %peer, error = %err, "failed sending server list to rejected client");
+                    }
+                    if let Err(err) = socket.shutdown().await {
+                        debug!(peer = %peer, error = %err, "failed shutting down rejected client socket");
+                    }
                     continue;
                 }
 
                 state.metrics.downstream_connections_accepted_total.fetch_add(1, Ordering::Relaxed);
-                state.metrics.downstream_active_clients.fetch_add(1, Ordering::Relaxed);
                 let client_id = state.next_client_id.fetch_add(1, Ordering::Relaxed);
                 info!(client_id, peer = %peer, "accepted downstream client");
                 let client_state = Arc::clone(&state);
@@ -322,7 +346,7 @@ async fn run_client_session(
 ) -> Result<()> {
     let (mut reader, writer) = stream.into_split();
     let queue_permits = Arc::new(Semaphore::new(config.client_buffer_bytes));
-    let (writer_tx, writer_rx) = mpsc::unbounded_channel::<QueuedChunk>();
+    let (writer_tx, writer_rx) = mpsc::channel::<QueuedChunk>(CLIENT_WRITER_QUEUE_CAPACITY);
 
     let writer_state = Arc::clone(&state);
     let writer_task =
@@ -335,6 +359,7 @@ async fn run_client_session(
     let mut email = String::new();
     let mut is_authenticated = false;
     let mut disconnect_reason = "client_closed";
+    let mut read_poll_timeouts = 0u64;
 
     loop {
         if *shutdown_rx.borrow() {
@@ -395,7 +420,9 @@ async fn run_client_session(
                         debug!(client_id, peer = %peer, error = %err, "downstream client read error");
                         break;
                     }
-                    Err(_) => {}
+                    Err(_) => {
+                        read_poll_timeouts = read_poll_timeouts.saturating_add(1);
+                    }
                 }
             }
             recv = upstream_rx.recv(), if is_authenticated => {
@@ -419,9 +446,27 @@ async fn run_client_session(
                         };
 
                         let queued = QueuedChunk { bytes: chunk, _permit: permit };
-                        if writer_tx.send(queued).is_err() {
-                            disconnect_reason = "writer_channel_closed";
-                            break;
+                        match writer_tx.try_send(queued) {
+                            Ok(()) => {}
+                            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                                disconnect_reason = "writer_channel_closed";
+                                debug!(client_id, peer = %peer, "downstream writer channel closed");
+                                break;
+                            }
+                            Err(tokio::sync::mpsc::error::TrySendError::Full(item)) => {
+                                state.metrics.downstream_disconnect_slow_client_total.fetch_add(1, Ordering::Relaxed);
+                                state.metrics.bytes_dropped_total.fetch_add(item.bytes.len() as u64, Ordering::Relaxed);
+                                disconnect_reason = "writer_queue_full";
+                                warn!(
+                                    client_id,
+                                    peer = %peer,
+                                    queue_capacity = CLIENT_WRITER_QUEUE_CAPACITY,
+                                    queued_limit_bytes = config.client_buffer_bytes,
+                                    dropped_bytes = item.bytes.len(),
+                                    "disconnecting slow downstream client due to writer queue saturation"
+                                );
+                                break;
+                            }
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
@@ -452,7 +497,14 @@ async fn run_client_session(
         .downstream_active_clients
         .fetch_sub(1, Ordering::Relaxed);
 
-    info!(client_id, peer = %peer, user = %email, reason = disconnect_reason, "downstream client disconnected");
+    info!(
+        client_id,
+        peer = %peer,
+        user = %email,
+        read_poll_timeouts,
+        reason = disconnect_reason,
+        "downstream client disconnected"
+    );
 
     Ok(())
 }
@@ -460,16 +512,16 @@ async fn run_client_session(
 async fn run_client_writer(
     state: Arc<AppState>,
     mut writer: tokio::net::tcp::OwnedWriteHalf,
-    mut rx: mpsc::UnboundedReceiver<QueuedChunk>,
+    mut rx: mpsc::Receiver<QueuedChunk>,
 ) {
     while let Some(item) = rx.recv().await {
         let len = item.bytes.len() as u64;
-        if writer.write_all(&item.bytes).await.is_err() {
+        if let Err(err) = writer.write_all(&item.bytes).await {
             state
                 .metrics
                 .bytes_dropped_total
                 .fetch_add(len, Ordering::Relaxed);
-            debug!(dropped_bytes = len, "downstream writer failed");
+            debug!(dropped_bytes = len, error = %err, "downstream writer failed");
             break;
         }
         state.add_forwarded(len);

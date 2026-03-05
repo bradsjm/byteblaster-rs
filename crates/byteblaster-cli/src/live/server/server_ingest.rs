@@ -1,4 +1,5 @@
 use super::{AppState, EventKind};
+use anyhow::{Context, Result};
 use byteblaster_core::{
     ByteBlasterClient, Client, ClientConfig, ClientEvent, FileAssembler, FrameEvent,
     SegmentAssembler,
@@ -14,20 +15,12 @@ pub(super) async fn run_ingest_loop(
     config: ClientConfig,
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
-) {
+) -> Result<()> {
     let mut assembler = FileAssembler::new(100);
-    let mut client = match Client::builder(config).build() {
-        Ok(client) => client,
-        Err(err) => {
-            super::log_error(&format!("failed to build client: {err}"));
-            return;
-        }
-    };
-
-    if let Err(err) = client.start() {
-        super::log_error(&format!("failed to start client: {err}"));
-        return;
-    }
+    let mut client = Client::builder(config)
+        .build()
+        .context("failed to build upstream client")?;
+    client.start().context("failed to start upstream client")?;
 
     let mut events = client.events();
     loop {
@@ -45,9 +38,12 @@ pub(super) async fn run_ingest_loop(
     }
 
     drop(events);
-    if let Err(err) = client.stop().await {
-        super::log_error(&format!("failed to stop client: {err}"));
-    }
+    client
+        .stop()
+        .await
+        .context("failed to stop upstream client")?;
+
+    Ok(())
 }
 
 fn handle_client_event(
@@ -189,10 +185,10 @@ pub(super) async fn run_stats_loop(
     state: Arc<AppState>,
     stats_interval_secs: u64,
     mut shutdown_rx: watch::Receiver<bool>,
-) {
+) -> Result<()> {
     if stats_interval_secs == 0 {
         let _ = shutdown_rx.changed().await;
-        return;
+        return Ok(());
     }
 
     let mut interval = tokio::time::interval(Duration::from_secs(stats_interval_secs.max(1)));
@@ -250,4 +246,6 @@ pub(super) async fn run_stats_loop(
             }
         }
     }
+
+    Ok(())
 }

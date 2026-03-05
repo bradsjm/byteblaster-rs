@@ -4,8 +4,10 @@
 //! capture files, outputting decoded events as JSON.
 
 use crate::cmd::event_output::frame_event_to_json;
-use byteblaster_core::{FrameDecoder, ProtocolDecoder};
+use byteblaster_core::{FrameDecoder, FrameEvent, ProtocolDecoder};
 use std::io::Read;
+
+const CAPTURE_READ_BUFFER_BYTES: usize = 64 * 1024;
 
 /// Runs the inspect command.
 ///
@@ -21,10 +23,7 @@ use std::io::Read;
 ///
 /// Ok on success, or an error if reading/decoding fails
 pub async fn run(input: Option<String>, text_preview_chars: usize) -> anyhow::Result<()> {
-    let bytes = read_input(input.as_deref())?;
-
-    let mut decoder = ProtocolDecoder::default();
-    let events = decoder.feed(&bytes)?;
+    let events = decode_input(input.as_deref())?;
 
     let event_payload: Vec<serde_json::Value> = events
         .iter()
@@ -43,13 +42,25 @@ pub async fn run(input: Option<String>, text_preview_chars: usize) -> anyhow::Re
     Ok(())
 }
 
-/// Reads input from a file path or stdin.
-fn read_input(path: Option<&str>) -> anyhow::Result<Vec<u8>> {
-    if let Some(path) = path {
-        return Ok(std::fs::read(path)?);
+/// Reads and decodes input from a file path or stdin.
+fn decode_input(path: Option<&str>) -> anyhow::Result<Vec<FrameEvent>> {
+    let mut reader: Box<dyn Read> = if let Some(path) = path {
+        Box::new(std::fs::File::open(path)?)
+    } else {
+        Box::new(std::io::stdin())
+    };
+
+    let mut decoder = ProtocolDecoder::default();
+    let mut events = Vec::new();
+    let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
+
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        events.extend(decoder.feed(&buf[..n])?);
     }
 
-    let mut bytes = Vec::new();
-    std::io::stdin().read_to_end(&mut bytes)?;
-    Ok(bytes)
+    Ok(events)
 }

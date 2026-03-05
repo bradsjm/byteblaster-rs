@@ -90,8 +90,13 @@ pub(super) async fn events_handler(
     headers: HeaderMap,
     Query(query): Query<EventsQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let current = state.connected_clients.load(Ordering::Relaxed);
-    if current >= state.max_clients {
+    if state
+        .connected_clients
+        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+            (current < state.max_clients).then_some(current + 1)
+        })
+        .is_err()
+    {
         super::log_info(
             state.quiet,
             &format!("rejecting client; limit reached peer={peer}"),
@@ -99,7 +104,6 @@ pub(super) async fn events_handler(
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
-    state.connected_clients.fetch_add(1, Ordering::Relaxed);
     super::log_info(state.quiet, &format!("sse client connected peer={peer}"));
 
     let rx = state.event_tx.subscribe();

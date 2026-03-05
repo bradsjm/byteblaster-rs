@@ -250,11 +250,23 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     if let Err(err) = serve_result {
         return Err(anyhow::anyhow!("http server failed: {err}"));
     }
-    if let Err(err) = ingest_result {
-        return Err(anyhow::anyhow!("ingest task join failed: {err}"));
+    match ingest_result {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            return Err(anyhow::anyhow!("ingest task failed: {err}"));
+        }
+        Err(err) => {
+            return Err(anyhow::anyhow!("ingest task join failed: {err}"));
+        }
     }
-    if let Err(err) = stats_result {
-        return Err(anyhow::anyhow!("stats task join failed: {err}"));
+    match stats_result {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            return Err(anyhow::anyhow!("stats task failed: {err}"));
+        }
+        Err(err) => {
+            return Err(anyhow::anyhow!("stats task join failed: {err}"));
+        }
     }
 
     Ok(())

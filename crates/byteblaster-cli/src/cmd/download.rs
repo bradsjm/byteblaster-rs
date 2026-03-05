@@ -10,9 +10,12 @@ use byteblaster_core::{
     FrameDecoder, FrameEvent, ProtocolDecoder, SegmentAssembler,
 };
 use futures::StreamExt;
+use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 use tracing::warn;
+
+const CAPTURE_READ_BUFFER_BYTES: usize = 64 * 1024;
 
 /// Runs the download command.
 ///
@@ -43,10 +46,9 @@ pub async fn run(
 }
 
 fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
-    let bytes = std::fs::read(input_path)?;
-
+    let mut reader = std::fs::File::open(input_path)?;
     let mut decoder = ProtocolDecoder::default();
-    let events = decoder.feed(&bytes)?;
+    let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
 
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
@@ -54,18 +56,26 @@ fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
     let mut written_files: Vec<String> = Vec::new();
     let mut file_events = Vec::new();
 
-    for event in events {
-        if let FrameEvent::DataBlock(segment) = event
-            && let Some(file) = assembler.push(segment)?
-        {
-            let completed = persist_completed_file(
-                output_dir_path.as_path(),
-                &file.filename,
-                &file.data,
-                file.timestamp_utc,
-            )?;
-            written_files.push(completed.path);
-            file_events.push(completed.event);
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+
+        let events = decoder.feed(&buf[..n])?;
+        for event in events {
+            if let FrameEvent::DataBlock(segment) = event
+                && let Some(file) = assembler.push(segment)?
+            {
+                let completed = persist_completed_file(
+                    output_dir_path.as_path(),
+                    &file.filename,
+                    &file.data,
+                    file.timestamp_utc,
+                )?;
+                written_files.push(completed.path);
+                file_events.push(completed.event);
+            }
         }
     }
 

@@ -73,7 +73,7 @@ enum Commands {
         #[arg(long)]
         max_events: Option<usize>,
         /// Idle timeout in seconds.
-        #[arg(long, default_value_t = 20)]
+        #[arg(long, default_value_t = 90)]
         idle_timeout_secs: u64,
     },
     /// Download and assemble files from capture or live server.
@@ -101,7 +101,7 @@ enum Commands {
         #[arg(long, default_value_t = 200)]
         max_events: usize,
         /// Idle timeout in seconds.
-        #[arg(long, default_value_t = 20)]
+        #[arg(long, default_value_t = 90)]
         idle_timeout_secs: u64,
     },
     /// Inspect and decode a capture file.

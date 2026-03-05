@@ -4,8 +4,8 @@ use crate::wxwire_receiver::model::{
 };
 use bytes::Bytes;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use xmpp_parsers::delay::Delay;
 use xmpp_parsers::message::Message;
 use xmpp_parsers::minidom::Element;
@@ -140,13 +140,26 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WxWireRecei
         ));
     }
 
-    let id = x_payload.attr("id").unwrap_or_default().to_string();
-    let issue_raw = x_payload.attr("issue").unwrap_or_default().to_string();
-    let ttaaii = x_payload.attr("ttaaii").unwrap_or_default().to_string();
-    let cccc = x_payload.attr("cccc").unwrap_or_default().to_string();
+    let id = x_payload.attr("id").unwrap_or_default().trim().to_string();
+    let issue_raw = x_payload
+        .attr("issue")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let ttaaii = x_payload
+        .attr("ttaaii")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let cccc = x_payload
+        .attr("cccc")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let awipsid = x_payload
         .attr("awipsid")
-        .filter(|value| !value.trim().is_empty())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
         .unwrap_or("NONE")
         .to_string();
 
@@ -278,6 +291,30 @@ line2</x>
     }
 
     #[test]
+    fn trims_metadata_attributes_before_filename_build() {
+        let stanza = r#"
+            <message xmlns='jabber:client' type='groupchat'>
+              <body>TEST SUBJECT</body>
+              <x xmlns="nwws-oi" id="  nwws_processor.3212 " issue=" 2026-03-05T20:00:00Z " ttaaii=" ASUS43 " cccc=" KLSX " awipsid=" RWRMO ">line</x>
+            </message>
+        "#;
+
+        let mut decoder = WxWireDecoder;
+        let events = decoder.feed(stanza).expect("decode should not fail");
+        let file = events.iter().find_map(|event| match event {
+            WxWireReceiverFrameEvent::File(file) => Some(file),
+            _ => None,
+        });
+
+        let file = file.expect("expected file event");
+        assert_eq!(file.filename, "RWRMO.txt");
+        assert_eq!(file.awipsid, "RWRMO");
+        assert_eq!(file.ttaaii, "ASUS43");
+        assert_eq!(file.cccc, "KLSX");
+        assert_eq!(file.id, "nwws_processor.3212");
+    }
+
+    #[test]
     fn missing_nwws_payload_emits_warning() {
         let stanza = r#"<message xmlns='jabber:client'><body>bad</body></message>"#;
         let mut decoder = WxWireDecoder;
@@ -310,11 +347,9 @@ line2</x>
                 )
             )
         }));
-        assert!(
-            events
-                .iter()
-                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
-        );
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_))));
     }
 
     #[test]
@@ -330,10 +365,8 @@ line2</x>
 
         let mut decoder = WxWireDecoder;
         let events = decoder.feed(stanza).expect("decode should not fail");
-        assert!(
-            events
-                .iter()
-                .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_)))
-        );
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, WxWireReceiverFrameEvent::File(_))));
     }
 }

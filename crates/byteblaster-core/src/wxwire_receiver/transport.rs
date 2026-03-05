@@ -446,6 +446,7 @@ impl XmppSession {
         tags: &[&str],
         timeout: Duration,
     ) -> WxWireReceiverResult<String> {
+        let wait_label = tags.join(" or ");
         loop {
             while let Some(elem) = pop_next_top_level_element(&mut self.read_buf) {
                 if tags.iter().any(|tag| {
@@ -457,8 +458,24 @@ impl XmppSession {
                     return Ok(elem);
                 }
             }
-            self.read_more(timeout).await?;
+            self.read_more(timeout)
+                .await
+                .map_err(|err| attach_handshake_timeout_context(err, wait_label.as_str()))?;
         }
+    }
+}
+
+fn attach_handshake_timeout_context(
+    err: WxWireReceiverError,
+    waiting_for: &str,
+) -> WxWireReceiverError {
+    match err {
+        WxWireReceiverError::Transport(message) if message == "xmpp read timeout" => {
+            WxWireReceiverError::Transport(format!(
+                "xmpp read timeout while waiting for {waiting_for}"
+            ))
+        }
+        other => other,
     }
 }
 
@@ -568,8 +585,35 @@ fn pop_next_top_level_element(buf: &mut String) -> Option<String> {
 }
 
 fn stanza_root_tag_name(stanza: &str) -> Option<String> {
-    let element = parse_element_with_default_ns(stanza).ok()?;
-    Some(element.name().to_string())
+    let mut reader = Reader::from_str(stanza);
+    reader.config_mut().trim_text(false);
+
+    loop {
+        match reader.read_event() {
+            Ok(XmlEvent::Start(start_event)) => {
+                let name_buf = start_event.name().as_ref().to_vec();
+                return std::str::from_utf8(name_buf.as_slice())
+                    .ok()
+                    .map(ToString::to_string);
+            }
+            Ok(XmlEvent::Empty(start_event)) => {
+                let name_buf = start_event.name().as_ref().to_vec();
+                return std::str::from_utf8(name_buf.as_slice())
+                    .ok()
+                    .map(ToString::to_string);
+            }
+            Ok(
+                XmlEvent::Decl(_)
+                | XmlEvent::PI(_)
+                | XmlEvent::Comment(_)
+                | XmlEvent::DocType(_)
+                | XmlEvent::GeneralRef(_)
+                | XmlEvent::CData(_)
+                | XmlEvent::Text(_),
+            ) => {}
+            Ok(XmlEvent::End(_) | XmlEvent::Eof) | Err(_) => return None,
+        }
+    }
 }
 
 fn is_room_join_presence(
@@ -640,7 +684,10 @@ fn add_default_client_ns(xml: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{add_default_client_ns, is_room_join_presence, pop_next_top_level_element};
+    use super::{
+        add_default_client_ns, is_room_join_presence, pop_next_top_level_element,
+        stanza_root_tag_name,
+    };
     use std::str::FromStr;
     use xmpp_parsers::jid::BareJid;
 
@@ -709,5 +756,21 @@ mod tests {
         assert!(patched.starts_with("<presence "));
         assert!(patched.contains("xmlns='jabber:client'"));
         assert!(patched.contains("xmlns='http://jabber.org/protocol/muc#user'"));
+    }
+
+    #[test]
+    fn stanza_root_tag_name_recognizes_prefixed_features_without_local_xmlns() {
+        let stanza =
+            "<stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/></stream:features>";
+        assert_eq!(
+            stanza_root_tag_name(stanza).as_deref(),
+            Some("stream:features")
+        );
+    }
+
+    #[test]
+    fn stanza_root_tag_name_recognizes_message_root() {
+        let stanza = "<message type='groupchat'><body>hello</body></message>";
+        assert_eq!(stanza_root_tag_name(stanza).as_deref(), Some("message"));
     }
 }

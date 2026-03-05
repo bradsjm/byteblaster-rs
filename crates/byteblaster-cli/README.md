@@ -1,6 +1,6 @@
 # byteblaster-cli
 
-CLI application for ByteBlaster protocol inspection, event streaming, and file download workflows.
+CLI application for ByteBlaster protocol inspection, event streaming, and file download workflows. Built on `byteblaster-core` and `byteblaster-parser`.
 
 ## Commands
 
@@ -64,6 +64,30 @@ cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-ti
 cargo run -p byteblaster-cli -- stream --receiver wxwire --email you@example.com --password your-pass --max-events 100
 cargo run -p byteblaster-cli -- download ./out --receiver wxwire --email you@example.com --password your-pass --idle-timeout-secs 30
 ```
+
+## Text product parsing
+
+The CLI leverages `byteblaster-parser` to parse WMO/AFOS formatted text products:
+
+**Automatic parsing:**
+- WMO header extraction (TTAAII, CCCC, DDHHMM, BBB indicators)
+- AFOS PIL (Product Identifier Line) parsing
+- Text conditioning (SOH/ETX stripping, null byte removal)
+- PIL lookup with product type descriptions
+
+**Supported products:**
+- Area Forecast Discussions (AFD)
+- Severe Thunderstorm Warnings (SVR)
+- Tornado Warnings (TOR)
+- Flash Flood Warnings (FFW)
+- Terminal Aerodrome Forecasts (TAF/FTM)
+- And hundreds more meteorological product types
+
+**Parsing handles:**
+- BBB indicator classification (Amendment, Correction, Delayed Repeat)
+- Missing LDM sequence numbers
+- Various text encoding issues
+- Correction and amendment flags in WMO headers
 
 ## Development checks
 

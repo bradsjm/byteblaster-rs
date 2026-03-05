@@ -2,8 +2,8 @@
 
 ## Document Information
 
-- Version: 3.0.2
-- Last Updated: 2026-03-04
+- Version: 3.1.0
+- Last Updated: 2026-03-05
 - Status: Authoritative product/functionality specification
 - Protocol normative authority: `docs/protocol.md`
 
@@ -11,10 +11,11 @@
 
 ## 1) Repository Scope
 
-`byteblaster-rs` is a Rust workspace with two crates:
+`byteblaster-rs` is a Rust workspace with three crates:
 
 - `crates/byteblaster-core`: protocol decoding, client runtime, server-list lifecycle, file assembly, stream adapters.
-- `crates/byteblaster-cli`: command-line interface built on `byteblaster-core`.
+- `crates/byteblaster-cli`: command-line interface built on `byteblaster-core` and `byteblaster-parser`.
+- `crates/byteblaster-parser`: WMO/AFOS text product parsing with header enrichment and PIL lookup.
 
 The workspace targets:
 
@@ -29,6 +30,8 @@ The workspace targets:
 - Stateful decoder handles sync recovery, unknown-frame resync, V1/V2 parsing, server-list frames, and chunk-boundary prefix splits.
 - `/FD` timestamps are parsed into `QbtSegment.timestamp_utc`; parse failures emit a warning and use receive-time fallback.
 - Server-list lifecycle manager supports load/save/rotation/update with atomic persistence writes.
+- WMO/AFOS text product parser handles header extraction, text conditioning, and BBB indicator classification.
+- PIL (Product Identifier List) lookup provides product type descriptions with binary search.
 - CLI commands `inspect`, `stream`, `download`, `server`, and `relay` are implemented.
 - `server` command provides HTTP/SSE API for real-time event streaming and file access.
 - `relay` command provides low-latency TCP passthrough with metrics endpoints.
@@ -131,12 +134,79 @@ byteblaster-rs/
           state.rs
       tests/
         cli_contract.rs
+    byteblaster-parser/
+      Cargo.toml
+      src/
+        lib.rs
+        parser.rs
+        enrich.rs
+        lookup/
+          mod.rs
+          pil_generated.rs
   docs/
     protocol.md
     server-mode.md
     relay-mode.md
     technical-design-doc.md
     EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md
+```
+
+### 4.1 Parser Architecture
+
+`byteblaster-parser` provides WMO/AFOS text product parsing capabilities:
+
+**Core components:**
+
+- **TextProductHeader**: Parsed header structure containing:
+  - `ttaaii`: WMO product type indicator (6 chars, normalized from 4 to "00")
+  - `cccc`: 4-letter ICAO station code
+  - `ddhhmm`: Day and time (UTC)
+  - `bbb`: Optional BBB indicator (CORrection, AMEndment, RR, etc.)
+  - `afos`: Product Identifier Line (6 chars)
+
+- **Text conditioning**: Handles text encoding issues automatically:
+  - Strips SOH (`\u{1}`) and ETX (`\u{3}`) control characters
+  - Removes null bytes
+  - Inserts missing LDM sequence numbers
+  - Normalizes line endings
+
+- **PIL (Product Identifier List) lookup**:
+  - Binary search on sorted PIL array (O(log n))
+  - Returns human-readable product type descriptions
+  - Metadata tracking: entry count, generation timestamp, source repo/commit
+  - Common products: AFD (Area Forecast Discussion), SVR (Severe Thunderstorm Warning), TOR (Tornado Warning), etc.
+
+- **Header enrichment**:
+  - Extracts PIL NNN (first 3 characters of AFOS)
+  - Looks up product type description
+  - Classifies BBB indicators: Amendment (AA*), Correction (CC*), Delayed Repeat (RR*), Other
+
+**Error handling:**
+
+Typed errors for all failure modes:
+- `EmptyInput`: Text is empty after conditioning
+- `MissingWmoLine`: No WMO header line found
+- `InvalidWmoHeader`: WMO header format is invalid
+- `MissingAfosLine`: No AFOS line found
+- `MissingAfos`: Cannot parse AFOS PIL from line
+
+**Public API:**
+
+```rust
+// Parse a WMO/AFOS text product header
+pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError>
+
+// Enrich a parsed header with semantic information
+pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_>
+
+// Look up product type description by PIL prefix
+pub fn pil_description(nnn: &str) -> Option<&'static str>
+
+// PIL metadata constants
+pub const PIL_ENTRY_COUNT: usize;
+pub const PIL_GENERATED_AT_UTC: &str;
+pub const PIL_SOURCE_REPO: &str;
+pub const PIL_SOURCE_COMMIT: &str;
 ```
 
 ---
@@ -148,6 +218,7 @@ byteblaster-rs/
 members = [
     "crates/byteblaster-core",
     "crates/byteblaster-cli",
+    "crates/byteblaster-parser",
 ]
 resolver = "3"
 
@@ -189,7 +260,7 @@ inherits = "release"
 
 ---
 
-## 6) Public API Snapshot
+## 7) Public API Snapshot
 
 `byteblaster-core/src/lib.rs` exports:
 
@@ -221,7 +292,7 @@ Core behavior controls:
 
 ---
 
-## 7) CLI Command Surface
+## 8) CLI Command Surface
 
 Supported commands:
 
@@ -245,7 +316,7 @@ Output contract:
 
 ---
 
-## 8) Test Coverage Snapshot
+## 9) Test Coverage Snapshot
 
 Current integration targets:
 
@@ -261,7 +332,7 @@ Coverage ownership:
 
 ---
 
-## 9) Quality Gates
+## 10) Quality Gates
 
 Run from repository root:
 
@@ -273,7 +344,7 @@ cargo test --workspace
 
 ---
 
-## 10) Governance Rules
+## 11) Governance Rules
 
 - `docs/protocol.md` is the normative source of truth for protocol behavior and requirement-to-test mapping.
 - Protocol behavior changes must update:
@@ -281,6 +352,7 @@ cargo test --workspace
   - tests
   - `docs/protocol.md`
 - Keep CLI concerns in `byteblaster-cli` and protocol/runtime concerns in `byteblaster-core`.
+- Parser concerns belong in `byteblaster-parser` (WMO/AFOS parsing, PIL lookup, header enrichment).
 
 ---
 

@@ -2,15 +2,24 @@ use regex::Regex;
 use std::sync::OnceLock;
 use thiserror::Error;
 
+/// Parsed WMO/AFOS text product header.
+///
+/// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextProductHeader {
+    /// WMO product type indicator (6 characters, normalized from 4 to "00")
     pub ttaaii: String,
+    /// 4-letter ICAO station code
     pub cccc: String,
+    /// Day and time (UTC) in DDHHMM format
     pub ddhhmm: String,
+    /// Optional BBB indicator (CORrection, AMEndment, RR, etc.)
     pub bbb: Option<String>,
+    /// Product Identifier Line (PIL), typically 6 characters
     pub afos: String,
 }
 
+/// Errors that can occur during text product parsing.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ParserError {
     #[error("text payload is empty after conditioning")]
@@ -25,6 +34,41 @@ pub enum ParserError {
     MissingAfos { line: String },
 }
 
+/// Parses a WMO/AFOS text product header from raw bytes.
+///
+/// This function performs text conditioning (SOH/ETX stripping, null byte removal, LDM insertion)
+/// before parsing the WMO header and AFOS PIL.
+///
+/// # Arguments
+///
+/// * `bytes` - Raw product text as bytes
+///
+/// # Returns
+///
+/// A `Result` containing the parsed [`TextProductHeader`] or a [`ParserError`]
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Text is empty after conditioning
+/// - No WMO header line is found
+/// - WMO header format is invalid
+/// - No AFOS line is found
+/// - AFOS PIL cannot be parsed
+///
+/// # Example
+///
+/// ```
+/// use byteblaster_parser::parse_text_product;
+///
+/// let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
+/// let header = parse_text_product(raw_text)?;
+///
+/// assert_eq!(header.afos, "AFDBOX");
+/// assert_eq!(header.cccc, "KBOX");
+/// assert_eq!(header.ttaaii, "FXUS61");
+/// # Ok::<(), byteblaster_parser::ParserError>(())
+/// ```
 pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError> {
     let raw = String::from_utf8_lossy(bytes).replace('\0', "");
     let conditioned = condition_text(&raw)?;

@@ -1,6 +1,36 @@
 //! # byteblaster-core
 //!
-//! Core library for ByteBlaster protocol receivers.
+//! Core library for ByteBlaster protocol receivers and unified product ingestion.
+//!
+//! This library provides:
+//! - `qbt_receiver`: ByteBlaster QBT satellite receiver client with stateful decoder, server-list management, and file assembly
+//! - `wxwire_receiver`: Weather Wire receiver client with custom XMPP transport
+//! - `ingest`: Unified product event abstraction and adapters for QBT and Weather Wire sources
+//!
+//! ## Example
+//!
+//! ```rust,no_run
+//! use byteblaster_core::{QbtReceiver, QbtReceiverConfig};
+//! use byteblaster_core::ingest::{adapt_qbt_events, ReceivedProduct};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let config = QbtReceiverConfig::default();
+//!     let (mut receiver, mut stream) = QbtReceiver::new(config).await?;
+//!
+//!     let mut ingest_stream = adapt_qbt_events(stream);
+//!
+//!     tokio::spawn(async move {
+//!         while let Some(event) = ingest_stream.recv().await {
+//!             if let ReceivedProduct::Complete(product) = event {
+//!                 println!("Received product: {}", product.filename);
+//!             }
+//!         }
+//!     });
+//!
+//!     Ok(())
+//! }
+//! ```
 
 pub mod ingest;
 pub mod qbt_receiver;

@@ -26,8 +26,8 @@
 //! ## Integration
 //!
 //! This module builds on top of `byteblaster-core`'s client runtime,
-//! using the [`QbtReceiverClient`] to manage connections and receive events.
-//! It adapts the core client events into CLI-specific outputs and HTTP/SSE
+//! using `QbtReceiverClient` to manage connections and receive events.
+//! It adapts core client events into CLI-specific outputs and HTTP/SSE
 //! responses.
 
 pub(crate) mod file_pipeline;

@@ -9,56 +9,95 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use thiserror::Error;
 
+/// A complete product received from either QBT or Weather Wire source.
+///
+/// This type normalizes products from different sources into a common structure
+/// for application consumption.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ReceivedProduct {
+    /// Product filename
     pub filename: String,
+    /// Product data bytes
     pub data: Bytes,
+    /// Timestamp when the product was issued by the source
     pub source_timestamp_utc: SystemTime,
+    /// Source that provided this product
     pub origin: ProductOrigin,
 }
 
+/// Source that provided a product.
+///
+/// Distinguishes between QBT satellite and Weather Wire sources with
+/// source-specific metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum ProductOrigin {
+    /// Product from QBT satellite receiver
     Qbt,
+    /// Product from Weather Wire receiver with metadata
     WxWire {
+        /// XMPP message ID
         message_id: String,
+        /// Subject from XMPP message
         subject: String,
+        /// Delay stamp if present in message
         delay_stamp_utc: Option<SystemTime>,
     },
 }
 
+/// Unified event stream from product ingestion adapters.
+///
+/// Combines product events with telemetry and warnings into a single stream
+/// for application consumption.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IngestEvent {
+    /// A complete product was received
     Product(ReceivedProduct),
+    /// Connection established to upstream endpoint
     Connected { endpoint: String },
+    /// Connection lost or disconnected
     Disconnected,
+    /// Telemetry snapshot from receiver
     Telemetry(IngestTelemetry),
+    /// Warning or non-fatal error
     Warning(IngestWarning),
 }
 
+/// Telemetry snapshot from receiver.
+///
+/// Contains receiver-specific metrics for either QBT or Weather Wire.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IngestTelemetry {
+    /// QBT receiver telemetry
     Qbt(QbtReceiverTelemetrySnapshot),
+    /// Weather Wire receiver telemetry
     WxWire(WxWireReceiverTelemetrySnapshot),
 }
 
+/// Warning or non-fatal error from receiver.
+///
+/// Indicates a problem that did not prevent operation but may be of interest.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IngestWarning {
+    /// QBT protocol warning
     Qbt(QbtProtocolWarning),
+    /// Weather Wire warning
     WxWire(WxWireReceiverWarning),
 }
 
+/// Errors from product ingestion adapters.
+///
+/// Wraps receiver-specific errors for unified error handling.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum IngestError {
-    #[error("qbt ingest error: {0}")]
+    #[error("QBT receiver error: {0}")]
     Qbt(#[from] QbtReceiverError),
-    #[error("wxwire ingest error: {0}")]
+    #[error("Weather Wire receiver error: {0}")]
     WxWire(#[from] WxWireReceiverError),
 }
 

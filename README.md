@@ -5,7 +5,8 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 ## Workspace layout
 
 - `crates/byteblaster-core` - protocol + runtime library
-- `crates/byteblaster-cli` - command-line interface built on `byteblaster-core`
+- `crates/byteblaster-cli` - command-line interface built on `byteblaster-core` and `byteblaster-parser`
+- `crates/byteblaster-parser` - WMO/AFOS text product parsing library
 - `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
 - `docs/weather-wire.md` - authoritative Weather Wire (XMPP) runtime contract
 - `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
@@ -22,6 +23,7 @@ Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling
 - Weather Wire reconnect state machine with bounded backoff and XEP-0198 heartbeat/acks
 - Server-list parsing and persisted lifecycle management
 - File assembly with duplicate suppression
+- WMO/AFOS text product parsing with header enrichment and PIL lookup
 - CLI commands for stream, download, inspect, and server flows
 - Integrated relay command for passthrough retransmission with per-client buffering limits
 

@@ -15,10 +15,10 @@
 //! ## Usage Pattern
 //!
 //! The watchdog is integrated into the client runtime's read loop:
-//! 1. Create a [`Watchdog`] with timeout and max exceptions from config
-//! 2. Call [`on_data_received`] each time data is successfully read
-//! 3. Call [`on_exception`] each time an error occurs during processing
-//! 4. Periodically check [`should_close`] or [`should_close_at`] to determine
+//! 1. Create a `Watchdog` with timeout and max exceptions from config
+//! 2. Call `on_data_received` each time data is successfully read
+//! 3. Call `on_exception` each time an error occurs during processing
+//! 4. Periodically check `should_close` or `should_close_at` to determine
 //!    if the connection should be terminated due to health issues
 //!
 //! When the watchdog signals that the connection should close, the client
@@ -38,8 +38,8 @@
 //! - `timeout_secs`: Maximum time without data reception (minimum 1 second)
 //! - `max_exceptions`: Maximum number of consecutive exceptions allowed
 //!
-//! These values come from the [`QbtReceiverConfig.watchdog_timeout_secs`] and
-//! [`QbtReceiverConfig.max_exceptions`] fields.
+//! These values come from `QbtReceiverConfig.watchdog_timeout_secs` and
+//! `QbtReceiverConfig.max_exceptions` fields.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};

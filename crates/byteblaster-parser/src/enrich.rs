@@ -1,21 +1,60 @@
 use crate::TextProductHeader;
 use crate::lookup::pil_description;
 
+/// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
+///
+/// BBB indicators are used to indicate product corrections, amendments, or retransmissions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BbbKind {
+    /// Amendment (AA*)
     Amendment,
+    /// Correction (CC*)
     Correction,
+    /// Delayed Repeat (RR*)
     DelayedRepeat,
+    /// Other BBB indicator type
     Other,
 }
 
+/// Enriched information about a parsed text product header.
+///
+/// Provides semantic metadata derived from the raw header fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextProductEnrichment<'a> {
+    /// First 3 characters of the AFOS PIL (product type code)
     pub pil_nnn: Option<&'a str>,
+    /// Human-readable product type description, if known
     pub pil_description: Option<&'static str>,
+    /// Classification of the BBB indicator, if present
     pub bbb_kind: Option<BbbKind>,
 }
 
+/// Enriches a parsed header with semantic information.
+///
+/// Extracts the PIL prefix (first 3 characters), looks up a product type description,
+/// and classifies the BBB indicator.
+///
+/// # Arguments
+///
+/// * `header` - Parsed text product header
+///
+/// # Returns
+///
+/// [`TextProductEnrichment`] containing extracted and enriched metadata
+///
+/// # Example
+///
+/// ```
+/// use byteblaster_parser::{parse_text_product, enrich_header};
+///
+/// let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
+/// let header = parse_text_product(raw_text)?;
+/// let enriched = enrich_header(&header);
+///
+/// assert_eq!(enriched.pil_nnn, Some("AFD"));
+/// assert_eq!(enriched.pil_description, Some("Area Forecast Discussion"));
+/// # Ok::<(), byteblaster_parser::ParserError>(())
+/// ```
 pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     let pil_nnn = if header.afos.len() >= 3 {
         Some(&header.afos[..3])

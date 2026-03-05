@@ -1,7 +1,45 @@
 //! Watchdog health monitoring for ByteBlaster connections.
 //!
 //! This module provides a watchdog that monitors connection health
-//! based on data reception and exception counts.
+//! based on data reception and exception counts, triggering connection
+//! closure when thresholds are exceeded.
+//!
+//! ## Health Metrics
+//!
+//! The watchdog monitors two primary health indicators:
+//! - **Data reception timeout**: If no data is received within the configured
+//!   timeout duration, the connection is considered unhealthy
+//! - **Exception count**: If too many consecutive exceptions/errors occur,
+//!   the connection is considered unhealthy
+//!
+//! ## Usage Pattern
+//!
+//! The watchdog is integrated into the client runtime's read loop:
+//! 1. Create a [`Watchdog`] with timeout and max exceptions from config
+//! 2. Call [`on_data_received`] each time data is successfully read
+//! 3. Call [`on_exception`] each time an error occurs during processing
+//! 4. Periodically check [`should_close`] or [`should_close_at`] to determine
+//!    if the connection should be terminated due to health issues
+//!
+//! When the watchdog signals that the connection should close, the client
+//! runtime triggers a reconnection cycle, allowing the system to recover
+//! from transient failures.
+//!
+//! ## Trait Implementation
+//!
+//! The [`HealthObserver`] trait allows the watchdog to be used generically
+//! with any type that needs to report health events. The [`Watchdog`]
+//! struct implements this trait and can be used directly or wrapped in
+//! other types that need health monitoring.
+//!
+//! ## Configuration
+//!
+//! Watchdog behavior is controlled by two parameters:
+//! - `timeout_secs`: Maximum time without data reception (minimum 1 second)
+//! - `max_exceptions`: Maximum number of consecutive exceptions allowed
+//!
+//! These values come from the [`ClientConfig.watchdog_timeout_secs`] and
+//! [`ClientConfig.max_exceptions`] fields.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};

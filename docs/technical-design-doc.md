@@ -2,8 +2,8 @@
 
 ## Document Information
 
-- Version: 3.0.1
-- Last Updated: 2026-03-03
+- Version: 3.0.2
+- Last Updated: 2026-03-04
 - Status: Authoritative product/functionality specification
 - Protocol normative authority: `docs/protocol.md`
 
@@ -19,7 +19,7 @@
 The workspace targets:
 
 - Edition `2024`
-- Rust version `1.85`
+- Rust version `1.88`
 - `unsafe_code = forbid`
 
 ---
@@ -29,8 +29,10 @@ The workspace targets:
 - Stateful decoder handles sync recovery, unknown-frame resync, V1/V2 parsing, server-list frames, and chunk-boundary prefix splits.
 - `/FD` timestamps are parsed into `QbtSegment.timestamp_utc`; parse failures emit a warning and use receive-time fallback.
 - Server-list lifecycle manager supports load/save/rotation/update with atomic persistence writes.
-- CLI commands `inspect`, `stream`, and `download` are implemented for capture-file input.
-- CLI live-network mode is implemented for `stream` and `download` when no capture input is provided.
+- CLI commands `inspect`, `stream`, `download`, `server`, and `relay` are implemented.
+- `server` command provides HTTP/SSE API for real-time event streaming and file access.
+- `relay` command provides low-latency TCP passthrough with metrics endpoints.
+- CLI live-network mode is implemented for `stream`, `download`, and `server` when no capture input is provided.
 - Workspace quality gates are `fmt`, `clippy -D warnings`, and `test`.
 
 ---
@@ -92,7 +94,6 @@ byteblaster-rs/
         file/
           mod.rs
           assembler.rs
-          manager.rs
         stream/
           mod.rs
           segment_stream.rs
@@ -105,17 +106,36 @@ byteblaster-rs/
       Cargo.toml
       src/
         main.rs
+        default_servers.rs
+        product_meta.rs
         cmd/
           mod.rs
           inspect.rs
           stream.rs
           download.rs
-        output.rs
+          event_output.rs
+          server.rs
+        live/
+          mod.rs
+          file_pipeline.rs
+          server.rs
+          server_support.rs
+          shared.rs
+          stream.rs
+        relay/
+          mod.rs
+          auth.rs
+          config.rs
+          runtime.rs
+          server_list.rs
+          state.rs
       tests/
         cli_contract.rs
   docs/
-    byteblaster.md
     protocol.md
+    server-mode.md
+    relay-mode.md
+    technical-design-doc.md
     EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md
 ```
 
@@ -125,18 +145,25 @@ byteblaster-rs/
 
 ```toml
 [workspace]
-members = ["crates/byteblaster-core", "crates/byteblaster-cli"]
+members = [
+    "crates/byteblaster-core",
+    "crates/byteblaster-cli",
+]
 resolver = "3"
 
 [workspace.package]
 edition = "2024"
-version = "0.1.0"
-rust-version = "1.85"
+version = "0.2.0"
+rust-version = "1.88"
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/bradsjm/byteblaster-rs"
+homepage = "https://github.com/bradsjm/byteblaster-rs"
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
 bytes = { version = "1", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"
@@ -148,10 +175,16 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 flate2 = "1"
 futures = "0.3"
 regex = "1"
-time = { version = "0.3", features = ["parsing", "macros"] }
+time = { version = "0.3.47", features = ["parsing", "macros"] }
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors"] }
+tower = "0.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[profile.dist]
+inherits = "release"
 ```
 
 ---
@@ -168,10 +201,13 @@ pub mod file;
 pub mod protocol;
 pub mod stream;
 
-pub use client::{Client, ClientBuilder, ClientEvent};
+pub use client::{ByteBlasterClient, Client, ClientBuilder, ClientEvent, ClientTelemetrySnapshot};
 pub use config::{ChecksumPolicy, ClientConfig, DecodeConfig, V2CompressionPolicy};
-pub use file::{CompletedFile, FileAssembler};
-pub use protocol::model::{FrameEvent, QbtSegment, ServerList};
+pub use error::{ConfigError, CoreError, CoreResult, ProtocolError};
+pub use file::{CompletedFile, FileAssembler, SegmentAssembler};
+pub use protocol::checksum::calculate_checksum;
+pub use protocol::codec::{FrameDecoder, FrameEncoder, ProtocolDecoder};
+pub use protocol::model::{AuthMessage, FrameEvent, ProtocolVersion, ProtocolWarning, QbtSegment, ServerList};
 ```
 
 Core behavior controls:
@@ -190,13 +226,17 @@ Core behavior controls:
 Supported commands:
 
 - `inspect [input]`
-- `stream [input] [--email ... --server ... --server-list-path ... --max-events ... --idle-timeout-secs ...]`
+- `stream [input] [--email ... --server ... --server-list-path ... --max-events ... --idle-timeout-secs ... --output-dir ...]`
 - `download <output_dir> [input] [--email ... --server ... --server-list-path ... --max-events ... --idle-timeout-secs ...]`
+- `server --email ... [--server ... --server-list-path ... --bind ... --cors-origin ... --max-clients ... --stats-interval-secs ... --file-retention-secs ... --max-retained-files ... --quiet]`
+- `relay --email ... [--server ... --server-list-path ... --bind ... --max-clients ... --auth-timeout-secs ... --client-buffer-bytes ... --metrics-bind ...]`
 
 Mode behavior:
 
 - If `input` is provided, `stream` and `download` run in capture-file mode.
-- If `input` is omitted, `stream` and `download` run in live-network mode and require `--email`.
+- If `input` is omitted, `stream`, `download`, and `server` run in live-network mode and require `--email`.
+- `server` always runs in live-network mode with HTTP/SSE endpoints.
+- `relay` always runs in live-network mode with TCP passthrough.
 
 Output contract:
 

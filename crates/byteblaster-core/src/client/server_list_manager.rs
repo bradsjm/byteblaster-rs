@@ -1,3 +1,28 @@
+//! Server list lifecycle management for ByteBlaster clients.
+//!
+//! This module provides a [`ServerListManager`] that handles:
+//! - Loading persisted server lists from disk
+//! - Saving server lists atomically to disk
+//! - Applying server list updates from the feed
+//! - Providing rotated access to primary and satellite endpoints
+//! - Managing endpoint availability with shuffling for load distribution
+//!
+//! # Endpoint Rotation
+//!
+//! The manager maintains two queues of available endpoints:
+//! - Primary servers (regular feed servers)
+//! - Satellite servers (backup/high-priority servers)
+//!
+//! When requesting an endpoint, the manager returns the next available
+//! server from the primary queue, falling back to satellite servers
+//! if necessary.
+//!
+//! # Persistence
+//!
+//! Server lists can be persisted to disk in JSON format. The persisted
+//! format includes both primary and satellite server lists along with
+//! a version identifier for compatibility tracking.
+
 use crate::error::{CoreError, CoreResult};
 use crate::protocol::model::ServerList;
 use serde::{Deserialize, Serialize};

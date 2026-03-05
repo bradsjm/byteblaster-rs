@@ -294,10 +294,10 @@ async fn run_connection_loop(
     let mut telemetry = RuntimeTelemetry::default();
     let mut server_list =
         ServerListManager::new(config.server_list_path.clone(), config.servers.clone());
-    if config.follow_server_list_updates {
-        if let Err(err) = server_list.load() {
-            try_send_event(&event_tx, Err(err), &mut telemetry);
-        }
+    if config.follow_server_list_updates
+        && let Err(err) = server_list.load()
+    {
+        try_send_event(&event_tx, Err(err), &mut telemetry);
     }
 
     while !*shutdown_rx.borrow() {
@@ -486,10 +486,8 @@ async fn run_connected_session(
                                 for event in &events {
                                     if ctx.config.follow_server_list_updates
                                         && let FrameEvent::ServerListUpdate(list) = event
-                                    {
-                                        if let Err(err) = ctx.server_list.apply_server_list(list.clone()) {
-                                            try_send_event(ctx.event_tx, Err(err), ctx.telemetry);
-                                        }
+                                        && let Err(err) = ctx.server_list.apply_server_list(list.clone()) {
+                                        try_send_event(ctx.event_tx, Err(err), ctx.telemetry);
                                     }
                                 }
                                 dispatch_events(ctx.event_tx, ctx.handlers, events, ctx.telemetry);

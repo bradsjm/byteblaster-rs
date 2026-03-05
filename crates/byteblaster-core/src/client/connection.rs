@@ -1,6 +1,23 @@
 //! TCP connection utilities for the ByteBlaster client.
 //!
-//! This module provides connection helpers with timeout support.
+//! This module provides low-level connection helpers with timeout support
+//! for establishing TCP connections to ByteBlaster servers.
+//!
+//! ## Functions
+//!
+//! - [`connect_with_timeout`]: Establishes a TCP connection to a host:port
+//!   with a configurable timeout, returning a [`TcpStream`] on success
+//! - [`endpoint_label`]: Creates a human-readable label for an endpoint
+//!
+//! ## Usage
+//!
+//! These utilities are used internally by the client runtime to establish
+//! connections during the initial connect and reconnect cycles. The timeout
+//! support prevents indefinite blocking when a server is unreachable or
+//! unresponsive.
+//!
+//! The client's `connection_timeout_secs` configuration value is passed to
+//! `connect_with_timeout` to enforce the timeout at the TCP level.
 
 use std::io;
 use std::time::Duration;

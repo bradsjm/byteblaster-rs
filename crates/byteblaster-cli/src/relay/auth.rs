@@ -1,3 +1,32 @@
+//! Downstream client authentication for ByteBlaster relay mode.
+//!
+//! This module provides authentication parsing for relay mode, where
+//! downstream ByteBlaster clients must authenticate with the relay
+//! using the ByteBlaster protocol's auth message format.
+//!
+//! ## Authentication Flow
+//!
+//! Downstream clients send auth messages in the format:
+//! `ByteBlast Client|NM-{email}|V2`
+//!
+//! These messages are XOR-encoded with 0xFF on the wire, matching
+//! the upstream protocol's encoding. The relay decodes and extracts
+//! the email address for tracking authenticated clients.
+//!
+//! ## Authentication Requirements
+//!
+//! - Clients must authenticate on initial connection
+//! - Clients must re-authenticate every 12 minutes (720 seconds)
+//! - Authentication is tracked locally by the relay (not forwarded upstream)
+//!
+//! ## Parser
+//!
+//! The [`AuthParser`] handles:
+//! - XOR 0xFF decoding of incoming wire data
+//! - Buffering across TCP packet boundaries
+//! - Extracting email addresses from auth messages
+//! - Managing buffer size (capped at 8KB)
+
 #[derive(Default)]
 pub struct AuthParser {
     decoded_text: String,

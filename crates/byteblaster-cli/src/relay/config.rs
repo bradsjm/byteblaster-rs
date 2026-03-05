@@ -1,3 +1,30 @@
+//! Relay configuration for ByteBlaster TCP relay mode.
+//!
+//! This module provides configuration structures and parsing logic for
+//! the `relay` command, which runs a low-latency TCP passthrough server.
+//!
+//! ## Configuration
+//!
+//! Relay behavior is controlled by command-line arguments defined in
+//! [`RelayArgs`], which are parsed by `clap` and then converted to a
+//! structured [`RelayConfig`].
+//!
+//! ## Key Parameters
+//!
+//! - `bind`: TCP address for downstream ByteBlaster clients
+//! - `max_clients`: Maximum concurrent downstream connections
+//! - `auth_timeout_secs`: Re-authentication window for clients
+//! - `client_buffer_bytes`: Per-client backpressure budget
+//! - `quality_*`: Parameters for quality-based forwarding control
+//!
+//! ## Defaults
+//!
+//! - Bind: `0.0.0.0:2211`
+//! - Max clients: `100`
+//! - Auth timeout: `720` seconds
+//! - Client buffer: `65536` bytes
+//! - Quality window: `60` seconds
+
 use crate::default_servers::default_upstream_servers;
 use anyhow::{Context, Result};
 use byteblaster_core::parse_server;

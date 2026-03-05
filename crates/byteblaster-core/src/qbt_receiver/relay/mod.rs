@@ -29,6 +29,18 @@ pub struct QbtRelayConfig {
 }
 
 impl QbtRelayConfig {
+    pub fn normalized(mut self) -> Self {
+        self.max_clients = self.max_clients.max(1);
+        self.auth_timeout = self.auth_timeout.max(Duration::from_secs(1));
+        self.client_buffer_bytes = self.client_buffer_bytes.max(1);
+        self.reconnect_delay = self.reconnect_delay.max(Duration::from_secs(1));
+        self.connect_timeout = self.connect_timeout.max(Duration::from_secs(1));
+        self.quality_window_secs = self.quality_window_secs.max(1);
+        self.quality_pause_threshold = self.quality_pause_threshold.clamp(0.0, 1.0);
+        self.metrics_log_interval = self.metrics_log_interval.max(Duration::from_secs(1));
+        self
+    }
+
     pub fn validate(&self) -> QbtRelayResult<()> {
         if self.email.trim().is_empty() {
             return Err(QbtRelayError::Config("email must not be empty".to_string()));
@@ -53,4 +65,38 @@ pub enum QbtRelayError {
     Io(#[from] std::io::Error),
     #[error("relay task join failed: {0}")]
     TaskJoin(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QbtRelayConfig;
+    use std::net::SocketAddr;
+    use std::time::Duration;
+
+    #[test]
+    fn relay_config_normalization_applies_runtime_bounds() {
+        let config = QbtRelayConfig {
+            email: "relay@example.com".to_string(),
+            upstream_servers: vec![("example.com".to_string(), 2211)],
+            bind_addr: "127.0.0.1:0".parse::<SocketAddr>().expect("valid socket"),
+            max_clients: 0,
+            auth_timeout: Duration::from_secs(0),
+            client_buffer_bytes: 0,
+            reconnect_delay: Duration::from_secs(0),
+            connect_timeout: Duration::from_secs(0),
+            quality_window_secs: 0,
+            quality_pause_threshold: 10.0,
+            metrics_log_interval: Duration::from_secs(0),
+        }
+        .normalized();
+
+        assert_eq!(config.max_clients, 1);
+        assert_eq!(config.auth_timeout, Duration::from_secs(1));
+        assert_eq!(config.client_buffer_bytes, 1);
+        assert_eq!(config.reconnect_delay, Duration::from_secs(1));
+        assert_eq!(config.connect_timeout, Duration::from_secs(1));
+        assert_eq!(config.quality_window_secs, 1);
+        assert_eq!(config.quality_pause_threshold, 1.0);
+        assert_eq!(config.metrics_log_interval, Duration::from_secs(1));
+    }
 }

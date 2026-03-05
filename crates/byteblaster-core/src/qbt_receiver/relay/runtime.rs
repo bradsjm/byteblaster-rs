@@ -29,6 +29,7 @@ pub async fn run(
     state: Arc<QbtRelayState>,
     shutdown_rx: watch::Receiver<bool>,
 ) -> QbtRelayResult<()> {
+    let config = config.normalized();
     config.validate()?;
 
     info!(

@@ -87,22 +87,20 @@ impl RelayConfig {
             .metrics_bind
             .parse::<SocketAddr>()
             .with_context(|| format!("invalid --metrics-bind address: {}", args.metrics_bind))?;
-        let quality_pause_threshold = args.quality_pause_threshold.clamp(0.0, 1.0);
-
         Ok(Self {
             metrics_bind_addr,
             relay: QbtRelayConfig {
                 email: args.email,
                 upstream_servers: servers,
                 bind_addr,
-                max_clients: args.max_clients.max(1),
-                auth_timeout: Duration::from_secs(args.auth_timeout_secs.max(1)),
-                client_buffer_bytes: args.client_buffer_bytes.max(1),
-                reconnect_delay: Duration::from_secs(args.reconnect_delay_secs.max(1)),
-                connect_timeout: Duration::from_secs(args.connect_timeout_secs.max(1)),
-                quality_window_secs: args.quality_window_secs.max(1),
-                quality_pause_threshold,
-                metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs.max(1)),
+                max_clients: args.max_clients,
+                auth_timeout: Duration::from_secs(args.auth_timeout_secs),
+                client_buffer_bytes: args.client_buffer_bytes,
+                reconnect_delay: Duration::from_secs(args.reconnect_delay_secs),
+                connect_timeout: Duration::from_secs(args.connect_timeout_secs),
+                quality_window_secs: args.quality_window_secs,
+                quality_pause_threshold: args.quality_pause_threshold,
+                metrics_log_interval: Duration::from_secs(args.metrics_log_interval_secs),
             },
         })
     }

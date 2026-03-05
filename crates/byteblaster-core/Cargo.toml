@@ -24,6 +24,7 @@ futures.workspace = true
 regex.workspace = true
 serde_json.workspace = true
 time.workspace = true
+tokio-xmpp.workspace = true
 
 [lints]
 workspace = true

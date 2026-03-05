@@ -15,6 +15,7 @@ mod error;
 mod file;
 mod protocol;
 mod stream;
+mod weather_wire;
 
 // Public API exports
 
@@ -28,6 +29,17 @@ pub use protocol::model::{
     AuthMessage, FrameEvent, ProtocolVersion, ProtocolWarning, QbtSegment, ServerList,
 };
 pub use protocol::server_list::parse_server;
+pub use weather_wire::client::{
+    WeatherWireClient, WxWireClientBuilder, WxWireClientEvent, WxWireClientImpl,
+    WxWireTelemetrySnapshot,
+};
+pub use weather_wire::codec::{WxWireDecoder, WxWireFrameDecoder};
+pub use weather_wire::config::{
+    WXWIRE_MAX_BACKOFF_SECS, WXWIRE_MIN_BACKOFF_SECS, WXWIRE_PORT, WXWIRE_PRIMARY_HOST,
+    WXWIRE_ROOM, WxWireConfig,
+};
+pub use weather_wire::error::{WeatherWireError, WeatherWireResult};
+pub use weather_wire::model::{WeatherWireFile, WeatherWireFrameEvent, WeatherWireWarning};
 
 /// Unstable API surface. Items in this module may change without stability guarantees.
 pub mod unstable {
@@ -37,4 +49,5 @@ pub mod unstable {
     pub use crate::protocol::server_list::{parse_server_list_frame, parse_simple_server_list};
     pub use crate::stream::file_stream::FileStream;
     pub use crate::stream::segment_stream::SegmentStream;
+    pub use crate::weather_wire::client::UnstableWxWireIngress;
 }

@@ -3,6 +3,7 @@
 //! This module defines the error hierarchy used throughout the crate,
 //! providing typed errors for configuration, protocol, and I/O failures.
 
+use crate::weather_wire::error::WeatherWireError;
 use thiserror::Error;
 
 /// Result type alias using [`CoreError`] as the error type.
@@ -28,6 +29,9 @@ pub enum CoreError {
     /// Client lifecycle operation failed (start/stop).
     #[error("client lifecycle error: {0}")]
     Lifecycle(String),
+    /// Weather Wire runtime/decoder error.
+    #[error("weather wire error: {0}")]
+    WeatherWire(#[from] WeatherWireError),
 }
 
 /// Errors related to client configuration validation.

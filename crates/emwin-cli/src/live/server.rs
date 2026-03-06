@@ -242,7 +242,7 @@ fn build_cors_layer(cors_origin: Option<String>) -> crate::error::CliResult<Cors
 #[cfg(test)]
 mod tests {
     use super::{
-        TelemetryPayload, build_router, event_matches_filter, files_handler,
+        TelemetryPayload, build_router, event_matches_filter, files_handler, publish,
         sanitize_requested_filename,
     };
     use crate::live::file_pipeline::CompletedFileMetadata;
@@ -253,6 +253,7 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
+    use futures::StreamExt;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
@@ -281,6 +282,26 @@ mod tests {
     fn file_complete_event(filename: &str) -> EventKind {
         let data = if filename.eq_ignore_ascii_case("TAFPDKGA.TXT") {
             b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n".as_slice()
+        } else if filename.eq_ignore_ascii_case("SVROAXNE.TXT") {
+            br#"000 
+WUUS53 KOAX 051200
+SVROAX
+
+URGENT - IMMEDIATE BROADCAST REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Omaha/Valley NE
+1200 PM CST Wed Mar 5 2025
+
+NEC001>003-051300-
+/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/
+
+Severe Thunderstorm Warning for...
+East Central Cuming County in northeastern Nebraska...
+
+This is a test product.
+$$
+"#
+            .as_slice()
         } else {
             b"ignored".as_slice()
         };
@@ -307,6 +328,16 @@ mod tests {
             ttaaii: None,
             afos: None,
             bbb: None,
+            state: None,
+            county: None,
+            zone: None,
+            fire_zone: None,
+            marine_zone: None,
+            vtec_phenomena: None,
+            vtec_significance: None,
+            vtec_action: None,
+            vtec_office: None,
+            etn: None,
             min_size: None,
             max_size: None,
         }
@@ -468,10 +499,48 @@ Body
             .await
             .expect("body should read");
         let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
-        assert!(body_text.contains("\"/events?event=file_complete&pil=TAF&cccc=KBOX\""));
+        assert!(
+            body_text.contains("\"/events?event=file_complete&county=IAC001&vtec_phenomena=TO\"")
+        );
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
+    }
+
+    #[tokio::test]
+    async fn events_endpoint_streams_only_matching_phase_two_events() {
+        let state = test_state(10);
+        let app = build_router(Arc::clone(&state), None).expect("router should build");
+        let mut request = Request::builder()
+            .uri("/events?event=file_complete&county=NEC002&vtec_phenomena=SV&vtec_action=NEW")
+            .method("GET")
+            .body(Body::empty())
+            .expect("request should build");
+        request.extensions_mut().insert(ConnectInfo(
+            "127.0.0.1:4010"
+                .parse::<std::net::SocketAddr>()
+                .expect("valid socket addr"),
+        ));
+
+        let response = app.oneshot(request).await.expect("request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut stream = response.into_body().into_data_stream();
+
+        publish(&state, file_complete_event("TAFPDKGA.TXT"));
+        publish(&state, file_complete_event("SVROAXNE.TXT"));
+
+        let chunk = stream
+            .next()
+            .await
+            .expect("stream should yield a matching event")
+            .expect("sse chunk should be readable");
+        let body_text = String::from_utf8(chunk.to_vec()).expect("sse chunk should be utf8");
+
+        assert!(body_text.contains("SVROAXNE.TXT"));
+        assert!(!body_text.contains("TAFPDKGA.TXT"));
+        assert!(body_text.contains("\"phenomena\":\"SV\""));
     }
 
     #[test]
@@ -502,6 +571,55 @@ Body
         let event = file_complete_event("TAFPDKGA.TXT");
 
         assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_geographic_codes() {
+        let event = file_complete_event("SVROAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            state: Some("ne".to_string()),
+            county: Some("NEC002".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_requires_matching_geographic_class() {
+        let event = file_complete_event("SVROAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            zone: Some("NEZ002".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(!event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_vtec_codes() {
+        let event = file_complete_event("SVROAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            vtec_phenomena: Some("sv".to_string()),
+            vtec_significance: Some("w".to_string()),
+            vtec_action: Some("new".to_string()),
+            vtec_office: Some("koax".to_string()),
+            etn: Some("1,99".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_rejects_non_matching_vtec_codes() {
+        let event = file_complete_event("SVROAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            vtec_action: Some("CAN".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(!event_matches_filter(&filter, &event));
     }
 
     #[test]

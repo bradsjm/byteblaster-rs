@@ -118,6 +118,8 @@ Server endpoints:
 - `filename` - wildcard filename match such as `*.TXT` or `A_*`
 - `pil`, `family`, `container`, `wmo_prefix` - product metadata filters (`container` currently reflects parsed container values such as `raw` or `zip`)
 - `cccc`, `ttaaii`, `afos`, `bbb` - text product header filters
+- `state`, `county`, `zone`, `fire_zone`, `marine_zone` - UGC geographic filters using canonical codes such as `NE`, `IAC001`, `CAZ041`, `COF214`, `AMZ250`
+- `vtec_phenomena`, `vtec_significance`, `vtec_action`, `vtec_office`, `etn` - VTEC filters using canonical codes such as `TO`, `W`, `NEW`, `KDMX`, and `123`
 - `min_size`, `max_size` - completed file size bounds in bytes
 
 Examples:
@@ -125,6 +127,8 @@ Examples:
 - `GET /events?event=file_complete&pil=TAF,AFD`
 - `GET /events?event=file_complete&family=nws_text_product&container=raw`
 - `GET /events?event=file_complete&cccc=KBOX&ttaaii=FXUS61`
+- `GET /events?event=file_complete&county=IAC001&vtec_phenomena=TO&vtec_significance=W`
+- `GET /events?event=file_complete&state=NE&vtec_office=KOAX&vtec_action=NEW`
 
 Optional live-mode endpoint/persistence overrides:
 

@@ -40,8 +40,8 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             },
             EndpointDoc {
                 method: "GET",
-                path: "/events?event=file_complete&pil=TAF&cccc=KBOX",
-                description: "SSE stream with optional structured live filters over event, file, product, and header metadata",
+                path: "/events?event=file_complete&county=IAC001&vtec_phenomena=TO",
+                description: "SSE stream with optional structured live filters over event, file, product, header, geography, and VTEC metadata",
             },
             EndpointDoc {
                 method: "GET",

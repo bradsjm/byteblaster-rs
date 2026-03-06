@@ -1,6 +1,7 @@
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::{RetainedFiles, file_download_url, wildcard_match};
+use emwin_parser::{ProductBody, TextProductHeader, UgcSection, VtecAction, VtecCode};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
 use serde::{Deserialize, Serialize};
@@ -135,6 +136,20 @@ impl EventFilter {
                     afos: csv_values(query.afos.as_deref(), normalize_upper),
                     bbb: csv_values(query.bbb.as_deref(), normalize_upper),
                 },
+                geo: GeoFilter {
+                    states: csv_values(query.state.as_deref(), normalize_upper),
+                    counties: csv_values(query.county.as_deref(), normalize_upper),
+                    zones: csv_values(query.zone.as_deref(), normalize_upper),
+                    fire_zones: csv_values(query.fire_zone.as_deref(), normalize_upper),
+                    marine_zones: csv_values(query.marine_zone.as_deref(), normalize_upper),
+                },
+                vtec: VtecFilter {
+                    phenomena: csv_values(query.vtec_phenomena.as_deref(), normalize_upper),
+                    significance: csv_values(query.vtec_significance.as_deref(), normalize_upper),
+                    action: csv_values(query.vtec_action.as_deref(), normalize_upper),
+                    office: csv_values(query.vtec_office.as_deref(), normalize_upper),
+                    etn: csv_numbers(query.etn.as_deref()),
+                },
             },
         }
     }
@@ -164,6 +179,8 @@ pub(crate) struct FileEventFilter {
     pub(crate) size: SizeRange,
     pub(crate) product: ProductFilter,
     pub(crate) header: HeaderFilter,
+    pub(crate) geo: GeoFilter,
+    pub(crate) vtec: VtecFilter,
 }
 
 impl FileEventFilter {
@@ -172,6 +189,8 @@ impl FileEventFilter {
             || self.size.has_constraints()
             || self.product.has_constraints()
             || self.header.has_constraints()
+            || self.geo.has_constraints()
+            || self.vtec.has_constraints()
     }
 
     fn matches_metadata(&self, metadata: &CompletedFileMetadata) -> bool {
@@ -189,7 +208,15 @@ impl FileEventFilter {
             return false;
         }
 
-        self.header.matches(metadata.product.header.as_ref())
+        if !self.header.matches(metadata.product.header.as_ref()) {
+            return false;
+        }
+
+        if !self.geo.matches(metadata.product.body.as_ref()) {
+            return false;
+        }
+
+        self.vtec.matches(metadata.product.body.as_ref())
     }
 }
 
@@ -258,7 +285,7 @@ impl HeaderFilter {
         self.cccc.is_some() || self.ttaaii.is_some() || self.afos.is_some() || self.bbb.is_some()
     }
 
-    fn matches(&self, header: Option<&emwin_parser::TextProductHeader>) -> bool {
+    fn matches(&self, header: Option<&TextProductHeader>) -> bool {
         if !self.has_constraints() {
             return true;
         }
@@ -271,6 +298,103 @@ impl HeaderFilter {
             && matches_option_set(&self.ttaaii, Some(header.ttaaii.as_str()), normalize_upper)
             && matches_option_set(&self.afos, Some(header.afos.as_str()), normalize_upper)
             && matches_option_set(&self.bbb, header.bbb.as_deref(), normalize_upper)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct GeoFilter {
+    pub(crate) states: Option<BTreeSet<String>>,
+    pub(crate) counties: Option<BTreeSet<String>>,
+    pub(crate) zones: Option<BTreeSet<String>>,
+    pub(crate) fire_zones: Option<BTreeSet<String>>,
+    pub(crate) marine_zones: Option<BTreeSet<String>>,
+}
+
+impl GeoFilter {
+    fn has_constraints(&self) -> bool {
+        self.states.is_some()
+            || self.counties.is_some()
+            || self.zones.is_some()
+            || self.fire_zones.is_some()
+            || self.marine_zones.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        if !self.has_constraints() {
+            return true;
+        }
+
+        let Some(body) = body else {
+            return false;
+        };
+        let Some(sections) = body.ugc.as_deref() else {
+            return false;
+        };
+
+        matches_geo_states(&self.states, sections)
+            && matches_ugc_codes(&self.counties, sections, |section| &section.counties, 'C')
+            && matches_ugc_codes(&self.zones, sections, |section| &section.zones, 'Z')
+            && matches_ugc_codes(
+                &self.fire_zones,
+                sections,
+                |section| &section.fire_zones,
+                'F',
+            )
+            && matches_ugc_codes(
+                &self.marine_zones,
+                sections,
+                |section| &section.marine_zones,
+                'M',
+            )
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct VtecFilter {
+    pub(crate) phenomena: Option<BTreeSet<String>>,
+    pub(crate) significance: Option<BTreeSet<String>>,
+    pub(crate) action: Option<BTreeSet<String>>,
+    pub(crate) office: Option<BTreeSet<String>>,
+    pub(crate) etn: Option<BTreeSet<u32>>,
+}
+
+impl VtecFilter {
+    fn has_constraints(&self) -> bool {
+        self.phenomena.is_some()
+            || self.significance.is_some()
+            || self.action.is_some()
+            || self.office.is_some()
+            || self.etn.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        if !self.has_constraints() {
+            return true;
+        }
+
+        let Some(body) = body else {
+            return false;
+        };
+        let Some(vtec_codes) = body.vtec.as_deref() else {
+            return false;
+        };
+
+        vtec_codes.iter().any(|code| self.matches_code(code))
+    }
+
+    fn matches_code(&self, code: &VtecCode) -> bool {
+        matches_option_set(
+            &self.phenomena,
+            Some(code.phenomena.as_str()),
+            normalize_upper,
+        ) && matches_char_set(&self.significance, code.significance)
+            && matches_option_set(
+                &self.action,
+                Some(vtec_action_code(code.action)),
+                normalize_upper,
+            )
+            && matches_option_set(&self.office, Some(code.office.as_str()), normalize_upper)
+            && matches_number_set(&self.etn, code.etn)
     }
 }
 
@@ -288,6 +412,56 @@ fn matches_option_set(
     }
 }
 
+fn matches_char_set(allowed: &Option<BTreeSet<String>>, value: char) -> bool {
+    match allowed {
+        Some(allowed) => allowed.contains(&value.to_ascii_uppercase().to_string()),
+        None => true,
+    }
+}
+
+fn matches_number_set(allowed: &Option<BTreeSet<u32>>, value: u32) -> bool {
+    match allowed {
+        Some(allowed) => allowed.contains(&value),
+        None => true,
+    }
+}
+
+fn matches_geo_states(allowed: &Option<BTreeSet<String>>, sections: &[UgcSection]) -> bool {
+    match allowed {
+        Some(allowed) => sections.iter().any(|section| {
+            section.counties.keys().any(|state| allowed.contains(state))
+                || section.zones.keys().any(|state| allowed.contains(state))
+                || section
+                    .fire_zones
+                    .keys()
+                    .any(|state| allowed.contains(state))
+                || section
+                    .marine_zones
+                    .keys()
+                    .any(|state| allowed.contains(state))
+        }),
+        None => true,
+    }
+}
+
+fn matches_ugc_codes(
+    allowed: &Option<BTreeSet<String>>,
+    sections: &[UgcSection],
+    select: fn(&UgcSection) -> &std::collections::BTreeMap<String, Vec<u16>>,
+    class_code: char,
+) -> bool {
+    match allowed {
+        Some(allowed) => sections.iter().any(|section| {
+            select(section).iter().any(|(state, numbers)| {
+                numbers
+                    .iter()
+                    .any(|number| allowed.contains(&format!("{state}{class_code}{number:03}")))
+            })
+        }),
+        None => true,
+    }
+}
+
 fn csv_values(raw: Option<&str>, normalize: fn(&str) -> String) -> Option<BTreeSet<String>> {
     let values = raw
         .into_iter()
@@ -298,6 +472,31 @@ fn csv_values(raw: Option<&str>, normalize: fn(&str) -> String) -> Option<BTreeS
         .collect::<BTreeSet<_>>();
 
     (!values.is_empty()).then_some(values)
+}
+
+fn csv_numbers(raw: Option<&str>) -> Option<BTreeSet<u32>> {
+    let values = raw
+        .into_iter()
+        .flat_map(|value| value.split(','))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter_map(|value| value.parse::<u32>().ok())
+        .collect::<BTreeSet<_>>();
+
+    (!values.is_empty()).then_some(values)
+}
+
+fn vtec_action_code(action: VtecAction) -> &'static str {
+    match action {
+        VtecAction::New => "NEW",
+        VtecAction::Continue => "CON",
+        VtecAction::Cancel => "CAN",
+        VtecAction::Extend => "EXT",
+        VtecAction::Upgrade => "UPG",
+        VtecAction::Downgrade => "DGD",
+        VtecAction::Expire => "EXP",
+        VtecAction::Unknown => "UNKNOWN",
+    }
 }
 
 fn normalize_upper(value: &str) -> String {
@@ -337,6 +536,16 @@ pub(crate) struct EventsQuery {
     pub(crate) ttaaii: Option<String>,
     pub(crate) afos: Option<String>,
     pub(crate) bbb: Option<String>,
+    pub(crate) state: Option<String>,
+    pub(crate) county: Option<String>,
+    pub(crate) zone: Option<String>,
+    pub(crate) fire_zone: Option<String>,
+    pub(crate) marine_zone: Option<String>,
+    pub(crate) vtec_phenomena: Option<String>,
+    pub(crate) vtec_significance: Option<String>,
+    pub(crate) vtec_action: Option<String>,
+    pub(crate) vtec_office: Option<String>,
+    pub(crate) etn: Option<String>,
     pub(crate) min_size: Option<usize>,
     pub(crate) max_size: Option<usize>,
 }

@@ -12,13 +12,18 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::data::{NwslidEntry, nwslid_entry};
 
 /// A parsed HVTEC code.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct HvtecCode {
     /// 5-character NWSLI (National Weather Service Location Identifier)
     /// River gauge or flood forecast point identifier
     pub nwslid: String,
+
+    /// Enriched hydrologic location metadata for the NWSLID, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<NwslidEntry>,
 
     /// Severity level (1, 2, or 3)
     pub severity: HvtecSeverity,
@@ -139,6 +144,7 @@ impl HvtecRecord {
 /// assert_eq!(codes.len(), 1);
 /// assert_eq!(codes[0].nwslid, "MSRM1");
 /// assert_eq!(codes[0].severity, emwin_parser::HvtecSeverity::Level3);
+/// assert!(codes[0].location.is_none());
 /// ```
 pub fn parse_hvtec_codes(text: &str) -> Vec<HvtecCode> {
     parse_hvtec_codes_with_issues(text).0
@@ -199,6 +205,7 @@ fn parse_hvtec_capture(
                 Some(raw.to_string()),
             )
         })?;
+    let location = nwslid_entry(&nwslid).copied();
     let severity =
         HvtecSeverity::from_str(cap.get(2).map(|value| value.as_str()).ok_or_else(|| {
             ProductParseIssue::new(
@@ -277,6 +284,7 @@ fn parse_hvtec_capture(
 
     Ok(HvtecCode {
         nwslid,
+        location,
         severity,
         cause,
         begin,
@@ -307,9 +315,26 @@ mod tests {
 
         assert_eq!(codes.len(), 1);
         assert_eq!(codes[0].nwslid, "MSRM1");
+        assert!(codes[0].location.is_none());
         assert_eq!(codes[0].severity, HvtecSeverity::Level3);
         assert_eq!(codes[0].cause, HvtecCause::ExcessiveRainfall);
         assert_eq!(codes[0].record, HvtecRecord::NoRecord);
+    }
+
+    #[test]
+    fn parse_hvtec_enriches_known_nwslid() {
+        let text = "/CHFA2.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/";
+        let codes = parse_hvtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        let location = codes[0].location.expect("expected known location");
+        assert_eq!(location.nwslid, "CHFA2");
+        assert_eq!(location.state_code, "AK");
+        assert_eq!(location.stream_name, "Chena River");
+        assert_eq!(location.proximity, "at");
+        assert_eq!(location.place_name, "Fairbanks");
+        assert_eq!(location.latitude, 64.8458);
+        assert_eq!(location.longitude, -147.7011);
     }
 
     #[test]
@@ -403,12 +428,20 @@ mod tests {
         let text = concat!(
             "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/",
             " some text ",
-            "/ABCD1.2.SM.250301T1000Z.250301T1500Z.250302T0800Z.NR/"
+            "/CHFA2.2.SM.250301T1000Z.250301T1500Z.250302T0800Z.NR/"
         );
         let codes = parse_hvtec_codes(text);
 
         assert_eq!(codes.len(), 2);
         assert_eq!(codes[0].nwslid, "MSRM1");
-        assert_eq!(codes[1].nwslid, "ABCD1");
+        assert_eq!(codes[1].nwslid, "CHFA2");
+        assert!(codes[0].location.is_none());
+        assert_eq!(
+            codes[1]
+                .location
+                .as_ref()
+                .map(|location| location.place_name),
+            Some("Fairbanks")
+        );
     }
 }

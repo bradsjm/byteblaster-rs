@@ -1,11 +1,13 @@
-//! Product metadata lookup and non-text filename classification.
+//! Product metadata lookup, hydrologic location lookup, and non-text filename classification.
 
-mod generated;
+mod generated_nwslid;
+mod generated_pil;
 mod graphics;
 
 use std::sync::OnceLock;
 
-pub use generated::{
+pub use generated_nwslid::{NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC};
+pub use generated_pil::{
     PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
 };
 
@@ -21,6 +23,17 @@ pub struct PilCatalogEntry {
     pub time_mot_loc: bool,
     pub wind_hail: bool,
     pub hvtec: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+pub struct NwslidEntry {
+    pub nwslid: &'static str,
+    pub state_code: &'static str,
+    pub stream_name: &'static str,
+    pub proximity: &'static str,
+    pub place_name: &'static str,
+    pub latitude: f64,
+    pub longitude: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -61,12 +74,20 @@ pub fn pil_description(nnn: &str) -> Option<&'static str> {
     pil_catalog_entry(nnn).map(|entry| entry.title)
 }
 
+pub fn nwslid_entry(code: &str) -> Option<&'static NwslidEntry> {
+    let key = normalize_nwslid(code)?;
+    generated_nwslid::NWSLID_CATALOG
+        .binary_search_by_key(&key.as_str(), |entry| entry.nwslid)
+        .ok()
+        .map(|index| &generated_nwslid::NWSLID_CATALOG[index])
+}
+
 pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
     let key = normalize_pil(nnn)?;
-    generated::PIL_CATALOG
+    generated_pil::PIL_CATALOG
         .binary_search_by_key(&key.as_str(), |entry| entry.pil)
         .ok()
-        .map(|index| &generated::PIL_CATALOG[index])
+        .map(|index| &generated_pil::PIL_CATALOG[index])
 }
 
 pub fn wmo_prefix_for_pil(nnn: &str) -> Option<&'static str> {
@@ -83,6 +104,15 @@ pub(crate) fn classify_non_text_product(filename: &str) -> Option<NonTextProduct
 fn normalize_pil(nnn: &str) -> Option<String> {
     let key = nnn.trim().to_ascii_uppercase();
     if key.len() == 3 { Some(key) } else { None }
+}
+
+fn normalize_nwslid(code: &str) -> Option<String> {
+    let key = code.trim().to_ascii_uppercase();
+    if key.len() == 5 && key.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        Some(key)
+    } else {
+        None
+    }
 }
 
 pub(crate) fn canonical_name(filename: &str) -> String {
@@ -140,7 +170,8 @@ pub(super) fn imgmod_re() -> &'static regex::Regex {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_non_text_product, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
+        classify_non_text_product, nwslid_entry, pil_catalog_entry, pil_description,
+        wmo_prefix_for_pil,
     };
 
     #[test]
@@ -189,5 +220,24 @@ mod tests {
         assert!(entry.time_mot_loc);
         assert!(!entry.wind_hail);
         assert!(entry.hvtec);
+    }
+
+    #[test]
+    fn nwslid_lookup_is_case_insensitive() {
+        let entry = nwslid_entry("chfa2").expect("expected generated nwslid entry");
+        assert_eq!(entry.nwslid, "CHFA2");
+        assert_eq!(entry.state_code, "AK");
+        assert_eq!(entry.stream_name, "Chena River");
+        assert_eq!(entry.proximity, "at");
+        assert_eq!(entry.place_name, "Fairbanks");
+        assert_eq!(entry.latitude, 64.8458);
+        assert_eq!(entry.longitude, -147.7011);
+    }
+
+    #[test]
+    fn nwslid_lookup_rejects_invalid_codes() {
+        assert!(nwslid_entry("TOO-LONG").is_none());
+        assert!(nwslid_entry("AB!12").is_none());
+        assert!(nwslid_entry("ZZZZZ").is_none());
     }
 }

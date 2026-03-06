@@ -49,8 +49,9 @@ pub use body::{
     parse_wind_hail_entries_with_issues,
 };
 pub use data::{
-    PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
-    PilCatalogEntry, ProductMetadataFlags, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
+    NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, PIL_ENTRY_COUNT,
+    PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO, PilCatalogEntry,
+    ProductMetadataFlags, nwslid_entry, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
 };
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, enrich_header,

@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn enrich_body_with_all_flags() {
         let text = r#"
-000 
+000
 WUUS53 KOAX 051200
 FFWOAX
 
@@ -179,6 +179,7 @@ MAXWINDGUST...60 MPH
 
         assert!(body.hvtec.is_some());
         assert_eq!(body.hvtec.as_ref().unwrap().len(), 1);
+        assert!(body.hvtec.as_ref().unwrap()[0].location.is_none());
 
         assert!(body.latlon.is_some());
         assert_eq!(body.latlon.as_ref().unwrap().len(), 1);

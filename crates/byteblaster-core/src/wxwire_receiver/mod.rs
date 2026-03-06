@@ -25,24 +25,20 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
+//! use byteblaster_core::wxwire_receiver::{
+//!     WxWireReceiver, WxWireReceiverClient, WxWireReceiverConfig,
+//! };
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = WxWireReceiverConfig::builder()
-//!         .email("you@example.com")
-//!         .password("your-pass")
-//!         .build()?;
-//!
-//!     let (mut receiver, mut stream) = WxWireReceiver::new(config).await?;
-//!
-//!     tokio::spawn(async move {
-//!         while let Some(event) = stream.recv().await {
-//!             println!("Received: {:?}", event);
-//!         }
-//!     });
-//!
-//!     receiver.run().await?;
+//!     let config = WxWireReceiverConfig {
+//!         username: "you@example.com".to_string(),
+//!         password: "secret".to_string(),
+//!         ..WxWireReceiverConfig::default()
+//!     };
+//!     let mut receiver = WxWireReceiver::builder(config).build()?;
+//!     receiver.start()?;
+//!     receiver.stop().await?;
 //!     Ok(())
 //! }
 //! ```
@@ -63,3 +59,7 @@ pub use config::{WXWIRE_PRIMARY_HOST, WxWireReceiverConfig};
 pub use error::{WxWireReceiverError, WxWireReceiverResult};
 pub use model::{WxWireReceiverFile, WxWireReceiverFrameEvent, WxWireReceiverWarning};
 pub use transport::{WxWireTransport, XmppWxWireTransport};
+
+pub mod unstable {
+    pub use super::client::UnstableWxWireReceiverIngress;
+}

@@ -9,7 +9,16 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
-default = []
+default = ["qbt", "wxwire"]
+qbt = []
+wxwire = [
+    "dep:tokio-rustls",
+    "dep:rustls-native-certs",
+    "dep:base64",
+    "dep:minidom",
+    "dep:xmpp-parsers",
+    "dep:quick-xml",
+]
 telemetry-serde = []
 
 [dependencies]
@@ -24,12 +33,12 @@ futures.workspace = true
 regex.workspace = true
 serde_json.workspace = true
 time.workspace = true
-tokio-rustls.workspace = true
-rustls-native-certs.workspace = true
-base64.workspace = true
-minidom.workspace = true
-xmpp-parsers.workspace = true
-quick-xml.workspace = true
+tokio-rustls = { workspace = true, optional = true }
+rustls-native-certs = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+minidom = { workspace = true, optional = true }
+xmpp-parsers = { workspace = true, optional = true }
+quick-xml = { workspace = true, optional = true }
 
 [lints]
 workspace = true

@@ -10,46 +10,59 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use byteblaster_core::{QbtReceiver, QbtReceiverConfig};
-//! use byteblaster_core::ingest::{adapt_qbt_events, ReceivedProduct};
+//! use byteblaster_core::ingest::{IngestEvent, adapt_qbt_events};
+//! use byteblaster_core::qbt_receiver::{
+//!     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
+//!     default_qbt_upstream_servers,
+//! };
+//! use futures::StreamExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = QbtReceiverConfig::default();
-//!     let (mut receiver, mut stream) = QbtReceiver::new(config).await?;
+//!     let config = QbtReceiverConfig {
+//!         email: "you@example.com".to_string(),
+//!         servers: default_qbt_upstream_servers(),
+//!         server_list_path: None,
+//!         follow_server_list_updates: true,
+//!         reconnect_delay_secs: 5,
+//!         connection_timeout_secs: 5,
+//!         watchdog_timeout_secs: 49,
+//!         max_exceptions: 10,
+//!         decode: QbtDecodeConfig::default(),
+//!     };
+//!     let mut receiver = QbtReceiver::builder(config).build()?;
+//!     receiver.start()?;
 //!
-//!     let mut ingest_stream = adapt_qbt_events(stream);
+//!     let mut ingest_stream = adapt_qbt_events(receiver.events());
 //!
-//!     tokio::spawn(async move {
-//!         while let Some(event) = ingest_stream.recv().await {
-//!             if let ReceivedProduct::Complete(product) = event {
-//!                 println!("Received product: {}", product.filename);
-//!             }
+//!     if let Some(event) = ingest_stream.next().await {
+//!         if let Ok(IngestEvent::Product(product)) = event {
+//!             println!("Received product: {}", product.filename);
 //!         }
-//!     });
+//!     }
 //!
+//!     drop(ingest_stream);
+//!     receiver.stop().await?;
 //!     Ok(())
 //! }
 //! ```
 
+#[cfg(any(feature = "qbt", feature = "wxwire"))]
 pub mod ingest;
+#[cfg(feature = "qbt")]
 pub mod qbt_receiver;
+#[cfg(feature = "wxwire")]
 pub mod wxwire_receiver;
 
 /// Unstable API surface. Items in this module may change without stability guarantees.
 pub mod unstable {
+    #[cfg(feature = "qbt")]
     pub mod qbt_receiver {
-        pub use crate::qbt_receiver::client::reconnect::{EndpointRotator, next_backoff_secs};
-        pub use crate::qbt_receiver::client::watchdog::{HealthObserver, Watchdog};
-        pub use crate::qbt_receiver::protocol::auth::{build_logon_message, xor_ff};
-        pub use crate::qbt_receiver::protocol::server_list::{
-            parse_server_list_frame, parse_simple_server_list,
-        };
-        pub use crate::qbt_receiver::stream::file_stream::QbtFileStream;
-        pub use crate::qbt_receiver::stream::segment_stream::QbtSegmentStream;
+        pub use crate::qbt_receiver::unstable::*;
     }
 
+    #[cfg(feature = "wxwire")]
     pub mod wxwire_receiver {
-        pub use crate::wxwire_receiver::client::UnstableWxWireReceiverIngress;
+        pub use crate::wxwire_receiver::unstable::*;
     }
 }

@@ -18,11 +18,15 @@
 //! a uniform stream of `ReceivedProduct` events that can be consumed by application code.
 
 pub mod model;
+#[cfg(feature = "qbt")]
 pub mod qbt_adapter;
+#[cfg(feature = "wxwire")]
 pub mod wxwire_adapter;
 
 pub use model::{
     IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, ReceivedProduct,
 };
+#[cfg(feature = "qbt")]
 pub use qbt_adapter::{QbtIngestStream, adapt_qbt_events};
+#[cfg(feature = "wxwire")]
 pub use wxwire_adapter::{WxWireIngestStream, adapt_wxwire_events};

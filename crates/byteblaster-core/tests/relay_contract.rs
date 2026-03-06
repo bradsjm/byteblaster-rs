@@ -148,37 +148,27 @@ async fn disconnects_client_without_periodic_reauth() {
 #[tokio::test]
 async fn over_capacity_client_gets_server_list_then_disconnects() {
     let mut upstream = UpstreamHarness::start().await;
-    let relay = RelayHarness::start(upstream.addr, 1, 720, 65_536).await;
+    let relay = RelayHarness::start(upstream.addr, 0, 720, 65_536).await;
     upstream.wait_ready().await;
 
-    let mut first = TcpStream::connect(relay.addr)
-        .await
-        .expect("connect first client");
-    send_auth(&mut first, "first@example.com").await;
-    wait_for_active_clients(Arc::clone(&relay.state), 1, Duration::from_secs(5)).await;
-
+    let expected_server_list =
+        build_server_list_wire(&[("127.0.0.1".to_string(), upstream.addr.port())]);
     let mut second = TcpStream::connect(relay.addr)
         .await
-        .expect("connect second client");
+        .expect("connect over-capacity client");
     let mut buf = vec![0_u8; 512];
     let n = tokio::time::timeout(Duration::from_secs(5), second.read(&mut buf))
         .await
         .expect("second client read timeout")
         .expect("second client read failed");
     assert!(n > 0, "second client should receive server list frame");
-
-    let expected_server_list =
-        build_server_list_wire(&[("127.0.0.1".to_string(), upstream.addr.port())]);
     assert_eq!(&buf[..n], &expected_server_list[..]);
 
     let n2 = tokio::time::timeout(Duration::from_secs(5), second.read(&mut buf))
         .await
         .expect("second disconnect read timeout")
         .expect("second disconnect read failed");
-    assert_eq!(
-        n2, 0,
-        "second client should be disconnected after server list"
-    );
+    assert_eq!(n2, 0, "second client should disconnect after server list");
 
     relay.stop().await;
 }

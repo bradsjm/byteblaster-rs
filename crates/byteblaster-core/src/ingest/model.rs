@@ -1,6 +1,8 @@
+#[cfg(feature = "qbt")]
 use crate::qbt_receiver::{
     QbtCompletedFile, QbtProtocolWarning, QbtReceiverError, QbtReceiverTelemetrySnapshot,
 };
+#[cfg(feature = "wxwire")]
 use crate::wxwire_receiver::{
     WxWireReceiverError, WxWireReceiverFile, WxWireReceiverTelemetrySnapshot, WxWireReceiverWarning,
 };
@@ -34,8 +36,10 @@ pub struct ReceivedProduct {
 #[non_exhaustive]
 pub enum ProductOrigin {
     /// Product from QBT satellite receiver
+    #[cfg(feature = "qbt")]
     Qbt,
     /// Product from Weather Wire receiver with metadata
+    #[cfg(feature = "wxwire")]
     WxWire {
         /// XMPP message ID
         message_id: String,
@@ -72,8 +76,10 @@ pub enum IngestEvent {
 #[non_exhaustive]
 pub enum IngestTelemetry {
     /// QBT receiver telemetry
+    #[cfg(feature = "qbt")]
     Qbt(QbtReceiverTelemetrySnapshot),
     /// Weather Wire receiver telemetry
+    #[cfg(feature = "wxwire")]
     WxWire(WxWireReceiverTelemetrySnapshot),
 }
 
@@ -84,8 +90,10 @@ pub enum IngestTelemetry {
 #[non_exhaustive]
 pub enum IngestWarning {
     /// QBT protocol warning
+    #[cfg(feature = "qbt")]
     Qbt(QbtProtocolWarning),
     /// Weather Wire warning
+    #[cfg(feature = "wxwire")]
     WxWire(WxWireReceiverWarning),
 }
 
@@ -95,12 +103,15 @@ pub enum IngestWarning {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum IngestError {
+    #[cfg(feature = "qbt")]
     #[error("QBT receiver error: {0}")]
     Qbt(#[from] QbtReceiverError),
+    #[cfg(feature = "wxwire")]
     #[error("Weather Wire receiver error: {0}")]
     WxWire(#[from] WxWireReceiverError),
 }
 
+#[cfg(feature = "qbt")]
 impl From<QbtCompletedFile> for ReceivedProduct {
     fn from(value: QbtCompletedFile) -> Self {
         Self {
@@ -112,6 +123,7 @@ impl From<QbtCompletedFile> for ReceivedProduct {
     }
 }
 
+#[cfg(feature = "wxwire")]
 impl From<WxWireReceiverFile> for ReceivedProduct {
     fn from(value: WxWireReceiverFile) -> Self {
         Self {
@@ -130,11 +142,14 @@ impl From<WxWireReceiverFile> for ReceivedProduct {
 #[cfg(test)]
 mod tests {
     use super::{ProductOrigin, ReceivedProduct};
+    #[cfg(feature = "qbt")]
     use crate::qbt_receiver::QbtCompletedFile;
+    #[cfg(feature = "wxwire")]
     use crate::wxwire_receiver::WxWireReceiverFile;
     use bytes::Bytes;
     use std::time::{Duration, SystemTime};
 
+    #[cfg(feature = "qbt")]
     #[test]
     fn qbt_completed_file_converts_to_received_product() {
         let timestamp = SystemTime::UNIX_EPOCH + Duration::from_secs(123);
@@ -151,6 +166,7 @@ mod tests {
         assert!(matches!(product.origin, ProductOrigin::Qbt));
     }
 
+    #[cfg(feature = "wxwire")]
     #[test]
     fn wxwire_file_converts_to_received_product() {
         let issue = SystemTime::UNIX_EPOCH + Duration::from_secs(111);

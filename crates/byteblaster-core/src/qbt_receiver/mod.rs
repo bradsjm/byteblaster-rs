@@ -19,20 +19,27 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use byteblaster_core::qbt_receiver::{QbtReceiver, QbtReceiverConfig};
+//! use byteblaster_core::qbt_receiver::{
+//!     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
+//!     default_qbt_upstream_servers,
+//! };
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = QbtReceiverConfig::default();
-//!     let (mut receiver, mut stream) = QbtReceiver::new(config).await?;
-//!
-//!     tokio::spawn(async move {
-//!         while let Some(event) = stream.recv().await {
-//!             println!("Received: {:?}", event);
-//!         }
-//!     });
-//!
-//!     receiver.run().await?;
+//!     let config = QbtReceiverConfig {
+//!         email: "you@example.com".to_string(),
+//!         servers: default_qbt_upstream_servers(),
+//!         server_list_path: None,
+//!         follow_server_list_updates: true,
+//!         reconnect_delay_secs: 5,
+//!         connection_timeout_secs: 5,
+//!         watchdog_timeout_secs: 49,
+//!         max_exceptions: 10,
+//!         decode: QbtDecodeConfig::default(),
+//!     };
+//!     let mut receiver = QbtReceiver::builder(config).build()?;
+//!     receiver.start()?;
+//!     receiver.stop().await?;
 //!     Ok(())
 //! }
 //! ```
@@ -76,3 +83,12 @@ pub use protocol::server_list_wire::{QbtServerListWireScanner, build_server_list
 pub use relay::{
     QbtRelayConfig, QbtRelayHealthSnapshot, QbtRelayMetricsSnapshot, QbtRelayState, run_qbt_relay,
 };
+
+pub mod unstable {
+    pub use super::client::reconnect::{EndpointRotator, next_backoff_secs};
+    pub use super::client::watchdog::{HealthObserver, Watchdog};
+    pub use super::protocol::auth::{build_logon_message, xor_ff};
+    pub use super::protocol::server_list::{parse_server_list_frame, parse_simple_server_list};
+    pub use super::stream::file_stream::QbtFileStream;
+    pub use super::stream::segment_stream::QbtSegmentStream;
+}

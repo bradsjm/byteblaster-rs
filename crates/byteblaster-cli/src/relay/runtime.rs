@@ -17,10 +17,7 @@ pub async fn run(args: RelayArgs) -> crate::error::CliResult<()> {
         .validate()
         .map_err(|err| crate::error::CliError::invalid_argument(err.to_string()))?;
 
-    let state = Arc::new(QbtRelayState::from_upstream_servers(
-        &config.relay.upstream_servers,
-        config.relay.quality_window_secs,
-    ));
+    let state = Arc::new(QbtRelayState::new(&config.relay));
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 

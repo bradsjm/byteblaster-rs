@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 
+use super::QbtRelayConfig;
 use crate::qbt_receiver::protocol::server_list_wire::build_server_list_wire;
 
 #[derive(Default)]
@@ -125,6 +126,11 @@ pub struct QbtRelayState {
 }
 
 impl QbtRelayState {
+    /// Creates relay state from validated relay configuration.
+    pub fn new(config: &QbtRelayConfig) -> Self {
+        Self::from_upstream_servers(&config.upstream_servers, config.quality_window_secs)
+    }
+
     pub fn from_upstream_servers(servers: &[(String, u16)], quality_window_secs: usize) -> Self {
         Self {
             metrics: Metrics::default(),
@@ -245,5 +251,53 @@ impl QbtRelayState {
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         *guard = bytes;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QbtRelayState;
+    use crate::qbt_receiver::QbtRelayConfig;
+    use std::net::SocketAddr;
+    use std::time::Duration;
+
+    #[test]
+    fn new_initializes_server_list_wire_and_quality_window_from_config() {
+        let config = QbtRelayConfig {
+            email: "relay@example.com".to_string(),
+            upstream_servers: vec![
+                ("primary.example".to_string(), 2211),
+                ("backup.example".to_string(), 2212),
+            ],
+            bind_addr: "127.0.0.1:0".parse::<SocketAddr>().expect("valid socket"),
+            max_clients: 10,
+            auth_timeout: Duration::from_secs(720),
+            client_buffer_bytes: 65_536,
+            reconnect_delay: Duration::from_secs(5),
+            connect_timeout: Duration::from_secs(5),
+            quality_window_secs: 30,
+            quality_pause_threshold: 0.95,
+            metrics_log_interval: Duration::from_secs(30),
+        };
+
+        let state = QbtRelayState::new(&config);
+        let decoded_server_list = state
+            .latest_server_list_wire()
+            .iter()
+            .map(|byte| byte ^ 0xFF)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            decoded_server_list,
+            b"/ServerList/primary.example:2211|backup.example:2212\0".to_vec()
+        );
+
+        let bucket_count = state
+            .quality_window
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .buckets
+            .len();
+        assert_eq!(bucket_count, 30);
     }
 }

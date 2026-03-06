@@ -1,5 +1,7 @@
 use crate::wxwire_receiver::config::{WXWIRE_PORT, WXWIRE_ROOM};
-use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
+use crate::wxwire_receiver::error::{
+    WxWireReceiverError, WxWireReceiverResult, WxWireTransportError,
+};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use minidom::Element;
@@ -87,24 +89,22 @@ impl XmppWxWireTransport {
         password: &str,
         connect_timeout: Duration,
     ) -> WxWireReceiverResult<Self> {
-        let connect_deadline = Instant::now().checked_add(connect_timeout).ok_or_else(|| {
-            WxWireReceiverError::Transport("xmpp connect timeout overflow".to_string())
-        })?;
+        let connect_deadline = Instant::now()
+            .checked_add(connect_timeout)
+            .ok_or(WxWireTransportError::ConnectTimeoutOverflow)?;
         let addr = format!("{endpoint_host}:{WXWIRE_PORT}");
         let tcp = tokio::time::timeout(
             remaining_connect_timeout(connect_deadline)?,
             TcpStream::connect(addr.as_str()),
         )
         .await
-        .map_err(|_| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
+        .map_err(|_| WxWireTransportError::ConnectTimeout)
         .and_then(|result| {
-            result.map_err(|err| {
-                WxWireReceiverError::Transport(format!("failed to connect tcp socket: {err}"))
-            })
+            result.map_err(|err| WxWireTransportError::TcpConnect(err.to_string()))
         })?;
 
         let room_bare = BareJid::from_str(WXWIRE_ROOM)
-            .map_err(|err| WxWireReceiverError::Transport(format!("invalid room jid: {err}")))?;
+            .map_err(|err| WxWireTransportError::InvalidRoomJid(err.to_string()))?;
 
         let mut session = XmppSession::new(endpoint_host.to_string(), XmppSocket::Plain(tcp));
         session
@@ -118,9 +118,7 @@ impl XmppWxWireTransport {
             )
             .await?;
         if !features.contains("urn:ietf:params:xml:ns:xmpp-tls") {
-            return Err(WxWireReceiverError::Transport(
-                "server does not advertise STARTTLS".to_string(),
-            ));
+            return Err(WxWireTransportError::MissingStartTls.into());
         }
 
         session
@@ -130,9 +128,7 @@ impl XmppWxWireTransport {
             .wait_for_tag("proceed", remaining_connect_timeout(connect_deadline)?)
             .await?;
         if !proceed.contains("urn:ietf:params:xml:ns:xmpp-tls") {
-            return Err(WxWireReceiverError::Transport(
-                "server did not proceed with STARTTLS".to_string(),
-            ));
+            return Err(WxWireTransportError::StartTlsRejected.into());
         }
 
         session
@@ -149,9 +145,7 @@ impl XmppWxWireTransport {
             )
             .await?;
         if !sasl_features.contains("urn:ietf:params:xml:ns:xmpp-sasl") {
-            return Err(WxWireReceiverError::Transport(
-                "server does not advertise SASL mechanisms".to_string(),
-            ));
+            return Err(WxWireTransportError::MissingSaslMechanisms.into());
         }
 
         let auth_payload = BASE64_STANDARD.encode(format!("\0{username}\0{password}"));
@@ -167,9 +161,7 @@ impl XmppWxWireTransport {
             )
             .await?;
         if sasl_reply.contains("<failure") {
-            return Err(WxWireReceiverError::Transport(format!(
-                "xmpp authentication failed: {sasl_reply}"
-            )));
+            return Err(WxWireTransportError::AuthenticationFailed(sasl_reply).into());
         }
 
         session
@@ -182,9 +174,7 @@ impl XmppWxWireTransport {
             )
             .await?;
         if !post_auth_features.contains("urn:ietf:params:xml:ns:xmpp-bind") {
-            return Err(WxWireReceiverError::Transport(
-                "server does not advertise resource binding".to_string(),
-            ));
+            return Err(WxWireTransportError::MissingResourceBinding.into());
         }
 
         let bind_id = format!("bb-bind-{}", chrono_like_suffix());
@@ -199,14 +189,10 @@ impl XmppWxWireTransport {
         if !bind_result.contains(format!("id=\"{bind_id}\"").as_str())
             && !bind_result.contains(format!("id='{bind_id}'").as_str())
         {
-            return Err(WxWireReceiverError::Transport(format!(
-                "unexpected bind response: {bind_result}"
-            )));
+            return Err(WxWireTransportError::UnexpectedBindResponse(bind_result).into());
         }
         if !bind_result.contains("type='result'") && !bind_result.contains("type=\"result\"") {
-            return Err(WxWireReceiverError::Transport(format!(
-                "resource bind failed: {bind_result}"
-            )));
+            return Err(WxWireTransportError::ResourceBindFailed(bind_result).into());
         }
 
         let sm_enabled = if post_auth_features.contains(SM3_NS) {
@@ -220,9 +206,7 @@ impl XmppWxWireTransport {
                 )
                 .await?;
             if sm_reply.contains("<failed") {
-                return Err(WxWireReceiverError::Transport(format!(
-                    "xmpp stream management enable failed: {sm_reply}"
-                )));
+                return Err(WxWireTransportError::StreamManagementEnableFailed(sm_reply).into());
             }
             true
         } else {
@@ -247,14 +231,10 @@ impl XmppWxWireTransport {
                 }
             })
             .await
-            .map_err(|_| {
-                WxWireReceiverError::Transport("xmpp join confirmation timeout".to_string())
-            })??;
+            .map_err(|_| WxWireTransportError::JoinConfirmationTimeout)??;
 
         if join_confirm.contains("type='error'") || join_confirm.contains("type=\"error\"") {
-            return Err(WxWireReceiverError::Transport(format!(
-                "xmpp room join rejected: {join_confirm}"
-            )));
+            return Err(WxWireTransportError::JoinRejected(join_confirm).into());
         }
 
         Ok(Self {
@@ -269,23 +249,20 @@ impl XmppWxWireTransport {
     }
 
     async fn read_more(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
-        let socket = self.socket.as_mut().ok_or_else(|| {
-            WxWireReceiverError::Transport("xmpp client not connected".to_string())
-        })?;
+        let socket = self
+            .socket
+            .as_mut()
+            .ok_or(WxWireTransportError::ClientNotConnected)?;
         let mut buf = [0u8; 8192];
         let read = tokio::time::timeout(timeout, socket.read_some(&mut buf))
             .await
-            .map_err(|_| WxWireReceiverError::Transport("xmpp read timeout".to_string()))
+            .map_err(|_| WxWireTransportError::ReadTimeout)
             .and_then(|result| {
-                result.map_err(|err| {
-                    WxWireReceiverError::Transport(format!("xmpp read failed: {err}"))
-                })
+                result.map_err(|err| WxWireTransportError::ReadFailed(err.to_string()))
             })?;
 
         if read == 0 {
-            return Err(WxWireReceiverError::Transport(
-                "xmpp stream ended".to_string(),
-            ));
+            return Err(WxWireTransportError::StreamEnded.into());
         }
 
         let chunk = String::from_utf8_lossy(&buf[..read]);
@@ -298,13 +275,14 @@ impl XmppWxWireTransport {
     }
 
     async fn send_raw(&mut self, xml: &str) -> WxWireReceiverResult<()> {
-        let socket = self.socket.as_mut().ok_or_else(|| {
-            WxWireReceiverError::Transport("xmpp client not connected".to_string())
-        })?;
+        let socket = self
+            .socket
+            .as_mut()
+            .ok_or(WxWireTransportError::ClientNotConnected)?;
         socket
             .write_all(xml.as_bytes())
             .await
-            .map_err(|err| WxWireReceiverError::Transport(format!("xmpp write failed: {err}")))
+            .map_err(|err| WxWireTransportError::WriteFailed(err.to_string()).into())
     }
 
     async fn maybe_send_heartbeat(&mut self) -> WxWireReceiverResult<()> {
@@ -418,10 +396,10 @@ impl XmppSession {
     async fn send_raw(&mut self, xml: &str) -> WxWireReceiverResult<()> {
         self.socket
             .as_mut()
-            .ok_or_else(|| WxWireReceiverError::Transport("xmpp socket not available".to_string()))?
+            .ok_or(WxWireTransportError::SocketNotAvailable)?
             .write_all(xml.as_bytes())
             .await
-            .map_err(|err| WxWireReceiverError::Transport(format!("xmpp write failed: {err}")))
+            .map_err(|err| WxWireTransportError::WriteFailed(err.to_string()).into())
     }
 
     async fn open_stream(&mut self, _timeout: Duration) -> WxWireReceiverResult<()> {
@@ -433,9 +411,11 @@ impl XmppSession {
     }
 
     async fn upgrade_tls(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
-        let plain = match self.socket.take().ok_or_else(|| {
-            WxWireReceiverError::Transport("xmpp socket not available".to_string())
-        })? {
+        let plain = match self
+            .socket
+            .take()
+            .ok_or(WxWireTransportError::SocketNotAvailable)?
+        {
             XmppSocket::Plain(stream) => stream,
             XmppSocket::Tls(stream) => {
                 self.socket = Some(XmppSocket::Tls(stream));
@@ -453,15 +433,13 @@ impl XmppSession {
             .with_no_client_auth();
         let connector = TlsConnector::from(std::sync::Arc::new(config));
         let server_name = ServerName::try_from(self.endpoint_host.clone())
-            .map_err(|_| WxWireReceiverError::Transport("invalid tls server name".to_string()))?;
+            .map_err(|_| WxWireTransportError::InvalidTlsServerName)?;
 
         let tls = tokio::time::timeout(timeout, connector.connect(server_name, plain))
             .await
-            .map_err(|_| WxWireReceiverError::Transport("tls handshake timeout".to_string()))
+            .map_err(|_| WxWireTransportError::TlsHandshakeTimeout)
             .and_then(|result| {
-                result.map_err(|err| {
-                    WxWireReceiverError::Transport(format!("tls handshake failed: {err}"))
-                })
+                result.map_err(|err| WxWireTransportError::TlsHandshakeFailed(err.to_string()))
             })?;
 
         self.socket = Some(XmppSocket::Tls(Box::new(tls)));
@@ -471,21 +449,18 @@ impl XmppSession {
 
     async fn read_more(&mut self, timeout: Duration) -> WxWireReceiverResult<()> {
         let mut buf = [0u8; 8192];
-        let socket = self.socket.as_mut().ok_or_else(|| {
-            WxWireReceiverError::Transport("xmpp socket not available".to_string())
-        })?;
+        let socket = self
+            .socket
+            .as_mut()
+            .ok_or(WxWireTransportError::SocketNotAvailable)?;
         let read = tokio::time::timeout(timeout, socket.read_some(&mut buf))
             .await
-            .map_err(|_| WxWireReceiverError::Transport("xmpp read timeout".to_string()))
+            .map_err(|_| WxWireTransportError::ReadTimeout)
             .and_then(|result| {
-                result.map_err(|err| {
-                    WxWireReceiverError::Transport(format!("xmpp read failed: {err}"))
-                })
+                result.map_err(|err| WxWireTransportError::ReadFailed(err.to_string()))
             })?;
         if read == 0 {
-            return Err(WxWireReceiverError::Transport(
-                "xmpp stream ended".to_string(),
-            ));
+            return Err(WxWireTransportError::StreamEnded.into());
         }
         let chunk = String::from_utf8_lossy(&buf[..read]);
         append_with_read_limit(
@@ -529,10 +504,8 @@ fn attach_handshake_timeout_context(
     waiting_for: &str,
 ) -> WxWireReceiverError {
     match err {
-        WxWireReceiverError::Transport(message) if message == "xmpp read timeout" => {
-            WxWireReceiverError::Transport(format!(
-                "xmpp read timeout while waiting for {waiting_for}"
-            ))
+        WxWireReceiverError::Transport(WxWireTransportError::ReadTimeout) => {
+            WxWireTransportError::ReadTimeoutWaiting(waiting_for.to_string()).into()
         }
         other => other,
     }
@@ -548,7 +521,7 @@ fn chrono_like_suffix() -> String {
 fn remaining_connect_timeout(deadline: Instant) -> WxWireReceiverResult<Duration> {
     deadline
         .checked_duration_since(Instant::now())
-        .ok_or_else(|| WxWireReceiverError::Transport("xmpp connect timeout".to_string()))
+        .ok_or_else(|| WxWireTransportError::ConnectTimeout.into())
 }
 
 fn append_with_read_limit(
@@ -558,7 +531,7 @@ fn append_with_read_limit(
 ) -> WxWireReceiverResult<()> {
     if read_buf.len().saturating_add(chunk.len()) > MAX_READ_BUFFER_BYTES {
         read_buf.clear();
-        return Err(WxWireReceiverError::Transport(overflow_message.to_string()));
+        return Err(WxWireTransportError::BufferOverflow(overflow_message.to_string()).into());
     }
     read_buf.push_str(chunk);
     Ok(())
@@ -706,9 +679,8 @@ fn is_room_join_presence(
     room_bare: &BareJid,
     nick: &str,
 ) -> WxWireReceiverResult<bool> {
-    let element = parse_element_with_default_ns(stanza).map_err(|err| {
-        WxWireReceiverError::Transport(format!("invalid join presence stanza: {err}"))
-    })?;
+    let element = parse_element_with_default_ns(stanza)
+        .map_err(|err| WxWireTransportError::InvalidJoinPresence(err.to_string()))?;
 
     if element.name() != "presence" {
         return Ok(false);
@@ -773,6 +745,7 @@ mod tests {
         add_default_client_ns, append_with_read_limit, is_room_join_presence,
         is_supported_top_level_stanza, pop_next_top_level_element, stanza_root_tag_name,
     };
+    use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireTransportError};
     use std::str::FromStr;
     use xmpp_parsers::jid::BareJid;
 
@@ -874,10 +847,11 @@ mod tests {
         let err = append_with_read_limit(&mut buf, "12345", "buffer too large")
             .expect_err("chunk should exceed max read buffer size");
 
-        assert_eq!(
-            err.to_string(),
-            "weather wire transport error: buffer too large"
-        );
+        assert!(matches!(
+            err,
+            WxWireReceiverError::Transport(WxWireTransportError::BufferOverflow(message))
+            if message == "buffer too large"
+        ));
         assert!(buf.is_empty());
     }
 }

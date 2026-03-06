@@ -13,8 +13,8 @@ pub enum WxWireReceiverError {
     Decode(#[from] WxWireDecodeError),
     #[error(transparent)]
     Lifecycle(#[from] WxWireLifecycleError),
-    #[error("weather wire transport error: {0}")]
-    Transport(String),
+    #[error(transparent)]
+    Transport(#[from] WxWireTransportError),
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -64,4 +64,61 @@ pub enum WxWireLifecycleError {
     EventStreamTaken,
     #[error("{0}")]
     Internal(String),
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WxWireTransportError {
+    #[error("xmpp connect timeout overflow")]
+    ConnectTimeoutOverflow,
+    #[error("xmpp connect timeout")]
+    ConnectTimeout,
+    #[error("failed to connect tcp socket: {0}")]
+    TcpConnect(String),
+    #[error("invalid room jid: {0}")]
+    InvalidRoomJid(String),
+    #[error("server does not advertise STARTTLS")]
+    MissingStartTls,
+    #[error("server did not proceed with STARTTLS")]
+    StartTlsRejected,
+    #[error("server does not advertise SASL mechanisms")]
+    MissingSaslMechanisms,
+    #[error("xmpp authentication failed: {0}")]
+    AuthenticationFailed(String),
+    #[error("server does not advertise resource binding")]
+    MissingResourceBinding,
+    #[error("unexpected bind response: {0}")]
+    UnexpectedBindResponse(String),
+    #[error("resource bind failed: {0}")]
+    ResourceBindFailed(String),
+    #[error("xmpp stream management enable failed: {0}")]
+    StreamManagementEnableFailed(String),
+    #[error("xmpp join confirmation timeout")]
+    JoinConfirmationTimeout,
+    #[error("xmpp room join rejected: {0}")]
+    JoinRejected(String),
+    #[error("xmpp client not connected")]
+    ClientNotConnected,
+    #[error("xmpp read timeout")]
+    ReadTimeout,
+    #[error("xmpp read timeout while waiting for {0}")]
+    ReadTimeoutWaiting(String),
+    #[error("xmpp read failed: {0}")]
+    ReadFailed(String),
+    #[error("xmpp stream ended")]
+    StreamEnded,
+    #[error("xmpp write failed: {0}")]
+    WriteFailed(String),
+    #[error("xmpp socket not available")]
+    SocketNotAvailable,
+    #[error("invalid tls server name")]
+    InvalidTlsServerName,
+    #[error("tls handshake timeout")]
+    TlsHandshakeTimeout,
+    #[error("tls handshake failed: {0}")]
+    TlsHandshakeFailed(String),
+    #[error("{0}")]
+    BufferOverflow(String),
+    #[error("invalid join presence stanza: {0}")]
+    InvalidJoinPresence(String),
 }

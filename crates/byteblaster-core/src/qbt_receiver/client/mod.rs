@@ -19,7 +19,7 @@ use crate::qbt_receiver::protocol::auth::{REAUTH_INTERVAL_SECS, build_logon_mess
 use crate::qbt_receiver::protocol::codec::{QbtFrameDecoder, QbtProtocolDecoder};
 use crate::qbt_receiver::protocol::model::QbtFrameEvent;
 use crate::qbt_receiver::protocol::model::{QbtAuthMessage, QbtProtocolWarning};
-use crate::runtime_support::{ReceiverEventStream, ReceiverRuntime};
+use crate::runtime_support::{BackpressureTracker, ReceiverEventStream, ReceiverRuntime};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -94,8 +94,8 @@ pub struct QbtReceiverTelemetrySnapshot {
 struct RuntimeTelemetry {
     /// Current snapshot of counters.
     snapshot: QbtReceiverTelemetrySnapshot,
-    /// Events dropped since last backpressure warning.
-    dropped_since_last_report: u64,
+    /// Shared backpressure/drop accounting.
+    backpressure: BackpressureTracker,
 }
 
 /// Events emitted by the ByteBlaster client.
@@ -603,13 +603,13 @@ fn try_emit_backpressure_warning(
     event_tx: &mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
-    if telemetry.dropped_since_last_report == 0 {
+    if !telemetry.backpressure.has_pending_report() {
         return;
     }
 
     let warning = QbtFrameEvent::Warning(QbtProtocolWarning::BackpressureDrop {
-        dropped_since_last_report: telemetry.dropped_since_last_report,
-        total_dropped_events: telemetry.snapshot.event_queue_drop_total,
+        dropped_since_last_report: telemetry.backpressure.dropped_since_last_report(),
+        total_dropped_events: telemetry.backpressure.event_queue_drop_total(),
         decoder_recovery_events: telemetry.snapshot.decoder_recovery_events_total,
     });
 
@@ -619,7 +619,7 @@ fn try_emit_backpressure_warning(
                 .snapshot
                 .backpressure_warning_emitted_total
                 .saturating_add(1);
-            telemetry.dropped_since_last_report = 0;
+            telemetry.backpressure.clear_pending_report();
         }
         Err(err) => record_dropped_event(err, telemetry),
     }
@@ -629,11 +629,8 @@ fn record_dropped_event(
     err: TrySendError<Result<QbtReceiverEvent, QbtReceiverError>>,
     telemetry: &mut RuntimeTelemetry,
 ) {
-    if matches!(err, TrySendError::Full(_)) {
-        telemetry.snapshot.event_queue_drop_total =
-            telemetry.snapshot.event_queue_drop_total.saturating_add(1);
-        telemetry.dropped_since_last_report = telemetry.dropped_since_last_report.saturating_add(1);
-    }
+    telemetry.backpressure.record_send_failure(err);
+    telemetry.snapshot.event_queue_drop_total = telemetry.backpressure.event_queue_drop_total();
 }
 
 fn update_telemetry_sink(
@@ -655,6 +652,7 @@ mod tests {
     use crate::qbt_receiver::client::QbtReceiverEventHandler;
     use crate::qbt_receiver::error::QbtReceiverError;
     use crate::qbt_receiver::protocol::model::{QbtFrameEvent, QbtProtocolWarning, QbtServerList};
+    use crate::runtime_support::BackpressureTracker;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::sync::mpsc;
@@ -718,7 +716,7 @@ mod tests {
                 event_queue_drop_total: 0,
                 ..QbtReceiverTelemetrySnapshot::default()
             },
-            dropped_since_last_report: 0,
+            backpressure: BackpressureTracker::default(),
         };
 
         tx.try_send(Ok(QbtReceiverEvent::Disconnected))
@@ -733,7 +731,7 @@ mod tests {
         );
 
         assert_eq!(telemetry.snapshot.event_queue_drop_total, 1);
-        assert_eq!(telemetry.dropped_since_last_report, 1);
+        assert_eq!(telemetry.backpressure.dropped_since_last_report(), 1);
 
         let _ = rx.recv().await;
 
@@ -766,7 +764,7 @@ mod tests {
         }
 
         assert_eq!(telemetry.snapshot.event_queue_drop_total, 2);
-        assert_eq!(telemetry.dropped_since_last_report, 1);
+        assert_eq!(telemetry.backpressure.dropped_since_last_report(), 1);
     }
 
     #[tokio::test]
@@ -778,7 +776,7 @@ mod tests {
                 event_queue_drop_total: 7,
                 ..QbtReceiverTelemetrySnapshot::default()
             },
-            dropped_since_last_report: 2,
+            backpressure: BackpressureTracker::new(7, 2),
         };
 
         try_send_event(
@@ -790,7 +788,7 @@ mod tests {
         );
 
         assert_eq!(telemetry.snapshot.event_queue_drop_total, 7);
-        assert_eq!(telemetry.dropped_since_last_report, 0);
+        assert_eq!(telemetry.backpressure.dropped_since_last_report(), 0);
 
         let first = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv())
             .await

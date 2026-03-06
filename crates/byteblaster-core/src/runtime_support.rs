@@ -1,5 +1,6 @@
 use futures::{Stream, stream};
 use std::pin::Pin;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, watch};
 
 pub(crate) type ReceiverEventStream<TEvent, TError> =
@@ -70,5 +71,44 @@ impl<TEvent, TError> ReceiverRuntime<TEvent, TError> {
         Ok(Box::pin(stream::unfold(rx, |mut rx| async move {
             rx.recv().await.map(|item| (item, rx))
         })))
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BackpressureTracker {
+    event_queue_drop_total: u64,
+    dropped_since_last_report: u64,
+}
+
+impl BackpressureTracker {
+    #[cfg(test)]
+    pub(crate) fn new(event_queue_drop_total: u64, dropped_since_last_report: u64) -> Self {
+        Self {
+            event_queue_drop_total,
+            dropped_since_last_report,
+        }
+    }
+
+    pub(crate) fn event_queue_drop_total(&self) -> u64 {
+        self.event_queue_drop_total
+    }
+
+    pub(crate) fn dropped_since_last_report(&self) -> u64 {
+        self.dropped_since_last_report
+    }
+
+    pub(crate) fn has_pending_report(&self) -> bool {
+        self.dropped_since_last_report > 0
+    }
+
+    pub(crate) fn clear_pending_report(&mut self) {
+        self.dropped_since_last_report = 0;
+    }
+
+    pub(crate) fn record_send_failure<T>(&mut self, err: TrySendError<T>) {
+        if matches!(err, TrySendError::Full(_)) {
+            self.event_queue_drop_total = self.event_queue_drop_total.saturating_add(1);
+            self.dropped_since_last_report = self.dropped_since_last_report.saturating_add(1);
+        }
     }
 }

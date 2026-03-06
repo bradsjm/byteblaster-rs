@@ -31,20 +31,12 @@ pub fn parse_time_mot_loc_entries_with_issues(
 ) -> (Vec<TimeMotLocEntry>, Vec<ProductParseIssue>) {
     let mut entries = Vec::new();
     let mut issues = Vec::new();
+    let normalized = text.replace('\r', "").replace('\n', " ");
 
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
-        if !time_mot_loc_candidate_regex().is_match(line) {
-            continue;
-        }
-
+    for candidate in time_mot_loc_candidate_regex().find_iter(&normalized) {
+        let line = candidate.as_str().trim();
         let Some(captures) = time_mot_loc_regex().captures(line) else {
-            issues.push(ProductParseIssue::new(
-                "time_mot_loc_parse",
-                "invalid_time_mot_loc_format",
-                format!("could not parse TIME...MOT...LOC line: `{line}`"),
-                Some(line.to_string()),
-            ));
+            issues.push(invalid_format_issue(line));
             continue;
         };
 
@@ -60,7 +52,10 @@ pub fn parse_time_mot_loc_entries_with_issues(
 fn time_mot_loc_candidate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?i)^TIME\.\.\.MOT\.\.\.LOC\b").expect("time mot loc candidate regex compiles")
+        Regex::new(
+            r"(?i)TIME\.\.\.MOT\.\.\.LOC\s+[0-9]{4}Z\s+[0-9]{1,3}DEG\s+[0-9]{1,3}KT\s+(?:[0-9]{1,8}\s*)+",
+        )
+        .expect("time mot loc candidate regex compiles")
     })
 }
 
@@ -109,7 +104,15 @@ fn parse_time_mot_loc_capture(
         .map(|value| value.as_str())
         .ok_or_else(|| invalid_format_issue(raw))?;
 
-    let coord_tokens: Vec<&str> = coords_str.split_whitespace().collect();
+    let raw_coord_tokens: Vec<&str> = coords_str.split_whitespace().collect();
+    let coord_tokens = normalize_coordinate_tokens(&raw_coord_tokens).ok_or_else(|| {
+        ProductParseIssue::new(
+            "time_mot_loc_parse",
+            "invalid_time_mot_loc_coordinate_format",
+            format!("could not normalize TIME...MOT...LOC coordinates from line: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
     if coord_tokens.len() < 2 || !coord_tokens.len().is_multiple_of(2) {
         return Err(ProductParseIssue::new(
             "time_mot_loc_parse",
@@ -121,7 +124,7 @@ fn parse_time_mot_loc_capture(
 
     let mut points = Vec::with_capacity(coord_tokens.len() / 2);
     for pair in coord_tokens.chunks(2) {
-        let lat = parse_coordinate(pair[0], true).ok_or_else(|| {
+        let lat = parse_coordinate(&pair[0], true).ok_or_else(|| {
             ProductParseIssue::new(
                 "time_mot_loc_parse",
                 "invalid_time_mot_loc_latitude",
@@ -129,7 +132,7 @@ fn parse_time_mot_loc_capture(
                 Some(raw.to_string()),
             )
         })?;
-        let lon = parse_coordinate(pair[1], false).ok_or_else(|| {
+        let lon = parse_coordinate(&pair[1], false).ok_or_else(|| {
             ProductParseIssue::new(
                 "time_mot_loc_parse",
                 "invalid_time_mot_loc_longitude",
@@ -158,6 +161,36 @@ fn parse_time_mot_loc_capture(
         points,
         wkt,
     })
+}
+
+fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
+    let mut normalized = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        let token = consume_coordinate_token(tokens, &mut index)?;
+        normalized.push(token);
+    }
+
+    Some(normalized)
+}
+
+fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
+    let mut token = String::new();
+
+    while *index < tokens.len() {
+        token.push_str(tokens[*index].trim());
+        *index += 1;
+
+        if (4..=8).contains(&token.len()) {
+            return Some(token);
+        }
+        if token.len() > 8 {
+            return None;
+        }
+    }
+
+    None
 }
 
 fn invalid_format_issue(raw: &str) -> ProductParseIssue {
@@ -251,5 +284,24 @@ mod tests {
         assert!(entries.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_time_mot_loc_coordinate_count");
+    }
+
+    #[test]
+    fn parse_time_mot_loc_wrapped_across_lines() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT\r\n3221 08853 3225 08849\n";
+        let entries = parse_time_mot_loc_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 2);
+    }
+
+    #[test]
+    fn parse_time_mot_loc_with_split_coordinate_token() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 088\r\n53 3225 08849\n";
+        let entries = parse_time_mot_loc_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 2);
+        assert!((entries[0].points[0].1 + 88.53).abs() < 0.01);
     }
 }

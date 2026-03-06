@@ -69,8 +69,9 @@ pub fn parse_latlon_polygons_with_issues(
 ) -> (Vec<LatLonPolygon>, Vec<ProductParseIssue>) {
     let mut polygons = Vec::new();
     let mut issues = Vec::new();
+    let normalized = text.replace('\r', "").replace('\n', " ");
 
-    for candidate in latlon_candidate_regex().find_iter(text) {
+    for candidate in latlon_candidate_regex().find_iter(&normalized) {
         let raw = candidate.as_str().trim();
         let Some(captures) = latlon_regex().captures(raw) else {
             issues.push(ProductParseIssue::new(
@@ -103,7 +104,7 @@ fn latlon_regex() -> &'static Regex {
     RE.get_or_init(|| {
         // Match LAT...LON followed by coordinate pairs
         // Pattern allows trailing whitespace or end of string after last coordinate
-        Regex::new(r"(?i)LAT\.\.\.LON\s+((?:-?\d{4,8}\s*)+)").expect("latlon regex compiles")
+        Regex::new(r"(?i)LAT\.\.\.LON\s+((?:-?\d{1,8}\s*)+)").expect("latlon regex compiles")
     })
 }
 
@@ -119,7 +120,15 @@ fn parse_latlon_capture(
             Some(raw.to_string()),
         )
     })?;
-    let coords: Vec<&str> = coords_str.split_whitespace().collect();
+    let raw_coords: Vec<&str> = coords_str.split_whitespace().collect();
+    let coords = normalize_coordinate_tokens(&raw_coords).ok_or_else(|| {
+        ProductParseIssue::new(
+            "latlon_parse",
+            "invalid_latlon_coordinate_format",
+            format!("could not normalize LAT...LON coordinates from block: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
 
     if coords.len() < 6 || !coords.len().is_multiple_of(2) {
         return Err(ProductParseIssue::new(
@@ -133,7 +142,7 @@ fn parse_latlon_capture(
     let mut points = Vec::with_capacity(coords.len() / 2);
 
     for chunk in coords.chunks(2) {
-        let lat = parse_coordinate(chunk[0], true).ok_or_else(|| {
+        let lat = parse_coordinate(&chunk[0], true).ok_or_else(|| {
             ProductParseIssue::new(
                 "latlon_parse",
                 "invalid_latlon_latitude",
@@ -141,7 +150,7 @@ fn parse_latlon_capture(
                 Some(raw.to_string()),
             )
         })?;
-        let lon = parse_coordinate(chunk[1], false).ok_or_else(|| {
+        let lon = parse_coordinate(&chunk[1], false).ok_or_else(|| {
             ProductParseIssue::new(
                 "latlon_parse",
                 "invalid_latlon_longitude",
@@ -160,6 +169,36 @@ fn parse_latlon_capture(
     let wkt = format_wkt(&points);
 
     Ok(LatLonPolygon { points, wkt })
+}
+
+fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
+    let mut normalized = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        let token = consume_coordinate_token(tokens, &mut index)?;
+        normalized.push(token);
+    }
+
+    Some(normalized)
+}
+
+fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
+    let mut token = String::new();
+
+    while *index < tokens.len() {
+        token.push_str(tokens[*index].trim());
+        *index += 1;
+
+        if (4..=8).contains(&token.len()) {
+            return Some(token);
+        }
+        if token.len() > 8 {
+            return None;
+        }
+    }
+
+    None
 }
 
 fn parse_coordinate(coord: &str, _is_latitude: bool) -> Option<f64> {
@@ -344,5 +383,24 @@ mod tests {
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 2);
+    }
+
+    #[test]
+    fn parse_latlon_wrapped_across_lines() {
+        let text = "LAT...LON 4143 9613 4145 9610\r\n4140 9608 4138 9612";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(polygons[0].points.len(), 5);
+    }
+
+    #[test]
+    fn parse_latlon_with_split_coordinate_token() {
+        let text = "LAT...LON 4143 96\r\n13 4145 9610 4140 9608";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(polygons[0].points.len(), 4);
+        assert!((polygons[0].points[0].1 - 96.216666).abs() < 0.01);
     }
 }

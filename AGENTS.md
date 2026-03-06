@@ -12,7 +12,7 @@ Use this file as the operational contract for automated coding agents.
   - `crates/byteblaster-cli`
   - `crates/byteblaster-parser`
 - Protocol behavior authority:
-  - `docs/protocol.md` (QBT/EMWIN)
+  - `docs/EMWIN QBT TCP Protocol.md` (QBT/EMWIN)
   - `docs/weather-wire.md` (Weather Wire/XMPP)
 
 ## Repo Rules Snapshot
@@ -178,20 +178,9 @@ cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-ti
 
 ## Documentation Requirements
 
-- Treat `docs/protocol.md` and `docs/weather-wire.md` as normative for their respective receivers.
-- Record protocol deltas/decisions directly in the relevant spec doc.
 - Update crate README examples if user-facing behavior changes.
 
 ## Cursor/Copilot Rule Files
-
-Checked for repository-specific agent instruction files:
-
-- `.cursorrules`: not present
-- `.cursor/rules/`: not present
-- `.github/copilot-instructions.md`: not present
-
-If these files are added later, merge their guidance into this document and treat
-their repository-local instructions as higher-priority constraints.
 
 ## Agent Execution Checklist
 

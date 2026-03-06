@@ -16,6 +16,7 @@ repository = "https://github.com/bradsjm/emwin-rs"
 homepage = "https://github.com/bradsjm/emwin-rs"
 
 [workspace.dependencies]
+chrono = { version = "0.4", features = ["std", "clock"], default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-stream = "0.1"

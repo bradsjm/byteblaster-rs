@@ -32,10 +32,16 @@
 //! # Ok::<(), emwin_parser::ParserError>(())
 //! ```
 
+mod body;
 mod enrich;
 mod lookup;
 mod parser;
 
+pub use body::{
+    HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, UgcClass, UgcCode,
+    UgcSection, VtecAction, VtecCode, parse_hvtec_codes, parse_latlon_polygons, parse_ugc_sections,
+    parse_vtec_codes,
+};
 pub use enrich::{BbbKind, TextProductEnrichment, enrich_header};
 pub use lookup::{
     PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,

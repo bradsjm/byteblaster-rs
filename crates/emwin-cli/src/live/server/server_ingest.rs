@@ -226,16 +226,16 @@ pub(super) async fn run_stats_loop(
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .len();
                 let data_blocks = state.data_blocks_total.load(Ordering::Relaxed);
-                let servers = state.current_servers.load(Ordering::Relaxed);
-                let sat_servers = state.current_sat_servers.load(Ordering::Relaxed);
+                let received_servers = state.received_servers.load(Ordering::Relaxed);
+                let received_sat_servers = state.received_sat_servers.load(Ordering::Relaxed);
 
                 let uptime_secs = state.started_at.elapsed().as_secs();
                 let upstream = endpoint.unwrap_or_else(|| "disconnected".to_string());
                 info!(
                     uptime_secs,
                     data_blocks_total = data_blocks,
-                    servers,
-                    sat_servers,
+                    received_servers,
+                    received_sat_servers,
                     retained_files = files,
                     connected_clients = clients,
                     upstream,

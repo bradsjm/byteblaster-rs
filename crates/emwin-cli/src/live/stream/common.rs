@@ -32,41 +32,74 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
     let preview = text_preview(&product.filename, &product.data, text_preview_chars);
     match &product.origin {
         ProductOrigin::Qbt => {
-            info!(
-                event = "product",
-                source = "qbt",
-                filename = %product.filename,
-                bytes = product.data.len(),
-                timestamp_utc = unix_seconds(product.source_timestamp_utc),
-                product_source = ?meta.source,
-                product_title = meta.title.unwrap_or(""),
-                product_pil = meta.pil.as_deref(),
-                product_warning_code = meta.warning.as_ref().map(|value| value.code),
-                preview = preview.as_deref(),
-                "ingest event"
-            );
+            if let Some(title) = meta.title {
+                info!(
+                    event = "product",
+                    source = "qbt",
+                    filename = %product.filename,
+                    bytes = product.data.len(),
+                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    product_source = ?meta.source,
+                    product_title = title,
+                    product_pil = meta.pil.as_deref(),
+                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    preview = preview.as_deref(),
+                    "ingest event"
+                );
+            } else {
+                info!(
+                    event = "product",
+                    source = "qbt",
+                    filename = %product.filename,
+                    bytes = product.data.len(),
+                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    product_source = ?meta.source,
+                    product_pil = meta.pil.as_deref(),
+                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    preview = preview.as_deref(),
+                    "ingest event"
+                );
+            }
         }
         ProductOrigin::WxWire {
             message_id,
             subject,
             delay_stamp_utc,
         } => {
-            info!(
-                event = "product",
-                source = "wxwire",
-                filename = %product.filename,
-                bytes = product.data.len(),
-                timestamp_utc = unix_seconds(product.source_timestamp_utc),
-                message_id = %message_id,
-                subject = %subject,
-                delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
-                product_source = ?meta.source,
-                product_title = meta.title.unwrap_or(""),
-                product_pil = meta.pil.as_deref(),
-                product_warning_code = meta.warning.as_ref().map(|value| value.code),
-                preview = preview.as_deref(),
-                "ingest event"
-            );
+            if let Some(title) = meta.title {
+                info!(
+                    event = "product",
+                    source = "wxwire",
+                    filename = %product.filename,
+                    bytes = product.data.len(),
+                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    message_id = %message_id,
+                    subject = %subject,
+                    delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
+                    product_source = ?meta.source,
+                    product_title = title,
+                    product_pil = meta.pil.as_deref(),
+                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    preview = preview.as_deref(),
+                    "ingest event"
+                );
+            } else {
+                info!(
+                    event = "product",
+                    source = "wxwire",
+                    filename = %product.filename,
+                    bytes = product.data.len(),
+                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    message_id = %message_id,
+                    subject = %subject,
+                    delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
+                    product_source = ?meta.source,
+                    product_pil = meta.pil.as_deref(),
+                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    preview = preview.as_deref(),
+                    "ingest event"
+                );
+            }
         }
         _ => {
             info!(

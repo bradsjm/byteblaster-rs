@@ -173,7 +173,10 @@ pub(super) async fn files_handler(State(state): State<Arc<AppState>>) -> Json<Fi
         .retained_files
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .list();
+        .list()
+        .into_iter()
+        .map(super::types::CompletedFilePayload::from_metadata)
+        .collect();
     Json(FilesResponse { files })
 }
 

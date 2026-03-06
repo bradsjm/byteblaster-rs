@@ -1,4 +1,4 @@
-use super::types::{AppState, EventKind, FileCompleteEventPayload, TelemetryPayload};
+use super::types::{AppState, CompletedFilePayload, EventKind, TelemetryPayload};
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
     ProductOrigin,
@@ -142,7 +142,7 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
             };
             super::publish(
                 state,
-                EventKind::FileComplete(Box::new(FileCompleteEventPayload::from_metadata(
+                EventKind::FileComplete(Box::new(CompletedFilePayload::from_metadata(
                     retained_meta,
                 ))),
             );

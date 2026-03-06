@@ -19,13 +19,13 @@ pub(crate) struct BroadcastEvent {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct FileCompleteEventPayload {
+pub(crate) struct CompletedFilePayload {
     #[serde(flatten)]
     pub(crate) metadata: CompletedFileMetadata,
     pub(crate) download_url: String,
 }
 
-impl FileCompleteEventPayload {
+impl CompletedFilePayload {
     pub(crate) fn from_metadata(metadata: CompletedFileMetadata) -> Self {
         let download_url = file_download_url(&metadata.filename);
         Self {
@@ -49,7 +49,7 @@ pub(crate) enum EventKind {
     Disconnected,
     QbtFrame(QbtFrameEvent),
     WxWireFrame(WxWireReceiverFrameEvent),
-    FileComplete(Box<FileCompleteEventPayload>),
+    FileComplete(Box<CompletedFilePayload>),
     Telemetry(TelemetryPayload),
     Error { message: String },
 }
@@ -343,7 +343,7 @@ pub(crate) struct EventsQuery {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct FilesResponse {
-    pub(crate) files: Vec<CompletedFileMetadata>,
+    pub(crate) files: Vec<CompletedFilePayload>,
 }
 
 #[derive(Debug, Serialize)]

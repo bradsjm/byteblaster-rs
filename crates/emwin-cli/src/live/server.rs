@@ -246,7 +246,7 @@ mod tests {
         sanitize_requested_filename,
     };
     use crate::live::file_pipeline::CompletedFileMetadata;
-    use crate::live::server::types::{AppState, EventKind, EventsQuery, FileCompleteEventPayload};
+    use crate::live::server::types::{AppState, CompletedFilePayload, EventKind, EventsQuery};
     use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
     use axum::Json;
@@ -285,7 +285,7 @@ mod tests {
             b"ignored".as_slice()
         };
 
-        EventKind::FileComplete(Box::new(FileCompleteEventPayload::from_metadata(
+        EventKind::FileComplete(Box::new(CompletedFilePayload::from_metadata(
             CompletedFileMetadata {
                 filename: filename.to_string(),
                 size: 11,
@@ -425,23 +425,26 @@ Body
 
         let Json(response) = files_handler(State(state)).await;
         let file = &response.files[0];
-        assert_eq!(file.filename, "TAFPDKGA.TXT");
-        assert_eq!(file.product.pil.as_deref(), Some("TAF"));
+        assert_eq!(file.metadata.filename, "TAFPDKGA.TXT");
+        assert_eq!(file.download_url, "/files/TAFPDKGA.TXT");
+        assert_eq!(file.metadata.product.pil.as_deref(), Some("TAF"));
         assert!(
-            file.product
+            file.metadata
+                .product
                 .title
                 .map(|value| !value.is_empty())
                 .unwrap_or(false)
         );
         assert_eq!(
-            file.product
+            file.metadata
+                .product
                 .header
                 .as_ref()
                 .map(|value| value.ttaaii.as_str()),
             Some("FTUS42")
         );
-        assert_eq!(file.product.pil.as_deref(), Some("TAF"));
-        assert!(file.product.issues.is_empty());
+        assert_eq!(file.metadata.product.pil.as_deref(), Some("TAF"));
+        assert!(file.metadata.product.issues.is_empty());
     }
 
     #[tokio::test]

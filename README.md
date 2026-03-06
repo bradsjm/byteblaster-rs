@@ -107,7 +107,7 @@ Useful server flags:
 Server endpoints:
 
 - `GET /events?event=file_complete&pil=TAF&cccc=KBOX` - SSE event stream with optional live filters over event, file, product, and header metadata
-- `GET /files` - retained completed-file metadata
+- `GET /files` - retained completed-file payloads using the same shape as `file_complete` events
 - `GET /files/*filename` - retained file download (URL-encoded path segment)
 - `GET /health` - server health summary
 - `GET /metrics` - JSON telemetry snapshot

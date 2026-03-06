@@ -61,32 +61,7 @@ TCP stream bytes (wire, XOR-FF encoded)
   -> completed file payload(s)
 ```
 
-## 4. Evidence Baseline
-
-The normative decisions in this spec are backed by replayable corpus evidence.
-
-- Capture: `emwin-live.pcap`
-- Extracted stream fixture: `tests/fixtures/live/20260303T000000Z_live_stream0_001.bin`
-- Replay harness: `crates/emwin-protocol/tests/live_capture_replay.rs`
-- Replay manifest: `tests/fixtures/live/replay-cases.json`
-- Baseline parity artifacts: `live-events.json`, `tests/fixtures/live/original_inspect.json`
-
-Observed baseline sample:
-
-- 500 decoded data events
-- 451 V1 segments, 49 V2 segments
-- `/DL` present on all observed V2 headers
-- observed V2 output lengths: 45..1024 bytes
-
-Mutation evidence cases used for divergence checks:
-
-- `mutation-no-xor-wire`
-- `mutation-strip-first-dl`
-- `mutation-v2-sig-to-pk`
-- `mutation-v1-cs-plus-65536`
-- `mutation-remove-first-suffix-null6`
-
-## 5. Layered Architecture (Wire to Final Message)
+## 4. Layered Architecture (Wire to Final Message)
 
 ```text
 L0  Transport        : TCP byte stream (segmentation arbitrary)
@@ -107,9 +82,9 @@ Implementation anchors:
 - runtime dispatch/recovery: `crates/emwin-protocol/src/client/mod.rs`
 - L6 assembly: `crates/emwin-protocol/src/file/assembler.rs`
 
-## 6. Wire-Level Specification (TCP)
+## 5. Wire-Level Specification (TCP)
 
-### 6.1 Transport and Encoding
+### 5.1 Transport and Encoding
 
 1. The protocol runs over a TCP byte stream.
 2. Every inbound payload byte is decoded via XOR with `0xFF` before any parse logic.
@@ -122,7 +97,7 @@ Auth message format (pre-XOR):
 ByteBlast Client|NM-<email>|V2
 ```
 
-### 6.2 Sync and Frame Boundaries
+### 5.2 Sync and Frame Boundaries
 
 Decoded sync marker:
 
@@ -142,7 +117,7 @@ Boundary rules:
 - TCP packet boundaries are irrelevant; frames may span reads.
 - On failure to find sync, decoder retains trailing 5 bytes as overlap window.
 
-### 6.3 Frame Type Identification
+### 5.3 Frame Type Identification
 
 After sync/padding removal:
 
@@ -150,9 +125,9 @@ After sync/padding removal:
 - `/Se...` or `/ServerList/...` => server list frame
 - unknown prefix => byte-skip + resync attempt
 
-## 7. Data Frame Format (Decoded Stream)
+## 6. Data Frame Format (Decoded Stream)
 
-### 7.1 Layout Diagram
+### 6.1 Layout Diagram
 
 ```text
 Offset (decoded stream)
@@ -167,7 +142,7 @@ body             : raw payload bytes (may be zlib-compressed for V2)
 optional suffix6 : often 00x6 on wire; not required for acceptance
 ```
 
-### 7.2 Header Grammar
+### 6.2 Header Grammar
 
 Regex-equivalent grammar implemented by decoder:
 
@@ -188,13 +163,13 @@ Timestamp parse format:
 [month]/[day]/[year] [hour(12)]:[minute]:[second] [AM|PM]
 ```
 
-### 7.3 V1 and V2 Body Rules
+### 6.3 V1 and V2 Body Rules
 
 - V1: `/DL` absent, body length fixed at 1024.
 - V2: `/DL` present, body length = `/DL`, bounded by `1..=max_v2_body_size`.
 - default `max_v2_body_size = 1024`.
 
-### 7.4 Compression Rules (V2)
+### 6.4 Compression Rules (V2)
 
 Default policy `RequireZlibHeader`:
 
@@ -209,7 +184,7 @@ If inflate fails:
 - drop that segment
 - continue stream decode
 
-### 7.5 Checksum Rules
+### 6.5 Checksum Rules
 
 Receiver checksum function:
 
@@ -228,14 +203,14 @@ Important wire compatibility note:
 - live evidence shows V1 headers can carry full-sum values beyond 16 bits,
   while receiver remains low-16 compatible.
 
-### 7.6 Text Payload Normalization
+### 6.6 Text Payload Normalization
 
 For filenames ending `.TXT` or `.WMO` (case-insensitive):
 
 - trailing bytes are trimmed if they are one of:
   - `\0`, space, tab, CR, LF
 
-### 7.7 Non-Emitted Data Cases
+### 6.7 Non-Emitted Data Cases
 
 Decoder drops (no `DataBlock` event) when any of these hold:
 
@@ -244,9 +219,9 @@ Decoder drops (no `DataBlock` event) when any of these hold:
 - filename `FILLFILE.TXT` (case-insensitive)
 - checksum mismatch
 
-## 8. Server List Frame Format
+## 7. Server List Frame Format
 
-### 8.1 Supported Forms
+### 7.1 Supported Forms
 
 Simple form:
 
@@ -271,7 +246,7 @@ Malformed entries:
 - emit `ProtocolWarning::MalformedServerEntry`
 - do not invalidate valid entries in same frame
 
-### 8.2 TCP Operational Use of Server Lists
+### 7.2 TCP Operational Use of Server Lists
 
 For EMWIN TCP operation, both regular servers and sat servers are used as candidate
 connection endpoints.
@@ -295,7 +270,7 @@ Why this matters:
 - Priority files are retransmitted (see Section 12), so short failover gaps can be recovered by the
   next transmission cycle.
 
-## 9. Decoder State Machine
+## 8. Decoder State Machine
 
 ```text
 Resync -> StartFrame -> FrameType -> (ServerList | BlockHeader)
@@ -310,7 +285,7 @@ Any recoverable parse/decode error:
 
 Recovery strategy is forward-only; process does not terminate on recoverable corruption.
 
-## 10. Final Decoded Message Model
+## 9. Final Decoded Message Model
 
 Primary decoded data unit is `QbtSegment`:
 
@@ -349,7 +324,7 @@ Warning types:
 - `HandlerError`
 - `BackpressureDrop`
 
-## 11. Runtime and Dispatch Flow
+## 10. Runtime and Dispatch Flow
 
 ```text
 socket.read -> decoder.feed
@@ -370,7 +345,7 @@ Reconnect/survivability behavior:
 - endpoint rotation + bounded backoff are applied
 - process continues unless explicitly stopped
 
-### 11.1 Core Telemetry Schema
+### 10.1 Core Telemetry Schema
 
 `emwin-protocol` maintains process-local runtime counters exposed via
 `Client::telemetry_snapshot()`.
@@ -398,11 +373,11 @@ Counter fields:
 
 These counters support runtime diagnostics and protocol conformance observability.
 
-## 12. File Reconstruction Layer
+## 11. File Reconstruction Layer
 
 `FileAssembler` reconstitutes complete files from `QbtSegment` blocks.
 
-### 12.1 Why Blocks Arrive Out of Order or Interleaved
+### 11.1 Why Blocks Arrive Out of Order or Interleaved
 
 The upstream transmission model is priority-driven. Higher-importance products (for example,
 tornado warnings) are allowed to preempt lower-importance, long-running transfers (for example,
@@ -435,7 +410,7 @@ Arrival index   Filename        Block/Total   Notes
 Receiver reconstruction model (implemented by `FileAssembler`) is therefore per-file and
 order-aware at block level, not stream-order-dependent.
 
-### 12.2 High-Priority Retransmission and Recovery Window
+### 11.2 High-Priority Retransmission and Recovery Window
 
 High-priority files are transmitted twice to improve successful reception probability.
 
@@ -447,7 +422,7 @@ Implication for TCP failover:
 - If blocks are missed during endpoint switchover, high-priority retransmission provides a
   practical recovery path with minimal end-to-end data loss for urgent products.
 
-### 12.3 Reassembly Algorithm
+### 11.3 Reassembly Algorithm
 
 Algorithm summary:
 
@@ -457,7 +432,7 @@ Algorithm summary:
 4. Emit `CompletedFile { filename, data }`.
 5. Cache completed keys to suppress duplicate reconstruction.
 
-### 12.4 Incomplete-File Retention Limits
+### 11.4 Incomplete-File Retention Limits
 
 Incomplete file state is bounded to protect memory and force eventual cleanup under sustained loss:
 
@@ -475,9 +450,9 @@ Guardrails:
 - ignores `FILLFILE.TXT`
 - ignores invalid block numbering
 
-## 13. Worked Examples
+## 12. Worked Examples
 
-### 13.1 Decoded V1 Header Example
+### 12.1 Decoded V1 Header Example
 
 ```text
 /PFZFPSFOCA.TXT /PN 3 /PT 5 /CS 63366 /FD5/19/2016 5:24:26 PM\r\n
@@ -491,7 +466,7 @@ Interpretation:
 - checksum field value may exceed 16 bits on wire
 - body length: 1024 (no `/DL`)
 
-### 13.2 Decoded V2 Header Example
+### 12.2 Decoded V2 Header Example
 
 ```text
 /PFABC12345.ZIP /PN 1 /PT 1 /CS 32123 /FD3/3/2026 1:02:03 PM /DL314\r\n
@@ -503,7 +478,7 @@ Interpretation:
 - V2 body length = 314 bytes
 - if body starts with zlib signature, decoder attempts inflate
 
-## 14. Requirement-to-Test Matrix
+## 13. Requirement-to-Test Matrix
 
 | ID | Normative Requirement | Unit Test Target | Integration Test Target | Property/Fuzz | Status |
 |---|---|---|---|---|---|
@@ -526,7 +501,7 @@ Interpretation:
 | P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/emwin-protocol/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
 | P-018 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/emwin-protocol/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
 
-## 15. Satellite Draft Alignment Notes
+## 14. Satellite Draft Alignment Notes
 
 Evidence-backed alignment verdicts from replay and mutation corpus:
 

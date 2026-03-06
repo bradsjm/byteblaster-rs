@@ -106,11 +106,25 @@ Useful server flags:
 
 Server endpoints:
 
-- `GET /events?filter=*.TXT` - SSE event stream with wildcard filename filter (`*`, case-insensitive)
+- `GET /events?event=file_complete&pil=TAF&cccc=KBOX` - SSE event stream with optional live filters over event, file, product, and header metadata
 - `GET /files` - retained completed-file metadata
 - `GET /files/*filename` - retained file download (URL-encoded path segment)
 - `GET /health` - server health summary
 - `GET /metrics` - JSON telemetry snapshot
+
+`/events` filter parameters:
+
+- `event` - comma-delimited event names such as `file_complete`, `telemetry`, or `connected`
+- `filename` - wildcard filename match such as `*.TXT` or `A_*`
+- `pil`, `family`, `container`, `wmo_prefix` - product metadata filters (`container` currently reflects parsed container values such as `raw` or `zip`)
+- `cccc`, `ttaaii`, `afos`, `bbb` - text product header filters
+- `min_size`, `max_size` - completed file size bounds in bytes
+
+Examples:
+
+- `GET /events?event=file_complete&pil=TAF,AFD`
+- `GET /events?event=file_complete&family=nws_text_product&container=raw`
+- `GET /events?event=file_complete&cccc=KBOX&ttaaii=FXUS61`
 
 Optional live-mode endpoint/persistence overrides:
 

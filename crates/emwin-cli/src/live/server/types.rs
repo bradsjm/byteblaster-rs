@@ -1,9 +1,10 @@
-use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
+use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
-use crate::live::server_support::{RetainedFiles, file_download_url};
+use crate::live::server_support::{RetainedFiles, file_download_url, wildcard_match};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -70,19 +71,6 @@ impl EventKind {
         }
     }
 
-    pub(crate) fn filename(&self) -> Option<&str> {
-        match self {
-            Self::QbtFrame(frame) => frame_event_filename(frame),
-            Self::WxWireFrame(frame) => match frame {
-                WxWireReceiverFrameEvent::File(file) => Some(file.filename.as_str()),
-                WxWireReceiverFrameEvent::Warning(_) => None,
-                _ => None,
-            },
-            Self::FileComplete(file) => Some(file.metadata.filename.as_str()),
-            _ => None,
-        }
-    }
-
     pub(crate) fn to_json(&self) -> serde_json::Value {
         match self {
             Self::Connected { endpoint } => serde_json::json!({ "endpoint": endpoint }),
@@ -119,6 +107,207 @@ impl EventKind {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct EventFilter {
+    pub(crate) event_names: Option<BTreeSet<String>>,
+    pub(crate) file: FileEventFilter,
+}
+
+impl EventFilter {
+    pub(crate) fn from_query(query: EventsQuery) -> Self {
+        Self {
+            event_names: csv_values(query.event.as_deref(), normalize_lower),
+            file: FileEventFilter {
+                filename_pattern: query.filename,
+                size: SizeRange {
+                    min: query.min_size,
+                    max: query.max_size,
+                },
+                product: ProductFilter {
+                    pil: csv_values(query.pil.as_deref(), normalize_upper),
+                    family: csv_values(query.family.as_deref(), normalize_lower),
+                    container: csv_values(query.container.as_deref(), normalize_lower),
+                    wmo_prefix: csv_values(query.wmo_prefix.as_deref(), normalize_upper),
+                },
+                header: HeaderFilter {
+                    cccc: csv_values(query.cccc.as_deref(), normalize_upper),
+                    ttaaii: csv_values(query.ttaaii.as_deref(), normalize_upper),
+                    afos: csv_values(query.afos.as_deref(), normalize_upper),
+                    bbb: csv_values(query.bbb.as_deref(), normalize_upper),
+                },
+            },
+        }
+    }
+
+    pub(crate) fn matches(&self, event: &EventKind) -> bool {
+        if let Some(event_names) = &self.event_names {
+            let event_name = normalize_lower(event.event_name());
+            if !event_names.contains(&event_name) {
+                return false;
+            }
+        }
+
+        if !self.file.has_constraints() {
+            return true;
+        }
+
+        match event {
+            EventKind::FileComplete(file) => self.file.matches_metadata(&file.metadata),
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct FileEventFilter {
+    pub(crate) filename_pattern: Option<String>,
+    pub(crate) size: SizeRange,
+    pub(crate) product: ProductFilter,
+    pub(crate) header: HeaderFilter,
+}
+
+impl FileEventFilter {
+    fn has_constraints(&self) -> bool {
+        self.filename_pattern.is_some()
+            || self.size.has_constraints()
+            || self.product.has_constraints()
+            || self.header.has_constraints()
+    }
+
+    fn matches_metadata(&self, metadata: &CompletedFileMetadata) -> bool {
+        if let Some(pattern) = self.filename_pattern.as_deref()
+            && !wildcard_match(pattern, &metadata.filename)
+        {
+            return false;
+        }
+
+        if !self.size.matches(metadata.size) {
+            return false;
+        }
+
+        if !self.product.matches(&metadata.product) {
+            return false;
+        }
+
+        self.header.matches(metadata.product.header.as_ref())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct SizeRange {
+    pub(crate) min: Option<usize>,
+    pub(crate) max: Option<usize>,
+}
+
+impl SizeRange {
+    fn has_constraints(&self) -> bool {
+        self.min.is_some() || self.max.is_some()
+    }
+
+    fn matches(&self, size: usize) -> bool {
+        if let Some(min) = self.min
+            && size < min
+        {
+            return false;
+        }
+
+        if let Some(max) = self.max
+            && size > max
+        {
+            return false;
+        }
+
+        true
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ProductFilter {
+    pub(crate) pil: Option<BTreeSet<String>>,
+    pub(crate) family: Option<BTreeSet<String>>,
+    pub(crate) container: Option<BTreeSet<String>>,
+    pub(crate) wmo_prefix: Option<BTreeSet<String>>,
+}
+
+impl ProductFilter {
+    fn has_constraints(&self) -> bool {
+        self.pil.is_some()
+            || self.family.is_some()
+            || self.container.is_some()
+            || self.wmo_prefix.is_some()
+    }
+
+    fn matches(&self, product: &emwin_parser::ProductEnrichment) -> bool {
+        matches_option_set(&self.pil, product.pil.as_deref(), normalize_upper)
+            && matches_option_set(&self.family, product.family, normalize_lower)
+            && matches_option_set(&self.container, Some(product.container), normalize_lower)
+            && matches_option_set(&self.wmo_prefix, product.wmo_prefix, normalize_upper)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct HeaderFilter {
+    pub(crate) cccc: Option<BTreeSet<String>>,
+    pub(crate) ttaaii: Option<BTreeSet<String>>,
+    pub(crate) afos: Option<BTreeSet<String>>,
+    pub(crate) bbb: Option<BTreeSet<String>>,
+}
+
+impl HeaderFilter {
+    fn has_constraints(&self) -> bool {
+        self.cccc.is_some() || self.ttaaii.is_some() || self.afos.is_some() || self.bbb.is_some()
+    }
+
+    fn matches(&self, header: Option<&emwin_parser::TextProductHeader>) -> bool {
+        if !self.has_constraints() {
+            return true;
+        }
+
+        let Some(header) = header else {
+            return false;
+        };
+
+        matches_option_set(&self.cccc, Some(header.cccc.as_str()), normalize_upper)
+            && matches_option_set(&self.ttaaii, Some(header.ttaaii.as_str()), normalize_upper)
+            && matches_option_set(&self.afos, Some(header.afos.as_str()), normalize_upper)
+            && matches_option_set(&self.bbb, header.bbb.as_deref(), normalize_upper)
+    }
+}
+
+fn matches_option_set(
+    allowed: &Option<BTreeSet<String>>,
+    value: Option<&str>,
+    normalize: fn(&str) -> String,
+) -> bool {
+    match allowed {
+        Some(allowed) => value
+            .map(normalize)
+            .map(|normalized| allowed.contains(&normalized))
+            .unwrap_or(false),
+        None => true,
+    }
+}
+
+fn csv_values(raw: Option<&str>, normalize: fn(&str) -> String) -> Option<BTreeSet<String>> {
+    let values = raw
+        .into_iter()
+        .flat_map(|value| value.split(','))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(normalize)
+        .collect::<BTreeSet<_>>();
+
+    (!values.is_empty()).then_some(values)
+}
+
+fn normalize_upper(value: &str) -> String {
+    value.trim().to_ascii_uppercase()
+}
+
+fn normalize_lower(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
 #[derive(Debug)]
 pub(crate) struct AppState {
     pub(crate) event_tx: broadcast::Sender<BroadcastEvent>,
@@ -138,7 +327,18 @@ pub(crate) struct AppState {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct EventsQuery {
-    pub(crate) filter: Option<String>,
+    pub(crate) event: Option<String>,
+    pub(crate) filename: Option<String>,
+    pub(crate) pil: Option<String>,
+    pub(crate) family: Option<String>,
+    pub(crate) container: Option<String>,
+    pub(crate) wmo_prefix: Option<String>,
+    pub(crate) cccc: Option<String>,
+    pub(crate) ttaaii: Option<String>,
+    pub(crate) afos: Option<String>,
+    pub(crate) bbb: Option<String>,
+    pub(crate) min_size: Option<usize>,
+    pub(crate) max_size: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]

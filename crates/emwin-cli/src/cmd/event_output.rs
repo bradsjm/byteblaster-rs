@@ -25,22 +25,6 @@ pub fn frame_event_name(event: &QbtFrameEvent) -> &'static str {
     }
 }
 
-/// Returns the filename associated with a frame event, if any.
-///
-/// # Arguments
-///
-/// * `event` - The frame event to extract the filename from
-///
-/// # Returns
-///
-/// The filename if the event is a data block, None otherwise
-pub fn frame_event_filename(event: &QbtFrameEvent) -> Option<&str> {
-    match event {
-        QbtFrameEvent::DataBlock(seg) => Some(seg.filename.as_str()),
-        _ => None,
-    }
-}
-
 /// Converts a frame event to a JSON representation.
 ///
 /// # Arguments

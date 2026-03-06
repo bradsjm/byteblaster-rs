@@ -279,14 +279,37 @@ mod tests {
     }
 
     fn file_complete_event(filename: &str) -> EventKind {
+        let data = if filename.eq_ignore_ascii_case("TAFPDKGA.TXT") {
+            b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n".as_slice()
+        } else {
+            b"ignored".as_slice()
+        };
+
         EventKind::FileComplete(Box::new(FileCompleteEventPayload::from_metadata(
             CompletedFileMetadata {
                 filename: filename.to_string(),
                 size: 11,
                 timestamp_utc: 1,
-                product: emwin_parser::enrich_product(filename, b"ignored"),
+                product: emwin_parser::enrich_product(filename, data),
             },
         )))
+    }
+
+    fn empty_events_query() -> EventsQuery {
+        EventsQuery {
+            event: None,
+            filename: None,
+            pil: None,
+            family: None,
+            container: None,
+            wmo_prefix: None,
+            cccc: None,
+            ttaaii: None,
+            afos: None,
+            bbb: None,
+            min_size: None,
+            max_size: None,
+        }
     }
 
     #[test]
@@ -336,7 +359,7 @@ mod tests {
             State(state),
             ConnectInfo("127.0.0.1:4000".parse().expect("valid socket addr")),
             HeaderMap::new(),
-            Query(EventsQuery { filter: None }),
+            Query(empty_events_query()),
         )
         .await;
 
@@ -442,7 +465,7 @@ Body
             .await
             .expect("body should read");
         let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
-        assert!(body_text.contains("\"/events?filter=*.TXT\""));
+        assert!(body_text.contains("\"/events?event=file_complete&pil=TAF&cccc=KBOX\""));
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
@@ -453,10 +476,70 @@ Body
         let txt = file_complete_event("report.txt");
         let zip = file_complete_event("report.zip");
         let telemetry = EventKind::Telemetry(TelemetryPayload::Unavailable);
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            filename: Some("*.txt".to_string()),
+            ..empty_events_query()
+        });
 
-        assert!(event_matches_filter(Some("*.txt"), &txt));
-        assert!(!event_matches_filter(Some("*.txt"), &zip));
-        assert!(event_matches_filter(Some("*.txt"), &telemetry));
+        assert!(event_matches_filter(&filter, &txt));
+        assert!(!event_matches_filter(&filter, &zip));
+        assert!(!event_matches_filter(&filter, &telemetry));
+    }
+
+    #[test]
+    fn events_filter_matches_structured_metadata_fields() {
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            event: Some("file_complete".to_string()),
+            pil: Some("taf,afd".to_string()),
+            cccc: Some("kffc".to_string()),
+            family: Some("NWS_TEXT_PRODUCT".to_string()),
+            container: Some("raw".to_string()),
+            ..empty_events_query()
+        });
+        let event = file_complete_event("TAFPDKGA.TXT");
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_requires_matching_header_metadata() {
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            ttaaii: Some("WWUS53".to_string()),
+            ..empty_events_query()
+        });
+        let event = file_complete_event("TAFPDKGA.TXT");
+
+        assert!(!event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_non_file_events_only_by_event_name() {
+        let telemetry = EventKind::Telemetry(TelemetryPayload::Unavailable);
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            event: Some("telemetry,connected".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &telemetry));
+    }
+
+    #[tokio::test]
+    async fn events_handler_rejects_invalid_size_range() {
+        let state = test_state(1);
+
+        let result = crate::live::server::server_http::events_handler(
+            State(state),
+            ConnectInfo("127.0.0.1:4001".parse().expect("valid socket addr")),
+            HeaderMap::new(),
+            Query(EventsQuery {
+                min_size: Some(10),
+                max_size: Some(1),
+                ..empty_events_query()
+            }),
+        )
+        .await;
+
+        assert!(matches!(result, Err(StatusCode::BAD_REQUEST)));
     }
 
     #[test]

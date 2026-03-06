@@ -1,10 +1,8 @@
 use super::types::{
-    AppState, BroadcastEvent, ClientGuard, EndpointDoc, EventKind, EventsQuery, FilesResponse,
-    HealthResponse, RootResponse,
+    AppState, BroadcastEvent, ClientGuard, EndpointDoc, EventFilter, EventKind, EventsQuery,
+    FilesResponse, HealthResponse, RootResponse,
 };
-use crate::live::server_support::{
-    build_file_download_response, filename_request_or_400, wildcard_match,
-};
+use crate::live::server_support::{build_file_download_response, filename_request_or_400};
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
@@ -42,8 +40,8 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             },
             EndpointDoc {
                 method: "GET",
-                path: "/events?filter=*.TXT",
-                description: "SSE stream of frame and server events; optional wildcard filename filter",
+                path: "/events?event=file_complete&pil=TAF&cccc=KBOX",
+                description: "SSE stream with optional structured live filters over event, file, product, and header metadata",
             },
             EndpointDoc {
                 method: "GET",
@@ -98,7 +96,14 @@ pub(super) async fn events_handler(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(0);
-    let filter = query.filter;
+    if query
+        .min_size
+        .zip(query.max_size)
+        .is_some_and(|(min, max)| min > max)
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let filter = EventFilter::from_query(query);
 
     let stream = futures::stream::unfold(
         StreamState {
@@ -123,7 +128,7 @@ pub(super) async fn events_handler(
                         if event.id <= st.last_id {
                             continue;
                         }
-                        if !event_matches_filter(st.filter.as_deref(), &event.kind) {
+                        if !event_matches_filter(&st.filter, &event.kind) {
                             continue;
                         }
 
@@ -221,21 +226,15 @@ pub(super) async fn metrics_handler(
     Json(snapshot)
 }
 
-pub(super) fn event_matches_filter(filter: Option<&str>, event: &EventKind) -> bool {
-    match filter {
-        Some(pattern) => match event.filename() {
-            Some(filename) => wildcard_match(pattern, filename),
-            None => true,
-        },
-        None => true,
-    }
+pub(super) fn event_matches_filter(filter: &EventFilter, event: &EventKind) -> bool {
+    filter.matches(event)
 }
 
 pub(super) struct StreamState {
     pub(super) state: Arc<AppState>,
     pub(super) rx: Option<tokio::sync::broadcast::Receiver<BroadcastEvent>>,
     pub(super) last_id: u64,
-    pub(super) filter: Option<String>,
+    pub(super) filter: EventFilter,
     pub(super) shutdown_rx: tokio::sync::watch::Receiver<bool>,
     pub(super) peer: SocketAddr,
     pub(super) _guard: Option<ClientGuard>,

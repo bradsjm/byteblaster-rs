@@ -102,13 +102,8 @@ pub fn parse_ugc_sections_with_issues(
     let mut sections = Vec::new();
     let mut issues = Vec::new();
 
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
-        if !ugc_candidate_regex().is_match(line) {
-            continue;
-        }
-
-        match parse_ugc_capture(line, valid_time) {
+    for candidate in extract_ugc_candidates(text) {
+        match parse_ugc_capture(&candidate, valid_time) {
             Ok(section) => sections.push(section),
             Err(issue) => issues.push(issue),
         }
@@ -119,9 +114,56 @@ pub fn parse_ugc_sections_with_issues(
 
 fn ugc_candidate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^[A-Z]{2}[CZFM].*[0-9]{6}-\s*$").expect("ugc candidate regex compiles")
-    })
+    RE.get_or_init(|| Regex::new(r"^[A-Z]{2}[CZFM]").expect("ugc candidate regex compiles"))
+}
+
+fn ugc_expiration_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"[0-9]{6}-$").expect("ugc expiration regex compiles"))
+}
+
+fn extract_ugc_candidates(text: &str) -> Vec<String> {
+    let normalized = text.replace('\r', "");
+    let lines: Vec<&str> = normalized.lines().collect();
+    let mut candidates = Vec::new();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if !ugc_candidate_regex().is_match(line) {
+            index += 1;
+            continue;
+        }
+
+        let mut combined = line.to_string();
+        let mut cursor = index + 1;
+
+        while !ugc_expiration_regex().is_match(&compact_ugc_text(&combined))
+            && cursor < lines.len()
+            && cursor.saturating_sub(index) < 8
+        {
+            let next = lines[cursor].trim();
+            if next.is_empty() {
+                break;
+            }
+            combined.push_str(next);
+            cursor += 1;
+        }
+
+        let compact = compact_ugc_text(&combined);
+        if ugc_full_regex().is_match(&compact) {
+            candidates.push(compact);
+            index = cursor;
+        } else {
+            index += 1;
+        }
+    }
+
+    candidates
+}
+
+fn compact_ugc_text(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
 /// Extract expiration code from end of UGC line
@@ -136,8 +178,7 @@ fn extract_expiration(text: &str) -> Option<(String, String)> {
 fn ugc_full_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"^([A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?(?:[-,][A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?)*)-([0-9]{6})-\s*$")
-            .expect("ugc full regex compiles")
+        Regex::new(r"^([A-Z0-9CZFM>,\-]+)-([0-9]{6})-\s*$").expect("ugc full regex compiles")
     })
 }
 
@@ -176,6 +217,7 @@ fn parse_ugc_capture(
 
 fn expand_ugc_block(block: &str) -> Option<Vec<UgcCode>> {
     let mut codes = Vec::new();
+    let mut current_prefix: Option<(String, UgcClass)> = None;
 
     // Split on comma or hyphen (continuation)
     for segment in block.split([',', '-']) {
@@ -184,46 +226,70 @@ fn expand_ugc_block(block: &str) -> Option<Vec<UgcCode>> {
         }
 
         let segment = segment.trim();
-        if segment.len() < 6 {
-            continue; // Too short to be valid
-        }
-
-        // Check for range notation (e.g., "IAC001>005")
-        if let Some(gt_pos) = segment.find('>') {
-            let base = &segment[..gt_pos];
-            let end_num_str = &segment[gt_pos + 1..];
-
-            if base.len() >= 6 && end_num_str.len() == 3 {
-                let state = &base[..2];
-                let geoclass = UgcClass::from_char(base.chars().nth(2)?);
-                let start_num: u16 = base[3..6].parse().ok()?;
-                let end_num: u16 = end_num_str.parse().ok()?;
-
-                for num in start_num..=end_num {
-                    codes.push(UgcCode {
-                        state: state.to_string(),
-                        geoclass,
-                        number: num,
-                    });
+        let (state, geoclass, numeric) =
+            if let Some(captures) = ugc_full_segment_regex().captures(segment) {
+                let state = captures.get(1)?.as_str().to_string();
+                let geoclass = UgcClass::from_char(captures.get(2)?.as_str().chars().next()?);
+                let numeric = captures.get(3)?.as_str();
+                current_prefix = Some((state.clone(), geoclass));
+                (state, geoclass, numeric)
+            } else if ugc_shorthand_segment_regex().is_match(segment) {
+                if let Some((state, geoclass)) = current_prefix.clone() {
+                    (state, geoclass, segment)
+                } else {
+                    return None;
                 }
-            }
-        } else {
-            // Single UGC code
-            if segment.len() >= 6 {
-                let state = &segment[..2];
-                let geoclass = UgcClass::from_char(segment.chars().nth(2)?);
-                let number: u16 = segment[3..6].parse().ok()?;
+            } else {
+                return None;
+            };
 
+        if let Some((start_num, end_num)) = parse_ugc_numeric_range(numeric) {
+            for num in start_num..=end_num {
                 codes.push(UgcCode {
-                    state: state.to_string(),
+                    state: state.clone(),
                     geoclass,
-                    number,
+                    number: num,
                 });
             }
+        } else {
+            return None;
         }
     }
 
     if codes.is_empty() { None } else { Some(codes) }
+}
+
+fn ugc_full_segment_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^([A-Z]{2})([CZFM])(\d{3}(?:>\d{3})?)$")
+            .expect("ugc full segment regex compiles")
+    })
+}
+
+fn ugc_shorthand_segment_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^\d{3}(?:>\d{3})?$").expect("ugc shorthand segment regex compiles")
+    })
+}
+
+fn parse_ugc_numeric_range(numeric: &str) -> Option<(u16, u16)> {
+    if let Some((start, end)) = numeric.split_once('>') {
+        let start_num = parse_ugc_number(start)?;
+        let end_num = parse_ugc_number(end)?;
+        Some((start_num, end_num))
+    } else {
+        let number = parse_ugc_number(numeric)?;
+        Some((number, number))
+    }
+}
+
+fn parse_ugc_number(text: &str) -> Option<u16> {
+    if text.len() != 3 {
+        return None;
+    }
+    text.parse().ok()
 }
 
 fn parse_expire_time(expire_code: &str, valid_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
@@ -343,5 +409,93 @@ mod tests {
         assert!(sections.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_ugc_expiration");
+    }
+
+    #[test]
+    fn parse_wrapped_ugc_with_shorthand_segments() {
+        let text = "DCZ001-MDZ004>007-009>011-013-014-016>018-\r\nVAZ036>042-050>057-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].codes.first().unwrap().state, "DC");
+        assert_eq!(sections[0].codes.first().unwrap().number, 1);
+        assert_eq!(sections[0].codes.last().unwrap().state, "VA");
+        assert_eq!(sections[0].codes.last().unwrap().number, 57);
+        assert_eq!(sections[0].codes.len(), 28);
+    }
+
+    #[test]
+    fn parse_ugc_with_wrap_inside_segment() {
+        let text = "MDZ004>0\r\n07-009>011-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
+        assert_eq!(numbers, vec![4, 5, 6, 7, 9, 10, 11]);
+    }
+
+    #[test]
+    fn parse_wrapped_ugc_with_commas_and_shorthand_segments() {
+        let text = "KSZ008-009,020>022-\r\n034>040-054>056-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
+        assert_eq!(
+            numbers,
+            vec![8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56]
+        );
+        assert!(
+            sections[0]
+                .codes
+                .iter()
+                .all(|code| code.state == "KS" && code.geoclass == UgcClass::Zone)
+        );
+    }
+
+    #[test]
+    fn parse_fire_weather_ugc() {
+        let text = "COF214-216-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
+        assert_eq!(numbers, vec![214, 216]);
+        assert!(
+            sections[0]
+                .codes
+                .iter()
+                .all(|code| code.state == "CO" && code.geoclass == UgcClass::FireZone)
+        );
+    }
+
+    #[test]
+    fn parse_marine_ugc() {
+        let text = "GMZ730-750-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
+        assert_eq!(numbers, vec![730, 750]);
+        assert!(
+            sections[0]
+                .codes
+                .iter()
+                .all(|code| code.state == "GM" && code.geoclass == UgcClass::Zone)
+        );
+    }
+
+    #[test]
+    fn parse_ugc_sentinel_expiration_reports_issue() {
+        let text = "IAC001-000000-\nIAC003-123456-\n";
+        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
+
+        assert!(sections.is_empty());
+        assert_eq!(issues.len(), 2);
+        assert!(
+            issues
+                .iter()
+                .all(|issue| issue.code == "invalid_ugc_expiration")
+        );
     }
 }

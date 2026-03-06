@@ -24,6 +24,13 @@ Core Rust library for ByteBlaster protocol parsing, client runtime, and file ass
 - `qbt_receiver`
 - `wxwire_receiver`
 
+## Receiver lifecycle contract
+
+- Receiver configs are validated before startup.
+- `start()` may only be called once per running instance.
+- `events()` is a single-consumer subscription; calling it more than once now returns an error.
+- `stop()` is idempotent and shuts down background tasks before returning.
+
 ## Re-exported entry points
 
 See `src/lib.rs` for current canonical exports.

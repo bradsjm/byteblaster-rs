@@ -1,7 +1,8 @@
+use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
 use crate::live::file_pipeline::persist_completed_file;
 use crate::live::stream::common::{log_completed_file, log_ingest_warning, log_product_event};
 use byteblaster_core::ingest::{IngestEvent, IngestTelemetry, WxWireIngestStream};
-use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
+use byteblaster_core::wxwire_receiver::WxWireReceiver;
 use futures::StreamExt;
 use std::path::Path;
 use std::time::Duration;
@@ -12,35 +13,26 @@ pub(super) async fn run_wxwire_live_mode(
     live: crate::LiveOptions,
     text_preview_chars: usize,
 ) -> crate::error::CliResult<()> {
-    if !live.servers.is_empty() {
-        return Err(crate::error::CliError::invalid_argument(
-            "--server is not supported with --receiver wxwire",
-        ));
-    }
-    if live.server_list_path.is_some() {
-        return Err(crate::error::CliError::invalid_argument(
-            "--server-list-path is not supported with --receiver wxwire",
-        ));
-    }
+    let LiveReceiverConfig::WxWire(config) = build_live_receiver_config(LiveConfigRequest {
+        receiver: crate::ReceiverKind::Wxwire,
+        username: live.username.clone(),
+        password: live.password.clone(),
+        raw_servers: live.servers.clone(),
+        server_list_path: live.server_list_path.clone(),
+        idle_timeout_secs: live.idle_timeout_secs,
+        qbt_watchdog_timeout_secs: 0,
+        username_context: "wxwire live mode",
+        password_context: "wxwire live mode",
+    })?
+    else {
+        unreachable!("wxwire live stream must build wxwire config");
+    };
 
-    let username = live.username.ok_or_else(|| {
-        crate::error::CliError::invalid_argument("wxwire live mode requires --username")
-    })?;
-    let password = live.password.ok_or_else(|| {
-        crate::error::CliError::invalid_argument("wxwire live mode requires --password")
-    })?;
-
-    let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
-        username,
-        password,
-        idle_timeout_secs: live.idle_timeout_secs.max(1),
-        ..WxWireReceiverConfig::default()
-    })
-    .build()?;
+    let receiver = WxWireReceiver::builder(config).build()?;
 
     let mut ingest = WxWireIngestStream::new(receiver);
     ingest.start()?;
-    let mut events = ingest.events();
+    let mut events = ingest.events()?;
 
     let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
     let mut seen = 0usize;

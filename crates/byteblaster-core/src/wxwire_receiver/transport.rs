@@ -242,7 +242,7 @@ impl XmppWxWireTransport {
                         .wait_for_tag("presence", remaining_connect_timeout(connect_deadline)?)
                         .await?;
                     if is_room_join_presence(stanza.as_str(), &room_bare, nick.as_str())? {
-                        return Ok(stanza);
+                        return Ok::<String, WxWireReceiverError>(stanza);
                     }
                 }
             })

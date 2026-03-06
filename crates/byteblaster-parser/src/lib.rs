@@ -36,9 +36,9 @@ mod enrich;
 mod lookup;
 mod parser;
 
-pub use enrich::{enrich_header, BbbKind, TextProductEnrichment};
+pub use enrich::{BbbKind, TextProductEnrichment, enrich_header};
 pub use lookup::{
-    pil_description, PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH,
-    PIL_SOURCE_REPO,
+    PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
+    pil_description,
 };
-pub use parser::{parse_text_product, ParserError, TextProductHeader};
+pub use parser::{ParserError, TextProductHeader, parse_text_product};

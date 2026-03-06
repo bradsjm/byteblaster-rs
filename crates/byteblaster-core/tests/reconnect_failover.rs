@@ -159,7 +159,7 @@ async fn watchdog_timeout_reconnects_without_termination() {
     .expect("client should build");
 
     client.start().expect("client should start");
-    let mut events = client.events();
+    let mut events = client.events().expect("events should be available");
 
     let deadline = Instant::now() + Duration::from_secs(8);
     let mut connected_events = 0u32;

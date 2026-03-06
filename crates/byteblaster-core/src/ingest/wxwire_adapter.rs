@@ -1,4 +1,5 @@
 use crate::ingest::model::{IngestError, IngestEvent, IngestTelemetry, IngestWarning};
+use crate::runtime_support::ReceiverEventStream;
 use crate::wxwire_receiver::{
     WxWireReceiver, WxWireReceiverClient, WxWireReceiverError, WxWireReceiverEvent,
     WxWireReceiverFrameEvent, WxWireReceiverResult,
@@ -25,10 +26,8 @@ impl WxWireIngestStream {
         Box::pin(async move { self.receiver.stop().await.map_err(IngestError::from) })
     }
 
-    pub fn events(
-        &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<IngestEvent, IngestError>> + Send + '_>> {
-        Box::pin(adapt_wxwire_events(self.receiver.events()))
+    pub fn events(&mut self) -> Result<ReceiverEventStream<IngestEvent, IngestError>, IngestError> {
+        Ok(Box::pin(adapt_wxwire_events(self.receiver.events()?)))
     }
 }
 

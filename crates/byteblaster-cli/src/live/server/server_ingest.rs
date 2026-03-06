@@ -1,4 +1,4 @@
-use super::{AppState, EventKind};
+use super::types::{AppState, EventKind};
 use byteblaster_core::ingest::{
     IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, QbtIngestStream,
     WxWireIngestStream,
@@ -25,7 +25,7 @@ pub(super) async fn run_qbt_ingest_loop(
     let mut ingest = QbtIngestStream::new(receiver);
     ingest.start()?;
 
-    let mut events = ingest.events();
+    let mut events = ingest.events()?;
     loop {
         tokio::select! {
             _ = shutdown_rx.changed() => {
@@ -55,7 +55,7 @@ pub(super) async fn run_wxwire_ingest_loop(
     let mut ingest = WxWireIngestStream::new(receiver);
     ingest.start()?;
 
-    let mut events = ingest.events();
+    let mut events = ingest.events()?;
     loop {
         tokio::select! {
             _ = shutdown_rx.changed() => {

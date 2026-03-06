@@ -19,7 +19,7 @@ use crate::qbt_receiver::protocol::auth::{REAUTH_INTERVAL_SECS, build_logon_mess
 use crate::qbt_receiver::protocol::codec::{QbtFrameDecoder, QbtProtocolDecoder};
 use crate::qbt_receiver::protocol::model::QbtFrameEvent;
 use crate::qbt_receiver::protocol::model::{QbtAuthMessage, QbtProtocolWarning};
-use futures::{Stream, stream};
+use crate::runtime_support::{ReceiverEventStream, ReceiverRuntime};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -142,10 +142,10 @@ pub trait QbtReceiverClient: Send {
 
     /// Returns a stream of client events.
     ///
-    /// This can only be called once; subsequent calls return an empty stream.
+    /// This can only be called once; subsequent calls return an error.
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<QbtReceiverEvent, QbtReceiverError>> + Send + '_>>;
+    ) -> Result<ReceiverEventStream<QbtReceiverEvent, QbtReceiverError>, QbtReceiverError>;
 }
 
 /// Builder for constructing a [`QbtReceiver`] with validation.
@@ -169,10 +169,7 @@ impl QbtReceiverBuilder {
         self.config.validate()?;
         Ok(QbtReceiver {
             config: self.config,
-            running: false,
-            event_rx: None,
-            shutdown_tx: None,
-            join_handle: None,
+            runtime: ReceiverRuntime::default(),
             handlers: Vec::new(),
             telemetry: Arc::new(Mutex::new(QbtReceiverTelemetrySnapshot::default())),
         })
@@ -187,14 +184,8 @@ impl QbtReceiverBuilder {
 pub struct QbtReceiver {
     /// QbtReceiver configuration.
     config: QbtReceiverConfig,
-    /// Whether the client is currently running.
-    running: bool,
-    /// Event receiver channel (taken when events() is called).
-    event_rx: Option<mpsc::Receiver<Result<QbtReceiverEvent, QbtReceiverError>>>,
-    /// Shutdown signal sender.
-    shutdown_tx: Option<watch::Sender<bool>>,
-    /// Background task handle.
-    join_handle: Option<tokio::task::JoinHandle<()>>,
+    /// Shared runtime lifecycle and event channel state.
+    runtime: ReceiverRuntime<QbtReceiverEvent, QbtReceiverError>,
     /// Registered event handlers.
     handlers: Vec<QbtReceiverEventHandler>,
     /// Shared telemetry snapshot.
@@ -205,7 +196,7 @@ impl std::fmt::Debug for QbtReceiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QbtReceiver")
             .field("config", &self.config)
-            .field("running", &self.running)
+            .field("running", &self.runtime.is_running())
             .field("handler_count", &self.handlers.len())
             .finish()
     }
@@ -235,7 +226,7 @@ impl QbtReceiver {
 
 impl QbtReceiverClient for QbtReceiver {
     fn start(&mut self) -> QbtReceiverResult<()> {
-        if self.running {
+        if self.runtime.is_running() {
             return Err(QbtReceiverError::Lifecycle(
                 "client already running".to_string(),
             ));
@@ -248,13 +239,11 @@ impl QbtReceiverClient for QbtReceiver {
         let handlers = self.handlers.clone();
         let telemetry = Arc::clone(&self.telemetry);
 
-        self.join_handle = Some(tokio::spawn(async move {
+        let join_handle = tokio::spawn(async move {
             run_connection_loop(config, event_tx, shutdown_rx, handlers, telemetry).await;
-        }));
+        });
 
-        self.event_rx = Some(event_rx);
-        self.shutdown_tx = Some(shutdown_tx);
-        self.running = true;
+        self.runtime.install(event_rx, shutdown_tx, join_handle);
         Ok(())
     }
 
@@ -262,33 +251,17 @@ impl QbtReceiverClient for QbtReceiver {
         &mut self,
     ) -> Pin<Box<dyn std::future::Future<Output = QbtReceiverResult<()>> + Send + '_>> {
         Box::pin(async move {
-            if !self.running {
-                return Ok(());
-            }
-
-            if let Some(tx) = &self.shutdown_tx {
-                let _ = tx.send(true);
-            }
-
-            if let Some(handle) = self.join_handle.take() {
-                let _ = handle.await;
-            }
-
-            self.running = false;
-            self.shutdown_tx = None;
+            self.runtime.stop().await;
             Ok(())
         })
     }
 
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<QbtReceiverEvent, QbtReceiverError>> + Send + '_>> {
-        match self.event_rx.take() {
-            Some(rx) => Box::pin(stream::unfold(rx, |mut rx| async move {
-                rx.recv().await.map(|item| (item, rx))
-            })),
-            None => Box::pin(stream::empty()),
-        }
+    ) -> Result<ReceiverEventStream<QbtReceiverEvent, QbtReceiverError>, QbtReceiverError> {
+        self.runtime.take_events(QbtReceiverError::Lifecycle(
+            "event stream already taken".to_string(),
+        ))
     }
 }
 

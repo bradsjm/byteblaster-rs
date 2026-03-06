@@ -5,14 +5,13 @@
 
 use crate::ReceiverKind;
 use crate::cmd::capture::decode_capture_events;
+use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
 use crate::live::file_pipeline::persist_completed_file;
-use crate::live::shared::parse_servers_or_default;
 use byteblaster_core::ingest::{IngestEvent, QbtIngestStream, WxWireIngestStream};
 use byteblaster_core::qbt_receiver::{
-    QbtDecodeConfig, QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtReceiverConfig,
-    QbtSegmentAssembler,
+    QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtSegmentAssembler,
 };
-use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
+use byteblaster_core::wxwire_receiver::WxWireReceiver;
 use futures::StreamExt;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -89,32 +88,25 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
 
     match live.receiver {
         ReceiverKind::Qbt => {
-            let username = live.username.ok_or_else(|| {
-                crate::error::CliError::invalid_argument("live mode requires --username")
-            })?;
-            if live.password.is_some() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--password is not supported with --receiver qbt",
-                ));
-            }
-
-            let servers = parse_servers_or_default(&live.servers)?;
-            let config = QbtReceiverConfig {
-                email: username,
-                servers,
-                server_list_path: live.server_list_path.map(PathBuf::from),
-                follow_server_list_updates: true,
-                reconnect_delay_secs: 5,
-                connection_timeout_secs: 5,
-                watchdog_timeout_secs: 20,
-                max_exceptions: 10,
-                decode: QbtDecodeConfig::default(),
+            let LiveReceiverConfig::Qbt(config) = build_live_receiver_config(LiveConfigRequest {
+                receiver: ReceiverKind::Qbt,
+                username: live.username.clone(),
+                password: live.password.clone(),
+                raw_servers: live.servers.clone(),
+                server_list_path: live.server_list_path.clone(),
+                idle_timeout_secs: live.idle_timeout_secs,
+                qbt_watchdog_timeout_secs: 20,
+                username_context: "live mode",
+                password_context: "live mode",
+            })?
+            else {
+                unreachable!("qbt download must build qbt config");
             };
 
             let receiver = QbtReceiver::builder(config).build()?;
             let mut ingest = QbtIngestStream::new(receiver);
             ingest.start()?;
-            let mut events = ingest.events();
+            let mut events = ingest.events()?;
             let mut seen = 0usize;
             let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 
@@ -151,33 +143,26 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
             ingest.stop().await?;
         }
         ReceiverKind::Wxwire => {
-            if !live.servers.is_empty() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--server is not supported with --receiver wxwire",
-                ));
-            }
-            if live.server_list_path.is_some() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--server-list-path is not supported with --receiver wxwire",
-                ));
-            }
-            let username = live.username.ok_or_else(|| {
-                crate::error::CliError::invalid_argument("wxwire live mode requires --username")
-            })?;
-            let password = live.password.ok_or_else(|| {
-                crate::error::CliError::invalid_argument("wxwire live mode requires --password")
-            })?;
+            let LiveReceiverConfig::WxWire(config) =
+                build_live_receiver_config(LiveConfigRequest {
+                    receiver: ReceiverKind::Wxwire,
+                    username: live.username.clone(),
+                    password: live.password.clone(),
+                    raw_servers: live.servers.clone(),
+                    server_list_path: live.server_list_path.clone(),
+                    idle_timeout_secs: live.idle_timeout_secs,
+                    qbt_watchdog_timeout_secs: 0,
+                    username_context: "wxwire live mode",
+                    password_context: "wxwire live mode",
+                })?
+            else {
+                unreachable!("wxwire download must build wxwire config");
+            };
 
-            let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
-                username,
-                password,
-                idle_timeout_secs: live.idle_timeout_secs.max(1),
-                ..WxWireReceiverConfig::default()
-            })
-            .build()?;
+            let receiver = WxWireReceiver::builder(config).build()?;
             let mut ingest = WxWireIngestStream::new(receiver);
             ingest.start()?;
-            let mut events = ingest.events();
+            let mut events = ingest.events()?;
             let mut seen = 0usize;
             let idle = Duration::from_secs(live.idle_timeout_secs.max(1));
 

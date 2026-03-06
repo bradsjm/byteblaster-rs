@@ -1,9 +1,11 @@
+use crate::runtime_support::{ReceiverEventStream, ReceiverRuntime};
 use crate::wxwire_receiver::codec::{WxWireDecoder, WxWireFrameDecoder};
 use crate::wxwire_receiver::config::{WXWIRE_PRIMARY_HOST, WxWireReceiverConfig};
-use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireReceiverResult};
+use crate::wxwire_receiver::error::{
+    WxWireLifecycleError, WxWireReceiverError, WxWireReceiverResult,
+};
 use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
 use crate::wxwire_receiver::transport::{WxWireTransport, XmppWxWireTransport};
-use futures::{Stream, stream};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -96,7 +98,7 @@ pub trait WxWireReceiverClient: Send {
     /// Returns a stream of runtime events.
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<WxWireReceiverEvent, WxWireReceiverError>> + Send + '_>>;
+    ) -> Result<ReceiverEventStream<WxWireReceiverEvent, WxWireReceiverError>, WxWireReceiverError>;
 }
 
 /// Unstable ingress surface for raw stanza injection.
@@ -142,10 +144,7 @@ impl WxWireReceiverBuilder {
         self.config.validate()?;
         Ok(WxWireReceiver {
             config: self.config,
-            running: false,
-            event_rx: None,
-            shutdown_tx: None,
-            join_handle: None,
+            runtime: ReceiverRuntime::default(),
             ingress_tx: None,
             handlers: Vec::new(),
             telemetry: Arc::new(Mutex::new(WxWireReceiverTelemetrySnapshot::default())),
@@ -157,10 +156,7 @@ impl WxWireReceiverBuilder {
 /// Weather wire client runtime.
 pub struct WxWireReceiver {
     config: WxWireReceiverConfig,
-    running: bool,
-    event_rx: Option<mpsc::Receiver<Result<WxWireReceiverEvent, WxWireReceiverError>>>,
-    shutdown_tx: Option<watch::Sender<bool>>,
-    join_handle: Option<tokio::task::JoinHandle<()>>,
+    runtime: ReceiverRuntime<WxWireReceiverEvent, WxWireReceiverError>,
     ingress_tx: Option<mpsc::Sender<String>>,
     handlers: Vec<WxWireReceiverEventHandler>,
     telemetry: Arc<Mutex<WxWireReceiverTelemetrySnapshot>>,
@@ -171,7 +167,7 @@ impl std::fmt::Debug for WxWireReceiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WxWireReceiver")
             .field("config", &self.config)
-            .field("running", &self.running)
+            .field("running", &self.runtime.is_running())
             .field("handler_count", &self.handlers.len())
             .finish()
     }
@@ -202,17 +198,14 @@ impl WxWireReceiver {
     }
 
     fn submit_raw_stanza_internal(&self, stanza: String) -> WxWireReceiverResult<()> {
-        let tx = self.ingress_tx.as_ref().ok_or_else(|| {
-            WxWireReceiverError::Lifecycle("weather wire client not running".to_string())
-        })?;
+        let tx = self
+            .ingress_tx
+            .as_ref()
+            .ok_or(WxWireLifecycleError::NotRunning)?;
 
         tx.try_send(stanza).map_err(|err| match err {
-            TrySendError::Full(_) => {
-                WxWireReceiverError::Lifecycle("weather wire ingress queue full".to_string())
-            }
-            TrySendError::Closed(_) => {
-                WxWireReceiverError::Lifecycle("weather wire ingress queue closed".to_string())
-            }
+            TrySendError::Full(_) => WxWireLifecycleError::IngressQueueFull.into(),
+            TrySendError::Closed(_) => WxWireLifecycleError::IngressQueueClosed.into(),
         })
     }
 }
@@ -225,10 +218,8 @@ impl UnstableWxWireReceiverIngress for WxWireReceiver {
 
 impl WxWireReceiverClient for WxWireReceiver {
     fn start(&mut self) -> WxWireReceiverResult<()> {
-        if self.running {
-            return Err(WxWireReceiverError::Lifecycle(
-                "weather wire client already running".to_string(),
-            ));
+        if self.runtime.is_running() {
+            return Err(WxWireLifecycleError::AlreadyRunning.into());
         }
 
         let (event_tx, event_rx) = mpsc::channel(self.config.event_channel_capacity);
@@ -240,7 +231,7 @@ impl WxWireReceiverClient for WxWireReceiver {
         let telemetry = Arc::clone(&self.telemetry);
         let factory = Arc::clone(&self.transport_factory);
 
-        self.join_handle = Some(tokio::spawn(async move {
+        let join_handle = tokio::spawn(async move {
             run_weather_wire_loop(
                 config,
                 event_tx,
@@ -251,12 +242,10 @@ impl WxWireReceiverClient for WxWireReceiver {
                 factory,
             )
             .await;
-        }));
+        });
 
-        self.event_rx = Some(event_rx);
+        self.runtime.install(event_rx, shutdown_tx, join_handle);
         self.ingress_tx = Some(ingress_tx);
-        self.shutdown_tx = Some(shutdown_tx);
-        self.running = true;
         Ok(())
     }
 
@@ -264,35 +253,18 @@ impl WxWireReceiverClient for WxWireReceiver {
         &mut self,
     ) -> Pin<Box<dyn std::future::Future<Output = WxWireReceiverResult<()>> + Send + '_>> {
         Box::pin(async move {
-            if !self.running {
-                return Ok(());
-            }
-
-            if let Some(tx) = &self.shutdown_tx {
-                let _ = tx.send(true);
-            }
-
-            if let Some(handle) = self.join_handle.take() {
-                let _ = handle.await;
-            }
-
-            self.running = false;
+            self.runtime.stop().await;
             self.ingress_tx = None;
-            self.shutdown_tx = None;
             Ok(())
         })
     }
 
     fn events(
         &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<WxWireReceiverEvent, WxWireReceiverError>> + Send + '_>>
+    ) -> Result<ReceiverEventStream<WxWireReceiverEvent, WxWireReceiverError>, WxWireReceiverError>
     {
-        match self.event_rx.take() {
-            Some(rx) => Box::pin(stream::unfold(rx, |mut rx| async move {
-                rx.recv().await.map(|item| (item, rx))
-            })),
-            None => Box::pin(stream::empty()),
-        }
+        self.runtime
+            .take_events(WxWireLifecycleError::EventStreamTaken.into())
     }
 }
 
@@ -669,7 +641,7 @@ mod tests {
         TransportFactory, UnstableWxWireReceiverIngress, WxWireReceiver, WxWireReceiverClient,
         WxWireReceiverConfig, WxWireReceiverEvent, WxWireReceiverEventHandler,
     };
-    use crate::wxwire_receiver::error::WxWireReceiverError;
+    use crate::wxwire_receiver::error::{WxWireLifecycleError, WxWireReceiverError};
     use crate::wxwire_receiver::model::{WxWireReceiverFrameEvent, WxWireReceiverWarning};
     use crate::wxwire_receiver::transport::WxWireTransport;
     use futures::StreamExt;
@@ -806,7 +778,7 @@ mod tests {
             .expect("client should build");
         client.start().expect("client should start");
 
-        let mut events = client.events();
+        let mut events = client.events().expect("events should be available");
         let mut saw_file = false;
         for _ in 0..12 {
             if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(file))))) =
@@ -825,7 +797,7 @@ mod tests {
     #[tokio::test]
     async fn handler_error_isolated() {
         let bad: WxWireReceiverEventHandler = Arc::new(|_evt: &WxWireReceiverFrameEvent| {
-            Err(WxWireReceiverError::Lifecycle("boom".to_string()))
+            Err(WxWireLifecycleError::Internal("boom".to_string()).into())
         });
 
         let mut client = WxWireReceiver::builder(valid_config())
@@ -835,7 +807,7 @@ mod tests {
         client.subscribe(bad);
         client.start().expect("client should start");
 
-        let mut events = client.events();
+        let mut events = client.events().expect("events should be available");
         let mut saw_handler_warning = false;
         for _ in 0..12 {
             if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::Warning(
@@ -864,7 +836,7 @@ mod tests {
             .submit_raw_stanza("<message xmlns='jabber:client' type='groupchat'><body>S2</body><x xmlns='nwws-oi' id='id2' issue='2026-03-05T00:00:00Z' ttaaii='NOUS41' cccc='KOKX' awipsid='AFDOKX'>line</x></message>".to_string())
             .expect("submit should succeed");
 
-        let mut events = client.events();
+        let mut events = client.events().expect("events should be available");
         let mut saw_file = false;
         for _ in 0..20 {
             if let Ok(Some(Ok(WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::File(_))))) =
@@ -908,7 +880,7 @@ mod tests {
             .expect("client should build");
         client.start().expect("client should start");
 
-        let mut events = client.events();
+        let mut events = client.events().expect("events should be available");
         let mut saw_connected = false;
         for _ in 0..40 {
             if let Ok(Some(Ok(WxWireReceiverEvent::Connected(label)))) =
@@ -957,7 +929,7 @@ mod tests {
             .expect("client should build");
         client.start().expect("client should start");
 
-        let mut events = client.events();
+        let mut events = client.events().expect("events should be available");
         let mut saw_disconnected = false;
         let mut saw_reconnected = false;
         for _ in 0..60 {

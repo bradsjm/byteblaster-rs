@@ -1,13 +1,12 @@
+use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
 use crate::live::file_pipeline::persist_completed_file;
-use crate::live::shared::parse_servers_or_default;
 use crate::live::stream::common::{
     LiveStats, log_completed_file, log_ingest_warning, log_product_event,
 };
 use byteblaster_core::ingest::{IngestEvent, IngestTelemetry, QbtIngestStream};
-use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtReceiver, QbtReceiverConfig};
+use byteblaster_core::qbt_receiver::QbtReceiver;
 use futures::StreamExt;
 use std::path::Path;
-use std::path::PathBuf;
 use std::time::Duration;
 use tracing::{info, warn};
 
@@ -16,33 +15,25 @@ pub(super) async fn run_qbt_live_mode(
     live: crate::LiveOptions,
     text_preview_chars: usize,
 ) -> crate::error::CliResult<()> {
-    if live.password.is_some() {
-        return Err(crate::error::CliError::invalid_argument(
-            "--password is not supported with --receiver qbt",
-        ));
-    }
-    let username = live
-        .username
-        .ok_or_else(|| crate::error::CliError::invalid_argument("live mode requires --username"))?;
-
-    let pin_servers = !live.servers.is_empty();
-    let servers = parse_servers_or_default(&live.servers)?;
-    let config = QbtReceiverConfig {
-        email: username,
-        servers,
-        server_list_path: live.server_list_path.map(PathBuf::from),
-        follow_server_list_updates: !pin_servers,
-        reconnect_delay_secs: 5,
-        connection_timeout_secs: 5,
-        watchdog_timeout_secs: 49,
-        max_exceptions: 10,
-        decode: QbtDecodeConfig::default(),
+    let LiveReceiverConfig::Qbt(config) = build_live_receiver_config(LiveConfigRequest {
+        receiver: crate::ReceiverKind::Qbt,
+        username: live.username.clone(),
+        password: live.password.clone(),
+        raw_servers: live.servers.clone(),
+        server_list_path: live.server_list_path.clone(),
+        idle_timeout_secs: live.idle_timeout_secs,
+        qbt_watchdog_timeout_secs: 49,
+        username_context: "live mode",
+        password_context: "live mode",
+    })?
+    else {
+        unreachable!("qbt live stream must build qbt config");
     };
 
     let receiver = QbtReceiver::builder(config).build()?;
     let mut ingest = QbtIngestStream::new(receiver);
     ingest.start()?;
-    let mut events = ingest.events();
+    let mut events = ingest.events()?;
 
     let mut written_files = Vec::new();
     let mut seen = 0usize;

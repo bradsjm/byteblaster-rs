@@ -33,7 +33,7 @@
 //!     let mut receiver = QbtReceiver::builder(config).build()?;
 //!     receiver.start()?;
 //!
-//!     let mut ingest_stream = adapt_qbt_events(receiver.events());
+//!     let mut ingest_stream = adapt_qbt_events(receiver.events()?);
 //!
 //!     if let Some(event) = ingest_stream.next().await {
 //!         if let Ok(IngestEvent::Product(product)) = event {
@@ -51,6 +51,7 @@
 pub mod ingest;
 #[cfg(feature = "qbt")]
 pub mod qbt_receiver;
+mod runtime_support;
 #[cfg(feature = "wxwire")]
 pub mod wxwire_receiver;
 

@@ -1,5 +1,5 @@
-use crate::lookup::pil_description;
 use crate::TextProductHeader;
+use crate::lookup::pil_description;
 
 /// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
 ///
@@ -86,7 +86,7 @@ fn classify_bbb(bbb: &str) -> BbbKind {
 
 #[cfg(test)]
 mod tests {
-    use super::{enrich_header, BbbKind};
+    use super::{BbbKind, enrich_header};
     use crate::TextProductHeader;
 
     fn header(afos: &str, bbb: Option<&str>) -> TextProductHeader {

@@ -1,4 +1,4 @@
-use crate::wxwire_receiver::error::WxWireReceiverError;
+use crate::wxwire_receiver::error::{WxWireConfigError, WxWireReceiverError};
 
 /// Primary NWWS-OI endpoint hostname.
 pub const WXWIRE_PRIMARY_HOST: &str = "nwws-oi.weather.gov";
@@ -61,44 +61,30 @@ impl WxWireReceiverConfig {
     /// Validates configuration fields.
     pub fn validate(&self) -> Result<(), WxWireReceiverError> {
         if self.username.trim().is_empty() {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "username must not be empty".to_string(),
-            ));
+            return Err(WxWireConfigError::EmptyUsername.into());
         }
 
         if self.password.trim().is_empty() {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "password must not be empty".to_string(),
-            ));
+            return Err(WxWireConfigError::EmptyPassword.into());
         }
 
         if self.idle_timeout_secs == 0 {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "idle_timeout_secs must be >= 1".to_string(),
-            ));
+            return Err(WxWireConfigError::ZeroIdleTimeout.into());
         }
 
         if self.event_channel_capacity == 0 {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "event_channel_capacity must be >= 1".to_string(),
-            ));
+            return Err(WxWireConfigError::ZeroEventChannelCapacity.into());
         }
 
         if self.inbound_channel_capacity == 0 {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "inbound_channel_capacity must be >= 1".to_string(),
-            ));
+            return Err(WxWireConfigError::ZeroInboundChannelCapacity.into());
         }
 
         if self.telemetry_emit_interval_secs == 0 {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "telemetry_emit_interval_secs must be >= 1".to_string(),
-            ));
+            return Err(WxWireConfigError::ZeroTelemetryEmitInterval.into());
         }
         if self.connect_timeout_secs == 0 {
-            return Err(WxWireReceiverError::InvalidConfig(
-                "connect_timeout_secs must be >= 1".to_string(),
-            ));
+            return Err(WxWireConfigError::ZeroConnectTimeout.into());
         }
 
         Ok(())

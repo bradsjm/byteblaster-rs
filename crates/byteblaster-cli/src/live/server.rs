@@ -7,19 +7,14 @@
 //! - Supports CORS for browser clients
 
 use crate::ReceiverKind;
-use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
-use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
-use crate::live::shared::parse_servers_or_default;
+use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
+use crate::live::server_support::RetainedFiles;
 use axum::http::HeaderValue;
-use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtFrameEvent, QbtReceiverConfig};
-use byteblaster_core::wxwire_receiver::config::WxWireReceiverConfig;
-use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, watch};
@@ -28,198 +23,16 @@ use tracing::{error, info};
 
 mod server_http;
 mod server_ingest;
+mod types;
+
+pub use types::ServerOptions;
+use types::{AppState, BroadcastEvent, EventKind};
 
 #[cfg(test)]
 use server_http::{event_matches_filter, files_handler};
 
 /// Capacity of the broadcast channel for events.
 const EVENT_CHANNEL_CAPACITY: usize = 4096;
-
-#[derive(Debug, Clone)]
-struct BroadcastEvent {
-    id: u64,
-    kind: EventKind,
-}
-
-#[derive(Debug, Clone)]
-enum EventKind {
-    Connected {
-        endpoint: String,
-    },
-    Disconnected,
-    QbtFrame(QbtFrameEvent),
-    WxWireFrame(WxWireReceiverFrameEvent),
-    FileComplete {
-        filename: String,
-        size: usize,
-        timestamp_utc: u64,
-        product: Option<crate::product_meta::ProductMeta>,
-        text_product_header: Option<serde_json::Value>,
-        text_product_enrichment: Option<serde_json::Value>,
-        text_product_warning: Option<serde_json::Value>,
-    },
-    Telemetry(serde_json::Value),
-    Error {
-        message: String,
-    },
-}
-
-impl EventKind {
-    fn event_name(&self) -> &'static str {
-        match self {
-            Self::Connected { .. } => "connected",
-            Self::Disconnected => "disconnected",
-            Self::QbtFrame(frame) => frame_event_name(frame),
-            Self::WxWireFrame(frame) => match frame {
-                WxWireReceiverFrameEvent::File(_) => "file",
-                WxWireReceiverFrameEvent::Warning(_) => "warning",
-                _ => "unknown",
-            },
-            Self::FileComplete { .. } => "file_complete",
-            Self::Telemetry(_) => "telemetry",
-            Self::Error { .. } => "error",
-        }
-    }
-
-    fn filename(&self) -> Option<&str> {
-        match self {
-            Self::QbtFrame(frame) => frame_event_filename(frame),
-            Self::WxWireFrame(frame) => match frame {
-                WxWireReceiverFrameEvent::File(file) => Some(file.filename.as_str()),
-                WxWireReceiverFrameEvent::Warning(_) => None,
-                _ => None,
-            },
-            Self::FileComplete { filename, .. } => Some(filename.as_str()),
-            _ => None,
-        }
-    }
-
-    fn to_json(&self) -> serde_json::Value {
-        match self {
-            Self::Connected { endpoint } => serde_json::json!({ "endpoint": endpoint }),
-            Self::Disconnected => serde_json::json!({}),
-            Self::QbtFrame(frame) => frame_event_to_json(frame, 0),
-            Self::WxWireFrame(frame) => match frame {
-                WxWireReceiverFrameEvent::File(file) => serde_json::json!({
-                    "type": "file",
-                    "filename": file.filename,
-                    "length": file.data.len(),
-                    "subject": file.subject,
-                    "id": file.id,
-                    "issue_utc": crate::live::shared::unix_seconds(file.issue_utc),
-                    "ttaaii": file.ttaaii,
-                    "cccc": file.cccc,
-                    "awipsid": file.awipsid,
-                }),
-                WxWireReceiverFrameEvent::Warning(warning) => serde_json::json!({
-                    "type": "warning",
-                    "warning": format!("{warning:?}"),
-                }),
-                _ => serde_json::json!({
-                    "type": "unknown",
-                }),
-            },
-            Self::FileComplete {
-                filename,
-                size,
-                timestamp_utc,
-                product,
-                text_product_header,
-                text_product_enrichment,
-                text_product_warning,
-            } => {
-                let mut payload = serde_json::json!({
-                    "filename": filename,
-                    "size": size,
-                    "timestamp_utc": timestamp_utc,
-                    "download_url": file_download_url(filename),
-                });
-                if let Some(product) = product
-                    && let Ok(product_json) = serde_json::to_value(product)
-                {
-                    payload["product"] = product_json;
-                }
-                if let Some(text_product_header) = text_product_header {
-                    payload["text_product_header"] = text_product_header.clone();
-                }
-                if let Some(text_product_enrichment) = text_product_enrichment {
-                    payload["text_product_enrichment"] = text_product_enrichment.clone();
-                }
-                if let Some(text_product_warning) = text_product_warning {
-                    payload["text_product_warning"] = text_product_warning.clone();
-                }
-                payload
-            }
-            Self::Telemetry(snapshot) => snapshot.clone(),
-            Self::Error { message } => serde_json::json!({ "message": message }),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct AppState {
-    event_tx: broadcast::Sender<BroadcastEvent>,
-    shutdown_rx: watch::Receiver<bool>,
-    retained_files: Mutex<RetainedFiles>,
-    telemetry: Mutex<serde_json::Value>,
-    connected_clients: AtomicUsize,
-    max_clients: usize,
-    next_event_id: AtomicU64,
-    data_blocks_total: AtomicU64,
-    current_servers: AtomicUsize,
-    current_sat_servers: AtomicUsize,
-    started_at: Instant,
-    upstream_endpoint: Mutex<Option<String>>,
-    quiet: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct EventsQuery {
-    filter: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct FilesResponse {
-    files: Vec<RetainedFileMeta>,
-}
-
-#[derive(Debug, Serialize)]
-struct HealthResponse {
-    status: &'static str,
-    connected_clients: usize,
-    retained_files: usize,
-    uptime_secs: u64,
-    upstream_endpoint: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct EndpointDoc {
-    method: &'static str,
-    path: &'static str,
-    description: &'static str,
-}
-
-#[derive(Debug, Serialize)]
-struct RootResponse {
-    service: &'static str,
-    endpoints: Vec<EndpointDoc>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ServerOptions {
-    pub receiver: ReceiverKind,
-    pub username: String,
-    pub password: Option<String>,
-    pub raw_servers: Vec<String>,
-    pub server_list_path: Option<String>,
-    pub bind: String,
-    pub cors_origin: Option<String>,
-    pub max_clients: usize,
-    pub stats_interval_secs: u64,
-    pub file_retention_secs: u64,
-    pub max_retained_files: usize,
-    pub quiet: bool,
-}
 
 pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     let ServerOptions {
@@ -269,23 +82,19 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
 
     let ingest_task = match receiver {
         ReceiverKind::Qbt => {
-            if password.is_some() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--password is not supported with --receiver qbt",
-                ));
-            }
-            let pin_servers = !raw_servers.is_empty();
-            let servers = parse_servers_or_default(&raw_servers)?;
-            let config = QbtReceiverConfig {
-                email: username,
-                servers,
-                server_list_path: server_list_path.map(PathBuf::from),
-                follow_server_list_updates: !pin_servers,
-                reconnect_delay_secs: 5,
-                connection_timeout_secs: 5,
-                watchdog_timeout_secs: 20,
-                max_exceptions: 10,
-                decode: QbtDecodeConfig::default(),
+            let LiveReceiverConfig::Qbt(config) = build_live_receiver_config(LiveConfigRequest {
+                receiver: ReceiverKind::Qbt,
+                username: Some(username),
+                password,
+                raw_servers,
+                server_list_path,
+                idle_timeout_secs: 90,
+                qbt_watchdog_timeout_secs: 20,
+                username_context: "server mode",
+                password_context: "server mode",
+            })?
+            else {
+                unreachable!("qbt server mode must build qbt config");
             };
             tokio::spawn(server_ingest::run_qbt_ingest_loop(
                 config,
@@ -294,25 +103,20 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             ))
         }
         ReceiverKind::Wxwire => {
-            if !raw_servers.is_empty() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--server is not supported with --receiver wxwire",
-                ));
-            }
-            if server_list_path.is_some() {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--server-list-path is not supported with --receiver wxwire",
-                ));
-            }
-            let config = WxWireReceiverConfig {
-                username,
-                password: password.ok_or_else(|| {
-                    crate::error::CliError::invalid_argument(
-                        "wxwire server mode requires --password",
-                    )
-                })?,
-                idle_timeout_secs: 90,
-                ..WxWireReceiverConfig::default()
+            let LiveReceiverConfig::WxWire(config) =
+                build_live_receiver_config(LiveConfigRequest {
+                    receiver: ReceiverKind::Wxwire,
+                    username: Some(username),
+                    password,
+                    raw_servers,
+                    server_list_path,
+                    idle_timeout_secs: 90,
+                    qbt_watchdog_timeout_secs: 0,
+                    username_context: "wxwire server mode",
+                    password_context: "wxwire server mode",
+                })?
+            else {
+                unreachable!("wxwire server mode must build wxwire config");
             };
             tokio::spawn(server_ingest::run_wxwire_ingest_loop(
                 config,
@@ -396,23 +200,10 @@ fn build_router(
     Ok(server_http::build_router(state, cors))
 }
 
-struct ClientGuard {
-    state: Arc<AppState>,
-    peer: SocketAddr,
-}
-
-impl Drop for ClientGuard {
-    fn drop(&mut self) {
-        self.state.connected_clients.fetch_sub(1, Ordering::Relaxed);
-        log_info(
-            self.state.quiet,
-            &format!("sse client disconnected peer={}", self.peer),
-        );
-    }
-}
-
 fn publish(state: &Arc<AppState>, kind: EventKind) {
-    let id = state.next_event_id.fetch_add(1, Ordering::Relaxed);
+    let id = state
+        .next_event_id
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let _ = state.event_tx.send(BroadcastEvent { id, kind });
 }
 
@@ -452,10 +243,9 @@ fn build_cors_layer(cors_origin: Option<String>) -> crate::error::CliResult<Cors
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AppState, EventKind, RetainedFiles, build_router, event_matches_filter, files_handler,
-        sanitize_requested_filename,
-    };
+    use super::{build_router, event_matches_filter, files_handler, sanitize_requested_filename};
+    use crate::live::server::types::{AppState, EventKind, EventsQuery};
+    use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
     use axum::Json;
     use axum::body::{Body, to_bytes};
@@ -533,7 +323,7 @@ mod tests {
             State(state),
             ConnectInfo("127.0.0.1:4000".parse().expect("valid socket addr")),
             HeaderMap::new(),
-            Query(super::EventsQuery { filter: None }),
+            Query(EventsQuery { filter: None }),
         )
         .await;
 

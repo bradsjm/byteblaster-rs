@@ -50,6 +50,8 @@ validation rules, and requirement-to-test mapping are defined only in `docs/prot
 - Client startup validates config before network activity.
 - Runtime supports endpoint rotation, bounded reconnect backoff, and watchdog-driven recovery.
 - Server-list lifecycle supports load/save/rotation/update with persistence.
+- Receiver event subscriptions are single-consumer by contract; repeated `events()` calls are an error.
+- Shared runtime lifecycle mechanics are centralized so QBT and Weather Wire follow the same start/stop/subscription rules.
 
 ### 3.2 CLI Functional Contract
 
@@ -78,6 +80,7 @@ byteblaster-rs/
       Cargo.toml
       src/
         lib.rs
+        runtime_support.rs
         config.rs
         error.rs
         protocol/
@@ -120,9 +123,14 @@ byteblaster-rs/
           server.rs
         live/
           mod.rs
+          config.rs
           file_pipeline.rs
           server.rs
           server_support.rs
+          server/
+            server_http.rs
+            server_ingest.rs
+            types.rs
           shared.rs
           stream.rs
         relay/

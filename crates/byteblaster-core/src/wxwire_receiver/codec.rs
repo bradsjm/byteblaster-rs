@@ -1,4 +1,4 @@
-use crate::wxwire_receiver::error::WxWireReceiverError;
+use crate::wxwire_receiver::error::{WxWireDecodeError, WxWireReceiverError};
 use crate::wxwire_receiver::model::{
     WxWireReceiverFile, WxWireReceiverFrameEvent, WxWireReceiverWarning,
 };
@@ -33,12 +33,9 @@ pub struct WxWireDecoder;
 
 impl WxWireFrameDecoder for WxWireDecoder {
     fn feed(&mut self, stanza: &str) -> Result<Vec<WxWireReceiverFrameEvent>, WxWireReceiverError> {
-        let elem: Element = parse_message_element(stanza.trim()).map_err(|err| {
-            WxWireReceiverError::InvalidStanza(format!("invalid xml stanza: {err}"))
-        })?;
-        let message = Message::try_from(elem).map_err(|_| {
-            WxWireReceiverError::InvalidStanza("not an xmpp <message/> stanza".to_string())
-        })?;
+        let elem: Element = parse_message_element(stanza.trim())
+            .map_err(|err| WxWireDecodeError::InvalidXml(err.to_string()))?;
+        let message = Message::try_from(elem).map_err(|_| WxWireDecodeError::NotMessageStanza)?;
         self.feed_message(&message)
     }
 
@@ -55,13 +52,15 @@ impl WxWireFrameDecoder for WxWireDecoder {
                 out.push(WxWireReceiverFrameEvent::File(parsed.file));
                 Ok(out)
             }
-            Err(WxWireReceiverError::InvalidStanza(reason)) => {
-                let warning = if reason.contains("missing nwws-oi payload") {
-                    WxWireReceiverWarning::MissingNwwsNamespace
-                } else if reason.contains("empty nwws body") {
-                    WxWireReceiverWarning::EmptyBody
-                } else {
-                    WxWireReceiverWarning::DecoderRecovered { error: reason }
+            Err(WxWireReceiverError::Decode(decode_err)) => {
+                let warning = match decode_err {
+                    WxWireDecodeError::MissingPayload => {
+                        WxWireReceiverWarning::MissingNwwsNamespace
+                    }
+                    WxWireDecodeError::EmptyPayload => WxWireReceiverWarning::EmptyBody,
+                    other => WxWireReceiverWarning::DecoderRecovered {
+                        error: other.to_string(),
+                    },
                 };
                 out.push(WxWireReceiverFrameEvent::Warning(warning));
                 Ok(out)
@@ -131,13 +130,11 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WxWireRecei
         .payloads
         .iter()
         .find(|payload| payload.name() == "x" && payload.ns() == "nwws-oi")
-        .ok_or_else(|| WxWireReceiverError::InvalidStanza("missing nwws-oi payload".to_string()))?;
+        .ok_or(WxWireDecodeError::MissingPayload)?;
 
     let body = x_payload.text().trim().to_string();
     if body.is_empty() {
-        return Err(WxWireReceiverError::InvalidStanza(
-            "empty nwws body".to_string(),
-        ));
+        return Err(WxWireDecodeError::EmptyPayload.into());
     }
 
     let id = x_payload.attr("id").unwrap_or_default().trim().to_string();

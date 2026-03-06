@@ -43,6 +43,8 @@ Additional `stream` option:
 
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
+When `--server` is provided for QBT live mode, the CLI now pins that explicit server set across
+`stream`, `download`, and `server` instead of later replacing it with server-list updates.
 
 ## Examples
 

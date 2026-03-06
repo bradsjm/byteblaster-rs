@@ -30,6 +30,7 @@
 //! It adapts core client events into CLI-specific outputs and HTTP/SSE
 //! responses.
 
+pub(crate) mod config;
 pub(crate) mod file_pipeline;
 pub mod server;
 mod server_support;

@@ -186,7 +186,7 @@ fn afos_re() -> &'static Regex {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_text_product, ParserError};
+    use super::{ParserError, parse_text_product};
 
     fn fixture(wmo_line: &str, afos_line: &str, body: &str) -> String {
         format!("000 \n{wmo_line}\n{afos_line}\n{body}\n")

@@ -3,6 +3,7 @@ use crate::qbt_receiver::{
     QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtReceiverClient, QbtReceiverError,
     QbtReceiverEvent, QbtReceiverResult, QbtSegmentAssembler,
 };
+use crate::runtime_support::ReceiverEventStream;
 use futures::{Stream, StreamExt, future};
 use std::pin::Pin;
 
@@ -27,10 +28,8 @@ impl QbtIngestStream {
         Box::pin(async move { self.receiver.stop().await.map_err(IngestError::from) })
     }
 
-    pub fn events(
-        &mut self,
-    ) -> Pin<Box<dyn Stream<Item = Result<IngestEvent, IngestError>> + Send + '_>> {
-        Box::pin(adapt_qbt_events(self.receiver.events()))
+    pub fn events(&mut self) -> Result<ReceiverEventStream<IngestEvent, IngestError>, IngestError> {
+        Ok(Box::pin(adapt_qbt_events(self.receiver.events()?)))
     }
 }
 

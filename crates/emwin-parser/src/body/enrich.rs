@@ -59,25 +59,28 @@ pub fn enrich_body(
 ) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
     let mut body = ProductBody::default();
     let mut issues = Vec::new();
-    let mut attempted = false;
+    let mut has_content = false;
 
     if flags.vtec {
         let (parsed, parse_issues) = parse_vtec_codes_with_issues(text);
-        body.vtec = Some(parsed);
+        if !parsed.is_empty() {
+            body.vtec = Some(parsed);
+            has_content = true;
+        }
         issues.extend(parse_issues);
-        attempted = true;
     }
 
     if flags.ugc {
-        attempted = true;
         match reference_time {
             Some(reference_time) => {
                 let (parsed, parse_issues) = parse_ugc_sections_with_issues(text, reference_time);
-                body.ugc = Some(parsed);
+                if !parsed.is_empty() {
+                    body.ugc = Some(parsed);
+                    has_content = true;
+                }
                 issues.extend(parse_issues);
             }
             None => {
-                body.ugc = Some(Vec::new());
                 issues.push(ProductParseIssue::new(
                     "ugc_parse",
                     "missing_reference_time",
@@ -90,35 +93,43 @@ pub fn enrich_body(
 
     if flags.hvtec {
         let (parsed, parse_issues) = parse_hvtec_codes_with_issues(text);
-        body.hvtec = Some(parsed);
+        if !parsed.is_empty() {
+            body.hvtec = Some(parsed);
+            has_content = true;
+        }
         issues.extend(parse_issues);
-        attempted = true;
     }
 
     if flags.latlong {
         let (parsed, parse_issues) = parse_latlon_polygons_with_issues(text);
-        body.latlon = Some(parsed);
+        if !parsed.is_empty() {
+            body.latlon = Some(parsed);
+            has_content = true;
+        }
         issues.extend(parse_issues);
-        attempted = true;
     }
 
     if flags.time_mot_loc {
         let (parsed, parse_issues) = parse_time_mot_loc_entries_with_issues(text);
-        body.time_mot_loc = Some(parsed);
+        if !parsed.is_empty() {
+            body.time_mot_loc = Some(parsed);
+            has_content = true;
+        }
         issues.extend(parse_issues);
-        attempted = true;
     }
 
     if flags.wind_hail {
         let (parsed, parse_issues) = parse_wind_hail_entries_with_issues(text);
-        body.wind_hail = Some(parsed);
+        if !parsed.is_empty() {
+            body.wind_hail = Some(parsed);
+            has_content = true;
+        }
         issues.extend(parse_issues);
-        attempted = true;
     }
 
     // Note: `cz` stands for county zones and is intentionally not parsed here.
 
-    (attempted.then_some(body), issues)
+    (has_content.then_some(body), issues)
 }
 
 #[cfg(test)]
@@ -219,13 +230,7 @@ MAXWINDGUST...60 MPH
         let reference_time = Some(Utc::now());
         let (body, warnings) = enrich_body(text, &flags, reference_time);
 
-        let body = body.expect("body should be present when parsers are attempted");
-        assert_eq!(body.vtec, Some(Vec::new()));
-        assert_eq!(body.ugc, Some(Vec::new()));
-        assert_eq!(body.hvtec, Some(Vec::new()));
-        assert_eq!(body.latlon, Some(Vec::new()));
-        assert_eq!(body.time_mot_loc, Some(Vec::new()));
-        assert_eq!(body.wind_hail, Some(Vec::new()));
+        assert!(body.is_none());
         assert!(warnings.is_empty());
     }
 }

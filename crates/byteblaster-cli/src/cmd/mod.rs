@@ -45,6 +45,7 @@
 //! the `crate::live` module, which provides the shared infrastructure
 //! for connecting to ByteBlaster servers and managing client lifecycle.
 
+pub mod capture;
 pub mod download;
 pub mod event_output;
 pub mod inspect;

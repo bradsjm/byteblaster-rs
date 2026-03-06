@@ -208,7 +208,7 @@ struct RootResponse {
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
     pub receiver: ReceiverKind,
-    pub email: String,
+    pub username: String,
     pub password: Option<String>,
     pub raw_servers: Vec<String>,
     pub server_list_path: Option<String>,
@@ -224,7 +224,7 @@ pub struct ServerOptions {
 pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let ServerOptions {
         receiver,
-        email,
+        username,
         password,
         raw_servers,
         server_list_path,
@@ -276,7 +276,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
             let pin_servers = !raw_servers.is_empty();
             let servers = parse_servers_or_default(&raw_servers)?;
             let config = QbtReceiverConfig {
-                email,
+                email: username,
                 servers,
                 server_list_path: server_list_path.map(PathBuf::from),
                 follow_server_list_updates: !pin_servers,
@@ -304,7 +304,7 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
                 ));
             }
             let config = WxWireReceiverConfig {
-                username: email,
+                username,
                 password: password
                     .ok_or_else(|| anyhow::anyhow!("wxwire server mode requires --password"))?,
                 idle_timeout_secs: 90,

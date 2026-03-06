@@ -21,8 +21,8 @@ use tracing_subscriber::EnvFilter;
 struct LiveOptions {
     /// Selected upstream receiver runtime.
     receiver: ReceiverKind,
-    /// User email for authentication.
-    email: Option<String>,
+    /// Account username for authentication.
+    username: Option<String>,
     /// Receiver password when required by backend.
     password: Option<String>,
     /// Custom server endpoints.
@@ -54,9 +54,9 @@ enum Commands {
         /// Optional directory to write completed files.
         #[arg(long)]
         output_dir: Option<String>,
-        /// Email address for live mode authentication.
+        /// Account username for live mode authentication.
         #[arg(long)]
-        email: Option<String>,
+        username: Option<String>,
         /// Password for receivers that require one (for example wxwire).
         #[arg(long)]
         password: Option<String>,
@@ -82,9 +82,9 @@ enum Commands {
         output_dir: String,
         /// Path to capture file (omit for live mode).
         input: Option<String>,
-        /// Email address for live mode authentication.
+        /// Account username for live mode authentication.
         #[arg(long)]
-        email: Option<String>,
+        username: Option<String>,
         /// Password for receivers that require one (for example wxwire).
         #[arg(long)]
         password: Option<String>,
@@ -111,9 +111,9 @@ enum Commands {
     },
     /// Run HTTP server with SSE endpoints.
     Server {
-        /// Email address for authentication.
+        /// Account username for authentication.
         #[arg(long)]
-        email: String,
+        username: String,
         /// Password for receivers that require one (for example wxwire).
         #[arg(long)]
         password: Option<String>,
@@ -178,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Stream {
             input,
             output_dir,
-            email,
+            username,
             password,
             receiver,
             servers,
@@ -188,7 +188,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let live = LiveOptions {
                 receiver,
-                email,
+                username,
                 password,
                 servers,
                 server_list_path,
@@ -200,7 +200,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Download {
             output_dir,
             input,
-            email,
+            username,
             password,
             receiver,
             servers,
@@ -210,7 +210,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let live = LiveOptions {
                 receiver,
-                email,
+                username,
                 password,
                 servers,
                 server_list_path,
@@ -221,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Inspect { input } => cmd::inspect::run(input, text_preview_chars).await,
         Commands::Server {
-            email,
+            username,
             password,
             receiver,
             servers,
@@ -235,7 +235,7 @@ async fn main() -> anyhow::Result<()> {
             quiet,
         } => {
             let options = cmd::server::ServerOptions {
-                email,
+                username,
                 password,
                 receiver,
                 raw_servers: servers,

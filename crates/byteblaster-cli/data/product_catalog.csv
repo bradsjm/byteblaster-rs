@@ -1,0 +1,423 @@
+pil,wmo_prefix,title
+18A,FB,18 Hour Report
+24A,FB,24 Hour Report
+30L,FE,Monthly Weather Outlook
+5TC,AU,500 Millibar Type Correlation
+ABV,UF,Rawinsonde Data Above 100 Millibars
+ADA,NO,Alarm/Alert Administrative Message
+ADM,NO,Alert Administrative Message
+ADR,NO,Administrative Message
+ADV,NW,Official Space Weather Advisory
+ADW,NO,Administrative Message for NWWS
+ADX,NT,Administrative Alert Non-Receipt
+AFD,FX,Area Forecast Discussion
+AFM,FO,Area Forecast Matrices
+AFP,FL,Area Forecast Product
+AGF,FN,Agricultural Forecast
+AGO,SH,Agricultural Observations
+ALM,NW,Space Environment Alarm
+ALT,WO,Space Weather Message Alert
+APG,AE,Air Stagnation Guidance Narrative
+AQA,AE,Air Quality Message
+AQI,AE,Air Quality Index Statement
+ARP,UA,AIREPS
+ASA,AE,Air Stagnation Advisory
+AVA,WO,Avalanche Watch
+AVM,NO,Aviation Verification Matrix
+AVW,WO,Avalanche Warning
+AWG,WO,National Attack Warning
+AWO,NO,Area Weather Outlook
+AWS,AW,Area Weather Summary
+AWU,FL,Area Weather Update
+AWW,WW,Aviation Weather Warning
+BOY,SS,Buoy Reports
+BRT,AX,Area Synopsis and Forecast
+CAE,WO,Child Abduction Emergency
+CAP,XO,Alert Messages in CAP XML
+CCF,FP,Coded City Forecast
+CDW,WO,Civil Danger Warning
+CEM,WO,Civil Emergency Message
+CF6,CX,Climate F-6 products
+CFP,FA,Convective Forecast Product
+CFW,WH,Coastal/Lakeshore Hazard Messages
+CGR,SX,Coast Guard Surface Report
+CHG,WT,Computer Hurricane Guidance
+CLA,CX,Climate Report Annual
+CLI,CD,Climate Report Daily
+CLM,CX,Climate Report Monthly
+CLS,CX,Climate Report Seasonal
+CMM,CS,Coded Climatological Monthly Means
+COD,FX,Coded Analysis and Forecasts
+CSC,FP,Canadian Selected Cities Forecast
+CUR,FX,Current Space Weather Indices
+CWA,WL,Center Weather Advisory
+CWD,NZ,Discussion for Coastal Waters Forecast
+CWF,FZ,Coastal Waters Forecast
+CWS,WO,Center Weather Statement
+DAA,SD,170 QPE One Hour Digital Accumulation
+DAY,FX,Daily Space Weather Summary and Forcast
+DGT,AX,Drought Information
+DHR,SD,Digital Hybrid Reflectivity
+DMO,WO,Practice/Demo Warning
+DOD,SD,174 QPE-PPS One Hour Accumulation Difference
+DPA,SD,Radar Hourly Digital Precipitation
+DPR,SD,176 QPE Instanteaneous Precipitation Rate
+DSA,AC,Unnumbered Depression
+DSM,CX,Asos Daily Summary
+DSP,SD,Adigital Storm Total Precipitation Nexrad
+DST,CX,ASOS Daily Summary
+DSW,WW,Dust Storm Warning
+DU3,SD,173 QPE User Selectable 3 Hour Accumulation
+DU6,SD,173 QPE User Selectable 24 Hour Accumulation
+EAN,WO,Presidential Alert
+EET,SD,135 Radar Enhanced Echo Tops
+EFP,FE,3 TO 5 Day Extended Forecast
+EOL,FE,Average 6 TO 10 Day Weather Outlook
+EON,FE,Average 6 TO 10 Day Weather Outlook
+EQI,SE,Earthquake Information Bulletin
+EQR,SE,Earthquake Report
+EQW,WO,Earthquake Warning
+ESF,FG,Flood Potential Outlook
+ESG,FG,Extended Streamflow Guidance
+ESP,FG,Extended Streamflow Prediction
+ESS,FG,Water Supply Outlook
+EVI,WO,Evacuation Immediate
+EWW,WF,Extreme Wind Warning
+FA0,FA,Aviation Area Forecast (Pacific)
+FA1,FA,Aviation Area Forecast (Northeast U.S.)
+FA2,FA,Aviation Area Forecast (Southeast U.S.)
+FA3,FA,Aviation Area Forecast (North Cent U.S.)
+FA4,FA,Aviation Area Forecast (South Cent U.S.)
+FA5,FA,Aviation Area Forecast (U.S. Rocky Mts.)
+FA6,FA,Aviation Area Forecast (U.S. West Coast)
+FA7,FA,Aviation Area Forecast (Juneau)
+FA8,FA,Aviation Area Forecast (Anchorage)
+FA9,FA,Aviation Area Forecast (Fairbanks)
+FAK,FA,Alaskan Model Output Statistics Forecast
+FAN,FE,AVN Based MOS Guidance
+FAV,FA,Aviation Area forecast
+FBP,FO,"AK FOUS 24, 36, and 24 Boundary"
+FD0,FB,24 Hr FD Winds Aloft Forecast
+FD1,FB,6 Hour Winds Aloft Forecast
+FD2,FB,12 Hour Winds Aloft Forecast
+FD3,FB,24 Hour Winds Aloft Forecast
+FD8,FB,24 Hour Winds Aloft Forecast
+FD9,FB,6 Hour Winds Aloft Forecast
+FDI,FN,Fire Danger Indices
+FFA,WG,Flash Flood Watch
+FFG,FO,Flash Flood Guidance
+FFH,FO,Headwater Guidance
+FFS,WG,Flash Flood Statement
+FFW,WG,Flash Flood Warning
+FLN,FG,National Flood Summary
+FLS,WG,Flood Statement
+FLW,WG,Flood Warning
+FMR,FE,Forecast Medium Range Guidance
+FOF,FD,Upper Wind Fallout Forecast
+FOH,FO,ETA FOUS Freezing and Relative Humidity
+FRH,FO,FOUS Relative Humidity/Temperature Guidance
+FRW,WO,Fire Warning
+FSH,NO,National Marine Fisheries Message
+FTJ,FO,FOUS Trajectory Forecast
+FTM,NO,WSR-88D Radar Status Notification
+FTP,FO,FOUS Prog Max/Min Temp/Pop Guidance
+FWA,NO,Fire Weather Administrative Message
+FWC,FO,NGM Mos Guidance
+FWD,FN,Fire Weather Outlook Discussion
+FWE,FE,Extended Fire Weather Outlook
+FWF,FN,Routine Fire WX Forecasts
+FWL,FN,Land Management Forecasts
+FWM,FN,Miscellaneous Fire Weather Product
+FWN,SH,Fire Weather Notification
+FWO,SH,Fire Weather Observation
+FWS,FN,Suppression Forecast
+FZL,UX,Freezing Level Data
+GLF,FZ,Great Lakes Forecast
+GLO,FZ,Great Lakes Storm Outlook
+GLS,WW,Great Lakes Storm Summary
+GSM,NX,General Status Message
+HCM,NG,Hydrometeorlogical Coordination Message
+HD1,FP,RFC Derived QPF Data Product
+HD2,FP,RFC Derived QPF Data Product
+HD3,FP,RFC Derived QPF Data Product
+HD4,FP,RFC Derived QPF Data Product
+HD5,FP,RFC Derived QPF Data Product
+HD6,FP,RFC Derived QPF Data Product
+HD7,FP,RFC Derived QPF Data Product
+HD8,FP,RFC Derived QPF Data Product
+HD9,FP,RFC Derived QPF Data Product
+HDP,AG,WSR-88D Hourly Digital Precipitation
+HHC,SD,177 Hybrid Scan Hydrometeor Classification
+HLS,WT,Hurricane Local Statement
+HMD,AG,Hydrometeorological Discussion
+HML,FD,Hyrdo Obs/Forecasts XML
+HMW,WO,Hazardous Materials Warning
+HP1,FP,RFC QPF Verification Product
+HP2,FP,RFC QPF Verification Product
+HP3,FP,RFC QPF Verification Product
+HP4,FP,RFC QPF Verification Product
+HP5,FP,RFC QPF Verification Product
+HP6,FP,RFC QPF Verification Product
+HP7,FP,RFC QPF Verification Product
+HP8,FP,RFC QPF Verification Product
+HP9,FP,RFC QPF Verification Product
+HRR,NZ,Hourly Weather Roundup
+HSF,FZ,High Seas Forecast
+HWO,FL,Hazardous Weather Outlook
+HYD,SX,Rainfall Reports
+ICE,FZ,Ice Forecast
+ICO,FZ,Ice Outlook
+INI,NO,Administration
+IOB,SV,Ice Observation
+IRM,SD,Interim Radar Message
+KPA,NT,Keep Alive Message
+LAE,WO,Local Area Emergency
+LAW,SM,Great Lakes Weather Observation
+LCO,SX,Local Cooperative Observation
+LEW,WO,Law Enforcement Warning
+LFP,FL,Local Forecast
+LLS,UX,Low-Level Sounding
+LSH,WH,Lakeshore Warning or Statement
+LSR,NW,Local Storm Report
+LTG,SF,Lightning Data
+MAN,US,Rawinsonde Observation Mandatory Levels
+MAP,AG,Mean Areal Precipitation
+MAV,FO,GFS Based MOS Guidance
+MAW,FO,MOS Avaiation-based Guidance
+MEF,NZ,AFOS Forecast Verification Matrix
+MET,FO,ETA Based MOS Guidance
+MEX,FE,GFX Extended Based MOS Guidance
+MIM,AG,Marine Interpretation Message
+MIS,AX,Miscellaneous Local Product
+MON,NT,Test Message
+MRM,NO,Missing Radar Message
+MRP,AG,Techniques Development Laboratory Marine
+MSM,CS,ASOS Monthly Summary Message
+MST,CS,ASOS Monthly Summary Message Test
+MTR,SA,METAR Formatted Surface Weather Observation
+MTT,SX,METAR Test Message
+MWS,FZ,Marine Weather Statement
+MWW,WH,Marine Weather Message
+N0V,SD,RADAR .5 VELOCITY .54NM RES 16 LEVELS ID 27/V
+N0W,SD,RADAR BASE RADIAL VELOCITY 25/V
+NC1,SD,CLUTTER FILTER CONTROL (CFC) - SEGMENT 1
+NC2,SD,CLUTTER FILTER CONTROL (CFC) - SEGMENT 2
+NC3,SD,CLUTTER FILTER CONTROL (CFC) - SEGMENT 3
+NC4,SD,CLUTTER FILTER CONTROL (CFC) - SEGMENT 4
+NC5,SD,CLUTTER FILTER CONTROL (CFC) - SEGMENT 5
+NCF,SD,CLUTTER FILTER CONTROL
+NET,SD,RADAR ECHO TOPS ID 41/ET
+NHI,SD,HAIL INDEX 59/HI
+NIC,WO,National Information Center
+NME,SD,MESOCYCLONE 60/M
+NMN,WO,Network Message Notification
+NOW,FP,Short Term Forecast
+NPT,WO,National Periodic Test
+NPW,WW,Non-Precipitation Message
+NSH,FZ,Nearshore Marine Forecast / Surf Forecast
+NSP,SD,Base Spectrum Width 32NM .13NM X 1 Deg
+NSS,SD,Storm Structure
+NST,SD,Storm Tracking Information
+NSW,SD,Base Spectrum Width 124NM .54NM X 1 Deg
+NTP,SD,Radar Storm Total Precipitation Accumulation
+NTV,SD,Tornado Vortex Signature
+NUP,SD,Radar User Select Precipitation Accumulation
+NUW,WO,Nuclear Power Plant Warning
+NVL,SD,Radar Vertically Integrated Liquid
+NVW,SD,Radar Velocity Azimuth Display Wind Profile
+NWP,SD,Severe Weather Probability
+NWR,NZ,NOAA Weather radio Forecast
+OAV,NO,Other Aviation Products
+OCD,AG,Oceanographic Data
+OEP,NZ,Operational Evolution Plan
+OFA,FA,Offshore Aviation Area Forecast
+OFF,FZ,Offshore Forecast
+OMR,SX,Other Marine Products
+OPU,FP,Other Public Products
+OSB,AG,Oceanographic Spectral Bulletin
+OSO,SX,Other Surface Observations
+OSW,AG,Ocean Surface Winds
+OUA,UX,Other Upper Air Data
+PAR,NO,Performance Accomplishment Report
+PBF,FN,Prescribed Burn Forecast
+PFM,FO,Point Forecast Matrices
+PFW,FO,Point Fire Weather Forecast Matrices
+PIB,UP,Pibal Observation
+PIR,UA,Pilot Report
+PLS,SX,Plain Language Ship Report
+PMD,FX,Prognostic Meteorological Discussion
+PNS,NO,Public Information Statement
+POE,FX,Probabiilty of Exceed
+PRB,FM,Days 3--7 Heat Index Forecast Tables
+PRC,UA,State Pilot Report Collective
+PSH,AC,Post Storm Hurricane Report
+PSM,FX,Pronostic Snow Melt
+PVM,FX,Public Verification Matrix
+PWO,WW,Public Severe Weather Alert
+QCD,NT,ASOS Daily Quality Control Message
+QCH,NT,ASOS Hourly Quality Control Message
+QCM,NT,ASOS Monthly Quality Control Message
+QCW,NT,ASOS Weekly Quality Control Message
+QPF,FS,Quantitative Precipitation Forecast
+QPS,FS,Quantitative Precipitation Statement
+RBG,PX,Red Book Graphic
+RCM,SD,WSR-88D Radar Coded Message
+RDF,FO,Revised Digital Forecast
+RDG,FO,Revised Digital Guidance
+REC,SX,Recreational Report
+RER,SX,Record Event Report
+RFD,FN,Rangeland Fire Danger Forecast
+RFR,FR,Route Forecast
+RFW,WW,Red Flag Warning
+RHW,WO,Radiological Hazard Warning
+RMT,WO,Required Monthly Test
+RR1,SR,Hydrology Meteorology Data Report Part 1
+RR2,SR,Hydrology Meteorology Data Report Part 2
+RR3,SR,Hydrology Meteorology Data Report Part 3
+RR4,SR,Hydrology Meteorology Data Report Part 4
+RR5,SR,Hydrology Meteorology Data Report Part 5
+RR6,SR,ASOS Shef Precip Criteria Message
+RR7,SR,ASOS Shef Hourly Routine Message
+RR8,SR,Hydrology Meteorology Data Report Part 8
+RR9,SR,Hydrology Meteorology Data Report Part 9
+RRA,SR,Automated Hydrologic Observation STA Report
+RRC,SR,SCS Manual Snow Course Data
+RRM,SR,Miscellaneous Hydrologic Data
+RRS,SR,Special Automated Hydromet Data Report
+RRX,SR,ASOS Shef Precipitation Criteria Test Message
+RRY,SR,ASOS Shef Hourly Routine Test Message
+RSD,CX,Daily Snotel Data
+RSL,SD,WSR-88D Rpg System Status Logs
+RSM,CS,Monthly Snotel Data
+RTP,AS,Max/Min Temperature and Precipitation Table
+RVA,SR,River Summary
+RVD,FG,Daily River Forecast
+RVF,FG,River Forecast
+RVG,NZ,Hydrologic Statement
+RVI,FI,River Ice Statement
+RVK,NZ,Hydrologic Statement
+RVM,SR,Miscellaneous River Product
+RVR,FG,River Recreation Statement
+RVS,FG,River Statement
+RWO,SD,Radar Superob
+RWR,AS,Weather Roundup
+RWS,AW,Weather Summary
+RWT,WO,Required Weekly Test
+RZF,FP,Regional Zone Forecast
+SAA,XX,Space Environment Alert Advisory
+SAB,WW,Snow Avalanche Bulletin
+SAD,AW,Daily Surface Aviation Weather Summary
+SAG,FW,Snow Avalanche Guidance
+SAM,AW,Montly Surface Avaiation Weather Summary
+SAW,WW,Prelim Notice of Watch & Cancellation MSG
+SCC,AC,Storm Summary
+SCD,CX,Supplementary Climatological Data (ASOS)
+SCN,SX,Soil Climate Analysis Network Data
+SCP,TC,Satellite Cloud Product
+SCS,FP,Selected Cities Summary
+SCV,SR,Satellite Areal Extent of Snow Cover
+SDO,SX,Supplementary Data Observations (ASOS)
+SDS,FU,Special Dispersion Statement
+SES,XX,Space Enviornment Summary
+SEV,WW,SPC Watch Point Information Message
+SFD,FX,State Forecast Discussion
+SFP,FP,State Forecast
+SFT,FP,Tabular State Forecast
+SGL,UM,Rawinsonde Observation Significant Levels
+SGW,FA,Plain Language Significant Weather Forecast
+SIG,WS,International Sigmet/Convective Sigmet
+SIM,AT,Satellite Interpretation Message
+SLS,WW,Severe Local Storm Watch and Areal Outline
+SMA,WW,Marine Subtropical Storm Advistory
+SMF,FN,Smoke Management Weather Forecast
+SMW,WH,Special Marine Warning
+SPE,TX,Satellite Precipitation Estimates
+SPF,WT,Storm Strike Probability Bulletin
+SPS,WW,Special Weather Statement
+SPW,WO,Shelter in Place Warning
+SQW,WW,Snow Squall Warning
+SRF,FZ,Surf Forecast
+SSA,XX,Space Environment Summary Advisory
+STA,NW,SPC Tornado and Severe Thunderstorm Reports
+STD,AT,Satellite Tropical Disturbance Summary
+STO,SX,Road Condition Reports
+STQ,BM,Spot Forecast Request
+STW,WW,Canadian Storm Summary
+SVR,WU,Severe Thunderstorm Warning
+SVS,WW,Severe Weather Statement
+SWD,XX,Space Environment Warning Advistory
+SWE,SR,Estimated Snow Water Equivalent by Basin
+SWO,AC,Severe Storm Outlook Narrative
+SWS,AW,State Weather Summary
+SYN,NZ,Hot-Air Balloon Forecast for Colorado
+TAF,FT,Terminal Aerodrome Forecast
+TAP,FA,Terminal Alerting Products
+TAV,FP,Travelers Forecast Table
+TCA,FK,Tropical Cyclone Advisory
+TCD,WT,Tropical Cyclone Discussion
+TCE,WT,Tropical Cyclone Position Estimate
+TCM,WT,Marine/Aviation Tropical Cyclone Advisory
+TCP,WT,Public Tropical Cyclone Advisory
+TCS,TX,Satellite Tropical Cyclone Summary
+TCU,WT,Tropical Cyclone Update
+TCV,WT,Tropical Cyclone Watch/Warning
+TIB,WE,Tsunami Information Bulletin
+TID,SO,Tide Report
+TLS,WE,Tsunami Local Statement
+TMA,SE,Tsunami Tide/Seismic Message Acknowledgment
+TOE,WO,911 Telephone Outage Emergency
+TOR,WF,Tornado Warning
+TPT,SX,Temperature Precipitation Table
+TSM,SE,Tsunami Tide/Seismic Message
+TST,NT,Test Message
+TSU,WE,Tsunami Watch/Warning
+TVL,FP,Travelers Forecast
+TWB,FR,Transcribed Weather Broadcast
+TWD,AC,Tropical Weather Discussion
+TWO,AC,Tropical Weather Outlook and Summary
+TWS,AC,Tropical Weather Summary
+UJX,UJ,JSC Upper Air Soundings
+UVI,AE,Ultraviolet Index
+VAA,FV,Volcanic Activity Advisory
+VER,FX,Forecast Verification Statistics
+VFT,NX,Terminal Aerodrome Forecast Verification
+VGP,PX,Vector Graphic
+VOW,WO,Volcano Warning
+WA0,WA,Airmet (Pacific)
+WA1,WA,Airmet (Northeast US)
+WA2,WA,Airmet (Southeast US)
+WA3,WA,Airmet (North Central US)
+WA4,WA,Airmet (South Central US)
+WA5,WA,Airmet (US Rocky Mountains)
+WA6,WA,Airmet (US West Coast)
+WA7,WA,Airmet (Juneau Alaska)
+WA8,WA,Airmet (Anchorage Alaska)
+WA9,WA,Airmet (Fairbanks Alaska)
+WAC,WA,Airmet (Caribbean)
+WAR,WO,Space Environment Warning
+WAT,WO,Space Weather Message Watch
+WCL,NW,Watch Clearance Message
+WCN,WW,Watch County Notification
+WCR,AX,Weekly Weather and Crop Report
+WDA,CX,Weekly Data for Agriculture
+WEK,FX,27-day Space Weather Forecast
+WOU,WO,Watch Outline Update
+WPD,IU,Wind Profiler Data
+WRK,NZ,Local Work File
+WS1,WS,Sigmet (Northeast US)
+WS2,WS,Sigmet (Southeast US)
+WS3,WS,Sigmet (North Central US)
+WS4,WS,Sigmet (South central US)
+WS5,WS,Sigmet (US Rocky Mountains)
+WS6,WS,Sigmet (US West Coast)
+WS7,WS,Sigmet (Juneau Alaska)
+WS8,WS,Sigmet (Anchorage Alaska)
+WS9,WS,Sigmet (Fairbanks Alaska)
+WST,WC,Tropical Cyclone Sigmet
+WSV,WV,Volcanic Activity Sigmet
+WSW,WW,Winter Weather Message
+WTS,NT,Warning test Message
+WVM,NW,Warning Verification Message
+WWA,NW,Watch Status Report
+WWP,WW,Severe Thunderstorm Watch Probabilities
+ZFP,FP,Zone Forecast Product

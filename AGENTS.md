@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Agent guide for `byteblaster-rs`.
+Agent guide for `emwin-rs`.
 Use this file as the operational contract for automated coding agents.
 
 ## Scope
@@ -8,9 +8,9 @@ Use this file as the operational contract for automated coding agents.
 - Repository type: Rust workspace (Edition 2024).
 - Toolchain target: stable Rust, workspace `rust-version = 1.88`.
 - Workspace members:
-  - `crates/byteblaster-core`
-  - `crates/byteblaster-cli`
-  - `crates/byteblaster-parser`
+  - `crates/emwin-protocol`
+  - `crates/emwin-cli`
+  - `crates/emwin-parser`
 - Protocol behavior authority:
   - `docs/EMWIN QBT TCP Protocol.md` (QBT/EMWIN)
   - `docs/weather-wire.md` (Weather Wire/XMPP)
@@ -40,15 +40,15 @@ cargo test --workspace
 
 ```bash
 cargo build --workspace
-cargo build -p byteblaster-core
-cargo build -p byteblaster-cli
+cargo build -p emwin-protocol
+cargo build -p emwin-cli
 ```
 
 ### Crate-specific test commands
 
 ```bash
-cargo test -p byteblaster-core
-cargo test -p byteblaster-cli
+cargo test -p emwin-protocol
+cargo test -p emwin-cli
 ```
 
 ### Running a single test (important)
@@ -56,56 +56,56 @@ cargo test -p byteblaster-cli
 Use the test name as a filter:
 
 ```bash
-cargo test -p byteblaster-core checksum_fixture
-cargo test -p byteblaster-core protocol::codec::tests::v2_compressed_roundtrip
-cargo test -p byteblaster-cli cli_output_channeling
+cargo test -p emwin-protocol checksum_fixture
+cargo test -p emwin-protocol protocol::codec::tests::v2_compressed_roundtrip
+cargo test -p emwin-cli cli_output_channeling
 ```
 
 Use exact matching when names are ambiguous:
 
 ```bash
-cargo test -p byteblaster-core protocol::codec::tests::checksum_strict_drop -- --exact
+cargo test -p emwin-protocol protocol::codec::tests::checksum_strict_drop -- --exact
 ```
 
 Run one integration test target file:
 
 ```bash
-cargo test -p byteblaster-core --test protocol_parity
-cargo test -p byteblaster-cli --test cli_contract
+cargo test -p emwin-protocol --test protocol_parity
+cargo test -p emwin-cli --test cli_contract
 ```
 
 Run one integration test function from a test target:
 
 ```bash
-cargo test -p byteblaster-core --test protocol_parity server_update_full_format -- --exact
+cargo test -p emwin-protocol --test protocol_parity server_update_full_format -- --exact
 ```
 
 List available tests before selecting one:
 
 ```bash
-cargo test -p byteblaster-core -- --list
-cargo test -p byteblaster-cli -- --list
+cargo test -p emwin-protocol -- --list
+cargo test -p emwin-cli -- --list
 ```
 
 Debug failing tests with output:
 
 ```bash
-cargo test -p byteblaster-core <test_name> -- --nocapture
+cargo test -p emwin-protocol <test_name> -- --nocapture
 ```
 
 ## Local Run Commands
 
 ```bash
-cargo run -p byteblaster-cli -- stream --username you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download ./out --username you@example.com --idle-timeout-secs 30
-cargo run -p byteblaster-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
+cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
 ```
 
 Live mode examples:
 
 ```bash
-cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --email you@example.com --max-events 100
+cargo run -p emwin-cli -- download ./out --email you@example.com --idle-timeout-secs 30
 ```
 
 ## Code Style Guidelines
@@ -170,10 +170,10 @@ cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-ti
 
 ### File and module organization
 
-- Keep protocol parsing concerns under `byteblaster-core/src/protocol`.
-- Keep QBT runtime orchestration under `byteblaster-core/src/client`.
-- Keep Weather Wire runtime concerns under `byteblaster-core/src/wxwire_receiver`.
-- Keep CLI command handling under `byteblaster-cli/src/cmd`.
+- Keep protocol parsing concerns under `emwin-protocol/src/protocol`.
+- Keep QBT runtime orchestration under `emwin-protocol/src/client`.
+- Keep Weather Wire runtime concerns under `emwin-protocol/src/wxwire_receiver`.
+- Keep CLI command handling under `emwin-cli/src/cmd`.
 - Do not leak CLI-only concerns into core library modules.
 
 ## Documentation Requirements

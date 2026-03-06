@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "crates/byteblaster-core",
-    "crates/byteblaster-cli",
-    "crates/byteblaster-parser",
+    "crates/emwin-protocol",
+    "crates/emwin-cli",
+    "crates/emwin-parser",
 ]
 resolver = "3"
 
@@ -12,8 +12,8 @@ version = "0.2.0"
 rust-version = "1.88"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/bradsjm/byteblaster-rs"
-homepage = "https://github.com/bradsjm/byteblaster-rs"
+repository = "https://github.com/bradsjm/emwin-rs"
+homepage = "https://github.com/bradsjm/emwin-rs"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }

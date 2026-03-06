@@ -1,12 +1,12 @@
-# byteblaster-cli Server Mode API
+# emwin-cli Server Mode API
 
 Version: 1.0
 Last Updated: 2026-03-03
-Status: Authoritative for `byteblaster-cli server`
+Status: Authoritative for `emwin-cli server`
 
 ## 1. Purpose
 
-This document defines the HTTP/SSE contract exposed by `byteblaster-cli server`.
+This document defines the HTTP/SSE contract exposed by `emwin-cli server`.
 
 It covers:
 
@@ -18,7 +18,7 @@ It covers:
 ## 2. Start Server Mode
 
 ```bash
-cargo run -p byteblaster-cli -- server --email you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --email you@example.com --bind 127.0.0.1:8080
 ```
 
 Common options:
@@ -40,7 +40,7 @@ Response shape:
 
 ```json
 {
-  "service": "byteblaster-cli server",
+  "service": "emwin-cli server",
   "endpoints": [
     {"method":"GET","path":"/","description":"..."},
     {"method":"GET","path":"/events?filter=*.TXT","description":"..."}

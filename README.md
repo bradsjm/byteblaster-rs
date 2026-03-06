@@ -1,4 +1,4 @@
-# byteblaster-rs
+# emwin-rs
 
 Rust monorepo for EMWIN protocol decoding, client runtime, and CLI tooling.
 
@@ -7,30 +7,30 @@ Rust monorepo for EMWIN protocol decoding, client runtime, and CLI tooling.
 Install latest release via script:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bradsjm/byteblaster-rs/releases/latest/download/byteblaster-cli-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bradsjm/emwin-rs/releases/latest/download/emwin-cli-installer.sh | sh
 ```
 
 Run via Docker (no local Rust toolchain required):
 
 ```bash
-docker run --rm ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --help
-docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --username you@example.com
+docker run --rm ghcr.io/bradsjm/emwin-rs/emwin-cli:latest --help
+docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/emwin-rs/emwin-cli:latest relay --username you@example.com
 ```
 
-## Use `byteblaster-core` in your app
+## Use `emwin-protocol` in your app
 
 Add the crate from this monorepo:
 
 ```toml
 [dependencies]
-byteblaster-core = { git = "https://github.com/bradsjm/byteblaster-rs", tag = "v0.1.0", package = "byteblaster-core" }
+emwin-protocol = { git = "https://github.com/bradsjm/emwin-rs", tag = "v0.1.0", package = "emwin-protocol" }
 ```
 
 Use the unified ingest API from the crate root:
 
 ```rust
-use byteblaster_core::ingest::{IngestConfig, IngestReceiver};
-use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
+use emwin_core::ingest::{IngestConfig, IngestReceiver};
+use emwin_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,14 +55,14 @@ For active development against local changes, use a path dependency instead:
 
 ```toml
 [dependencies]
-byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
+emwin-protocol = { path = "../emwin-rs/crates/emwin-protocol" }
 ```
 
-`byteblaster-core` protocol feature flags:
+`emwin-protocol` protocol feature flags:
 
 ```toml
 [dependencies]
-byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core", default-features = false, features = ["qbt"] }
+emwin-protocol = { path = "../emwin-rs/crates/emwin-protocol", default-features = false, features = ["qbt"] }
 ```
 
 ## Quick start
@@ -70,11 +70,11 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core", default
 Live stream/download mode:
 
 ```bash
-cargo run -p byteblaster-cli -- stream --username you@example.com --max-events 100
-cargo run -p byteblaster-cli -- stream --output-dir ./out --username you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download ./out --username you@example.com --idle-timeout-secs 30
-cargo run -p byteblaster-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
-cargo run -p byteblaster-cli -- download ./out --receiver wxwire --username you@example.com --password 'secret'
+cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
+cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
+cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
+cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@example.com --password 'secret'
 ```
 
 Optional stream file writing:
@@ -91,8 +91,8 @@ CLI logging format:
 Live server mode (SSE + JSON endpoints):
 
 ```bash
-cargo run -p byteblaster-cli -- server --username you@example.com --bind 127.0.0.1:8080
-cargo run -p byteblaster-cli -- server --receiver wxwire --username you@example.com --password 'secret' --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password 'secret' --bind 127.0.0.1:8080
 ```
 
 Useful server flags:
@@ -120,7 +120,7 @@ Optional live-mode endpoint/persistence overrides:
 Relay mode (raw TCP passthrough + metrics):
 
 ```bash
-cargo run -p byteblaster-cli -- relay --username you@example.com
+cargo run -p emwin-cli -- relay --username you@example.com
 ```
 
 Useful relay flags:

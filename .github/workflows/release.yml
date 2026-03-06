@@ -46,17 +46,17 @@ jobs:
           echo "Resolved release version: $VERSION"
           echo "Resolved release tag: $TAG"
 
-          if gh release view "$TAG" --repo bradsjm/byteblaster-rs >/dev/null 2>&1; then
+          if gh release view "$TAG" --repo bradsjm/emwin-rs >/dev/null 2>&1; then
             echo "Release $TAG already exists; workflow will update assets and notes idempotently."
           fi
 
-          if gh api "repos/bradsjm/byteblaster-rs/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+          if gh api "repos/bradsjm/emwin-rs/git/ref/tags/${TAG}" >/dev/null 2>&1; then
             echo "Tag $TAG already exists; reusing existing tag."
           else
             echo "Tag $TAG does not exist; creating lightweight tag at $GITHUB_SHA."
             gh api \
               --method POST \
-              "repos/bradsjm/byteblaster-rs/git/refs" \
+              "repos/bradsjm/emwin-rs/git/refs" \
               --field ref="refs/tags/${TAG}" \
               --field sha="$GITHUB_SHA"
           fi
@@ -287,19 +287,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          if gh release view "$TAG" --repo bradsjm/byteblaster-rs >/dev/null 2>&1; then
+          if gh release view "$TAG" --repo bradsjm/emwin-rs >/dev/null 2>&1; then
             echo "Release $TAG exists; updating notes and assets idempotently."
-            gh release upload "$TAG" artifacts/* --clobber --repo bradsjm/byteblaster-rs
+            gh release upload "$TAG" artifacts/* --clobber --repo bradsjm/emwin-rs
             if [ "$PRERELEASE" = "true" ]; then
-              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/byteblaster-rs
+              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/emwin-rs
             else
-              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/byteblaster-rs
+              gh release edit "$TAG" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/emwin-rs
             fi
           else
             echo "Release $TAG does not exist; creating release."
             if [ "$PRERELEASE" = "true" ]; then
-              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/byteblaster-rs artifacts/*
+              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --prerelease --repo bradsjm/emwin-rs artifacts/*
             else
-              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/byteblaster-rs artifacts/*
+              gh release create "$TAG" --target "$RELEASE_COMMIT" --title "$RELEASE_TITLE" --notes-file "$NOTES_FILE" --repo bradsjm/emwin-rs artifacts/*
             fi
           fi

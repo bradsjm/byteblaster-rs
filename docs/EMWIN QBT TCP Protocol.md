@@ -1,4 +1,4 @@
-# ByteBlaster TCP Protocol Reference Specification
+# EMWIN TCP Protocol Reference Specification
 
 Version: 2.0.0
 Last Updated: 2026-03-03
@@ -6,7 +6,7 @@ Status: Authoritative (implementation and tests)
 
 ## 1. Purpose
 
-This is the authoritative, evidence-based TCP protocol reference for `byteblaster-rs`.
+This is the authoritative, evidence-based TCP protocol reference for `emwin-rs`.
 
 - It supersedes `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` for implementation behavior.
 - It is both normative (what code must do) and explanatory (why it does it).
@@ -14,7 +14,7 @@ This is the authoritative, evidence-based TCP protocol reference for `byteblaste
 
 ## 2. Relationship to the EMWIN Satellite Draft
 
-ByteBlaster is protocol-compatible with EMWIN QBT payload semantics where practical, but it runs over TCP rather than satellite broadcast framing.
+EMWIN is protocol-compatible with EMWIN QBT payload semantics where practical, but it runs over TCP rather than satellite broadcast framing.
 
 Use this rule set:
 
@@ -24,7 +24,7 @@ Use this rule set:
 
 High-level mapping:
 
-| Satellite draft concept | ByteBlaster TCP interpretation |
+| Satellite draft concept | EMWIN TCP interpretation |
 |---|---|
 | Fixed-size packet transmission model | Continuous TCP stream with arbitrary segmentation |
 | Packet boundaries implied by transport | Boundaries inferred by decoded sync marker and parsed lengths |
@@ -35,7 +35,7 @@ The payload/header field lineage remains EMWIN-derived (`/PF`, `/PN`, `/PT`, `/C
 
 ### 2.1 Satellite-to-TCP Glossary
 
-| Satellite draft term | ByteBlaster TCP term | Practical meaning |
+| Satellite draft term | EMWIN TCP term | Practical meaning |
 |---|---|---|
 | Packet | Frame candidate in byte stream | A decodable unit inferred from sync + parsed lengths, not from socket read size |
 | Broadcast packet order | Stream decode order | Receiver processes bytes in arrival order from one TCP stream |
@@ -67,7 +67,7 @@ The normative decisions in this spec are backed by replayable corpus evidence.
 
 - Capture: `emwin-live.pcap`
 - Extracted stream fixture: `tests/fixtures/live/20260303T000000Z_live_stream0_001.bin`
-- Replay harness: `crates/byteblaster-core/tests/live_capture_replay.rs`
+- Replay harness: `crates/emwin-protocol/tests/live_capture_replay.rs`
 - Replay manifest: `tests/fixtures/live/replay-cases.json`
 - Baseline parity artifacts: `live-events.json`, `tests/fixtures/live/original_inspect.json`
 
@@ -100,12 +100,12 @@ L6  Reconstruction   : FileAssembler combines QbtSegment blocks
 
 Implementation anchors:
 
-- L1-L5: `crates/byteblaster-core/src/protocol/codec.rs`
-- checksum: `crates/byteblaster-core/src/protocol/checksum.rs`
-- compression: `crates/byteblaster-core/src/protocol/compression.rs`
-- server list parsing: `crates/byteblaster-core/src/protocol/server_list.rs`
-- runtime dispatch/recovery: `crates/byteblaster-core/src/client/mod.rs`
-- L6 assembly: `crates/byteblaster-core/src/file/assembler.rs`
+- L1-L5: `crates/emwin-protocol/src/protocol/codec.rs`
+- checksum: `crates/emwin-protocol/src/protocol/checksum.rs`
+- compression: `crates/emwin-protocol/src/protocol/compression.rs`
+- server list parsing: `crates/emwin-protocol/src/protocol/server_list.rs`
+- runtime dispatch/recovery: `crates/emwin-protocol/src/client/mod.rs`
+- L6 assembly: `crates/emwin-protocol/src/file/assembler.rs`
 
 ## 6. Wire-Level Specification (TCP)
 
@@ -273,7 +273,7 @@ Malformed entries:
 
 ### 8.2 TCP Operational Use of Server Lists
 
-For ByteBlaster TCP operation, both regular servers and sat servers are used as candidate
+For EMWIN TCP operation, both regular servers and sat servers are used as candidate
 connection endpoints.
 
 Operational behavior:
@@ -372,7 +372,7 @@ Reconnect/survivability behavior:
 
 ### 11.1 Core Telemetry Schema
 
-`byteblaster-core` maintains process-local runtime counters exposed via
+`emwin-protocol` maintains process-local runtime counters exposed via
 `Client::telemetry_snapshot()`.
 
 Counter fields:
@@ -507,24 +507,24 @@ Interpretation:
 
 | ID | Normative Requirement | Unit Test Target | Integration Test Target | Property/Fuzz | Status |
 |---|---|---|---|---|---|
-| P-001 | Inbound transport bytes are XOR-decoded with key `0xFF` before parsing | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/byteblaster-core/tests/protocol_parity.rs::sync_recovery` | Yes | Required |
-| P-002 | Sync detection uses 6 decoded `0x00` bytes | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/byteblaster-core/tests/protocol_parity.rs::sync_recovery` | Yes | Implemented |
-| P-003 | V1 header is exactly 80 bytes and regex-valid | `protocol::codec::tests::parse_header_valid`, `protocol::codec::tests::parse_header_invalid_missing_fields` | `crates/byteblaster-core/tests/protocol_parity.rs::inspect_valid_v1_fixture` | Yes | Implemented |
-| P-004 | V2 `/DL` length is required and bounded `1..=1024` | `protocol::codec::tests::v2_dl_bounds` | `crates/byteblaster-core/tests/protocol_parity.rs::v2_fixture_bounds` | Yes | Implemented |
+| P-001 | Inbound transport bytes are XOR-decoded with key `0xFF` before parsing | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/emwin-protocol/tests/protocol_parity.rs::sync_recovery` | Yes | Required |
+| P-002 | Sync detection uses 6 decoded `0x00` bytes | `protocol::codec::tests::find_sync_recovers_after_garbage` | `crates/emwin-protocol/tests/protocol_parity.rs::sync_recovery` | Yes | Implemented |
+| P-003 | V1 header is exactly 80 bytes and regex-valid | `protocol::codec::tests::parse_header_valid`, `protocol::codec::tests::parse_header_invalid_missing_fields` | `crates/emwin-protocol/tests/protocol_parity.rs::inspect_valid_v1_fixture` | Yes | Implemented |
+| P-004 | V2 `/DL` length is required and bounded `1..=1024` | `protocol::codec::tests::v2_dl_bounds` | `crates/emwin-protocol/tests/protocol_parity.rs::v2_fixture_bounds` | Yes | Implemented |
 | P-005 | V2 decompression is header-gated under `RequireZlibHeader` | `protocol::codec::tests::v2_header_gate` | `N/A (unit + property coverage)` | Yes | Implemented |
-| P-006 | Decompression failure never aborts runtime; bad segment is dropped | `protocol::codec::tests::v2_decompress_failure_drops_segment_and_emits_warning` | `crates/byteblaster-core/tests/protocol_parity.rs::v2_corrupt_payload_policy` | Yes | Required |
-| P-007 | Receiver checksum comparison uses `sum(data) & 0xFFFF` | `protocol::checksum::tests::checksum_matches_reference` | `crates/byteblaster-core/tests/protocol_parity.rs::checksum_fixture` | Yes | Implemented |
-| P-008 | V1 expected checksum is masked to 16-bit | `protocol::codec::tests::v1_checksum_masking` | `crates/byteblaster-core/tests/protocol_parity.rs::checksum_fixture` | No | Implemented |
-| P-009 | Checksum mismatch payload is never emitted as data event | `protocol::codec::tests::checksum_strict_drop` | `crates/byteblaster-core/tests/protocol_parity.rs::stream_policy_behavior` | Yes | Required |
+| P-006 | Decompression failure never aborts runtime; bad segment is dropped | `protocol::codec::tests::v2_decompress_failure_drops_segment_and_emits_warning` | `crates/emwin-protocol/tests/protocol_parity.rs::v2_corrupt_payload_policy` | Yes | Required |
+| P-007 | Receiver checksum comparison uses `sum(data) & 0xFFFF` | `protocol::checksum::tests::checksum_matches_reference` | `crates/emwin-protocol/tests/protocol_parity.rs::checksum_fixture` | Yes | Implemented |
+| P-008 | V1 expected checksum is masked to 16-bit | `protocol::codec::tests::v1_checksum_masking` | `crates/emwin-protocol/tests/protocol_parity.rs::checksum_fixture` | No | Implemented |
+| P-009 | Checksum mismatch payload is never emitted as data event | `protocol::codec::tests::checksum_strict_drop` | `crates/emwin-protocol/tests/protocol_parity.rs::stream_policy_behavior` | Yes | Required |
 | P-010 | `FILLFILE.TXT` is never emitted as data event | `protocol::codec::tests::fillfile_filtered` | `N/A (unit coverage)` | No | Implemented |
 | P-011 | `.TXT` and `.WMO` trailing padding is trimmed | `protocol::codec::tests::trim_padding_text_wmo` | `N/A (unit coverage)` | No | Implemented |
-| P-012 | Simple server list format parses and filters invalid entries | `protocol::server_list::tests::server_list_simple_parse` | `crates/byteblaster-core/tests/protocol_parity.rs::server_update_simple` | Yes | Implemented |
-| P-013 | Full server list format parses regular and sat entries | `protocol::server_list::tests::server_list_full_parse` | `crates/byteblaster-core/tests/protocol_parity.rs::server_update_full_format` | Yes | Implemented |
-| P-014 | Unknown/corrupt frame triggers byte-skip + resync and decode continues | `protocol::codec::tests::unknown_frame_resync` | `crates/byteblaster-core/tests/protocol_parity.rs::mixed_corruption_stream` | Yes | Required |
+| P-012 | Simple server list format parses and filters invalid entries | `protocol::server_list::tests::server_list_simple_parse` | `crates/emwin-protocol/tests/protocol_parity.rs::server_update_simple` | Yes | Implemented |
+| P-013 | Full server list format parses regular and sat entries | `protocol::server_list::tests::server_list_full_parse` | `crates/emwin-protocol/tests/protocol_parity.rs::server_update_full_format` | Yes | Implemented |
+| P-014 | Unknown/corrupt frame triggers byte-skip + resync and decode continues | `protocol::codec::tests::unknown_frame_resync` | `crates/emwin-protocol/tests/protocol_parity.rs::mixed_corruption_stream` | Yes | Required |
 | P-015 | Handler exceptions are isolated | `client::tests::handler_error_isolated` | `N/A (unit coverage)` | No | Implemented |
-| P-016 | Reconnect failover rotates endpoints with backoff | `client::reconnect::tests::reconnect_backoff_logic` | `crates/byteblaster-core/tests/reconnect_failover.rs::reconnect_failover_rotates_endpoints_with_backoff` | No | Implemented |
-| P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/byteblaster-core/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
-| P-018 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/byteblaster-core/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
+| P-016 | Reconnect failover rotates endpoints with backoff | `client::reconnect::tests::reconnect_backoff_logic` | `crates/emwin-protocol/tests/reconnect_failover.rs::reconnect_failover_rotates_endpoints_with_backoff` | No | Implemented |
+| P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/emwin-protocol/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
+| P-018 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/emwin-protocol/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
 
 ## 15. Satellite Draft Alignment Notes
 

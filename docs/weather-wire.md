@@ -2,11 +2,11 @@
 
 Version: 1.0.3
 Last Updated: 2026-03-05
-Status: Authoritative for `byteblaster-core` Weather Wire runtime
+Status: Authoritative for `emwin-protocol` Weather Wire runtime
 
 ## 1. Purpose
 
-This document defines the normative runtime behavior and event contract for the Weather Wire implementation in `byteblaster-core`.
+This document defines the normative runtime behavior and event contract for the Weather Wire implementation in `emwin-protocol`.
 
 ## 2. Fixed Upstream Contract
 
@@ -16,7 +16,7 @@ Weather Wire uses fixed upstream constants, not dynamic server lists:
 - Port: `5222`
 - Room: `nwws@conference.nwws-oi.weather.gov`
 
-These values are compile-time constants exposed by `byteblaster-core`.
+These values are compile-time constants exposed by `emwin-protocol`.
 
 ## 3. Connection and Failover Policy
 
@@ -97,7 +97,7 @@ If no accepted room message is received for `idle_timeout_secs`, runtime:
 
 Raw stanza injection is unstable-only API:
 
-- `byteblaster_core::unstable::UnstableWxWireIngress`
+- `emwin_core::unstable::UnstableWxWireIngress`
 
 No stability guarantees apply to this surface.
 

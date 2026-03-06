@@ -1,0 +1,34 @@
+[package]
+name = "emwin-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+emwin-protocol = { path = "../emwin-protocol", features = ["telemetry-serde"] }
+emwin-parser = { path = "../emwin-parser" }
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+futures.workspace = true
+axum.workspace = true
+tokio-stream.workspace = true
+tower-http.workspace = true
+regex.workspace = true
+bytes.workspace = true
+csv.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tower.workspace = true

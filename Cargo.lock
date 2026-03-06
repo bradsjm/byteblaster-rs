@@ -225,62 +225,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
-name = "byteblaster-cli"
-version = "0.2.0"
-dependencies = [
- "axum",
- "byteblaster-core",
- "byteblaster-parser",
- "bytes",
- "clap",
- "csv",
- "futures",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "byteblaster-core"
-version = "0.2.0"
-dependencies = [
- "base64",
- "bytes",
- "flate2",
- "futures",
- "minidom 0.17.0",
- "proptest",
- "quick-xml",
- "regex",
- "rustls-native-certs",
- "serde",
- "serde_json",
- "thiserror",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tracing",
- "xmpp-parsers",
-]
-
-[[package]]
-name = "byteblaster-parser"
-version = "0.2.0"
-dependencies = [
- "regex",
- "thiserror",
-]
-
-[[package]]
 name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -494,6 +438,62 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
+name = "emwin-cli"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "clap",
+ "csv",
+ "emwin-parser",
+ "emwin-protocol",
+ "futures",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "emwin-parser"
+version = "0.2.0"
+dependencies = [
+ "regex",
+ "thiserror",
+]
+
+[[package]]
+name = "emwin-protocol"
+version = "0.2.0"
+dependencies = [
+ "base64",
+ "bytes",
+ "flate2",
+ "futures",
+ "minidom 0.17.0",
+ "proptest",
+ "quick-xml",
+ "regex",
+ "rustls-native-certs",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tracing",
+ "xmpp-parsers",
+]
 
 [[package]]
 name = "equivalent"

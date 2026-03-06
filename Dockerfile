@@ -2,13 +2,13 @@ FROM rust:1.85-alpine3.21 AS builder
 WORKDIR /app
 RUN apk add --no-cache musl-dev
 COPY . .
-RUN cargo build --release -p byteblaster-cli
+RUN cargo build --release -p emwin-cli
 
 FROM alpine:3.21
-LABEL org.opencontainers.image.description="ByteBlaster CLI with stream, server, download, inspect, and relay subcommands"
+LABEL org.opencontainers.image.description="EMWIN CLI with stream, server, download, inspect, and relay subcommands"
 
-RUN addgroup -S byteblaster && adduser -S -G byteblaster byteblaster
-COPY --from=builder /app/target/release/byteblaster-cli /usr/local/bin/byteblaster
+RUN addgroup -S emwin && adduser -S -G emwin emwin
+COPY --from=builder /app/target/release/emwin-cli /usr/local/bin/emwin
 
-USER byteblaster
-ENTRYPOINT ["/usr/local/bin/byteblaster"]
+USER emwin
+ENTRYPOINT ["/usr/local/bin/emwin"]

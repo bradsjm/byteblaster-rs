@@ -1,3 +1,4 @@
+use crate::support::{build_frame, build_header};
 use byteblaster_core::qbt_receiver::{
     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverError,
     QbtReceiverEvent, calculate_qbt_checksum,
@@ -13,33 +14,11 @@ use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tokio::time::{Duration, Instant};
 
-const SYNC: &[u8; 6] = b"\0\0\0\0\0\0";
-
-fn xor_encode(input: &[u8]) -> Vec<u8> {
-    input.iter().map(|b| b ^ 0xFF).collect()
-}
-
-fn build_header(filename: &str, checksum: u32) -> [u8; 80] {
-    let mut raw = format!("/PF{filename} /PN 1 /PT 1 /CS {checksum} /FD01/01/2024 01:00:00 AM\r\n");
-    while raw.len() < 80 {
-        raw.push(' ');
-    }
-
-    let mut out = [0u8; 80];
-    out.copy_from_slice(&raw.as_bytes()[..80]);
-    out
-}
-
 fn encoded_valid_data_frame() -> Vec<u8> {
     let body = [b'R'; 1024];
     let checksum = calculate_qbt_checksum(&body) as u32;
-    let header = build_header("reconnect.bin", checksum);
-
-    let mut decoded = Vec::new();
-    decoded.extend_from_slice(SYNC);
-    decoded.extend_from_slice(&header);
-    decoded.extend_from_slice(&body);
-    xor_encode(&decoded)
+    let header = build_header("reconnect.bin", 1, 1, checksum, None);
+    build_frame(header, &body)
 }
 
 #[test]

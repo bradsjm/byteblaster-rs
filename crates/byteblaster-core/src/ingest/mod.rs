@@ -17,11 +17,11 @@
 //! Both adapters handle the specific nuances of their source protocols while emitting
 //! a uniform stream of `ReceivedProduct` events that can be consumed by application code.
 
-pub mod model;
+mod model;
 #[cfg(feature = "qbt")]
-pub mod qbt_adapter;
+mod qbt_adapter;
 #[cfg(feature = "wxwire")]
-pub mod wxwire_adapter;
+mod wxwire_adapter;
 
 pub use model::{
     IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, ReceivedProduct,

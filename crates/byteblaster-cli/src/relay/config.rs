@@ -111,3 +111,51 @@ impl RelayConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{RelayArgs, RelayConfig};
+
+    #[test]
+    fn defaults_to_workspace_server_list_when_no_server_is_provided() {
+        let config = RelayConfig::from_args(RelayArgs {
+            username: "relay@example.com".to_string(),
+            servers: Vec::new(),
+            bind: "127.0.0.1:2211".to_string(),
+            max_clients: 100,
+            auth_timeout_secs: 720,
+            client_buffer_bytes: 65_536,
+            metrics_bind: "127.0.0.1:9090".to_string(),
+            reconnect_delay_secs: 5,
+            connect_timeout_secs: 5,
+            quality_window_secs: 60,
+            quality_pause_threshold: 0.95,
+            metrics_log_interval_secs: 30,
+        })
+        .expect("default relay args should parse");
+
+        assert!(!config.relay.upstream_servers.is_empty());
+        assert_eq!(config.relay.email, "relay@example.com");
+    }
+
+    #[test]
+    fn rejects_invalid_metrics_bind_address() {
+        let err = RelayConfig::from_args(RelayArgs {
+            username: "relay@example.com".to_string(),
+            servers: vec!["127.0.0.1:2211".to_string()],
+            bind: "127.0.0.1:2211".to_string(),
+            max_clients: 100,
+            auth_timeout_secs: 720,
+            client_buffer_bytes: 65_536,
+            metrics_bind: "bad".to_string(),
+            reconnect_delay_secs: 5,
+            connect_timeout_secs: 5,
+            quality_window_secs: 60,
+            quality_pause_threshold: 0.95,
+            metrics_log_interval_secs: 30,
+        })
+        .expect_err("invalid metrics bind must fail");
+
+        assert!(err.to_string().contains("invalid --metrics-bind address"));
+    }
+}

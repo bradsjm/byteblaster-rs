@@ -52,13 +52,13 @@
 //!
 //! See [`QbtReceiverConfig`] for all configuration options.
 
-pub mod client;
-pub mod config;
-pub mod error;
-pub mod file;
-pub mod protocol;
-pub mod relay;
-pub mod stream;
+mod client;
+mod config;
+mod error;
+mod file;
+mod protocol;
+mod relay;
+mod stream;
 
 pub use client::{
     QbtReceiver, QbtReceiverBuilder, QbtReceiverClient, QbtReceiverEvent,
@@ -81,7 +81,8 @@ pub use protocol::model::{
 pub use protocol::server_list::parse_qbt_server;
 pub use protocol::server_list_wire::{QbtServerListWireScanner, build_server_list_wire};
 pub use relay::{
-    QbtRelayConfig, QbtRelayHealthSnapshot, QbtRelayMetricsSnapshot, QbtRelayState, run_qbt_relay,
+    QbtRelayConfig, QbtRelayError, QbtRelayHealthSnapshot, QbtRelayMetricsSnapshot, QbtRelayResult,
+    QbtRelayState, run_qbt_relay,
 };
 
 pub mod unstable {

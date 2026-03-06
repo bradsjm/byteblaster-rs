@@ -1,7 +1,7 @@
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
 use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
 use byteblaster_core::qbt_receiver::QbtFrameEvent;
-use byteblaster_core::wxwire_receiver::model::WxWireReceiverFrameEvent;
+use byteblaster_core::wxwire_receiver::WxWireReceiverFrameEvent;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;

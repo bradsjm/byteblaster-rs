@@ -185,7 +185,7 @@ async fn main() -> crate::error::CliResult<()> {
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
             };
-            cmd::stream::run(output_dir, live, text_preview_chars).await
+            live::stream::run(output_dir, live, text_preview_chars).await
         }
         Commands::Download {
             output_dir,
@@ -222,7 +222,7 @@ async fn main() -> crate::error::CliResult<()> {
             max_retained_files,
             quiet,
         } => {
-            let options = cmd::server::ServerOptions {
+            let options = live::server::ServerOptions {
                 username,
                 password,
                 receiver,
@@ -236,9 +236,9 @@ async fn main() -> crate::error::CliResult<()> {
                 max_retained_files,
                 quiet,
             };
-            cmd::server::run(options).await
+            live::server::run(options).await
         }
-        Commands::Relay { options } => relay::run(options).await,
+        Commands::Relay { options } => relay::runtime::run(options).await,
     }
 }
 

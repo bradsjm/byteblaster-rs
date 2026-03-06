@@ -43,12 +43,12 @@
 //! }
 //! ```
 
-pub mod client;
-pub mod codec;
-pub mod config;
-pub mod error;
-pub mod model;
-pub mod transport;
+mod client;
+mod codec;
+mod config;
+mod error;
+mod model;
+mod transport;
 
 pub use client::{
     UnstableWxWireReceiverIngress, WxWireReceiver, WxWireReceiverBuilder, WxWireReceiverClient,

@@ -2,10 +2,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use byteblaster_core::qbt_receiver::relay::QbtRelayResult;
 use byteblaster_core::qbt_receiver::{
-    QbtRelayConfig, QbtRelayState, build_logon_message, build_server_list_wire, run_qbt_relay,
-    xor_ff,
+    QbtRelayConfig, QbtRelayResult, QbtRelayState, build_logon_message, build_server_list_wire,
+    run_qbt_relay, xor_ff,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};

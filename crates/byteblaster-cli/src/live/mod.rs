@@ -31,6 +31,7 @@
 
 pub(crate) mod config;
 pub(crate) mod file_pipeline;
+pub(crate) mod ingest;
 pub mod server;
 mod server_support;
 pub mod shared;

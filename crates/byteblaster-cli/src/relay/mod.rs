@@ -31,11 +31,7 @@
 //! backpressure-aware operation and protects downstream clients from receiving
 //! corrupted or incomplete data.
 
-mod config;
-mod runtime;
+pub(crate) mod config;
+pub(crate) mod runtime;
 
 pub use config::RelayArgs as RelayOptions;
-
-pub async fn run(options: RelayOptions) -> crate::error::CliResult<()> {
-    runtime::run(options).await
-}

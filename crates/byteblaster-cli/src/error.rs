@@ -1,5 +1,12 @@
+//! Error types for the ByteBlaster CLI.
+//!
+//! This module defines the error types used throughout the CLI application,
+//! providing a unified error handling interface that wraps errors from
+//! underlying libraries (byteblaster-core) and CLI-specific errors.
+
 use thiserror::Error;
 
+/// Result type alias for CLI operations.
 pub type CliResult<T> = std::result::Result<T, CliError>;
 
 #[derive(Debug, Error)]

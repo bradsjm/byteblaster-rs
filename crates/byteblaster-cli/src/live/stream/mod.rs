@@ -1,3 +1,16 @@
+//! Live stream command implementation.
+//!
+//! This module implements the `stream` subcommand for the ByteBlaster CLI.
+//! It connects to live servers and streams product events in real-time,
+//! with optional file output to a directory.
+//!
+//! ## Features
+//!
+//! - Real-time event streaming from QBT or Weather Wire sources
+//! - Optional file persistence to a directory
+//! - Telemetry logging and connection state tracking
+//! - Idle timeout handling for automatic disconnection
+
 mod common;
 
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};

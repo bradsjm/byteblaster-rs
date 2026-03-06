@@ -1,3 +1,11 @@
+//! Unified ingest receiver implementation.
+//!
+//! This module provides the [`IngestReceiver`] type which wraps either a QBT or Weather Wire
+//! receiver and presents a unified interface for receiving products from either source.
+//!
+//! The receiver abstracts over protocol-specific details, allowing applications to work with
+//! a single event stream regardless of the underlying transport.
+
 use crate::ingest::model::{IngestError, IngestEvent};
 use crate::runtime_support::ReceiverEventStream;
 #[cfg(feature = "qbt")]

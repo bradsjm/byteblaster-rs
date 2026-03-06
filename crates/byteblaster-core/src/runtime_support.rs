@@ -1,3 +1,8 @@
+//! Shared runtime infrastructure for receiver implementations.
+//!
+//! This module provides common utilities used by both QBT and Weather Wire receivers,
+//! including the runtime lifecycle management, event streaming, and backpressure tracking.
+
 use futures::{Stream, stream};
 use std::pin::Pin;
 use tokio::sync::mpsc::error::TrySendError;

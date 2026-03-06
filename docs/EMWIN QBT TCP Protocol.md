@@ -524,10 +524,7 @@ Interpretation:
 | P-015 | Handler exceptions are isolated | `client::tests::handler_error_isolated` | `N/A (unit coverage)` | No | Implemented |
 | P-016 | Reconnect failover rotates endpoints with backoff | `client::reconnect::tests::reconnect_backoff_logic` | `crates/byteblaster-core/tests/reconnect_failover.rs::reconnect_failover_rotates_endpoints_with_backoff` | No | Implemented |
 | P-017 | Watchdog recovery reconnects without terminating process | `client::watchdog::tests::watchdog_timeout_trigger` | `crates/byteblaster-core/tests/reconnect_failover.rs::watchdog_timeout_reconnects_without_termination` | No | Required |
-| P-018 | Runtime emits bounded-channel backpressure telemetry with counters | `client::tests::backpressure_drop_emits_warning_with_counters`, `client::tests::backpressure_drop_warning_reports_and_resets_window` | `N/A (unit coverage)` | No | Required |
-| P-019 | CLI enforces stdout/stderr channel contract | `cli_output_channeling` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_output_channeling` | No | Implemented |
-| P-020 | CLI JSON output schema is stable for `inspect` and `download` (stream uses structured logs) | `cli_stream_json_fixture` | `crates/byteblaster-cli/tests/cli_contract.rs::cli_stream_json_fixture` | No | Implemented |
-| P-021 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/byteblaster-core/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
+| P-018 | Decoder remains functional when trailing suffix null bytes are absent | `N/A (unit coverage)` | `crates/byteblaster-core/tests/live_capture_replay.rs::live_capture_replay_manifest_cases` (`mutation-remove-first-suffix-null6`) | No | Required |
 
 ## 15. Satellite Draft Alignment Notes
 
@@ -543,24 +540,3 @@ Evidence-backed alignment verdicts from replay and mutation corpus:
 6. strict suffix-null requirement: not required for receiver continuity over TCP stream decode.
 
 These are expected transport adaptation differences, not implementation bugs.
-
-## 16. Change Governance
-
-Any protocol behavior change must update, in the same change set:
-
-1. implementation
-2. tests
-3. this document
-
-Rules:
-
-- every `P-xxx` requirement is either implemented or explicitly deferred with rationale
-- invalid payloads are never emitted as valid data
-- no legacy fallback/deprecated mode is introduced unless explicitly normalized in this spec
-
-### 16.1 Public API Evolution Policy
-
-- Stable API surface is the root re-export facade of `byteblaster_core`.
-- `byteblaster_core::unstable` is explicitly non-stable and may change without migration guarantees.
-- Public event/model types are `#[non_exhaustive]`; downstream code must include wildcard match arms.
-- Telemetry snapshot serde support is gated by the `telemetry-serde` feature to keep optional serialization concerns explicit.

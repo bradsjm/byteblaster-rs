@@ -1,7 +1,7 @@
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::{RetainedFiles, file_download_url, wildcard_match};
-use emwin_parser::{ProductBody, TextProductHeader, UgcSection, VtecAction, VtecCode};
+use emwin_parser::{ProductBody, TextProductHeader, UgcSection, VtecCode};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
 use serde::{Deserialize, Serialize};
@@ -390,7 +390,7 @@ impl VtecFilter {
         ) && matches_char_set(&self.significance, code.significance)
             && matches_option_set(
                 &self.action,
-                Some(vtec_action_code(code.action)),
+                Some(code.action_code.as_str()),
                 normalize_upper,
             )
             && matches_option_set(&self.office, Some(code.office.as_str()), normalize_upper)
@@ -484,19 +484,6 @@ fn csv_numbers(raw: Option<&str>) -> Option<BTreeSet<u32>> {
         .collect::<BTreeSet<_>>();
 
     (!values.is_empty()).then_some(values)
-}
-
-fn vtec_action_code(action: VtecAction) -> &'static str {
-    match action {
-        VtecAction::New => "NEW",
-        VtecAction::Continue => "CON",
-        VtecAction::Cancel => "CAN",
-        VtecAction::Extend => "EXT",
-        VtecAction::Upgrade => "UPG",
-        VtecAction::Downgrade => "DGD",
-        VtecAction::Expire => "EXP",
-        VtecAction::Unknown => "UNKNOWN",
-    }
 }
 
 fn normalize_upper(value: &str) -> String {

@@ -92,4 +92,18 @@ mod tests {
         );
         assert!(metadata.product.header.is_none());
     }
+
+    #[test]
+    fn completed_metadata_treats_zip_framed_txt_payload_as_unknown_zip() {
+        let metadata = build_completed_file_metadata(
+            "TAFALLUS.TXT",
+            1704070800,
+            b"PK\x03\x04compressed bytes",
+        );
+
+        assert_eq!(metadata.product.source, ProductEnrichmentSource::Unknown);
+        assert_eq!(metadata.product.container, "zip");
+        assert!(metadata.product.issues.is_empty());
+        assert!(metadata.product.header.is_none());
+    }
 }

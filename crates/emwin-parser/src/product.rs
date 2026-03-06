@@ -40,6 +40,10 @@ pub struct ProductEnrichment {
 }
 
 pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
+    if detected_container(filename, bytes) == "zip" && is_text_product(filename) {
+        return unknown_product(filename, bytes);
+    }
+
     if is_text_product(filename) {
         return enrich_text_product(filename, bytes);
     }
@@ -60,19 +64,7 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         };
     }
 
-    ProductEnrichment {
-        source: ProductEnrichmentSource::Unknown,
-        family: None,
-        title: None,
-        container: container_from_filename(filename),
-        pil: None,
-        wmo_prefix: None,
-        flags: None,
-        header: None,
-        bbb_kind: None,
-        body: None,
-        issues: Vec::new(),
-    }
+    unknown_product(filename, bytes)
 }
 
 fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
@@ -130,6 +122,36 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
 fn is_text_product(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     upper.ends_with(".TXT") || upper.ends_with(".WMO")
+}
+
+fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
+    ProductEnrichment {
+        source: ProductEnrichmentSource::Unknown,
+        family: None,
+        title: None,
+        container: detected_container(filename, bytes),
+        pil: None,
+        wmo_prefix: None,
+        flags: None,
+        header: None,
+        bbb_kind: None,
+        body: None,
+        issues: Vec::new(),
+    }
+}
+
+fn detected_container(filename: &str, bytes: &[u8]) -> &'static str {
+    if is_zip_payload(bytes) {
+        "zip"
+    } else {
+        container_from_filename(filename)
+    }
+}
+
+fn is_zip_payload(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"PK\x03\x04")
+        || bytes.starts_with(b"PK\x05\x06")
+        || bytes.starts_with(b"PK\x07\x08")
 }
 
 fn parser_error_code(error: &ParserError) -> &'static str {
@@ -204,5 +226,16 @@ mod tests {
         assert_eq!(enrichment.container, "raw");
         assert_eq!(enrichment.flags, None);
         assert!(enrichment.family.is_none());
+    }
+
+    #[test]
+    fn zip_framed_txt_payload_is_treated_as_unknown_zip() {
+        let enrichment = enrich_product("TAFALLUS.TXT", b"PK\x03\x04compressed bytes");
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::Unknown);
+        assert_eq!(enrichment.container, "zip");
+        assert!(enrichment.family.is_none());
+        assert!(enrichment.header.is_none());
+        assert!(enrichment.issues.is_empty());
     }
 }

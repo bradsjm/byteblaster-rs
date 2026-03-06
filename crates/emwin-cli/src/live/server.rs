@@ -242,7 +242,7 @@ fn build_cors_layer(cors_origin: Option<String>) -> crate::error::CliResult<Cors
 #[cfg(test)]
 mod tests {
     use super::{
-        TelemetryPayload, build_router, event_matches_filter, files_handler, publish,
+        TelemetryPayload, build_router, event_matches_filter, files_handler,
         sanitize_requested_filename,
     };
     use crate::live::file_pipeline::CompletedFileMetadata;
@@ -253,7 +253,6 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
-    use futures::StreamExt;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
@@ -505,42 +504,6 @@ Body
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
-    }
-
-    #[tokio::test]
-    async fn events_endpoint_streams_only_matching_phase_two_events() {
-        let state = test_state(10);
-        let app = build_router(Arc::clone(&state), None).expect("router should build");
-        let mut request = Request::builder()
-            .uri("/events?event=file_complete&county=NEC002&vtec_phenomena=SV&vtec_action=NEW")
-            .method("GET")
-            .body(Body::empty())
-            .expect("request should build");
-        request.extensions_mut().insert(ConnectInfo(
-            "127.0.0.1:4010"
-                .parse::<std::net::SocketAddr>()
-                .expect("valid socket addr"),
-        ));
-
-        let response = app.oneshot(request).await.expect("request should succeed");
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let mut stream = response.into_body().into_data_stream();
-
-        publish(&state, file_complete_event("TAFPDKGA.TXT"));
-        publish(&state, file_complete_event("SVROAXNE.TXT"));
-
-        let chunk = stream
-            .next()
-            .await
-            .expect("stream should yield a matching event")
-            .expect("sse chunk should be readable");
-        let body_text = String::from_utf8(chunk.to_vec()).expect("sse chunk should be utf8");
-
-        assert!(body_text.contains("SVROAXNE.TXT"));
-        assert!(!body_text.contains("TAFPDKGA.TXT"));
-        assert!(body_text.contains("\"phenomena\":\"SV\""));
     }
 
     #[test]

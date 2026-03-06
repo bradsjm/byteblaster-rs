@@ -19,6 +19,6 @@ pub async fn run(
     output_dir: Option<String>,
     live_options: LiveOptions,
     text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     live::stream::run(input, output_dir, live_options, text_preview_chars).await
 }

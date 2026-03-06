@@ -10,7 +10,7 @@ pub async fn run(
     output_dir: Option<String>,
     live: crate::LiveOptions,
     text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     if let Some(input_path) = input {
         return capture::run_capture_mode(&input_path, output_dir.as_deref(), text_preview_chars);
     }

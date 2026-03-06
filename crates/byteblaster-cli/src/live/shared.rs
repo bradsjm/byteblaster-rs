@@ -10,7 +10,7 @@ pub(crate) fn unix_seconds(time: SystemTime) -> u64 {
 
 pub(crate) fn parse_servers_or_default(
     raw_servers: &[String],
-) -> anyhow::Result<Vec<(String, u16)>> {
+) -> crate::error::CliResult<Vec<(String, u16)>> {
     if raw_servers.is_empty() {
         return Ok(default_upstream_servers());
     }
@@ -19,7 +19,9 @@ pub(crate) fn parse_servers_or_default(
         .iter()
         .map(|entry| {
             parse_qbt_server(entry).ok_or_else(|| {
-                anyhow::anyhow!("invalid --server entry: {entry} (expected host:port)")
+                crate::error::CliError::invalid_argument(format!(
+                    "invalid --server entry: {entry} (expected host:port)"
+                ))
             })
         })
         .collect()

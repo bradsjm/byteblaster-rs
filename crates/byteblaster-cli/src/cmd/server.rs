@@ -17,6 +17,6 @@ use crate::live;
 
 pub use live::server::ServerOptions;
 
-pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
+pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     live::server::run(options).await
 }

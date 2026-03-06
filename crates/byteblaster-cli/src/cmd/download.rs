@@ -38,7 +38,7 @@ pub async fn run(
     input: Option<String>,
     live: crate::LiveOptions,
     _text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     if let Some(input_path) = input {
         return run_capture_mode(&output_dir, &input_path);
     }
@@ -46,7 +46,7 @@ pub async fn run(
     run_live_mode(&output_dir, live).await
 }
 
-fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
+fn run_capture_mode(output_dir: &str, input_path: &str) -> crate::error::CliResult<()> {
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
     let mut assembler = QbtFileAssembler::new(100);
@@ -81,7 +81,7 @@ fn run_capture_mode(output_dir: &str, input_path: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Result<()> {
+async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::error::CliResult<()> {
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
     let mut written_files = Vec::new();
@@ -89,12 +89,12 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
 
     match live.receiver {
         ReceiverKind::Qbt => {
-            let username = live
-                .username
-                .ok_or_else(|| anyhow::anyhow!("live mode requires --username"))?;
+            let username = live.username.ok_or_else(|| {
+                crate::error::CliError::invalid_argument("live mode requires --username")
+            })?;
             if live.password.is_some() {
-                return Err(anyhow::anyhow!(
-                    "--password is not supported with --receiver qbt"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--password is not supported with --receiver qbt",
                 ));
             }
 
@@ -152,21 +152,21 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> anyhow::Re
         }
         ReceiverKind::Wxwire => {
             if !live.servers.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "--server is not supported with --receiver wxwire"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--server is not supported with --receiver wxwire",
                 ));
             }
             if live.server_list_path.is_some() {
-                return Err(anyhow::anyhow!(
-                    "--server-list-path is not supported with --receiver wxwire"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--server-list-path is not supported with --receiver wxwire",
                 ));
             }
-            let username = live
-                .username
-                .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --username"))?;
-            let password = live
-                .password
-                .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --password"))?;
+            let username = live.username.ok_or_else(|| {
+                crate::error::CliError::invalid_argument("wxwire live mode requires --username")
+            })?;
+            let password = live.password.ok_or_else(|| {
+                crate::error::CliError::invalid_argument("wxwire live mode requires --password")
+            })?;
 
             let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
                 username,

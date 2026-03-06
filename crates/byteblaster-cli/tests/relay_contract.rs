@@ -350,7 +350,7 @@ fn relay_args(
 ) -> Vec<String> {
     vec![
         "relay".into(),
-        "--email".into(),
+        "--username".into(),
         "relay@example.com".into(),
         "--server".into(),
         format!("127.0.0.1:{}", upstream_addr.port()),

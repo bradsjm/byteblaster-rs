@@ -194,11 +194,7 @@ fn canonical_name(filename: &str) -> String {
 }
 
 fn container_from_ext(ext: &str) -> &'static str {
-    if ext == "ZIP" {
-        "zip"
-    } else {
-        "raw"
-    }
+    if ext == "ZIP" { "zip" } else { "raw" }
 }
 
 #[cfg(test)]

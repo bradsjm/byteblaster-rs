@@ -8,6 +8,7 @@
 
 mod cmd;
 mod default_servers;
+mod error;
 mod live;
 mod product_meta;
 mod relay;
@@ -169,7 +170,7 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> crate::error::CliResult<()> {
     let cli = Cli::parse();
     init_logging();
     let text_preview_chars = cli.text_preview_chars;

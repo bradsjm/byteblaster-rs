@@ -1,7 +1,5 @@
 use crate::live::file_pipeline::persist_completed_file;
-use crate::live::stream::common::{
-    log_completed_file, log_ingest_warning, log_product_event,
-};
+use crate::live::stream::common::{log_completed_file, log_ingest_warning, log_product_event};
 use byteblaster_core::ingest::{IngestEvent, IngestTelemetry, WxWireIngestStream};
 use byteblaster_core::wxwire_receiver::{WxWireReceiver, WxWireReceiverConfig};
 use futures::StreamExt;
@@ -13,24 +11,24 @@ pub(super) async fn run_wxwire_live_mode(
     output_dir: Option<&Path>,
     live: crate::LiveOptions,
     text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     if !live.servers.is_empty() {
-        return Err(anyhow::anyhow!(
-            "--server is not supported with --receiver wxwire"
+        return Err(crate::error::CliError::invalid_argument(
+            "--server is not supported with --receiver wxwire",
         ));
     }
     if live.server_list_path.is_some() {
-        return Err(anyhow::anyhow!(
-            "--server-list-path is not supported with --receiver wxwire"
+        return Err(crate::error::CliError::invalid_argument(
+            "--server-list-path is not supported with --receiver wxwire",
         ));
     }
 
-    let username = live
-        .username
-        .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --username"))?;
-    let password = live
-        .password
-        .ok_or_else(|| anyhow::anyhow!("wxwire live mode requires --password"))?;
+    let username = live.username.ok_or_else(|| {
+        crate::error::CliError::invalid_argument("wxwire live mode requires --username")
+    })?;
+    let password = live.password.ok_or_else(|| {
+        crate::error::CliError::invalid_argument("wxwire live mode requires --password")
+    })?;
 
     let receiver = WxWireReceiver::builder(WxWireReceiverConfig {
         username,
@@ -83,7 +81,10 @@ pub(super) async fn run_wxwire_live_mode(
             }
             Ok(IngestEvent::Disconnected) => {
                 disconnects_total = disconnects_total.saturating_add(1);
-                warn!(disconnects = disconnects_total, "disconnected; reconnecting");
+                warn!(
+                    disconnects = disconnects_total,
+                    "disconnected; reconnecting"
+                );
             }
             Ok(IngestEvent::Telemetry(IngestTelemetry::WxWire(snapshot))) => {
                 seen += 1;

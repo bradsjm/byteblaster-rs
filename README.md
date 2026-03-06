@@ -54,7 +54,7 @@ Run via Docker (no local Rust toolchain required):
 ```bash
 docker run --rm ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --help
 docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest inspect /work/path/to/capture.bin
-docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --email you@example.com
+docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --username you@example.com
 ```
 
 ## Use `byteblaster-core` in your app
@@ -85,6 +85,13 @@ For active development against local changes, use a path dependency instead:
 byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
 ```
 
+`byteblaster-core` protocol feature flags:
+
+```toml
+[dependencies]
+byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core", default-features = false, features = ["qbt"] }
+```
+
 ## Quick start
 
 Capture-file decode:
@@ -98,17 +105,17 @@ cargo run -p byteblaster-cli -- download ./out path/to/capture.bin
 Live stream/download mode:
 
 ```bash
-cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
-cargo run -p byteblaster-cli -- stream --receiver wxwire --email you@example.com --password 'secret'
-cargo run -p byteblaster-cli -- download ./out --receiver wxwire --email you@example.com --password 'secret'
+cargo run -p byteblaster-cli -- stream --username you@example.com --max-events 100
+cargo run -p byteblaster-cli -- stream --output-dir ./out --username you@example.com --max-events 100
+cargo run -p byteblaster-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
+cargo run -p byteblaster-cli -- download ./out --receiver wxwire --username you@example.com --password 'secret'
 ```
 
 Optional stream file writing:
 
 - `stream --output-dir <PATH>` writes each completed assembled file while still emitting stream events.
-- Applies to both capture mode (`stream <capture.bin>`) and live mode (`stream --email ...`).
+- Applies to both capture mode (`stream <capture.bin>`) and live mode (`stream --username ...`).
 - Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
 
 CLI logging format:
@@ -120,8 +127,8 @@ CLI logging format:
 Live server mode (SSE + JSON endpoints):
 
 ```bash
-cargo run -p byteblaster-cli -- server --email you@example.com --bind 127.0.0.1:8080
-cargo run -p byteblaster-cli -- server --receiver wxwire --email you@example.com --password 'secret' --bind 127.0.0.1:8080
+cargo run -p byteblaster-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p byteblaster-cli -- server --receiver wxwire --username you@example.com --password 'secret' --bind 127.0.0.1:8080
 ```
 
 Useful server flags:
@@ -149,7 +156,7 @@ Optional live-mode endpoint/persistence overrides:
 Relay mode (raw TCP passthrough + metrics):
 
 ```bash
-cargo run -p byteblaster-cli -- relay --email you@example.com
+cargo run -p byteblaster-cli -- relay --username you@example.com
 ```
 
 Useful relay flags:

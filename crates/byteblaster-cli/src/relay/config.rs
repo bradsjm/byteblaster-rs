@@ -25,7 +25,6 @@
 //! - QbtReceiver buffer: `65536` bytes
 //! - Quality window: `60` seconds
 
-use anyhow::{Context, Result};
 use byteblaster_core::qbt_receiver::{QbtRelayConfig, parse_qbt_server};
 use clap::Args;
 use std::net::SocketAddr;
@@ -34,7 +33,7 @@ use std::time::Duration;
 #[derive(Debug, Clone, Args)]
 pub struct RelayArgs {
     #[arg(long)]
-    pub email: String,
+    pub username: String,
     #[arg(long = "server", value_delimiter = ',')]
     pub servers: Vec<String>,
     #[arg(long, default_value = "0.0.0.0:2211")]
@@ -66,31 +65,38 @@ pub struct RelayConfig {
 }
 
 impl RelayConfig {
-    pub fn from_args(args: RelayArgs) -> Result<Self> {
+    pub fn from_args(args: RelayArgs) -> crate::error::CliResult<Self> {
         let servers = if args.servers.is_empty() {
             byteblaster_core::qbt_receiver::default_qbt_upstream_servers()
         } else {
             args.servers
                 .iter()
                 .map(|raw| {
-                    parse_qbt_server(raw)
-                        .ok_or_else(|| anyhow::anyhow!("invalid --server entry: {raw}"))
+                    parse_qbt_server(raw).ok_or_else(|| {
+                        crate::error::CliError::invalid_argument(format!(
+                            "invalid --server entry: {raw}"
+                        ))
+                    })
                 })
-                .collect::<Result<Vec<_>>>()?
+                .collect::<crate::error::CliResult<Vec<_>>>()?
         };
 
-        let bind_addr = args
-            .bind
-            .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --bind address: {}", args.bind))?;
-        let metrics_bind_addr = args
-            .metrics_bind
-            .parse::<SocketAddr>()
-            .with_context(|| format!("invalid --metrics-bind address: {}", args.metrics_bind))?;
+        let bind_addr = args.bind.parse::<SocketAddr>().map_err(|err| {
+            crate::error::CliError::invalid_argument(format!(
+                "invalid --bind address {}: {err}",
+                args.bind
+            ))
+        })?;
+        let metrics_bind_addr = args.metrics_bind.parse::<SocketAddr>().map_err(|err| {
+            crate::error::CliError::invalid_argument(format!(
+                "invalid --metrics-bind address {}: {err}",
+                args.metrics_bind
+            ))
+        })?;
         Ok(Self {
             metrics_bind_addr,
             relay: QbtRelayConfig {
-                email: args.email,
+                email: args.username,
                 upstream_servers: servers,
                 bind_addr,
                 max_clients: args.max_clients,

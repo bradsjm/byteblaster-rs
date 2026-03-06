@@ -1,5 +1,4 @@
 use super::{AppState, EventKind};
-use anyhow::{Context, Result};
 use byteblaster_core::ingest::{
     IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, QbtIngestStream,
     WxWireIngestStream,
@@ -21,12 +20,10 @@ pub(super) async fn run_qbt_ingest_loop(
     config: QbtReceiverConfig,
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
-) -> Result<()> {
-    let receiver = QbtReceiver::builder(config)
-        .build()
-        .context("failed to build upstream client")?;
+) -> crate::error::CliResult<()> {
+    let receiver = QbtReceiver::builder(config).build()?;
     let mut ingest = QbtIngestStream::new(receiver);
-    ingest.start().context("failed to start upstream client")?;
+    ingest.start()?;
 
     let mut events = ingest.events();
     loop {
@@ -44,10 +41,7 @@ pub(super) async fn run_qbt_ingest_loop(
     }
 
     drop(events);
-    ingest
-        .stop()
-        .await
-        .context("failed to stop upstream client")?;
+    ingest.stop().await?;
 
     Ok(())
 }
@@ -56,12 +50,10 @@ pub(super) async fn run_wxwire_ingest_loop(
     config: WxWireReceiverConfig,
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
-) -> Result<()> {
-    let receiver = WxWireReceiver::builder(config)
-        .build()
-        .context("failed to build upstream client")?;
+) -> crate::error::CliResult<()> {
+    let receiver = WxWireReceiver::builder(config).build()?;
     let mut ingest = WxWireIngestStream::new(receiver);
-    ingest.start().context("failed to start upstream client")?;
+    ingest.start()?;
 
     let mut events = ingest.events();
     loop {
@@ -79,10 +71,7 @@ pub(super) async fn run_wxwire_ingest_loop(
     }
 
     drop(events);
-    ingest
-        .stop()
-        .await
-        .context("failed to stop upstream client")?;
+    ingest.stop().await?;
 
     Ok(())
 }
@@ -222,7 +211,7 @@ pub(super) async fn run_stats_loop(
     state: Arc<AppState>,
     stats_interval_secs: u64,
     mut shutdown_rx: watch::Receiver<bool>,
-) -> Result<()> {
+) -> crate::error::CliResult<()> {
     if stats_interval_secs == 0 {
         let _ = shutdown_rx.changed().await;
         return Ok(());

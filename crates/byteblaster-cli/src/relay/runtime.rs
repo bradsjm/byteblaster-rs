@@ -1,5 +1,4 @@
 use crate::relay::config::{RelayArgs, RelayConfig};
-use anyhow::{Context, Result, anyhow};
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -11,9 +10,12 @@ use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tracing::{error, info};
 
-pub async fn run(args: RelayArgs) -> Result<()> {
+pub async fn run(args: RelayArgs) -> crate::error::CliResult<()> {
     let config = RelayConfig::from_args(args)?;
-    config.relay.validate().map_err(|err| anyhow!(err))?;
+    config
+        .relay
+        .validate()
+        .map_err(|err| crate::error::CliError::invalid_argument(err.to_string()))?;
 
     let state = Arc::new(QbtRelayState::from_upstream_servers(
         &config.relay.upstream_servers,
@@ -35,9 +37,7 @@ pub async fn run(args: RelayArgs) -> Result<()> {
         run_metrics_server(metrics_state, metrics_bind_addr, metrics_shutdown).await
     });
 
-    tokio::signal::ctrl_c()
-        .await
-        .context("failed to wait for Ctrl-C")?;
+    tokio::signal::ctrl_c().await?;
     info!("shutdown signal received");
     let _ = shutdown_tx.send(true);
 
@@ -45,22 +45,30 @@ pub async fn run(args: RelayArgs) -> Result<()> {
         Ok(Ok(())) => {}
         Ok(Err(err)) => {
             error!(error = %err, "relay runtime failed");
-            return Err(anyhow!("relay runtime failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "relay runtime failed: {err}"
+            )));
         }
         Err(join_err) => {
             error!(error = %join_err, "relay task join failed");
-            return Err(anyhow!("relay task join failed: {join_err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "relay task join failed: {join_err}"
+            )));
         }
     }
     match metrics_task.await {
         Ok(Ok(())) => {}
         Ok(Err(err)) => {
             error!(error = %err, "metrics server failed");
-            return Err(anyhow!("metrics server failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "metrics server failed: {err}"
+            )));
         }
         Err(join_err) => {
             error!(error = %join_err, "metrics task join failed");
-            return Err(anyhow!("metrics task join failed: {join_err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "metrics task join failed: {join_err}"
+            )));
         }
     }
 
@@ -72,15 +80,17 @@ async fn run_metrics_server(
     state: Arc<QbtRelayState>,
     metrics_bind_addr: std::net::SocketAddr,
     mut shutdown_rx: watch::Receiver<bool>,
-) -> Result<()> {
+) -> crate::error::CliResult<()> {
     let router = Router::new()
         .route("/health", get(health_handler))
         .route("/metrics", get(metrics_handler))
         .with_state(state);
 
-    let listener = TcpListener::bind(metrics_bind_addr)
-        .await
-        .with_context(|| format!("failed to bind metrics listener at {metrics_bind_addr}"))?;
+    let listener = TcpListener::bind(metrics_bind_addr).await.map_err(|err| {
+        crate::error::CliError::runtime(format!(
+            "failed to bind metrics listener at {metrics_bind_addr}: {err}"
+        ))
+    })?;
     info!(metrics_addr = %metrics_bind_addr, "metrics server ready");
 
     axum::serve(listener, router)
@@ -88,7 +98,7 @@ async fn run_metrics_server(
             let _ = shutdown_rx.changed().await;
         })
         .await
-        .context("metrics server failed")
+        .map_err(|err| crate::error::CliError::runtime(format!("metrics server failed: {err}")))
 }
 
 async fn metrics_handler(State(state): State<Arc<QbtRelayState>>) -> Json<QbtRelayMetricsSnapshot> {

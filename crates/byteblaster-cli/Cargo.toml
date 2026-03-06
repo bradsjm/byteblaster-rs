@@ -12,7 +12,6 @@ homepage.workspace = true
 byteblaster-core = { path = "../byteblaster-core", features = ["telemetry-serde"] }
 byteblaster-parser = { path = "../byteblaster-parser" }
 tokio.workspace = true
-anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -25,6 +24,7 @@ tower-http.workspace = true
 regex.workspace = true
 bytes.workspace = true
 csv.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

@@ -3,7 +3,9 @@ use std::io::Read;
 
 const CAPTURE_READ_BUFFER_BYTES: usize = 64 * 1024;
 
-pub(crate) fn decode_capture_events(path: Option<&str>) -> anyhow::Result<Vec<QbtFrameEvent>> {
+pub(crate) fn decode_capture_events(
+    path: Option<&str>,
+) -> crate::error::CliResult<Vec<QbtFrameEvent>> {
     let mut reader: Box<dyn Read> = if let Some(path) = path {
         Box::new(std::fs::File::open(path)?)
     } else {
@@ -15,7 +17,7 @@ pub(crate) fn decode_capture_events(path: Option<&str>) -> anyhow::Result<Vec<Qb
 
 pub(crate) fn decode_capture_events_from_reader(
     reader: &mut dyn Read,
-) -> anyhow::Result<Vec<QbtFrameEvent>> {
+) -> crate::error::CliResult<Vec<QbtFrameEvent>> {
     let mut decoder = QbtProtocolDecoder::default();
     let mut events = Vec::new();
     let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];

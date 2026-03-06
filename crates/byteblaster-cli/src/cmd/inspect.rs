@@ -19,7 +19,7 @@ use crate::cmd::event_output::frame_event_to_json;
 /// # Returns
 ///
 /// Ok on success, or an error if reading/decoding fails
-pub async fn run(input: Option<String>, text_preview_chars: usize) -> anyhow::Result<()> {
+pub async fn run(input: Option<String>, text_preview_chars: usize) -> crate::error::CliResult<()> {
     let events = decode_capture_events(input.as_deref())?;
 
     let event_payload: Vec<serde_json::Value> = events

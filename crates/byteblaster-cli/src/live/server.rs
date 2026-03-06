@@ -221,7 +221,7 @@ pub struct ServerOptions {
     pub quiet: bool,
 }
 
-pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
+pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     let ServerOptions {
         receiver,
         username,
@@ -237,8 +237,9 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         quiet,
     } = options;
 
-    let bind_addr = SocketAddr::from_str(&bind)
-        .map_err(|err| anyhow::anyhow!("invalid --bind value {bind}: {err}"))?;
+    let bind_addr = SocketAddr::from_str(&bind).map_err(|err| {
+        crate::error::CliError::invalid_argument(format!("invalid --bind value {bind}: {err}"))
+    })?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
     let state = Arc::new(AppState {
@@ -269,8 +270,8 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let ingest_task = match receiver {
         ReceiverKind::Qbt => {
             if password.is_some() {
-                return Err(anyhow::anyhow!(
-                    "--password is not supported with --receiver qbt"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--password is not supported with --receiver qbt",
                 ));
             }
             let pin_servers = !raw_servers.is_empty();
@@ -294,19 +295,22 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
         }
         ReceiverKind::Wxwire => {
             if !raw_servers.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "--server is not supported with --receiver wxwire"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--server is not supported with --receiver wxwire",
                 ));
             }
             if server_list_path.is_some() {
-                return Err(anyhow::anyhow!(
-                    "--server-list-path is not supported with --receiver wxwire"
+                return Err(crate::error::CliError::invalid_argument(
+                    "--server-list-path is not supported with --receiver wxwire",
                 ));
             }
             let config = WxWireReceiverConfig {
                 username,
-                password: password
-                    .ok_or_else(|| anyhow::anyhow!("wxwire server mode requires --password"))?,
+                password: password.ok_or_else(|| {
+                    crate::error::CliError::invalid_argument(
+                        "wxwire server mode requires --password",
+                    )
+                })?,
                 idle_timeout_secs: 90,
                 ..WxWireReceiverConfig::default()
             };
@@ -347,24 +351,34 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
     let stats_result = stats_task.await;
 
     if let Err(err) = serve_result {
-        return Err(anyhow::anyhow!("http server failed: {err}"));
+        return Err(crate::error::CliError::runtime(format!(
+            "http server failed: {err}"
+        )));
     }
     match ingest_result {
         Ok(Ok(())) => {}
         Ok(Err(err)) => {
-            return Err(anyhow::anyhow!("ingest task failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "ingest task failed: {err}"
+            )));
         }
         Err(err) => {
-            return Err(anyhow::anyhow!("ingest task join failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "ingest task join failed: {err}"
+            )));
         }
     }
     match stats_result {
         Ok(Ok(())) => {}
         Ok(Err(err)) => {
-            return Err(anyhow::anyhow!("stats task failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "stats task failed: {err}"
+            )));
         }
         Err(err) => {
-            return Err(anyhow::anyhow!("stats task join failed: {err}"));
+            return Err(crate::error::CliError::runtime(format!(
+                "stats task join failed: {err}"
+            )));
         }
     }
 
@@ -374,7 +388,10 @@ pub async fn run(options: ServerOptions) -> anyhow::Result<()> {
 const DASHBOARD_HTML: &str = include_str!("../cmd/dashboard.html");
 
 #[cfg(test)]
-fn build_router(state: Arc<AppState>, cors_origin: Option<String>) -> anyhow::Result<axum::Router> {
+fn build_router(
+    state: Arc<AppState>,
+    cors_origin: Option<String>,
+) -> crate::error::CliResult<axum::Router> {
     let cors = build_cors_layer(cors_origin)?;
     Ok(server_http::build_router(state, cors))
 }
@@ -414,14 +431,17 @@ fn log_error(msg: &str) {
     error!("{msg}");
 }
 
-fn build_cors_layer(cors_origin: Option<String>) -> anyhow::Result<CorsLayer> {
+fn build_cors_layer(cors_origin: Option<String>) -> crate::error::CliResult<CorsLayer> {
     if let Some(origin) = cors_origin {
         if origin == "*" {
             return Ok(CorsLayer::new().allow_origin(Any).allow_methods(Any));
         }
 
-        let header_value = HeaderValue::from_str(&origin)
-            .map_err(|err| anyhow::anyhow!("invalid --cors-origin value {origin}: {err}"))?;
+        let header_value = HeaderValue::from_str(&origin).map_err(|err| {
+            crate::error::CliError::invalid_argument(format!(
+                "invalid --cors-origin value {origin}: {err}"
+            ))
+        })?;
         return Ok(CorsLayer::new()
             .allow_origin(header_value)
             .allow_methods(Any));

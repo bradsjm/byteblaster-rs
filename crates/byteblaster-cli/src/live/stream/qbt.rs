@@ -15,15 +15,15 @@ pub(super) async fn run_qbt_live_mode(
     output_dir: Option<&Path>,
     live: crate::LiveOptions,
     text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     if live.password.is_some() {
-        return Err(anyhow::anyhow!(
-            "--password is not supported with --receiver qbt"
+        return Err(crate::error::CliError::invalid_argument(
+            "--password is not supported with --receiver qbt",
         ));
     }
     let username = live
         .username
-        .ok_or_else(|| anyhow::anyhow!("live mode requires --username"))?;
+        .ok_or_else(|| crate::error::CliError::invalid_argument("live mode requires --username"))?;
 
     let pin_servers = !live.servers.is_empty();
     let servers = parse_servers_or_default(&live.servers)?;

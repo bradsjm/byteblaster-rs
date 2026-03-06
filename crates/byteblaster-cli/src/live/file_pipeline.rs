@@ -21,7 +21,7 @@ pub(crate) fn write_completed_file(
     output_dir: &Path,
     filename: &str,
     data: &[u8],
-) -> anyhow::Result<String> {
+) -> crate::error::CliResult<String> {
     let target = output_dir.join(filename);
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent)?;
@@ -64,7 +64,7 @@ pub(crate) fn persist_completed_file(
     filename: &str,
     data: &[u8],
     timestamp: SystemTime,
-) -> anyhow::Result<CompletedFileRecord> {
+) -> crate::error::CliResult<CompletedFileRecord> {
     let path = write_completed_file(output_dir, filename, data)?;
     let timestamp_utc = crate::live::shared::unix_seconds(timestamp);
     Ok(CompletedFileRecord {

@@ -13,7 +13,7 @@ pub(super) fn run_capture_mode(
     input_path: &str,
     output_dir: Option<&str>,
     text_preview_chars: usize,
-) -> anyhow::Result<()> {
+) -> crate::error::CliResult<()> {
     let mut reader = std::fs::File::open(input_path)?;
     let mut buf = vec![0u8; CAPTURE_READ_BUFFER_BYTES];
     let mut decoder = QbtProtocolDecoder::default();

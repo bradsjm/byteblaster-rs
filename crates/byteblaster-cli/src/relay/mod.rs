@@ -36,6 +36,6 @@ mod runtime;
 
 pub use config::RelayArgs as RelayOptions;
 
-pub async fn run(options: RelayOptions) -> anyhow::Result<()> {
+pub async fn run(options: RelayOptions) -> crate::error::CliResult<()> {
     runtime::run(options).await
 }

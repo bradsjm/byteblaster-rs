@@ -22,9 +22,6 @@ const REQUIRED_REQUIREMENTS: &[&str] = &[
     "| P-016 |",
     "| P-017 |",
     "| P-018 |",
-    "| P-019 |",
-    "| P-020 |",
-    "| P-021 |",
 ];
 
 const REQUIRED_TEST_TARGET_SYMBOLS: &[&str] = &[
@@ -58,9 +55,6 @@ const REQUIRED_TEST_TARGET_SYMBOLS: &[&str] = &[
     "mixed_corruption_stream",
     "reconnect_failover_rotates_endpoints_with_backoff",
     "watchdog_timeout_reconnects_without_termination",
-    "live_capture_replay_manifest_cases",
-    "cli_output_channeling",
-    "cli_stream_json_fixture",
 ];
 
 const SEARCH_PATHS: &[&str] = &[
@@ -72,8 +66,6 @@ const SEARCH_PATHS: &[&str] = &[
     "src/qbt_receiver/client/watchdog.rs",
     "tests/protocol_parity.rs",
     "tests/reconnect_failover.rs",
-    "tests/live_capture_replay.rs",
-    "../byteblaster-cli/tests/cli_contract.rs",
 ];
 
 #[test]

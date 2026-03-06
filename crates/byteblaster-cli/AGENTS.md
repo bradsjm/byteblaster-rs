@@ -71,9 +71,9 @@ cargo test -p byteblaster-cli <test_name> -- --nocapture
 ## Local Run Commands
 
 ```bash
-cargo run -p byteblaster-cli -- inspect path/to/capture.bin
-cargo run -p byteblaster-cli -- stream path/to/capture.bin
-cargo run -p byteblaster-cli -- download ./out path/to/capture.bin
+cargo run -p byteblaster-cli -- stream --username you@example.com --max-events 100
+cargo run -p byteblaster-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- server --username you@example.com --bind 127.0.0.1:8080
 ```
 
 Live mode examples:
@@ -115,7 +115,7 @@ cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-ti
 - Types/traits/enums: `UpperCamelCase`.
 - Functions/modules/variables: `snake_case`.
 - Constants: `SCREAMING_SNAKE_CASE`.
-- Use names that reflect command semantics (`inspect`, `stream`, `download`).
+- Use names that reflect command semantics (`stream`, `download`, `server`).
 
 ### Error handling
 

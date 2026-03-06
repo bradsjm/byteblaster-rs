@@ -1,16 +1,13 @@
 //! Download command for file retrieval and assembly.
 //!
 //! This module provides functionality to download and assemble files from
-//! capture files or live ByteBlaster servers.
+//! live ByteBlaster servers.
 
 use crate::ReceiverKind;
-use crate::cmd::capture::decode_capture_events;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
 use crate::live::file_pipeline::persist_completed_file;
 use byteblaster_core::ingest::{IngestEvent, QbtIngestStream, WxWireIngestStream};
-use byteblaster_core::qbt_receiver::{
-    QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtSegmentAssembler,
-};
+use byteblaster_core::qbt_receiver::QbtReceiver;
 use byteblaster_core::wxwire_receiver::WxWireReceiver;
 use futures::StreamExt;
 use std::path::PathBuf;
@@ -19,13 +16,12 @@ use tracing::warn;
 
 /// Runs the download command.
 ///
-/// Downloads and assembles files from a capture file or live server
-/// into the specified output directory.
+/// Downloads and assembles files from a live server into the specified output
+/// directory.
 ///
 /// # Arguments
 ///
 /// * `output_dir` - Directory to write completed files
-/// * `input` - Optional path to capture file (live mode if None)
 /// * `live` - Live mode connection options
 /// * `_text_preview_chars` - Unused (for API compatibility)
 ///
@@ -34,50 +30,10 @@ use tracing::warn;
 /// Ok on success, or an error if the operation fails
 pub async fn run(
     output_dir: String,
-    input: Option<String>,
     live: crate::LiveOptions,
     _text_preview_chars: usize,
 ) -> crate::error::CliResult<()> {
-    if let Some(input_path) = input {
-        return run_capture_mode(&output_dir, &input_path);
-    }
-
     run_live_mode(&output_dir, live).await
-}
-
-fn run_capture_mode(output_dir: &str, input_path: &str) -> crate::error::CliResult<()> {
-    std::fs::create_dir_all(output_dir)?;
-    let output_dir_path = PathBuf::from(output_dir);
-    let mut assembler = QbtFileAssembler::new(100);
-    let mut written_files: Vec<String> = Vec::new();
-    let mut file_events = Vec::new();
-    let events = decode_capture_events(Some(input_path))?;
-    for event in events {
-        if let QbtFrameEvent::DataBlock(segment) = event
-            && let Some(file) = assembler.push(segment)?
-        {
-            let completed = persist_completed_file(
-                output_dir_path.as_path(),
-                &file.filename,
-                &file.data,
-                file.timestamp_utc,
-            )?;
-            written_files.push(completed.path);
-            file_events.push(completed.event);
-        }
-    }
-
-    println!(
-        "{}",
-        serde_json::to_string(&serde_json::json!({
-            "command":"download",
-            "status":"ok",
-            "output_dir":output_dir,
-            "written_files": written_files,
-            "file_events": file_events,
-        }))?
-    );
-    Ok(())
 }
 
 async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::error::CliResult<()> {

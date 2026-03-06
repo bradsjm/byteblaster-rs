@@ -1,45 +1,6 @@
 # byteblaster-rs
 
-Rust monorepo for ByteBlaster protocol decoding, client runtime, and CLI tooling.
-
-## Workspace layout
-
-- `crates/byteblaster-core` - protocol + runtime library
-- `crates/byteblaster-cli` - command-line interface built on `byteblaster-core` and `byteblaster-parser`
-- `crates/byteblaster-parser` - WMO/AFOS text product parsing library
-- `docs/protocol.md` - authoritative protocol requirements, evidence, and test mapping
-- `docs/weather-wire.md` - authoritative Weather Wire (XMPP) runtime contract
-- `docs/server-mode.md` - HTTP/SSE API contract for `byteblaster-cli server`
-- `docs/relay-mode.md` - TCP relay mode behavior and metrics contract
-- `docs/EMWIN QBT Satellite Broadcast Protocol draft v1.0.3.md` - historical external draft reference
-- `tests/fixtures` - binary/json fixture corpus metadata
-
-## Current scope
-
-- Stateful decoder for XOR-obfuscated ByteBlaster streams (`/PF`, `/ServerList`)
-- V1 + V2 segment handling with configurable checksum and compression policies
-- Client connection loop with reconnect/backoff, auth ticker, watchdog, and handler isolation
-- Weather Wire receiver runtime with custom XMPP transport (STARTTLS/SASL/bind/MUC join)
-- Weather Wire reconnect state machine with bounded backoff and XEP-0198 heartbeat/acks
-- Server-list parsing and persisted lifecycle management
-- File assembly with duplicate suppression
-- WMO/AFOS text product parsing with header enrichment and PIL lookup
-- CLI commands for stream, download, inspect, and server flows
-- Integrated relay command for passthrough retransmission with per-client buffering limits
-
-## Rust/toolchain
-
-- Edition: `2024`
-- MSRV/toolchain target: `1.88`
-- Workspace lint: `unsafe_code = forbid`
-
-## Build and quality gates
-
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-```
+Rust monorepo for EMWIN protocol decoding, client runtime, and CLI tooling.
 
 ## Install
 
@@ -53,7 +14,6 @@ Run via Docker (no local Rust toolchain required):
 
 ```bash
 docker run --rm ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest --help
-docker run --rm -v "$PWD:/work" ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest inspect /work/path/to/capture.bin
 docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/byteblaster-rs/byteblaster-cli:latest relay --username you@example.com
 ```
 
@@ -94,14 +54,6 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core", default
 
 ## Quick start
 
-Capture-file decode:
-
-```bash
-cargo run -p byteblaster-cli -- inspect path/to/capture.bin
-cargo run -p byteblaster-cli -- stream path/to/capture.bin
-cargo run -p byteblaster-cli -- download ./out path/to/capture.bin
-```
-
 Live stream/download mode:
 
 ```bash
@@ -115,7 +67,6 @@ cargo run -p byteblaster-cli -- download ./out --receiver wxwire --username you@
 Optional stream file writing:
 
 - `stream --output-dir <PATH>` writes each completed assembled file while still emitting stream events.
-- Applies to both capture mode (`stream <capture.bin>`) and live mode (`stream --username ...`).
 - Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
 
 CLI logging format:

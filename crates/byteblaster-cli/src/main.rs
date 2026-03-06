@@ -1,9 +1,8 @@
 //! ByteBlaster CLI - Command-line interface for ByteBlaster protocol.
 //!
 //! This application provides commands for:
-//! - Inspecting capture files
-//! - Streaming events from capture files or live servers
-//! - Downloading and assembling files
+//! - Streaming events from live servers
+//! - Downloading and assembling files from live servers
 //! - Running an HTTP server with SSE endpoints
 
 mod cmd;
@@ -48,10 +47,8 @@ enum ReceiverKind {
 /// Available CLI commands.
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Stream events from a capture file or live server.
+    /// Stream events from a live server.
     Stream {
-        /// Path to capture file (omit for live mode).
-        input: Option<String>,
         /// Optional directory to write completed files.
         #[arg(long)]
         output_dir: Option<String>,
@@ -77,12 +74,10 @@ enum Commands {
         #[arg(long, default_value_t = 90)]
         idle_timeout_secs: u64,
     },
-    /// Download and assemble files from capture or live server.
+    /// Download and assemble files from a live server.
     Download {
         /// Output directory for downloaded files.
         output_dir: String,
-        /// Path to capture file (omit for live mode).
-        input: Option<String>,
         /// Account username for live mode authentication.
         #[arg(long)]
         username: Option<String>,
@@ -104,11 +99,6 @@ enum Commands {
         /// Idle timeout in seconds.
         #[arg(long, default_value_t = 90)]
         idle_timeout_secs: u64,
-    },
-    /// Inspect and decode a capture file.
-    Inspect {
-        /// Path to capture file (omit to read from stdin).
-        input: Option<String>,
     },
     /// Run HTTP server with SSE endpoints.
     Server {
@@ -177,7 +167,6 @@ async fn main() -> crate::error::CliResult<()> {
 
     match cli.command {
         Commands::Stream {
-            input,
             output_dir,
             username,
             password,
@@ -196,11 +185,10 @@ async fn main() -> crate::error::CliResult<()> {
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
             };
-            cmd::stream::run(input, output_dir, live, text_preview_chars).await
+            cmd::stream::run(output_dir, live, text_preview_chars).await
         }
         Commands::Download {
             output_dir,
-            input,
             username,
             password,
             receiver,
@@ -218,9 +206,8 @@ async fn main() -> crate::error::CliResult<()> {
                 max_events,
                 idle_timeout_secs,
             };
-            cmd::download::run(output_dir, input, live, text_preview_chars).await
+            cmd::download::run(output_dir, live, text_preview_chars).await
         }
-        Commands::Inspect { input } => cmd::inspect::run(input, text_preview_chars).await,
         Commands::Server {
             username,
             password,

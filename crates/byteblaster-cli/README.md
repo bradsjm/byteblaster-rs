@@ -1,23 +1,19 @@
 # byteblaster-cli
 
-CLI application for ByteBlaster protocol inspection, event streaming, and file download workflows. Built on `byteblaster-core` and `byteblaster-parser`.
+CLI application for ByteBlaster live event streaming and file download workflows. Built on `byteblaster-core` and `byteblaster-parser`.
 
 ## Commands
 
-- `inspect [input]`
-  - Decode a capture file (or stdin) and report parsed events.
-- `stream [input]`
-  - Capture mode: decode events from a capture file.
-  - Live mode (when `input` is omitted): connect to ByteBlaster servers and stream events.
+- `stream`
+  - Connect to ByteBlaster servers and stream events.
   - Optional `--output-dir <PATH>`: assemble completed files from stream events and write them to disk.
-- `download <output_dir> [input]`
-  - Capture mode: decode + assemble files from a capture file into `output_dir`.
-  - Live mode (when `input` is omitted): connect live, assemble completed files, write to `output_dir`.
+- `download <output_dir>`
+  - Connect live, assemble completed files, write to `output_dir`.
 
 ## Output formats
 
 - `stream` always emits structured `tracing` logs to `stderr` and does not emit JSON payloads.
-- `inspect` and `download` emit machine-readable JSON payloads to `stdout`.
+- `download` emits machine-readable JSON payloads to `stdout`.
 
 Contract:
 
@@ -27,7 +23,7 @@ Contract:
 
 ## Live mode options
 
-For `stream` and `download` when no positional `input` is provided:
+For `stream` and `download`:
 
 - `--receiver <qbt|wxwire>` (optional, default `qbt`)
 - `--email <EMAIL>` (required)
@@ -47,15 +43,6 @@ When `--server` is provided for QBT live mode, the CLI now pins that explicit se
 `stream`, `download`, and `server` instead of later replacing it with server-list updates.
 
 ## Examples
-
-Capture mode:
-
-```bash
-cargo run -p byteblaster-cli -- inspect ./capture.bin
-cargo run -p byteblaster-cli -- stream ./capture.bin
-cargo run -p byteblaster-cli -- stream --output-dir ./out ./capture.bin
-cargo run -p byteblaster-cli -- download ./out ./capture.bin
-```
 
 Live mode:
 

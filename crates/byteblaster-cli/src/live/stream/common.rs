@@ -3,7 +3,6 @@ use crate::live::file_pipeline::CompletedFileRecord;
 use crate::live::shared::unix_seconds;
 use crate::product_meta::detect_product_meta;
 use byteblaster_core::ingest::{IngestWarning, ProductOrigin, ReceivedProduct};
-use byteblaster_core::qbt_receiver::QbtFrameEvent;
 use tracing::{info, warn};
 
 #[derive(Debug, Default)]
@@ -11,51 +10,6 @@ pub(super) struct LiveStats {
     pub(super) connections_total: u64,
     pub(super) disconnects_total: u64,
     pub(super) products_total: u64,
-}
-
-pub(super) fn log_frame_event(frame: &QbtFrameEvent, text_preview_chars: usize) {
-    match frame {
-        QbtFrameEvent::DataBlock(segment) => {
-            let product = detect_product_meta(&segment.filename);
-            let preview = text_preview(&segment.filename, &segment.content, text_preview_chars);
-            info!(
-                event = "data_block",
-                filename = %segment.filename,
-                block_number = segment.block_number,
-                total_blocks = segment.total_blocks,
-                bytes = segment.content.len(),
-                timestamp_utc = unix_seconds(segment.timestamp_utc),
-                product_title = product
-                    .as_ref()
-                    .map(|meta| meta.title.as_str())
-                    .unwrap_or(""),
-                preview = preview.as_deref(),
-                "frame event"
-            );
-        }
-        QbtFrameEvent::ServerListUpdate(list) => {
-            info!(
-                event = "server_list",
-                servers = list.servers.len(),
-                sat_servers = list.sat_servers.len(),
-                "frame event"
-            );
-        }
-        QbtFrameEvent::Warning(warning) => {
-            warn!(
-                event = "warning",
-                warning = ?warning,
-                "frame warning"
-            );
-        }
-        other => {
-            info!(
-                event = "other",
-                frame = ?other,
-                "frame event"
-            );
-        }
-    }
 }
 
 pub(super) fn log_completed_file(completed: &CompletedFileRecord) {

@@ -1,11 +1,12 @@
 use regex::Regex;
+use serde::Serialize;
 use std::sync::OnceLock;
 use thiserror::Error;
 
 /// Parsed WMO/AFOS text product header.
 ///
 /// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductHeader {
     /// WMO product type indicator (6 characters, normalized from 4 to "00")
     pub ttaaii: String,

@@ -9,7 +9,6 @@ mod cmd;
 mod default_servers;
 mod error;
 mod live;
-mod product_meta;
 mod relay;
 
 use clap::{Parser, Subcommand, ValueEnum};

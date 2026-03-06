@@ -33,18 +33,23 @@
 //! ```
 
 mod body;
-mod enrich;
-mod lookup;
-mod parser;
+mod data;
+mod header;
+mod product;
 
 pub use body::{
     HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, UgcClass, UgcCode,
     UgcSection, VtecAction, VtecCode, parse_hvtec_codes, parse_latlon_polygons, parse_ugc_sections,
     parse_vtec_codes,
 };
-pub use enrich::{BbbKind, TextProductEnrichment, enrich_header};
-pub use lookup::{
+pub use data::{
     PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
-    pil_description,
+    PilCatalogEntry, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
 };
-pub use parser::{ParserError, TextProductHeader, parse_text_product};
+pub use header::{
+    BbbKind, ParserError, TextProductEnrichment, TextProductHeader, enrich_header,
+    parse_text_product,
+};
+pub use product::{
+    ProductEnrichment, ProductEnrichmentSource, ProductParseWarning, enrich_product,
+};

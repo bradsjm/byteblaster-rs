@@ -286,10 +286,7 @@ mod tests {
                 filename: filename.to_string(),
                 size: 11,
                 timestamp_utc: 1,
-                product: None,
-                text_product_header: None,
-                text_product_enrichment: None,
-                text_product_warning: None,
+                product: emwin_parser::enrich_product(filename, b"ignored"),
             },
         )))
     }
@@ -408,29 +405,22 @@ Body
         let Json(response) = files_handler(State(state)).await;
         let file = &response.files[0];
         assert_eq!(file.filename, "TAFPDKGA.TXT");
-        assert_eq!(
-            file.product.as_ref().and_then(|value| value.pil.as_deref()),
-            Some("TAF")
-        );
+        assert_eq!(file.product.pil.as_deref(), Some("TAF"));
         assert!(
             file.product
-                .as_ref()
-                .map(|value| !value.title.is_empty())
+                .title
+                .map(|value| !value.is_empty())
                 .unwrap_or(false)
         );
         assert_eq!(
-            file.text_product_header
+            file.product
+                .header
                 .as_ref()
                 .map(|value| value.ttaaii.as_str()),
             Some("FTUS42")
         );
-        assert_eq!(
-            file.text_product_enrichment
-                .as_ref()
-                .and_then(|value| value.pil_nnn.as_deref()),
-            Some("TAF")
-        );
-        assert!(file.text_product_warning.is_none());
+        assert_eq!(file.product.pil.as_deref(), Some("TAF"));
+        assert!(file.product.warning.is_none());
     }
 
     #[tokio::test]

@@ -3,7 +3,7 @@
 //! This module provides functions for converting frame events to JSON for
 //! CLI output.
 
-use crate::product_meta::detect_product_meta;
+use emwin_parser::enrich_product;
 use emwin_protocol::qbt_receiver::QbtFrameEvent;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -66,8 +66,8 @@ pub fn frame_event_to_json(event: &QbtFrameEvent, text_preview_chars: usize) -> 
             if let Some(preview) = text_preview(&seg.filename, &seg.content, text_preview_chars) {
                 value["preview"] = serde_json::Value::String(preview);
             }
-            if let Some(product) = detect_product_meta(&seg.filename)
-                && let Ok(product_json) = serde_json::to_value(product)
+            if let Ok(product_json) =
+                serde_json::to_value(enrich_product(&seg.filename, &seg.content))
             {
                 value["product"] = product_json;
             }

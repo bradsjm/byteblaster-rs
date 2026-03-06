@@ -1,10 +1,12 @@
 use crate::TextProductHeader;
-use crate::lookup::pil_description;
+use crate::pil_description;
+use serde::Serialize;
 
 /// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
 ///
 /// BBB indicators are used to indicate product corrections, amendments, or retransmissions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BbbKind {
     /// Amendment (AA*)
     Amendment,
@@ -19,7 +21,7 @@ pub enum BbbKind {
 /// Enriched information about a parsed text product header.
 ///
 /// Provides semantic metadata derived from the raw header fields.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductEnrichment<'a> {
     /// First 3 characters of the AFOS PIL (product type code)
     pub pil_nnn: Option<&'a str>,

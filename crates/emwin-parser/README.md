@@ -135,6 +135,7 @@ pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_>
 **Returns**: `TextProductEnrichment` containing:
 - `pil_nnn`: First 3 characters of AFOS PIL
 - `pil_description`: Human-readable product type description (if known)
+- `flags`: Product capability flags from the PIL catalog (if known)
 - `bbb_kind`: Classified BBB indicator (Amendment, Correction, DelayedRepeat, Other)
 
 ### `pil_description`
@@ -175,6 +176,8 @@ The built-in PIL lookup table includes:
 - `PIL_SOURCE_REPO`: Source repository for PIL data
 - `PIL_SOURCE_PATH`: Path to PIL data in source repo
 - `PIL_SOURCE_COMMIT`: Git commit hash for PIL data source
+- `pil_catalog_entry()`: Full metadata including `wmo_prefix`, `title`, `ugc`, `vtec`, `cz`, `latlong`, `time_mot_loc`, `wind_hail`, and `hvtec`
+- `enrich_header()` and `enrich_product()`: Surface those catalog flags in parsed output as `flags`
 
 ## Supported Product Types
 

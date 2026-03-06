@@ -14,8 +14,10 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
+use crate::ProductParseIssue;
+
 /// A parsed LAT...LON polygon.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct LatLonPolygon {
     /// Coordinate pairs as (latitude, longitude) in decimal degrees
     pub points: Vec<(f64, f64)>,
@@ -59,10 +61,41 @@ pub struct LatLonPolygon {
 /// assert!((polygons[0].points[0].0 - 44.0).abs() < 0.01);
 /// ```
 pub fn parse_latlon_polygons(text: &str) -> Vec<LatLonPolygon> {
-    latlon_regex()
-        .captures_iter(text)
-        .filter_map(|cap| parse_latlon_capture(&cap))
-        .collect()
+    parse_latlon_polygons_with_issues(text).0
+}
+
+pub fn parse_latlon_polygons_with_issues(
+    text: &str,
+) -> (Vec<LatLonPolygon>, Vec<ProductParseIssue>) {
+    let mut polygons = Vec::new();
+    let mut issues = Vec::new();
+
+    for candidate in latlon_candidate_regex().find_iter(text) {
+        let raw = candidate.as_str().trim();
+        let Some(captures) = latlon_regex().captures(raw) else {
+            issues.push(ProductParseIssue::new(
+                "latlon_parse",
+                "invalid_latlon_format",
+                format!("could not parse LAT...LON block: `{raw}`"),
+                Some(raw.to_string()),
+            ));
+            continue;
+        };
+
+        match parse_latlon_capture(&captures, raw) {
+            Ok(polygon) => polygons.push(polygon),
+            Err(issue) => issues.push(issue),
+        }
+    }
+
+    (polygons, issues)
+}
+
+fn latlon_candidate_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)LAT\.\.\.LON(?:\s+-?\d{1,8})+").expect("latlon candidate regex compiles")
+    })
 }
 
 fn latlon_regex() -> &'static Regex {
@@ -74,20 +107,48 @@ fn latlon_regex() -> &'static Regex {
     })
 }
 
-fn parse_latlon_capture(cap: &regex::Captures<'_>) -> Option<LatLonPolygon> {
-    let coords_str = cap.get(1)?.as_str();
+fn parse_latlon_capture(
+    cap: &regex::Captures<'_>,
+    raw: &str,
+) -> Result<LatLonPolygon, ProductParseIssue> {
+    let coords_str = cap.get(1).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "latlon_parse",
+            "invalid_latlon_format",
+            format!("could not parse LAT...LON block: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
     let coords: Vec<&str> = coords_str.split_whitespace().collect();
 
-    // Must have even number of coordinates (lat/lon pairs)
     if coords.len() < 6 || !coords.len().is_multiple_of(2) {
-        return None;
+        return Err(ProductParseIssue::new(
+            "latlon_parse",
+            "invalid_latlon_coordinate_count",
+            format!("LAT...LON block has an invalid coordinate count: `{raw}`"),
+            Some(raw.to_string()),
+        ));
     }
 
     let mut points = Vec::with_capacity(coords.len() / 2);
 
     for chunk in coords.chunks(2) {
-        let lat = parse_coordinate(chunk[0], true)?;
-        let lon = parse_coordinate(chunk[1], false)?;
+        let lat = parse_coordinate(chunk[0], true).ok_or_else(|| {
+            ProductParseIssue::new(
+                "latlon_parse",
+                "invalid_latlon_latitude",
+                format!("could not parse LAT...LON latitude from block: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+        let lon = parse_coordinate(chunk[1], false).ok_or_else(|| {
+            ProductParseIssue::new(
+                "latlon_parse",
+                "invalid_latlon_longitude",
+                format!("could not parse LAT...LON longitude from block: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
         points.push((lat, lon));
     }
 
@@ -98,7 +159,7 @@ fn parse_latlon_capture(cap: &regex::Captures<'_>) -> Option<LatLonPolygon> {
 
     let wkt = format_wkt(&points);
 
-    Some(LatLonPolygon { points, wkt })
+    Ok(LatLonPolygon { points, wkt })
 }
 
 fn parse_coordinate(coord: &str, _is_latitude: bool) -> Option<f64> {
@@ -254,6 +315,16 @@ mod tests {
         let text = "LAT...LON 4400"; // Too few coordinates
         let polygons = parse_latlon_polygons(text);
         assert!(polygons.is_empty());
+    }
+
+    #[test]
+    fn parse_latlon_invalid_reports_issue() {
+        let text = "LAT...LON 4400";
+        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(polygons.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_latlon_coordinate_count");
     }
 
     #[test]

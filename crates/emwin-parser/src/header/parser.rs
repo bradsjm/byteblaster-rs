@@ -1,3 +1,5 @@
+use crate::time::resolve_day_time_nearest;
+use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::Serialize;
 use std::sync::OnceLock;
@@ -18,6 +20,42 @@ pub struct TextProductHeader {
     pub bbb: Option<String>,
     /// Product Identifier Line (PIL), typically 6 characters
     pub afos: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ParsedTextProduct {
+    pub(crate) header: TextProductHeader,
+    pub(crate) conditioned_text: String,
+}
+
+impl TextProductHeader {
+    /// Parse the ddhhmm field into a UTC DateTime.
+    ///
+    /// Uses the provided reference time to determine the nearest plausible month and year.
+    ///
+    /// # Arguments
+    ///
+    /// * `reference_time` - Reference UTC time (typically current time)
+    ///
+    /// # Returns
+    ///
+    /// `Some(DateTime<Utc>)` if ddhhmm is valid, `None` otherwise
+    pub fn timestamp(&self, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        if self.ddhhmm.len() != 6 {
+            return None;
+        }
+
+        let day: u32 = self.ddhhmm[0..2].parse().ok()?;
+        let hour: u32 = self.ddhhmm[2..4].parse().ok()?;
+        let minute: u32 = self.ddhhmm[4..6].parse().ok()?;
+
+        // Validate ranges
+        if day == 0 || day > 31 || hour > 23 || minute > 59 {
+            return None;
+        }
+
+        resolve_day_time_nearest(reference_time, day, hour, minute)
+    }
 }
 
 /// Errors that can occur during text product parsing.
@@ -71,17 +109,26 @@ pub enum ParserError {
 /// # Ok::<(), emwin_parser::ParserError>(())
 /// ```
 pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError> {
+    Ok(parse_text_product_conditioned(bytes)?.header)
+}
+
+pub(crate) fn parse_text_product_conditioned(
+    bytes: &[u8],
+) -> Result<ParsedTextProduct, ParserError> {
     let raw = String::from_utf8_lossy(bytes).replace('\0', "");
     let conditioned = condition_text(&raw)?;
     let (ttaaii, cccc, ddhhmm, bbb) = parse_wmo(&conditioned)?;
     let afos = parse_afos(&conditioned)?;
 
-    Ok(TextProductHeader {
-        ttaaii,
-        cccc,
-        ddhhmm,
-        bbb,
-        afos,
+    Ok(ParsedTextProduct {
+        header: TextProductHeader {
+            ttaaii,
+            cccc,
+            ddhhmm,
+            bbb,
+            afos,
+        },
+        conditioned_text: conditioned,
     })
 }
 
@@ -188,6 +235,7 @@ fn afos_re() -> &'static Regex {
 #[cfg(test)]
 mod tests {
     use super::{ParserError, parse_text_product};
+    use chrono::{TimeZone, Utc};
 
     fn fixture(wmo_line: &str, afos_line: &str, body: &str) -> String {
         format!("000 \n{wmo_line}\n{afos_line}\n{body}\n")
@@ -286,5 +334,37 @@ mod tests {
         let text = fixture("FXUS61 KBOX 229999", "AFDBOX", "body");
         let err = parse_text_product(text.as_bytes()).expect_err("invalid wmo should fail");
         assert!(matches!(err, ParserError::InvalidWmoHeader { .. }));
+    }
+
+    #[test]
+    fn timestamp_uses_current_month_when_closest() {
+        let text = fixture("FXUS61 KBOX 051200", "AFDBOX", "body");
+        let parsed = parse_text_product(text.as_bytes()).expect("header should parse");
+        let reference = Utc.with_ymd_and_hms(2025, 3, 6, 0, 0, 0).unwrap();
+
+        let timestamp = parsed
+            .timestamp(reference)
+            .expect("timestamp should resolve");
+
+        assert_eq!(
+            timestamp,
+            Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0).unwrap()
+        );
+    }
+
+    #[test]
+    fn timestamp_rolls_back_to_previous_month_when_closest() {
+        let text = fixture("FXUS61 KBOX 281200", "AFDBOX", "body");
+        let parsed = parse_text_product(text.as_bytes()).expect("header should parse");
+        let reference = Utc.with_ymd_and_hms(2025, 3, 1, 0, 0, 0).unwrap();
+
+        let timestamp = parsed
+            .timestamp(reference)
+            .expect("timestamp should resolve");
+
+        assert_eq!(
+            timestamp,
+            Utc.with_ymd_and_hms(2025, 2, 28, 12, 0, 0).unwrap()
+        );
     }
 }

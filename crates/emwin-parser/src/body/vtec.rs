@@ -10,8 +10,10 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use regex::Regex;
 use std::sync::OnceLock;
 
+use crate::ProductParseIssue;
+
 /// A parsed VTEC code.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct VtecCode {
     /// Status indicator: 'O' (Operational), 'T' (Test), or 'E' (Experimental)
     pub status: char,
@@ -39,7 +41,7 @@ pub struct VtecCode {
 }
 
 /// VTEC action codes indicating what action to take for an event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum VtecAction {
     /// New event
     New,
@@ -101,36 +103,148 @@ impl VtecAction {
 /// assert_eq!(codes[0].phenomena, "TO");
 /// ```
 pub fn parse_vtec_codes(text: &str) -> Vec<VtecCode> {
-    vtec_regex()
-        .captures_iter(text)
-        .filter_map(|cap| parse_vtec_capture(&cap))
-        .collect()
+    parse_vtec_codes_with_issues(text).0
+}
+
+pub fn parse_vtec_codes_with_issues(text: &str) -> (Vec<VtecCode>, Vec<ProductParseIssue>) {
+    let mut codes = Vec::new();
+    let mut issues = Vec::new();
+
+    for candidate in vtec_candidate_regex().find_iter(text) {
+        let raw = candidate.as_str();
+        let Some(captures) = vtec_regex().captures(raw) else {
+            issues.push(ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_format",
+                format!("could not parse VTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            ));
+            continue;
+        };
+
+        match parse_vtec_capture(&captures, raw) {
+            Ok(code) => codes.push(code),
+            Err(issue) => issues.push(issue),
+        }
+    }
+
+    (codes, issues)
+}
+
+fn vtec_candidate_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"/[OTE]\.[^/\r\n]+/").expect("vtec candidate regex compiles"))
 }
 
 fn vtec_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"/([A-Z])\.([A-Z]+)\.([A-Z]{4})\.([A-Z]{2})\.([A-Z])\.([0-9]+)\.([0-9TZ]+)-([0-9TZ]+)/",
+            r"/([A-Z])\.([A-Z]+)\.([A-Z]{4})\.([A-Z]{2})\.([A-Z])\.([^./\r\n]+)\.([^- /\r\n]+)-([^/\r\n]+)/",
         )
         .expect("vtec regex compiles")
     })
 }
 
-fn parse_vtec_capture(cap: &regex::Captures<'_>) -> Option<VtecCode> {
-    let status = cap.get(1)?.as_str().chars().next()?;
-    let action = VtecAction::from_str(cap.get(2)?.as_str());
-    let office = cap.get(3)?.as_str().to_string();
-    let phenomena = cap.get(4)?.as_str().to_string();
-    let significance = cap.get(5)?.as_str().chars().next()?;
-    let etn = cap.get(6)?.as_str().parse().ok()?;
-    let begin_str = cap.get(7)?.as_str();
-    let end_str = cap.get(8)?.as_str();
+fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, ProductParseIssue> {
+    let status = cap
+        .get(1)
+        .and_then(|value| value.as_str().chars().next())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_format",
+                format!("could not parse VTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let action = VtecAction::from_str(cap.get(2).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            "invalid_vtec_format",
+            format!("could not parse VTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?);
+    let office = cap
+        .get(3)
+        .map(|value| value.as_str().to_string())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_format",
+                format!("could not parse VTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let phenomena = cap
+        .get(4)
+        .map(|value| value.as_str().to_string())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_format",
+                format!("could not parse VTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let significance = cap
+        .get(5)
+        .and_then(|value| value.as_str().chars().next())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_format",
+                format!("could not parse VTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let etn = cap
+        .get(6)
+        .and_then(|value| value.as_str().parse().ok())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "vtec_parse",
+                "invalid_vtec_etn",
+                format!("could not parse VTEC ETN from code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let begin_str = cap.get(7).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            "invalid_vtec_format",
+            format!("could not parse VTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let end_str = cap.get(8).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            "invalid_vtec_format",
+            format!("could not parse VTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
 
-    let begin = parse_vtec_time(begin_str)?;
-    let end = parse_vtec_time(end_str)?;
+    let begin = parse_vtec_time(begin_str).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            "invalid_vtec_begin_time",
+            format!("could not parse VTEC begin time from code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let end = parse_vtec_time(end_str).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            "invalid_vtec_end_time",
+            format!("could not parse VTEC end time from code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
 
-    Some(VtecCode {
+    Ok(VtecCode {
         status,
         action,
         office,
@@ -228,6 +342,16 @@ mod tests {
         let text = "/INVALID.VTEC.CODE/";
         let codes = parse_vtec_codes(text);
         assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn parse_vtec_invalid_reports_issue() {
+        let text = "/O.NEW.KDMX.TO.W.0123.250301T1200Z-invalid/";
+        let (codes, issues) = parse_vtec_codes_with_issues(text);
+
+        assert!(codes.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_vtec_end_time");
     }
 
     #[test]

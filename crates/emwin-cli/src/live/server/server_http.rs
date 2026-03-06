@@ -8,8 +8,8 @@ use crate::live::server_support::{
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
+use axum::response::Response;
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{Html, Redirect, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use futures::Stream;
@@ -22,8 +22,6 @@ use std::time::Duration;
 pub(super) fn build_router(state: Arc<AppState>, cors: tower_http::cors::CorsLayer) -> Router {
     Router::new()
         .route("/", get(root_handler))
-        .route("/dashboard", get(dashboard_handler))
-        .route("/dashboard/", get(dashboard_trailing_slash_handler))
         .route("/events", get(events_handler))
         .route("/files", get(files_handler))
         .route("/files/*filename", get(file_download_handler))
@@ -49,11 +47,6 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             },
             EndpointDoc {
                 method: "GET",
-                path: "/dashboard",
-                description: "HTML admin dashboard UI (read-only)",
-            },
-            EndpointDoc {
-                method: "GET",
                 path: "/files",
                 description: "List retained completed files",
             },
@@ -74,14 +67,6 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             },
         ],
     })
-}
-
-pub(super) async fn dashboard_handler() -> Html<&'static str> {
-    Html(super::DASHBOARD_HTML)
-}
-
-pub(super) async fn dashboard_trailing_slash_handler() -> Redirect {
-    Redirect::permanent("/dashboard")
 }
 
 pub(super) async fn events_handler(

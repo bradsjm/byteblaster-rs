@@ -14,13 +14,44 @@ pub struct PilCatalogEntry {
     pub pil: &'static str,
     pub wmo_prefix: &'static str,
     pub title: &'static str,
+    pub ugc: bool,
+    pub vtec: bool,
+    pub cz: bool,
+    pub latlong: bool,
+    pub time_mot_loc: bool,
+    pub wind_hail: bool,
+    pub hvtec: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct ProductMetadataFlags {
+    pub ugc: bool,
+    pub vtec: bool,
+    pub cz: bool,
+    pub latlong: bool,
+    pub time_mot_loc: bool,
+    pub wind_hail: bool,
+    pub hvtec: bool,
+}
+
+impl From<&PilCatalogEntry> for ProductMetadataFlags {
+    fn from(entry: &PilCatalogEntry) -> Self {
+        Self {
+            ugc: entry.ugc,
+            vtec: entry.vtec,
+            cz: entry.cz,
+            latlong: entry.latlong,
+            time_mot_loc: entry.time_mot_loc,
+            wind_hail: entry.wind_hail,
+            hvtec: entry.hvtec,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NonTextProductMeta {
     pub family: &'static str,
     pub title: &'static str,
-    pub code: String,
     pub container: &'static str,
     pub pil: Option<&'static str>,
     pub wmo_prefix: Option<&'static str>,
@@ -142,5 +173,21 @@ mod tests {
     fn generated_catalog_contains_known_entry() {
         let entry = pil_catalog_entry("ZFP").expect("expected generated catalog entry");
         assert_eq!(entry.title, "Zone Forecast Product");
+        assert_eq!(entry.wmo_prefix, "FP");
+        assert!(entry.ugc);
+        assert!(!entry.vtec);
+        assert!(!entry.hvtec);
+    }
+
+    #[test]
+    fn generated_catalog_exposes_product_flags() {
+        let entry = pil_catalog_entry("FFW").expect("expected generated catalog entry");
+        assert!(entry.ugc);
+        assert!(entry.vtec);
+        assert!(!entry.cz);
+        assert!(entry.latlong);
+        assert!(entry.time_mot_loc);
+        assert!(!entry.wind_hail);
+        assert!(entry.hvtec);
     }
 }

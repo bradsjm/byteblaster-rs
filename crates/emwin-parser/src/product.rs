@@ -1,7 +1,10 @@
 use crate::data::{classify_non_text_product, container_from_filename};
+use crate::header::parse_text_product_conditioned;
 use crate::{
-    BbbKind, ParserError, TextProductHeader, enrich_header, parse_text_product, wmo_prefix_for_pil,
+    BbbKind, ParserError, ProductBody, ProductMetadataFlags, ProductParseIssue, TextProductHeader,
+    enrich_body, enrich_header, wmo_prefix_for_pil,
 };
+use chrono::Utc;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -12,35 +15,28 @@ pub enum ProductEnrichmentSource {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ProductParseWarning {
-    pub kind: &'static str,
-    pub code: &'static str,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ProductEnrichment {
     pub source: ProductEnrichmentSource,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<&'static str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code: Option<String>,
     pub container: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pil: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wmo_prefix: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub flags: Option<ProductMetadataFlags>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub header: Option<TextProductHeader>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bbb_kind: Option<BbbKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub warning: Option<ProductParseWarning>,
+    pub body: Option<ProductBody>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub issues: Vec<ProductParseIssue>,
 }
 
 pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
@@ -53,13 +49,14 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             source: ProductEnrichmentSource::FilenameNonText,
             family: Some(meta.family),
             title: Some(meta.title),
-            code: Some(meta.code),
             container: meta.container,
             pil: meta.pil.map(str::to_string),
             wmo_prefix: meta.wmo_prefix,
+            flags: None,
             header: None,
             bbb_kind: None,
-            warning: None,
+            body: None,
+            issues: Vec::new(),
         };
     }
 
@@ -67,53 +64,65 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         source: ProductEnrichmentSource::Unknown,
         family: None,
         title: None,
-        code: None,
         container: container_from_filename(filename),
         pil: None,
         wmo_prefix: None,
+        flags: None,
         header: None,
         bbb_kind: None,
-        warning: None,
+        body: None,
+        issues: Vec::new(),
     }
 }
 
 fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
-    match parse_text_product(bytes) {
-        Ok(header) => {
+    match parse_text_product_conditioned(bytes) {
+        Ok(parsed) => {
+            let header = parsed.header;
             let header_enrichment = enrich_header(&header);
             let pil = header_enrichment.pil_nnn.map(str::to_string);
             let title = header_enrichment.pil_description;
+            let flags = header_enrichment.flags;
             let bbb_kind = header_enrichment.bbb_kind;
+
+            let (body, issues) = if let Some(ref flags) = flags {
+                let reference_time = header.timestamp(Utc::now());
+                enrich_body(&parsed.conditioned_text, flags, reference_time)
+            } else {
+                (None, Vec::new())
+            };
 
             ProductEnrichment {
                 source: ProductEnrichmentSource::TextHeader,
                 family: Some("nws_text_product"),
                 title,
-                code: Some(header.afos.clone()),
                 container: container_from_filename(filename),
                 pil: pil.clone(),
                 wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
+                flags,
                 header: Some(header),
                 bbb_kind,
-                warning: None,
+                body,
+                issues,
             }
         }
         Err(error) => ProductEnrichment {
             source: ProductEnrichmentSource::TextHeader,
             family: Some("nws_text_product"),
             title: None,
-            code: None,
             container: container_from_filename(filename),
             pil: None,
             wmo_prefix: None,
+            flags: None,
             header: None,
             bbb_kind: None,
-            warning: Some(ProductParseWarning {
-                kind: "text_product_parse",
-                code: parser_error_code(&error),
-                message: error.to_string(),
-                line: parser_error_line(&error).map(str::to_string),
-            }),
+            body: None,
+            issues: vec![ProductParseIssue::new(
+                "text_product_parse",
+                parser_error_code(&error),
+                error.to_string(),
+                parser_error_line(&error).map(str::to_string),
+            )],
         },
     }
 }
@@ -152,6 +161,8 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.pil.as_deref(), Some("TAF"));
         assert_eq!(enrichment.wmo_prefix, Some("FT"));
+        assert_eq!(enrichment.flags.map(|flags| flags.ugc), Some(true));
+        assert_eq!(enrichment.flags.map(|flags| flags.vtec), Some(false));
         assert_eq!(
             enrichment
                 .header
@@ -159,7 +170,7 @@ mod tests {
                 .map(|header| header.afos.as_str()),
             Some("TAFPDK")
         );
-        assert!(enrichment.warning.is_none());
+        assert!(enrichment.issues.is_empty());
     }
 
     #[test]
@@ -169,7 +180,9 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.family, Some("nws_text_product"));
         assert_eq!(enrichment.pil, None);
-        assert!(enrichment.warning.is_some());
+        assert_eq!(enrichment.flags, None);
+        assert_eq!(enrichment.issues.len(), 1);
+        assert_eq!(enrichment.issues[0].code, "invalid_wmo_header");
     }
 
     #[test]
@@ -179,7 +192,7 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::FilenameNonText);
         assert_eq!(enrichment.family, Some("radar_graphic"));
         assert_eq!(enrichment.title, Some("Radar graphic"));
-        assert_eq!(enrichment.code.as_deref(), Some("RADUMSVY"));
+        assert_eq!(enrichment.flags, None);
         assert!(enrichment.header.is_none());
     }
 
@@ -189,6 +202,7 @@ mod tests {
 
         assert_eq!(enrichment.source, ProductEnrichmentSource::Unknown);
         assert_eq!(enrichment.container, "raw");
+        assert_eq!(enrichment.flags, None);
         assert!(enrichment.family.is_none());
     }
 }

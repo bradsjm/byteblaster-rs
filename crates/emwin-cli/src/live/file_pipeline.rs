@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::path::Path;
 use std::time::SystemTime;
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub(crate) struct CompletedFileMetadata {
     pub(crate) filename: String,
     pub(crate) size: usize,
@@ -74,7 +74,7 @@ mod tests {
         assert_eq!(metadata.product.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(metadata.product.pil.as_deref(), Some("AFD"));
         assert_eq!(metadata.product.title, Some("Area Forecast Discussion"));
-        assert!(metadata.product.warning.is_none());
+        assert!(metadata.product.issues.is_empty());
     }
 
     #[test]
@@ -87,7 +87,7 @@ mod tests {
 
         assert_eq!(metadata.product.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(
-            metadata.product.warning.as_ref().map(|value| value.code),
+            metadata.product.issues.first().map(|value| value.code),
             Some("invalid_wmo_header")
         );
         assert!(metadata.product.header.is_none());

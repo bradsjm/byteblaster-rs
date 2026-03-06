@@ -35,21 +35,26 @@
 mod body;
 mod data;
 mod header;
+mod issue;
 mod product;
+mod time;
 
 pub use body::{
-    HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, UgcClass, UgcCode,
-    UgcSection, VtecAction, VtecCode, parse_hvtec_codes, parse_latlon_polygons, parse_ugc_sections,
-    parse_vtec_codes,
+    HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody, TimeMotLocEntry,
+    UgcClass, UgcCode, UgcSection, VtecAction, VtecCode, WindHailEntry, WindHailKind, enrich_body,
+    parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
+    parse_latlon_polygons_with_issues, parse_time_mot_loc_entries,
+    parse_time_mot_loc_entries_with_issues, parse_ugc_sections, parse_ugc_sections_with_issues,
+    parse_vtec_codes, parse_vtec_codes_with_issues, parse_wind_hail_entries,
+    parse_wind_hail_entries_with_issues,
 };
 pub use data::{
     PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
-    PilCatalogEntry, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
+    PilCatalogEntry, ProductMetadataFlags, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
 };
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, enrich_header,
     parse_text_product,
 };
-pub use product::{
-    ProductEnrichment, ProductEnrichmentSource, ProductParseWarning, enrich_product,
-};
+pub use issue::ProductParseIssue;
+pub use product::{ProductEnrichment, ProductEnrichmentSource, enrich_product};

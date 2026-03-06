@@ -189,8 +189,6 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     Ok(())
 }
 
-const DASHBOARD_HTML: &str = include_str!("../cmd/dashboard.html");
-
 #[cfg(test)]
 fn build_router(
     state: Arc<AppState>,
@@ -420,7 +418,7 @@ Body
             Some("FTUS42")
         );
         assert_eq!(file.product.pil.as_deref(), Some("TAF"));
-        assert!(file.product.warning.is_none());
+        assert!(file.product.issues.is_empty());
     }
 
     #[tokio::test]
@@ -445,61 +443,9 @@ Body
             .expect("body should read");
         let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
         assert!(body_text.contains("\"/events?filter=*.TXT\""));
-        assert!(body_text.contains("\"/dashboard\""));
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
-    }
-
-    #[tokio::test]
-    async fn dashboard_endpoint_serves_html() {
-        let state = test_state(10);
-        let app = build_router(state, None).expect("router should build");
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/dashboard")
-                    .method("GET")
-                    .body(Body::empty())
-                    .expect("request should build"),
-            )
-            .await
-            .expect("request should succeed");
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or("");
-        assert!(content_type.starts_with("text/html"));
-    }
-
-    #[tokio::test]
-    async fn dashboard_trailing_slash_redirects_to_canonical_path() {
-        let state = test_state(10);
-        let app = build_router(state, None).expect("router should build");
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/dashboard/")
-                    .method("GET")
-                    .body(Body::empty())
-                    .expect("request should build"),
-            )
-            .await
-            .expect("request should succeed");
-
-        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
-        assert_eq!(
-            response
-                .headers()
-                .get("location")
-                .and_then(|value| value.to_str().ok()),
-            Some("/dashboard")
-        );
     }
 
     #[test]

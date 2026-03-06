@@ -1,5 +1,4 @@
-use crate::TextProductHeader;
-use crate::pil_description;
+use crate::{ProductMetadataFlags, TextProductHeader, pil_catalog_entry};
 use serde::Serialize;
 
 /// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
@@ -27,6 +26,9 @@ pub struct TextProductEnrichment<'a> {
     pub pil_nnn: Option<&'a str>,
     /// Human-readable product type description, if known
     pub pil_description: Option<&'static str>,
+    /// Product capability flags from the PIL catalog, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flags: Option<ProductMetadataFlags>,
     /// Classification of the BBB indicator, if present
     pub bbb_kind: Option<BbbKind>,
 }
@@ -55,6 +57,7 @@ pub struct TextProductEnrichment<'a> {
 ///
 /// assert_eq!(enriched.pil_nnn, Some("AFD"));
 /// assert_eq!(enriched.pil_description, Some("Area Forecast Discussion"));
+/// assert_eq!(enriched.flags.map(|flags| flags.ugc), Some(true));
 /// # Ok::<(), emwin_parser::ParserError>(())
 /// ```
 pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
@@ -63,12 +66,15 @@ pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     } else {
         None
     };
-    let pil_description = pil_nnn.and_then(pil_description);
+    let catalog_entry = pil_nnn.and_then(pil_catalog_entry);
+    let pil_description = catalog_entry.map(|entry| entry.title);
+    let flags = catalog_entry.map(ProductMetadataFlags::from);
     let bbb_kind = header.bbb.as_deref().map(classify_bbb);
 
     TextProductEnrichment {
         pil_nnn,
         pil_description,
+        flags,
         bbb_kind,
     }
 }
@@ -107,6 +113,7 @@ mod tests {
         let enriched = enrich_header(&header);
         assert_eq!(enriched.pil_nnn, Some("AFD"));
         assert!(enriched.pil_description.is_some());
+        assert_eq!(enriched.flags.map(|flags| flags.ugc), Some(true));
         assert_eq!(enriched.bbb_kind, None);
     }
 
@@ -129,5 +136,6 @@ mod tests {
             Some(BbbKind::Other)
         );
         assert_eq!(enrich_header(&header("ZZZBOX", None)).pil_description, None);
+        assert_eq!(enrich_header(&header("ZZZBOX", None)).flags, None);
     }
 }

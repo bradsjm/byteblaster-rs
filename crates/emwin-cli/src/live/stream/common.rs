@@ -22,7 +22,7 @@ pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
         product_afos = metadata.product.header.as_ref().map(|value| value.afos.as_str()),
         product_ttaaii = metadata.product.header.as_ref().map(|value| value.ttaaii.as_str()),
         product_pil = metadata.product.pil.as_deref(),
-        product_warning_code = metadata.product.warning.as_ref().map(|value| value.code),
+        product_issue_code = metadata.product.issues.first().map(|value| value.code),
         "wrote file"
     );
 }
@@ -42,7 +42,7 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     product_source = ?meta.source,
                     product_title = title,
                     product_pil = meta.pil.as_deref(),
-                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    product_issue_code = meta.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -55,7 +55,7 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     timestamp_utc = unix_seconds(product.source_timestamp_utc),
                     product_source = ?meta.source,
                     product_pil = meta.pil.as_deref(),
-                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    product_issue_code = meta.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -79,7 +79,7 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     product_source = ?meta.source,
                     product_title = title,
                     product_pil = meta.pil.as_deref(),
-                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    product_issue_code = meta.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -95,7 +95,7 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
                     product_source = ?meta.source,
                     product_pil = meta.pil.as_deref(),
-                    product_warning_code = meta.warning.as_ref().map(|value| value.code),
+                    product_issue_code = meta.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );

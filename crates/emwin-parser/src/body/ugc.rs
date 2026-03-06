@@ -10,11 +10,14 @@
 //! - `IAC001>005` - Iowa Counties 001 through 005
 //! - `IAC001>005-NEZ010-` - Multiple counties with expiration
 
-use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, TimeZone, Utc};
+use crate::ProductParseIssue;
+use crate::time::resolve_day_time_not_before;
+use chrono::{DateTime, Utc};
 use regex::Regex;
+use std::sync::OnceLock;
 
 /// A parsed UGC section containing codes and expiration time.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct UgcSection {
     /// Individual UGC codes (expanded from ranges)
     pub codes: Vec<UgcCode>,
@@ -23,7 +26,7 @@ pub struct UgcSection {
 }
 
 /// A single UGC code representing a county or zone.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct UgcCode {
     /// 2-letter state code (e.g., "IA", "NE")
     pub state: String,
@@ -34,7 +37,7 @@ pub struct UgcCode {
 }
 
 /// Geographic classification for UGC codes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum UgcClass {
     /// County (C)
     County,
@@ -89,31 +92,86 @@ impl UgcClass {
 /// assert_eq!(sections[0].codes[0].state, "IA");
 /// ```
 pub fn parse_ugc_sections(text: &str, valid_time: DateTime<Utc>) -> Vec<UgcSection> {
-    // UGC codes appear line-by-line, each ending with 6-digit expiration + "-"
-    text.lines()
-        .filter_map(|line| parse_ugc_capture(line.trim(), valid_time))
-        .collect()
+    parse_ugc_sections_with_issues(text, valid_time).0
+}
+
+pub fn parse_ugc_sections_with_issues(
+    text: &str,
+    valid_time: DateTime<Utc>,
+) -> (Vec<UgcSection>, Vec<ProductParseIssue>) {
+    let mut sections = Vec::new();
+    let mut issues = Vec::new();
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if !ugc_candidate_regex().is_match(line) {
+            continue;
+        }
+
+        match parse_ugc_capture(line, valid_time) {
+            Ok(section) => sections.push(section),
+            Err(issue) => issues.push(issue),
+        }
+    }
+
+    (sections, issues)
+}
+
+fn ugc_candidate_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^[A-Z]{2}[CZFM].*[0-9]{6}-\s*$").expect("ugc candidate regex compiles")
+    })
 }
 
 /// Extract expiration code from end of UGC line
 fn extract_expiration(text: &str) -> Option<(String, String)> {
-    // Pattern: codes followed by 6-digit expiration and trailing dash
-    let re = Regex::new(r"^([A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?(?:[-,][A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?)*)-([0-9]{6})-\s*$").ok()?;
-    let caps = re.captures(text)?;
+    let caps = ugc_full_regex().captures(text)?;
     Some((
         caps.get(1)?.as_str().to_string(),
         caps.get(2)?.as_str().to_string(),
     ))
 }
 
-fn parse_ugc_capture(text: &str, valid_time: DateTime<Utc>) -> Option<UgcSection> {
-    // Extract codes and expiration from the full line
-    let (code_block, expire_code) = extract_expiration(text)?;
+fn ugc_full_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^([A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?(?:[-,][A-Z]{2}[CZFM][0-9]{3}(?:>[0-9]{3})?)*)-([0-9]{6})-\s*$")
+            .expect("ugc full regex compiles")
+    })
+}
 
-    let codes = expand_ugc_block(&code_block)?;
-    let expires = parse_expire_time(&expire_code, valid_time)?;
+fn parse_ugc_capture(
+    text: &str,
+    valid_time: DateTime<Utc>,
+) -> Result<UgcSection, ProductParseIssue> {
+    let (code_block, expire_code) = extract_expiration(text).ok_or_else(|| {
+        ProductParseIssue::new(
+            "ugc_parse",
+            "invalid_ugc_format",
+            format!("could not parse UGC section: `{text}`"),
+            Some(text.to_string()),
+        )
+    })?;
 
-    Some(UgcSection { codes, expires })
+    let codes = expand_ugc_block(&code_block).ok_or_else(|| {
+        ProductParseIssue::new(
+            "ugc_parse",
+            "invalid_ugc_codes",
+            format!("could not parse UGC codes from section: `{text}`"),
+            Some(text.to_string()),
+        )
+    })?;
+    let expires = parse_expire_time(&expire_code, valid_time).ok_or_else(|| {
+        ProductParseIssue::new(
+            "ugc_parse",
+            "invalid_ugc_expiration",
+            format!("could not parse UGC expiration from section: `{text}`"),
+            Some(text.to_string()),
+        )
+    })?;
+
+    Ok(UgcSection { codes, expires })
 }
 
 fn expand_ugc_block(block: &str) -> Option<Vec<UgcCode>> {
@@ -178,33 +236,13 @@ fn parse_expire_time(expire_code: &str, valid_time: DateTime<Utc>) -> Option<Dat
     let hour: u32 = expire_code[2..4].parse().ok()?;
     let minute: u32 = expire_code[4..6].parse().ok()?;
 
-    // Determine the correct month/year based on valid_time
-    let valid_day = valid_time.day();
-    let year = valid_time.year();
-    let month = valid_time.month();
-
-    // Handle month/year rollover
-    let (target_year, target_month) = if day < valid_day {
-        // Expiration day is earlier in the month, assume next month
-        if month == 12 {
-            (year + 1, 1)
-        } else {
-            (year, month + 1)
-        }
-    } else {
-        (year, month)
-    };
-
-    let date = NaiveDate::from_ymd_opt(target_year, target_month, day)?;
-    let time = NaiveTime::from_hms_opt(hour, minute, 0)?;
-    let naive = date.and_time(time);
-
-    Some(Utc.from_utc_datetime(&naive))
+    resolve_day_time_not_before(valid_time, day, hour, minute)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     fn test_valid_time() -> DateTime<Utc> {
         // 2025-03-05 12:00:00 UTC
@@ -295,5 +333,15 @@ mod tests {
         let text = "INVALID-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
         assert!(sections.is_empty());
+    }
+
+    #[test]
+    fn parse_ugc_invalid_reports_issue() {
+        let text = "IAC001-991299-\n";
+        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
+
+        assert!(sections.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_ugc_expiration");
     }
 }

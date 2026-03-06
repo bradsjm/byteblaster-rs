@@ -11,8 +11,10 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use regex::Regex;
 use std::sync::OnceLock;
 
+use crate::ProductParseIssue;
+
 /// A parsed HVTEC code.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct HvtecCode {
     /// 5-character NWSLI (National Weather Service Location Identifier)
     /// River gauge or flood forecast point identifier
@@ -38,7 +40,7 @@ pub struct HvtecCode {
 }
 
 /// Severity levels for HVTEC flood events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecSeverity {
     /// Level 1 - Minor flooding
     Level1,
@@ -62,7 +64,7 @@ impl HvtecSeverity {
 }
 
 /// Immediate cause codes for HVTEC events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecCause {
     /// Excessive Rainfall (ER)
     ExcessiveRainfall,
@@ -89,7 +91,7 @@ impl HvtecCause {
 }
 
 /// Record status indicators for HVTEC events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecRecord {
     /// No record - not approaching or exceeding record levels
     NoRecord,
@@ -139,34 +141,141 @@ impl HvtecRecord {
 /// assert_eq!(codes[0].severity, emwin_parser::HvtecSeverity::Level3);
 /// ```
 pub fn parse_hvtec_codes(text: &str) -> Vec<HvtecCode> {
-    hvtec_regex()
-        .captures_iter(text)
-        .filter_map(|cap| parse_hvtec_capture(&cap))
-        .collect()
+    parse_hvtec_codes_with_issues(text).0
+}
+
+pub fn parse_hvtec_codes_with_issues(text: &str) -> (Vec<HvtecCode>, Vec<ProductParseIssue>) {
+    let mut codes = Vec::new();
+    let mut issues = Vec::new();
+
+    for candidate in hvtec_candidate_regex().find_iter(text) {
+        let raw = candidate.as_str();
+        let Some(captures) = hvtec_regex().captures(raw) else {
+            issues.push(ProductParseIssue::new(
+                "hvtec_parse",
+                "invalid_hvtec_format",
+                format!("could not parse HVTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            ));
+            continue;
+        };
+
+        match parse_hvtec_capture(&captures, raw) {
+            Ok(code) => codes.push(code),
+            Err(issue) => issues.push(issue),
+        }
+    }
+
+    (codes, issues)
+}
+
+fn hvtec_candidate_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"/[A-Z0-9]{5}\.[^/\r\n]+/").expect("hvtec candidate regex compiles")
+    })
 }
 
 fn hvtec_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"/([A-Z0-9]{5})\.(\d)\.([A-Z]+)\.([0-9TZ]+)\.([0-9TZ]+)\.([0-9TZ]+)\.(\w{2})/")
+        Regex::new(r"/([A-Z0-9]{5})\.([^./\r\n]+)\.([A-Z]+)\.([^./\r\n]+)\.([^./\r\n]+)\.([^./\r\n]+)\.(\w{2})/")
             .expect("hvtec regex compiles")
     })
 }
 
-fn parse_hvtec_capture(cap: &regex::Captures<'_>) -> Option<HvtecCode> {
-    let nwslid = cap.get(1)?.as_str().to_string();
-    let severity = HvtecSeverity::from_str(cap.get(2)?.as_str());
-    let cause = HvtecCause::from_str(cap.get(3)?.as_str());
-    let begin_str = cap.get(4)?.as_str();
-    let crest_str = cap.get(5)?.as_str();
-    let end_str = cap.get(6)?.as_str();
-    let record = HvtecRecord::from_str(cap.get(7)?.as_str());
+fn parse_hvtec_capture(
+    cap: &regex::Captures<'_>,
+    raw: &str,
+) -> Result<HvtecCode, ProductParseIssue> {
+    let nwslid = cap
+        .get(1)
+        .map(|value| value.as_str().to_string())
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "hvtec_parse",
+                "invalid_hvtec_format",
+                format!("could not parse HVTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    let severity =
+        HvtecSeverity::from_str(cap.get(2).map(|value| value.as_str()).ok_or_else(|| {
+            ProductParseIssue::new(
+                "hvtec_parse",
+                "invalid_hvtec_format",
+                format!("could not parse HVTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?);
+    let cause = HvtecCause::from_str(cap.get(3).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_format",
+            format!("could not parse HVTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?);
+    let begin_str = cap.get(4).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_format",
+            format!("could not parse HVTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let crest_str = cap.get(5).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_format",
+            format!("could not parse HVTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let end_str = cap.get(6).map(|value| value.as_str()).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_format",
+            format!("could not parse HVTEC code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let record =
+        HvtecRecord::from_str(cap.get(7).map(|value| value.as_str()).ok_or_else(|| {
+            ProductParseIssue::new(
+                "hvtec_parse",
+                "invalid_hvtec_format",
+                format!("could not parse HVTEC code: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?);
 
-    let begin = parse_hvtec_time(begin_str)?;
-    let crest = parse_hvtec_time(crest_str)?;
-    let end = parse_hvtec_time(end_str)?;
+    let begin = parse_hvtec_time(begin_str).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_begin_time",
+            format!("could not parse HVTEC begin time from code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let crest = parse_hvtec_time(crest_str).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_crest_time",
+            format!("could not parse HVTEC crest time from code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
+    let end = parse_hvtec_time(end_str).ok_or_else(|| {
+        ProductParseIssue::new(
+            "hvtec_parse",
+            "invalid_hvtec_end_time",
+            format!("could not parse HVTEC end time from code: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
 
-    Some(HvtecCode {
+    Ok(HvtecCode {
         nwslid,
         severity,
         cause,
@@ -277,6 +386,16 @@ mod tests {
         let text = "/INVALID.HVTEC.CODE/";
         let codes = parse_hvtec_codes(text);
         assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn parse_hvtec_invalid_reports_issue() {
+        let text = "/MSRM1.3.ER.250301T1200Z.invalid.250302T0000Z.NO/";
+        let (codes, issues) = parse_hvtec_codes_with_issues(text);
+
+        assert!(codes.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_hvtec_crest_time");
     }
 
     #[test]

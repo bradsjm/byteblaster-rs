@@ -70,8 +70,7 @@ $$
         // Test UGC parsing
         let ugc_sections = parse_ugc_sections(text, Utc::now());
         assert_eq!(ugc_sections.len(), 1);
-        assert_eq!(ugc_sections[0].codes.len(), 3);
-        assert_eq!(ugc_sections[0].codes[0].state, "NE");
+        assert_eq!(ugc_sections[0].counties.get("NE"), Some(&vec![1, 2, 3]));
 
         // Test HVTEC parsing
         let hvtec_codes = parse_hvtec_codes(text);

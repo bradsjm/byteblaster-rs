@@ -14,13 +14,24 @@ use crate::ProductParseIssue;
 use crate::time::resolve_day_time_not_before;
 use chrono::{DateTime, Utc};
 use regex::Regex;
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// A parsed UGC section containing codes and expiration time.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct UgcSection {
-    /// Individual UGC codes (expanded from ranges)
-    pub codes: Vec<UgcCode>,
+    /// County UGC numbers grouped by state/prefix.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub counties: BTreeMap<String, Vec<u16>>,
+    /// Zone UGC numbers grouped by state/prefix.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub zones: BTreeMap<String, Vec<u16>>,
+    /// Fire weather UGC numbers grouped by state/prefix.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub fire_zones: BTreeMap<String, Vec<u16>>,
+    /// Marine UGC numbers grouped by state/prefix.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub marine_zones: BTreeMap<String, Vec<u16>>,
     /// Expiration time for this UGC section
     pub expires: DateTime<Utc>,
 }
@@ -63,6 +74,38 @@ impl UgcClass {
     }
 }
 
+impl UgcSection {
+    fn from_codes(codes: Vec<UgcCode>, expires: DateTime<Utc>) -> Self {
+        let mut counties = BTreeMap::new();
+        let mut zones = BTreeMap::new();
+        let mut fire_zones = BTreeMap::new();
+        let mut marine_zones = BTreeMap::new();
+
+        for code in codes {
+            let bucket = match code.geoclass {
+                UgcClass::County => &mut counties,
+                UgcClass::Zone => &mut zones,
+                UgcClass::FireZone => &mut fire_zones,
+                UgcClass::Marine => &mut marine_zones,
+                UgcClass::Unknown => &mut zones,
+            };
+
+            bucket
+                .entry(code.state)
+                .or_insert_with(Vec::new)
+                .push(code.number);
+        }
+
+        Self {
+            counties,
+            zones,
+            fire_zones,
+            marine_zones,
+            expires,
+        }
+    }
+}
+
 /// Parses all UGC sections found in the given text.
 ///
 /// This function searches for UGC code blocks throughout the entire text and
@@ -88,8 +131,7 @@ impl UgcClass {
 /// let sections = parse_ugc_sections(text, Utc::now());
 ///
 /// assert_eq!(sections.len(), 1);
-/// assert_eq!(sections[0].codes.len(), 3); // Expanded from 001>003
-/// assert_eq!(sections[0].codes[0].state, "IA");
+/// assert_eq!(sections[0].counties["IA"], vec![1, 2, 3]);
 /// ```
 pub fn parse_ugc_sections(text: &str, valid_time: DateTime<Utc>) -> Vec<UgcSection> {
     parse_ugc_sections_with_issues(text, valid_time).0
@@ -212,7 +254,7 @@ fn parse_ugc_capture(
         )
     })?;
 
-    Ok(UgcSection { codes, expires })
+    Ok(UgcSection::from_codes(codes, expires))
 }
 
 fn expand_ugc_block(block: &str) -> Option<Vec<UgcCode>> {
@@ -321,10 +363,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].codes.len(), 1);
-        assert_eq!(sections[0].codes[0].state, "IA");
-        assert_eq!(sections[0].codes[0].geoclass, UgcClass::County);
-        assert_eq!(sections[0].codes[0].number, 1);
+        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1]));
     }
 
     #[test]
@@ -333,10 +372,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].codes.len(), 3);
-        assert_eq!(sections[0].codes[0].number, 1);
-        assert_eq!(sections[0].codes[1].number, 2);
-        assert_eq!(sections[0].codes[2].number, 3);
+        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 2, 3]));
     }
 
     #[test]
@@ -345,7 +381,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].codes.len(), 3);
+        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 3, 5]));
     }
 
     #[test]
@@ -353,7 +389,7 @@ mod tests {
         let text = "IAZ001>003-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
-        assert_eq!(sections[0].codes[0].geoclass, UgcClass::Zone);
+        assert_eq!(sections[0].zones.get("IA"), Some(&vec![1, 2, 3]));
     }
 
     #[test]
@@ -362,10 +398,8 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        // 001, 002, 003 from IA range + 005 from NE = 4 total
-        assert_eq!(sections[0].codes.len(), 4);
-        assert_eq!(sections[0].codes[0].state, "IA");
-        assert_eq!(sections[0].codes[3].state, "NE");
+        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 2, 3]));
+        assert_eq!(sections[0].counties.get("NE"), Some(&vec![5]));
     }
 
     #[test]
@@ -417,11 +451,17 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].codes.first().unwrap().state, "DC");
-        assert_eq!(sections[0].codes.first().unwrap().number, 1);
-        assert_eq!(sections[0].codes.last().unwrap().state, "VA");
-        assert_eq!(sections[0].codes.last().unwrap().number, 57);
-        assert_eq!(sections[0].codes.len(), 28);
+        assert_eq!(sections[0].zones.get("DC"), Some(&vec![1]));
+        assert_eq!(
+            sections[0].zones.get("MD"),
+            Some(&vec![4, 5, 6, 7, 9, 10, 11, 13, 14, 16, 17, 18])
+        );
+        assert_eq!(
+            sections[0].zones.get("VA"),
+            Some(&vec![
+                36, 37, 38, 39, 40, 41, 42, 50, 51, 52, 53, 54, 55, 56, 57
+            ])
+        );
     }
 
     #[test]
@@ -430,8 +470,10 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
-        assert_eq!(numbers, vec![4, 5, 6, 7, 9, 10, 11]);
+        assert_eq!(
+            sections[0].zones.get("MD"),
+            Some(&vec![4, 5, 6, 7, 9, 10, 11])
+        );
     }
 
     #[test]
@@ -440,16 +482,11 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
         assert_eq!(
-            numbers,
-            vec![8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56]
-        );
-        assert!(
-            sections[0]
-                .codes
-                .iter()
-                .all(|code| code.state == "KS" && code.geoclass == UgcClass::Zone)
+            sections[0].zones.get("KS"),
+            Some(&vec![
+                8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56
+            ])
         );
     }
 
@@ -459,14 +496,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
-        assert_eq!(numbers, vec![214, 216]);
-        assert!(
-            sections[0]
-                .codes
-                .iter()
-                .all(|code| code.state == "CO" && code.geoclass == UgcClass::FireZone)
-        );
+        assert_eq!(sections[0].fire_zones.get("CO"), Some(&vec![214, 216]));
     }
 
     #[test]
@@ -475,14 +505,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        let numbers: Vec<u16> = sections[0].codes.iter().map(|code| code.number).collect();
-        assert_eq!(numbers, vec![730, 750]);
-        assert!(
-            sections[0]
-                .codes
-                .iter()
-                .all(|code| code.state == "GM" && code.geoclass == UgcClass::Zone)
-        );
+        assert_eq!(sections[0].zones.get("GM"), Some(&vec![730, 750]));
     }
 
     #[test]

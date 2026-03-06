@@ -1,37 +1,8 @@
 use crate::ingest::model::{IngestError, IngestEvent, IngestTelemetry, IngestWarning};
-use crate::runtime_support::ReceiverEventStream;
-use crate::wxwire_receiver::{
-    WxWireReceiver, WxWireReceiverClient, WxWireReceiverError, WxWireReceiverEvent,
-    WxWireReceiverFrameEvent, WxWireReceiverResult,
-};
+use crate::wxwire_receiver::{WxWireReceiverError, WxWireReceiverEvent, WxWireReceiverFrameEvent};
 use futures::{Stream, StreamExt, future};
-use std::pin::Pin;
 
-pub struct WxWireIngestStream {
-    receiver: WxWireReceiver,
-}
-
-impl WxWireIngestStream {
-    pub fn new(receiver: WxWireReceiver) -> Self {
-        Self { receiver }
-    }
-
-    pub fn start(&mut self) -> WxWireReceiverResult<()> {
-        self.receiver.start()
-    }
-
-    pub fn stop(
-        &mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<(), IngestError>> + Send + '_>> {
-        Box::pin(async move { self.receiver.stop().await.map_err(IngestError::from) })
-    }
-
-    pub fn events(&mut self) -> Result<ReceiverEventStream<IngestEvent, IngestError>, IngestError> {
-        Ok(Box::pin(adapt_wxwire_events(self.receiver.events()?)))
-    }
-}
-
-pub fn adapt_wxwire_events<'a, S>(
+pub(crate) fn adapt_wxwire_events<'a, S>(
     events: S,
 ) -> impl Stream<Item = Result<IngestEvent, IngestError>> + Send + 'a
 where

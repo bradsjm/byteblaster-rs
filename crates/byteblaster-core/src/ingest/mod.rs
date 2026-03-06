@@ -9,24 +9,22 @@
 //! - [`ProductOrigin`]: Source identifier for products (QBT or Weather Wire)
 //! - [`IngestEvent`]: Combined stream of products and telemetry events
 //!
-//! ## Adapters
+//! ## Receiver Abstraction
 //!
-//! - `adapt_qbt_events`: Converts QBT segment/file events into unified product events
-//! - `adapt_wxwire_events`: Converts Weather Wire file events into unified product events
+//! - [`IngestConfig`]: Source-specific receiver configuration
+//! - [`IngestReceiver`]: Unified receiver lifecycle and event stream API
 //!
-//! Both adapters handle the specific nuances of their source protocols while emitting
-//! a uniform stream of `ReceivedProduct` events that can be consumed by application code.
+//! The core crate owns the adaptation from protocol-specific receiver events into
+//! a uniform stream of [`IngestEvent`] values.
 
 mod model;
 #[cfg(feature = "qbt")]
 mod qbt_adapter;
+mod receiver;
 #[cfg(feature = "wxwire")]
 mod wxwire_adapter;
 
 pub use model::{
     IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, ReceivedProduct,
 };
-#[cfg(feature = "qbt")]
-pub use qbt_adapter::{QbtIngestStream, adapt_qbt_events};
-#[cfg(feature = "wxwire")]
-pub use wxwire_adapter::{WxWireIngestStream, adapt_wxwire_events};
+pub use receiver::{IngestConfig, IngestReceiver};

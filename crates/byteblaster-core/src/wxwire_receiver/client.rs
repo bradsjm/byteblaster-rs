@@ -1,4 +1,6 @@
-use crate::runtime_support::{BackpressureTracker, ReceiverEventStream, ReceiverRuntime};
+use crate::runtime_support::{
+    BackpressureTracker, ReceiverEventStream, ReceiverRuntime, try_send_with_backpressure_warning,
+};
 use crate::wxwire_receiver::codec::{WxWireDecoder, WxWireFrameDecoder};
 use crate::wxwire_receiver::config::{WXWIRE_PRIMARY_HOST, WxWireReceiverConfig};
 use crate::wxwire_receiver::error::{
@@ -583,45 +585,30 @@ fn try_send_event(
     event: Result<WxWireReceiverEvent, WxWireReceiverError>,
     telemetry: &mut RuntimeTelemetry,
 ) {
-    try_emit_backpressure_warning(event_tx, telemetry);
-    if let Err(err) = event_tx.try_send(event) {
-        record_dropped_event(err, telemetry);
-    }
-}
-
-fn try_emit_backpressure_warning(
-    event_tx: &mpsc::Sender<Result<WxWireReceiverEvent, WxWireReceiverError>>,
-    telemetry: &mut RuntimeTelemetry,
-) {
-    if !telemetry.backpressure.has_pending_report() {
-        return;
-    }
-
-    let warning = WxWireReceiverFrameEvent::Warning(WxWireReceiverWarning::BackpressureDrop {
-        dropped_since_last_report: telemetry.backpressure.dropped_since_last_report(),
-        total_dropped_events: telemetry.backpressure.event_queue_drop_total(),
-    });
-
-    match event_tx.try_send(Ok(WxWireReceiverEvent::Frame(warning))) {
-        Ok(()) => {
+    try_send_with_backpressure_warning(
+        event_tx,
+        event,
+        &mut telemetry.backpressure,
+        |tracker| {
+            WxWireReceiverEvent::Frame(WxWireReceiverFrameEvent::Warning(
+                WxWireReceiverWarning::BackpressureDrop {
+                    dropped_since_last_report: tracker.dropped_since_last_report(),
+                    total_dropped_events: tracker.event_queue_drop_total(),
+                },
+            ))
+        },
+        || {
             telemetry.snapshot.warning_events_total =
                 telemetry.snapshot.warning_events_total.saturating_add(1);
             telemetry.snapshot.backpressure_warning_emitted_total = telemetry
                 .snapshot
                 .backpressure_warning_emitted_total
                 .saturating_add(1);
-            telemetry.backpressure.clear_pending_report();
-        }
-        Err(TrySendError::Full(_)) | Err(TrySendError::Closed(_)) => {}
-    }
-}
-
-fn record_dropped_event(
-    err: TrySendError<Result<WxWireReceiverEvent, WxWireReceiverError>>,
-    telemetry: &mut RuntimeTelemetry,
-) {
-    telemetry.backpressure.record_send_failure(err);
-    telemetry.snapshot.event_queue_drop_total = telemetry.backpressure.event_queue_drop_total();
+        },
+        |tracker| {
+            telemetry.snapshot.event_queue_drop_total = tracker.event_queue_drop_total();
+        },
+    );
 }
 
 fn update_telemetry_sink(
@@ -953,7 +940,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_backpressure_warning_send_does_not_increment_drop_total() {
+    fn failed_backpressure_warning_send_counts_as_drop() {
         let (tx, mut rx) = mpsc::channel(1);
         tx.try_send(Ok(WxWireReceiverEvent::Disconnected))
             .expect("channel should accept initial event");
@@ -962,10 +949,10 @@ mod tests {
         telemetry.snapshot.event_queue_drop_total = 7;
         telemetry.backpressure = BackpressureTracker::new(7, 3);
 
-        super::try_emit_backpressure_warning(&tx, &mut telemetry);
+        super::try_send_event(&tx, Ok(WxWireReceiverEvent::Disconnected), &mut telemetry);
 
-        assert_eq!(telemetry.snapshot.event_queue_drop_total, 7);
-        assert_eq!(telemetry.backpressure.dropped_since_last_report(), 3);
+        assert_eq!(telemetry.snapshot.event_queue_drop_total, 9);
+        assert_eq!(telemetry.backpressure.dropped_since_last_report(), 5);
 
         let queued = rx.try_recv().expect("original event should remain");
         assert!(matches!(queued, Ok(WxWireReceiverEvent::Disconnected)));

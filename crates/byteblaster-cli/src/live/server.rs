@@ -26,7 +26,7 @@ mod server_ingest;
 mod types;
 
 pub use types::ServerOptions;
-use types::{AppState, BroadcastEvent, EventKind};
+use types::{AppState, BroadcastEvent, EventKind, TelemetryPayload};
 
 #[cfg(test)]
 use server_http::{event_matches_filter, files_handler};
@@ -62,7 +62,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             max_retained_files.max(1),
             Duration::from_secs(file_retention_secs.max(1)),
         )),
-        telemetry: Mutex::new(serde_json::json!({})),
+        telemetry: Mutex::new(TelemetryPayload::Unavailable),
         connected_clients: AtomicUsize::new(0),
         max_clients: max_clients.max(1),
         next_event_id: AtomicU64::new(1),
@@ -243,8 +243,12 @@ fn build_cors_layer(cors_origin: Option<String>) -> crate::error::CliResult<Cors
 
 #[cfg(test)]
 mod tests {
-    use super::{build_router, event_matches_filter, files_handler, sanitize_requested_filename};
-    use crate::live::server::types::{AppState, EventKind, EventsQuery};
+    use super::{
+        TelemetryPayload, build_router, event_matches_filter, files_handler,
+        sanitize_requested_filename,
+    };
+    use crate::live::file_pipeline::CompletedFileMetadata;
+    use crate::live::server::types::{AppState, EventKind, EventsQuery, FileCompleteEventPayload};
     use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
     use axum::Json;
@@ -263,7 +267,7 @@ mod tests {
             event_tx: broadcast::channel(32).0,
             shutdown_rx,
             retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
-            telemetry: std::sync::Mutex::new(serde_json::json!({})),
+            telemetry: std::sync::Mutex::new(TelemetryPayload::Unavailable),
             connected_clients: AtomicUsize::new(0),
             max_clients,
             next_event_id: AtomicU64::new(1),
@@ -274,6 +278,20 @@ mod tests {
             upstream_endpoint: std::sync::Mutex::new(None),
             quiet: true,
         })
+    }
+
+    fn file_complete_event(filename: &str) -> EventKind {
+        EventKind::FileComplete(Box::new(FileCompleteEventPayload::from_metadata(
+            CompletedFileMetadata {
+                filename: filename.to_string(),
+                size: 11,
+                timestamp_utc: 1,
+                product: None,
+                text_product_header: None,
+                text_product_enrichment: None,
+                text_product_warning: None,
+            },
+        )))
     }
 
     #[test]
@@ -367,7 +385,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn files_endpoint_includes_product_metadata_when_detectable() {
+    async fn files_endpoint_serializes_enriched_metadata() {
         let state = test_state(10);
         {
             let mut guard = state
@@ -376,47 +394,43 @@ mod tests {
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             guard.insert(
                 "TAFPDKGA.TXT".to_string(),
-                b"data".to_vec(),
+                b"000
+FTUS42 KFFC 022320
+TAFPDK
+Body
+"
+                .to_vec(),
                 1,
                 SystemTime::now(),
             );
         }
 
         let Json(response) = files_handler(State(state)).await;
-        let value = serde_json::to_value(response).expect("files response should serialize");
-        assert_eq!(value["files"][0]["filename"], "TAFPDKGA.TXT");
-        assert_eq!(value["files"][0]["product"]["pil"], "TAF");
+        let file = &response.files[0];
+        assert_eq!(file.filename, "TAFPDKGA.TXT");
         assert_eq!(
-            value["files"][0]["product"]["title"],
-            "Terminal Aerodrome Forecast"
+            file.product.as_ref().and_then(|value| value.pil.as_deref()),
+            Some("TAF")
         );
-    }
-
-    #[tokio::test]
-    async fn files_endpoint_includes_text_product_details_when_parseable() {
-        let state = test_state(10);
-        {
-            let mut guard = state
-                .retained_files
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            guard.insert(
-                "AFDBOX.TXT".to_string(),
-                b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n".to_vec(),
-                1,
-                SystemTime::now(),
-            );
-        }
-
-        let Json(response) = files_handler(State(state)).await;
-        let value = serde_json::to_value(response).expect("files response should serialize");
-        assert_eq!(value["files"][0]["text_product_header"]["ttaaii"], "FXUS61");
-        assert_eq!(value["files"][0]["text_product_header"]["afos"], "AFDBOX");
+        assert!(
+            file.product
+                .as_ref()
+                .map(|value| !value.title.is_empty())
+                .unwrap_or(false)
+        );
         assert_eq!(
-            value["files"][0]["text_product_enrichment"]["pil_nnn"],
-            "AFD"
+            file.text_product_header
+                .as_ref()
+                .map(|value| value.ttaaii.as_str()),
+            Some("FTUS42")
         );
-        assert!(value["files"][0].get("text_product_warning").is_none());
+        assert_eq!(
+            file.text_product_enrichment
+                .as_ref()
+                .and_then(|value| value.pil_nnn.as_deref()),
+            Some("TAF")
+        );
+        assert!(file.text_product_warning.is_none());
     }
 
     #[tokio::test]
@@ -500,25 +514,9 @@ mod tests {
 
     #[test]
     fn events_filter_only_allows_matching_filenames() {
-        let txt = EventKind::FileComplete {
-            filename: "report.txt".to_string(),
-            size: 2,
-            timestamp_utc: 1,
-            product: None,
-            text_product_header: None,
-            text_product_enrichment: None,
-            text_product_warning: None,
-        };
-        let zip = EventKind::FileComplete {
-            filename: "report.zip".to_string(),
-            size: 1,
-            timestamp_utc: 1,
-            product: None,
-            text_product_header: None,
-            text_product_enrichment: None,
-            text_product_warning: None,
-        };
-        let telemetry = EventKind::Telemetry(serde_json::json!({}));
+        let txt = file_complete_event("report.txt");
+        let zip = file_complete_event("report.zip");
+        let telemetry = EventKind::Telemetry(TelemetryPayload::Unavailable);
 
         assert!(event_matches_filter(Some("*.txt"), &txt));
         assert!(!event_matches_filter(Some("*.txt"), &zip));
@@ -527,48 +525,9 @@ mod tests {
 
     #[test]
     fn file_complete_event_includes_download_url() {
-        let value = EventKind::FileComplete {
-            filename: "nested/my file.txt".to_string(),
-            size: 11,
-            timestamp_utc: 1,
-            product: None,
-            text_product_header: None,
-            text_product_enrichment: None,
-            text_product_warning: None,
-        }
-        .to_json();
+        let value = file_complete_event("nested/my file.txt").to_json();
 
         assert_eq!(value["download_url"], "/files/nested%2Fmy%20file.txt");
         assert_eq!(value["timestamp_utc"], 1);
-    }
-
-    #[test]
-    fn file_complete_event_includes_text_product_details() {
-        let value = EventKind::FileComplete {
-            filename: "AFDBOX.TXT".to_string(),
-            size: 42,
-            timestamp_utc: 1,
-            product: None,
-            text_product_header: Some(serde_json::json!({
-                "ttaaii": "FXUS61",
-                "cccc": "KBOX",
-                "ddhhmm": "022101",
-                "bbb": serde_json::Value::Null,
-                "afos": "AFDBOX"
-            })),
-            text_product_enrichment: Some(serde_json::json!({
-                "pil_nnn": "AFD",
-                "pil_description": "Area Forecast Discussion",
-                "bbb_kind": serde_json::Value::Null,
-            })),
-            text_product_warning: None,
-        }
-        .to_json();
-
-        assert_eq!(value["text_product_header"]["ttaaii"], "FXUS61");
-        assert_eq!(
-            value["text_product_enrichment"]["pil_description"],
-            "Area Forecast Discussion"
-        );
     }
 }

@@ -1,39 +1,12 @@
 use crate::ingest::model::{IngestError, IngestEvent, IngestTelemetry, IngestWarning};
 use crate::qbt_receiver::{
-    QbtFileAssembler, QbtFrameEvent, QbtReceiver, QbtReceiverClient, QbtReceiverError,
-    QbtReceiverEvent, QbtReceiverResult, QbtSegmentAssembler,
+    QbtFileAssembler, QbtFrameEvent, QbtReceiverError, QbtReceiverEvent, QbtSegmentAssembler,
 };
-use crate::runtime_support::ReceiverEventStream;
 use futures::{Stream, StreamExt, future};
-use std::pin::Pin;
 
 const DEFAULT_DUPLICATE_CACHE_SIZE: usize = 100;
 
-pub struct QbtIngestStream {
-    receiver: QbtReceiver,
-}
-
-impl QbtIngestStream {
-    pub fn new(receiver: QbtReceiver) -> Self {
-        Self { receiver }
-    }
-
-    pub fn start(&mut self) -> QbtReceiverResult<()> {
-        self.receiver.start()
-    }
-
-    pub fn stop(
-        &mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<(), IngestError>> + Send + '_>> {
-        Box::pin(async move { self.receiver.stop().await.map_err(IngestError::from) })
-    }
-
-    pub fn events(&mut self) -> Result<ReceiverEventStream<IngestEvent, IngestError>, IngestError> {
-        Ok(Box::pin(adapt_qbt_events(self.receiver.events()?)))
-    }
-}
-
-pub fn adapt_qbt_events<'a, S>(
+pub(crate) fn adapt_qbt_events<'a, S>(
     events: S,
 ) -> impl Stream<Item = Result<IngestEvent, IngestError>> + Send + 'a
 where

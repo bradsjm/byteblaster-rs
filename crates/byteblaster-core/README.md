@@ -15,12 +15,16 @@ Core Rust library for ByteBlaster protocol parsing, client runtime, and file ass
   - Watchdog health monitoring
   - Event stream + handler fanout with fault isolation
   - Server-list persistence and rotation management
+- Unified ingest runtime
+  - Single receiver abstraction over QBT and Weather Wire
+  - Normalized product, telemetry, and warning events
 - File layer
   - Segment-to-file assembly
   - Duplicate block/file suppression
 
 ## Public modules
 
+- `ingest`
 - `qbt_receiver`
 - `wxwire_receiver`
 
@@ -73,12 +77,25 @@ byteblaster-core = { path = "../byteblaster-rs/crates/byteblaster-core" }
 Minimal usage example:
 
 ```rust
-use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
+use byteblaster_core::ingest::{IngestConfig, IngestReceiver};
+use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
 
-fn main() {
-    let mut decoder = QbtProtocolDecoder::default();
-    let events = decoder.feed(&[]).expect("decode should not fail");
-    println!("decoded {} event(s)", events.len());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut receiver = IngestReceiver::build(IngestConfig::Qbt(QbtReceiverConfig {
+        email: "you@example.com".to_string(),
+        servers: default_qbt_upstream_servers(),
+        server_list_path: None,
+        follow_server_list_updates: true,
+        reconnect_delay_secs: 5,
+        connection_timeout_secs: 5,
+        watchdog_timeout_secs: 49,
+        max_exceptions: 10,
+        decode: QbtDecodeConfig::default(),
+    }))?;
+    receiver.start()?;
+    receiver.stop().await?;
+    Ok(())
 }
 ```
 

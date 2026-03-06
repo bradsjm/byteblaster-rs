@@ -1,20 +1,67 @@
-use crate::product_meta::detect_product_meta;
+use crate::product_meta::{ProductMeta, detect_product_meta};
 use byteblaster_parser::{BbbKind, ParserError, enrich_header, parse_text_product};
+use serde::Serialize;
 use std::path::Path;
 use std::time::SystemTime;
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct TextProductDetails {
-    pub(crate) header: Option<serde_json::Value>,
-    pub(crate) enrichment: Option<serde_json::Value>,
-    pub(crate) warning: Option<serde_json::Value>,
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub(crate) struct TextProductHeaderPayload {
+    pub(crate) ttaaii: String,
+    pub(crate) cccc: String,
+    pub(crate) ddhhmm: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) bbb: Option<String>,
+    pub(crate) afos: String,
 }
 
-pub(crate) struct CompletedFileRecord {
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub(crate) struct TextProductEnrichmentPayload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) pil_nnn: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) pil_description: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) bbb_kind: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub(crate) struct TextProductWarningPayload {
+    pub(crate) kind: &'static str,
+    pub(crate) code: &'static str,
+    pub(crate) message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) line: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+pub(crate) struct TextProductDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) header: Option<TextProductHeaderPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) enrichment: Option<TextProductEnrichmentPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) warning: Option<TextProductWarningPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub(crate) struct CompletedFileMetadata {
     pub(crate) filename: String,
-    pub(crate) path: String,
+    pub(crate) size: usize,
     pub(crate) timestamp_utc: u64,
-    pub(crate) event: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) product: Option<ProductMeta>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) text_product_header: Option<TextProductHeaderPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) text_product_enrichment: Option<TextProductEnrichmentPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) text_product_warning: Option<TextProductWarningPayload>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct CompletedFileRecord {
+    pub(crate) path: String,
+    pub(crate) metadata: CompletedFileMetadata,
 }
 
 pub(crate) fn write_completed_file(
@@ -30,33 +77,21 @@ pub(crate) fn write_completed_file(
     Ok(target.to_string_lossy().to_string())
 }
 
-pub(crate) fn completed_file_event(
+pub(crate) fn build_completed_file_metadata(
     filename: &str,
-    path: &str,
     timestamp_utc: u64,
     data: &[u8],
-) -> serde_json::Value {
-    let mut file_event = serde_json::json!({
-        "filename": filename,
-        "path": path,
-        "timestamp_utc": timestamp_utc,
-    });
-    if let Some(product) = detect_product_meta(filename)
-        && let Ok(product_json) = serde_json::to_value(product)
-    {
-        file_event["product"] = product_json;
-    }
+) -> CompletedFileMetadata {
     let text_details = text_product_details(filename, data);
-    if let Some(header) = text_details.header {
-        file_event["text_product_header"] = header;
+    CompletedFileMetadata {
+        filename: filename.to_string(),
+        size: data.len(),
+        timestamp_utc,
+        product: detect_product_meta(filename),
+        text_product_header: text_details.header,
+        text_product_enrichment: text_details.enrichment,
+        text_product_warning: text_details.warning,
     }
-    if let Some(enrichment) = text_details.enrichment {
-        file_event["text_product_enrichment"] = enrichment;
-    }
-    if let Some(warning) = text_details.warning {
-        file_event["text_product_warning"] = warning;
-    }
-    file_event
 }
 
 pub(crate) fn persist_completed_file(
@@ -68,10 +103,8 @@ pub(crate) fn persist_completed_file(
     let path = write_completed_file(output_dir, filename, data)?;
     let timestamp_utc = crate::live::shared::unix_seconds(timestamp);
     Ok(CompletedFileRecord {
-        filename: filename.to_string(),
-        event: completed_file_event(filename, &path, timestamp_utc, data),
         path,
-        timestamp_utc,
+        metadata: build_completed_file_metadata(filename, timestamp_utc, data),
     })
 }
 
@@ -83,39 +116,35 @@ pub(crate) fn text_product_details(filename: &str, data: &[u8]) -> TextProductDe
     match parse_text_product(data) {
         Ok(parsed) => {
             let enrichment = enrich_header(&parsed);
-            let header = serde_json::json!({
-                "ttaaii": parsed.ttaaii,
-                "cccc": parsed.cccc,
-                "ddhhmm": parsed.ddhhmm,
-                "bbb": parsed.bbb,
-                "afos": parsed.afos,
-            });
-            let enrichment = serde_json::json!({
-                "pil_nnn": enrichment.pil_nnn,
-                "pil_description": enrichment.pil_description,
-                "bbb_kind": enrichment.bbb_kind.map(bbb_kind_label),
-            });
+            let pil_nnn = enrichment.pil_nnn.map(str::to_string);
+            let pil_description = enrichment.pil_description;
+            let bbb_kind = enrichment.bbb_kind.map(bbb_kind_label);
             TextProductDetails {
-                header: Some(header),
-                enrichment: Some(enrichment),
+                header: Some(TextProductHeaderPayload {
+                    ttaaii: parsed.ttaaii,
+                    cccc: parsed.cccc,
+                    ddhhmm: parsed.ddhhmm,
+                    bbb: parsed.bbb,
+                    afos: parsed.afos,
+                }),
+                enrichment: Some(TextProductEnrichmentPayload {
+                    pil_nnn,
+                    pil_description,
+                    bbb_kind,
+                }),
                 warning: None,
             }
         }
-        Err(error) => {
-            let mut warning = serde_json::json!({
-                "kind": "text_product_parse",
-                "code": parser_error_code(&error),
-                "message": error.to_string(),
-            });
-            if let Some(line) = parser_error_line(&error) {
-                warning["line"] = serde_json::Value::String(line.to_string());
-            }
-            TextProductDetails {
-                header: None,
-                enrichment: None,
-                warning: Some(warning),
-            }
-        }
+        Err(error) => TextProductDetails {
+            header: None,
+            enrichment: None,
+            warning: Some(TextProductWarningPayload {
+                kind: "text_product_parse",
+                code: parser_error_code(&error),
+                message: error.to_string(),
+                line: parser_error_line(&error).map(str::to_string),
+            }),
+        },
     }
 }
 
@@ -152,32 +181,49 @@ fn parser_error_line(error: &ParserError) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::completed_file_event;
+    use super::{build_completed_file_metadata, text_product_details};
 
     #[test]
-    fn completed_event_includes_text_header_and_enrichment() {
-        let data = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n";
-        let event = completed_file_event("AFDBOX.TXT", "/tmp/AFDBOX.TXT", 1704070800, data);
-
-        assert_eq!(event["text_product_header"]["ttaaii"], "FXUS61");
-        assert_eq!(event["text_product_header"]["afos"], "AFDBOX");
-        assert_eq!(event["text_product_enrichment"]["pil_nnn"], "AFD");
-        assert_eq!(
-            event["text_product_enrichment"]["pil_description"],
-            "Area Forecast Discussion"
+    fn completed_metadata_includes_enrichment_for_valid_text_products() {
+        let metadata = build_completed_file_metadata(
+            "AFDBOX.TXT",
+            1704070800,
+            b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n",
         );
-        assert!(event.get("text_product_warning").is_none());
+
+        assert_eq!(
+            metadata
+                .text_product_header
+                .as_ref()
+                .map(|value| value.afos.as_str()),
+            Some("AFDBOX")
+        );
+        assert_eq!(
+            metadata
+                .text_product_enrichment
+                .as_ref()
+                .and_then(|value| value.pil_nnn.as_deref()),
+            Some("AFD")
+        );
+        assert!(metadata.text_product_warning.is_none());
     }
 
     #[test]
-    fn completed_event_includes_warning_for_parse_failure() {
-        let data = b"000 \nINVALID HEADER\nAFDBOX\nBody\n";
-        let event = completed_file_event("AFDBOX.TXT", "/tmp/AFDBOX.TXT", 1704070800, data);
+    fn text_products_emit_typed_parse_warnings() {
+        let details = text_product_details("AFDBOX.TXT", b"000 \nINVALID HEADER\nAFDBOX\nBody\n");
 
-        assert_eq!(event["text_product_warning"]["kind"], "text_product_parse");
-        assert_eq!(event["text_product_warning"]["code"], "invalid_wmo_header");
-        assert_eq!(event["text_product_warning"]["line"], "INVALID HEADER");
-        assert!(event.get("text_product_header").is_none());
-        assert!(event.get("text_product_enrichment").is_none());
+        assert_eq!(
+            details.warning.as_ref().map(|value| value.code),
+            Some("invalid_wmo_header")
+        );
+        assert_eq!(
+            details
+                .warning
+                .as_ref()
+                .and_then(|value| value.line.as_deref()),
+            Some("INVALID HEADER")
+        );
+        assert!(details.header.is_none());
+        assert!(details.enrichment.is_none());
     }
 }

@@ -50,7 +50,7 @@ pub enum ProductOrigin {
     },
 }
 
-/// Unified event stream from product ingestion adapters.
+/// Unified event stream from the ingest receiver.
 ///
 /// Combines product events with telemetry and warnings into a single stream
 /// for application consumption.
@@ -97,7 +97,7 @@ pub enum IngestWarning {
     WxWire(WxWireReceiverWarning),
 }
 
-/// Errors from product ingestion adapters.
+/// Errors from the ingest receiver.
 ///
 /// Wraps receiver-specific errors for unified error handling.
 #[derive(Debug, Error)]

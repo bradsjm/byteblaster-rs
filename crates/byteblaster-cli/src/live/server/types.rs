@@ -1,7 +1,10 @@
 use crate::cmd::event_output::{frame_event_filename, frame_event_name, frame_event_to_json};
-use crate::live::server_support::{RetainedFileMeta, RetainedFiles, file_download_url};
-use byteblaster_core::qbt_receiver::QbtFrameEvent;
-use byteblaster_core::wxwire_receiver::WxWireReceiverFrameEvent;
+use crate::live::file_pipeline::CompletedFileMetadata;
+use crate::live::server_support::{RetainedFiles, file_download_url};
+use byteblaster_core::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
+use byteblaster_core::wxwire_receiver::{
+    WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,27 +19,40 @@ pub(crate) struct BroadcastEvent {
     pub(crate) kind: EventKind,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct FileCompleteEventPayload {
+    #[serde(flatten)]
+    pub(crate) metadata: CompletedFileMetadata,
+    pub(crate) download_url: String,
+}
+
+impl FileCompleteEventPayload {
+    pub(crate) fn from_metadata(metadata: CompletedFileMetadata) -> Self {
+        let download_url = file_download_url(&metadata.filename);
+        Self {
+            metadata,
+            download_url,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "receiver", rename_all = "snake_case")]
+pub(crate) enum TelemetryPayload {
+    Unavailable,
+    Qbt(QbtReceiverTelemetrySnapshot),
+    WxWire(WxWireReceiverTelemetrySnapshot),
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum EventKind {
-    Connected {
-        endpoint: String,
-    },
+    Connected { endpoint: String },
     Disconnected,
     QbtFrame(QbtFrameEvent),
     WxWireFrame(WxWireReceiverFrameEvent),
-    FileComplete {
-        filename: String,
-        size: usize,
-        timestamp_utc: u64,
-        product: Option<crate::product_meta::ProductMeta>,
-        text_product_header: Option<serde_json::Value>,
-        text_product_enrichment: Option<serde_json::Value>,
-        text_product_warning: Option<serde_json::Value>,
-    },
-    Telemetry(serde_json::Value),
-    Error {
-        message: String,
-    },
+    FileComplete(Box<FileCompleteEventPayload>),
+    Telemetry(TelemetryPayload),
+    Error { message: String },
 }
 
 impl EventKind {
@@ -50,7 +66,7 @@ impl EventKind {
                 WxWireReceiverFrameEvent::Warning(_) => "warning",
                 _ => "unknown",
             },
-            Self::FileComplete { .. } => "file_complete",
+            Self::FileComplete(_) => "file_complete",
             Self::Telemetry(_) => "telemetry",
             Self::Error { .. } => "error",
         }
@@ -64,7 +80,7 @@ impl EventKind {
                 WxWireReceiverFrameEvent::Warning(_) => None,
                 _ => None,
             },
-            Self::FileComplete { filename, .. } => Some(filename.as_str()),
+            Self::FileComplete(file) => Some(file.metadata.filename.as_str()),
             _ => None,
         }
     }
@@ -94,38 +110,12 @@ impl EventKind {
                     "type": "unknown",
                 }),
             },
-            Self::FileComplete {
-                filename,
-                size,
-                timestamp_utc,
-                product,
-                text_product_header,
-                text_product_enrichment,
-                text_product_warning,
-            } => {
-                let mut payload = serde_json::json!({
-                    "filename": filename,
-                    "size": size,
-                    "timestamp_utc": timestamp_utc,
-                    "download_url": file_download_url(filename),
-                });
-                if let Some(product) = product
-                    && let Ok(product_json) = serde_json::to_value(product)
-                {
-                    payload["product"] = product_json;
-                }
-                if let Some(text_product_header) = text_product_header {
-                    payload["text_product_header"] = text_product_header.clone();
-                }
-                if let Some(text_product_enrichment) = text_product_enrichment {
-                    payload["text_product_enrichment"] = text_product_enrichment.clone();
-                }
-                if let Some(text_product_warning) = text_product_warning {
-                    payload["text_product_warning"] = text_product_warning.clone();
-                }
-                payload
+            Self::FileComplete(file) => {
+                serde_json::to_value(file).unwrap_or_else(|_| serde_json::json!({}))
             }
-            Self::Telemetry(snapshot) => snapshot.clone(),
+            Self::Telemetry(snapshot) => {
+                serde_json::to_value(snapshot).unwrap_or_else(|_| serde_json::json!({}))
+            }
             Self::Error { message } => serde_json::json!({ "message": message }),
         }
     }
@@ -136,7 +126,7 @@ pub(crate) struct AppState {
     pub(crate) event_tx: broadcast::Sender<BroadcastEvent>,
     pub(crate) shutdown_rx: watch::Receiver<bool>,
     pub(crate) retained_files: Mutex<RetainedFiles>,
-    pub(crate) telemetry: Mutex<serde_json::Value>,
+    pub(crate) telemetry: Mutex<TelemetryPayload>,
     pub(crate) connected_clients: AtomicUsize,
     pub(crate) max_clients: usize,
     pub(crate) next_event_id: AtomicU64,
@@ -155,7 +145,7 @@ pub(crate) struct EventsQuery {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct FilesResponse {
-    pub(crate) files: Vec<RetainedFileMeta>,
+    pub(crate) files: Vec<CompletedFileMetadata>,
 }
 
 #[derive(Debug, Serialize)]

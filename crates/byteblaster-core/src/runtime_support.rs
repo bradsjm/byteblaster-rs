@@ -112,3 +112,42 @@ impl BackpressureTracker {
         }
     }
 }
+
+pub(crate) fn try_send_with_backpressure_warning<
+    TEvent,
+    TError,
+    FBuildWarning,
+    FOnWarningSent,
+    FOnDrop,
+>(
+    event_tx: &mpsc::Sender<Result<TEvent, TError>>,
+    event: Result<TEvent, TError>,
+    tracker: &mut BackpressureTracker,
+    build_warning: FBuildWarning,
+    on_warning_sent: FOnWarningSent,
+    on_drop: FOnDrop,
+) where
+    FBuildWarning: FnOnce(&BackpressureTracker) -> TEvent,
+    FOnWarningSent: FnOnce(),
+    FOnDrop: FnMut(&BackpressureTracker),
+{
+    let mut on_drop = on_drop;
+    if tracker.has_pending_report() {
+        let warning = build_warning(tracker);
+        match event_tx.try_send(Ok(warning)) {
+            Ok(()) => {
+                tracker.clear_pending_report();
+                on_warning_sent();
+            }
+            Err(err) => {
+                tracker.record_send_failure(err);
+                on_drop(tracker);
+            }
+        }
+    }
+
+    if let Err(err) = event_tx.try_send(event) {
+        tracker.record_send_failure(err);
+        on_drop(tracker);
+    }
+}

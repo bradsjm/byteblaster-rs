@@ -1,5 +1,4 @@
-use crate::live::file_pipeline::text_product_details;
-use crate::product_meta::{ProductMeta, detect_product_meta};
+use crate::live::file_pipeline::{CompletedFileMetadata, build_completed_file_metadata};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -8,20 +7,9 @@ use std::time::{Duration, SystemTime};
 
 #[derive(Debug, Clone)]
 pub(crate) struct RetainedFile {
-    pub(crate) filename: String,
     pub(crate) data: Vec<u8>,
-    pub(crate) timestamp_utc: u64,
     pub(crate) completed_at: SystemTime,
-    pub(crate) product: Option<ProductMeta>,
-    pub(crate) text_product_header: Option<serde_json::Value>,
-    pub(crate) text_product_enrichment: Option<serde_json::Value>,
-    pub(crate) text_product_warning: Option<serde_json::Value>,
-}
-
-impl RetainedFile {
-    fn size(&self) -> usize {
-        self.data.len()
-    }
+    pub(crate) metadata: CompletedFileMetadata,
 }
 
 #[derive(Debug)]
@@ -48,36 +36,21 @@ impl RetainedFiles {
         data: Vec<u8>,
         timestamp_utc: u64,
         completed_at: SystemTime,
-    ) -> RetainedFileMeta {
+    ) -> CompletedFileMetadata {
         self.evict_expired();
 
-        let product = detect_product_meta(&filename);
-        let text_details = text_product_details(&filename, &data);
-        let meta = RetainedFileMeta {
-            filename: filename.clone(),
-            size: data.len(),
-            timestamp_utc,
-            product: product.clone(),
-            text_product_header: text_details.header.clone(),
-            text_product_enrichment: text_details.enrichment.clone(),
-            text_product_warning: text_details.warning.clone(),
-        };
+        let metadata = build_completed_file_metadata(&filename, timestamp_utc, &data);
 
         if self.by_name.contains_key(&filename) {
             self.order.retain(|name| name != &filename);
         }
         self.order.push_back(filename.clone());
         self.by_name.insert(
-            filename.clone(),
+            filename,
             RetainedFile {
-                filename,
                 data,
-                timestamp_utc,
                 completed_at,
-                product,
-                text_product_header: text_details.header,
-                text_product_enrichment: text_details.enrichment,
-                text_product_warning: text_details.warning,
+                metadata: metadata.clone(),
             },
         );
 
@@ -89,24 +62,16 @@ impl RetainedFiles {
             }
         }
 
-        meta
+        metadata
     }
 
-    pub(crate) fn list(&mut self) -> Vec<RetainedFileMeta> {
+    pub(crate) fn list(&mut self) -> Vec<CompletedFileMetadata> {
         self.evict_expired();
         self.order
             .iter()
             .rev()
             .filter_map(|name| self.by_name.get(name))
-            .map(|file| RetainedFileMeta {
-                filename: file.filename.clone(),
-                size: file.size(),
-                timestamp_utc: file.timestamp_utc,
-                product: file.product.clone(),
-                text_product_header: file.text_product_header.clone(),
-                text_product_enrichment: file.text_product_enrichment.clone(),
-                text_product_warning: file.text_product_warning.clone(),
-            })
+            .map(|file| file.metadata.clone())
             .collect()
     }
 
@@ -136,21 +101,6 @@ impl RetainedFiles {
             true
         });
     }
-}
-
-#[derive(Debug, serde::Serialize)]
-pub(crate) struct RetainedFileMeta {
-    pub(crate) filename: String,
-    pub(crate) size: usize,
-    pub(crate) timestamp_utc: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) product: Option<ProductMeta>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) text_product_header: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) text_product_enrichment: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) text_product_warning: Option<serde_json::Value>,
 }
 
 pub(crate) fn wildcard_match(pattern: &str, text: &str) -> bool {
@@ -228,8 +178,8 @@ fn percent_encode(input: &str) -> String {
 }
 
 pub(crate) fn build_file_download_response(file: RetainedFile) -> Response {
-    let content_type = content_type_for_filename(&file.filename);
-    let disposition = format!("attachment; filename=\"{}\"", file.filename);
+    let content_type = content_type_for_filename(&file.metadata.filename);
+    let disposition = format!("attachment; filename=\"{}\"", file.metadata.filename);
 
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));

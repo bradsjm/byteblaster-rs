@@ -10,16 +10,13 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use byteblaster_core::ingest::{IngestEvent, adapt_qbt_events};
-//! use byteblaster_core::qbt_receiver::{
-//!     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
-//!     default_qbt_upstream_servers,
-//! };
+//! use byteblaster_core::ingest::{IngestConfig, IngestEvent, IngestReceiver};
+//! use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
 //! use futures::StreamExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = QbtReceiverConfig {
+//!     let mut receiver = IngestReceiver::build(IngestConfig::Qbt(QbtReceiverConfig {
 //!         email: "you@example.com".to_string(),
 //!         servers: default_qbt_upstream_servers(),
 //!         server_list_path: None,
@@ -29,11 +26,10 @@
 //!         watchdog_timeout_secs: 49,
 //!         max_exceptions: 10,
 //!         decode: QbtDecodeConfig::default(),
-//!     };
-//!     let mut receiver = QbtReceiver::builder(config).build()?;
+//!     }))?;
 //!     receiver.start()?;
 //!
-//!     let mut ingest_stream = adapt_qbt_events(receiver.events()?);
+//!     let mut ingest_stream = receiver.events()?;
 //!
 //!     if let Some(event) = ingest_stream.next().await {
 //!         if let Ok(IngestEvent::Product(product)) = event {

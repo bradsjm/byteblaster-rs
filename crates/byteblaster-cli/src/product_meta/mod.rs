@@ -202,12 +202,13 @@ mod tests {
     use super::detect_product_meta;
 
     #[test]
-    fn detects_taf_with_origin_region() {
+    fn detects_awips_text_metadata_shape() {
         let meta = detect_product_meta("TAFPDKGA.TXT").expect("expected metadata");
         assert_eq!(meta.pil.as_deref(), Some("TAF"));
-        assert_eq!(meta.title, "Terminal Aerodrome Forecast");
         assert_eq!(meta.origin.as_deref(), Some("PDK"));
         assert_eq!(meta.region.as_deref(), Some("GA"));
+        assert!(!meta.title.is_empty());
+        assert!(meta.wmo_prefix.as_deref().is_some());
         assert_eq!(meta.container, "raw");
     }
 

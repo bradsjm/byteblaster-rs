@@ -26,15 +26,28 @@ Add the crate from this monorepo:
 byteblaster-core = { git = "https://github.com/bradsjm/byteblaster-rs", tag = "v0.1.0", package = "byteblaster-core" }
 ```
 
-Use protocol-specific namespaces from the crate root:
+Use the unified ingest API from the crate root:
 
 ```rust
-use byteblaster_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
+use byteblaster_core::ingest::{IngestConfig, IngestReceiver};
+use byteblaster_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
 
-fn main() {
-    let mut decoder = QbtProtocolDecoder::default();
-    let events = decoder.feed(&[]).expect("decode should not fail");
-    println!("decoded {} event(s)", events.len());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut receiver = IngestReceiver::build(IngestConfig::Qbt(QbtReceiverConfig {
+        email: "you@example.com".to_string(),
+        servers: default_qbt_upstream_servers(),
+        server_list_path: None,
+        follow_server_list_updates: true,
+        reconnect_delay_secs: 5,
+        connection_timeout_secs: 5,
+        watchdog_timeout_secs: 49,
+        max_exceptions: 10,
+        decode: QbtDecodeConfig::default(),
+    }))?;
+    receiver.start()?;
+    receiver.stop().await?;
+    Ok(())
 }
 ```
 

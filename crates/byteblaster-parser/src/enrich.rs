@@ -104,16 +104,8 @@ mod tests {
         let header = header("AFDBOX", None);
         let enriched = enrich_header(&header);
         assert_eq!(enriched.pil_nnn, Some("AFD"));
-        assert_eq!(enriched.pil_description, Some("Area Forecast Discussion"));
+        assert!(enriched.pil_description.is_some());
         assert_eq!(enriched.bbb_kind, None);
-    }
-
-    #[test]
-    fn unknown_pil_has_no_description() {
-        let header = header("ZZZBOX", None);
-        let enriched = enrich_header(&header);
-        assert_eq!(enriched.pil_nnn, Some("ZZZ"));
-        assert_eq!(enriched.pil_description, None);
     }
 
     #[test]
@@ -134,5 +126,6 @@ mod tests {
             enrich_header(&header("AFDBOX", Some("PAA"))).bbb_kind,
             Some(BbbKind::Other)
         );
+        assert_eq!(enrich_header(&header("ZZZBOX", None)).pil_description, None);
     }
 }

@@ -1,8 +1,6 @@
 use crate::ReceiverKind;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
-use byteblaster_core::ingest::{IngestError, IngestEvent, QbtIngestStream, WxWireIngestStream};
-use byteblaster_core::qbt_receiver::QbtReceiver;
-use byteblaster_core::wxwire_receiver::WxWireReceiver;
+use byteblaster_core::ingest::{IngestConfig, IngestError, IngestEvent, IngestReceiver};
 use futures::Stream;
 use std::pin::Pin;
 
@@ -16,15 +14,15 @@ pub(crate) struct LiveIngestRequest<'a> {
     pub(crate) password_context: &'static str,
 }
 
-pub(crate) enum LiveIngest {
-    Qbt(QbtIngestStream),
-    WxWire(WxWireIngestStream),
+pub(crate) struct LiveIngest {
+    receiver_kind: ReceiverKind,
+    receiver: IngestReceiver,
 }
 
 impl LiveIngest {
     pub(crate) fn build(request: LiveIngestRequest<'_>) -> crate::error::CliResult<Self> {
         let live = request.live;
-        match live.receiver {
+        let (receiver_kind, config) = match live.receiver {
             ReceiverKind::Qbt => {
                 let LiveReceiverConfig::Qbt(config) =
                     build_live_receiver_config(LiveConfigRequest {
@@ -41,10 +39,7 @@ impl LiveIngest {
                 else {
                     unreachable!("qbt request must build qbt config");
                 };
-
-                Ok(Self::Qbt(QbtIngestStream::new(
-                    QbtReceiver::builder(config).build()?,
-                )))
+                (ReceiverKind::Qbt, IngestConfig::Qbt(config))
             }
             ReceiverKind::Wxwire => {
                 let LiveReceiverConfig::WxWire(config) =
@@ -62,39 +57,29 @@ impl LiveIngest {
                 else {
                     unreachable!("wxwire request must build wxwire config");
                 };
-
-                Ok(Self::WxWire(WxWireIngestStream::new(
-                    WxWireReceiver::builder(config).build()?,
-                )))
+                (ReceiverKind::Wxwire, IngestConfig::WxWire(config))
             }
-        }
+        };
+
+        Ok(Self {
+            receiver_kind,
+            receiver: IngestReceiver::build(config)?,
+        })
     }
 
     pub(crate) fn receiver_kind(&self) -> ReceiverKind {
-        match self {
-            Self::Qbt(_) => ReceiverKind::Qbt,
-            Self::WxWire(_) => ReceiverKind::Wxwire,
-        }
+        self.receiver_kind
     }
 
     pub(crate) fn start(&mut self) -> crate::error::CliResult<()> {
-        match self {
-            Self::Qbt(ingest) => ingest.start().map_err(Into::into),
-            Self::WxWire(ingest) => ingest.start().map_err(Into::into),
-        }
+        self.receiver.start().map_err(Into::into)
     }
 
     pub(crate) fn events(&mut self) -> Result<IngestEventStream, IngestError> {
-        match self {
-            Self::Qbt(ingest) => ingest.events(),
-            Self::WxWire(ingest) => ingest.events(),
-        }
+        self.receiver.events()
     }
 
     pub(crate) async fn stop(&mut self) -> crate::error::CliResult<()> {
-        match self {
-            Self::Qbt(ingest) => ingest.stop().await.map_err(Into::into),
-            Self::WxWire(ingest) => ingest.stop().await.map_err(Into::into),
-        }
+        self.receiver.stop().await.map_err(Into::into)
     }
 }

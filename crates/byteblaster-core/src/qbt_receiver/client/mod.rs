@@ -19,12 +19,13 @@ use crate::qbt_receiver::protocol::auth::{REAUTH_INTERVAL_SECS, build_logon_mess
 use crate::qbt_receiver::protocol::codec::{QbtFrameDecoder, QbtProtocolDecoder};
 use crate::qbt_receiver::protocol::model::QbtFrameEvent;
 use crate::qbt_receiver::protocol::model::{QbtAuthMessage, QbtProtocolWarning};
-use crate::runtime_support::{BackpressureTracker, ReceiverEventStream, ReceiverRuntime};
+use crate::runtime_support::{
+    BackpressureTracker, ReceiverEventStream, ReceiverRuntime, try_send_with_backpressure_warning,
+};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, watch};
 
 use self::connection::{connect_with_timeout, endpoint_label};
@@ -593,44 +594,30 @@ fn try_send_event(
     event: Result<QbtReceiverEvent, QbtReceiverError>,
     telemetry: &mut RuntimeTelemetry,
 ) {
-    try_emit_backpressure_warning(event_tx, telemetry);
-    if let Err(err) = event_tx.try_send(event) {
-        record_dropped_event(err, telemetry);
-    }
-}
-
-fn try_emit_backpressure_warning(
-    event_tx: &mpsc::Sender<Result<QbtReceiverEvent, QbtReceiverError>>,
-    telemetry: &mut RuntimeTelemetry,
-) {
-    if !telemetry.backpressure.has_pending_report() {
-        return;
-    }
-
-    let warning = QbtFrameEvent::Warning(QbtProtocolWarning::BackpressureDrop {
-        dropped_since_last_report: telemetry.backpressure.dropped_since_last_report(),
-        total_dropped_events: telemetry.backpressure.event_queue_drop_total(),
-        decoder_recovery_events: telemetry.snapshot.decoder_recovery_events_total,
-    });
-
-    match event_tx.try_send(Ok(QbtReceiverEvent::Frame(warning))) {
-        Ok(()) => {
+    let decoder_recovery_events = telemetry.snapshot.decoder_recovery_events_total;
+    try_send_with_backpressure_warning(
+        event_tx,
+        event,
+        &mut telemetry.backpressure,
+        |tracker| {
+            QbtReceiverEvent::Frame(QbtFrameEvent::Warning(
+                QbtProtocolWarning::BackpressureDrop {
+                    dropped_since_last_report: tracker.dropped_since_last_report(),
+                    total_dropped_events: tracker.event_queue_drop_total(),
+                    decoder_recovery_events,
+                },
+            ))
+        },
+        || {
             telemetry.snapshot.backpressure_warning_emitted_total = telemetry
                 .snapshot
                 .backpressure_warning_emitted_total
                 .saturating_add(1);
-            telemetry.backpressure.clear_pending_report();
-        }
-        Err(err) => record_dropped_event(err, telemetry),
-    }
-}
-
-fn record_dropped_event(
-    err: TrySendError<Result<QbtReceiverEvent, QbtReceiverError>>,
-    telemetry: &mut RuntimeTelemetry,
-) {
-    telemetry.backpressure.record_send_failure(err);
-    telemetry.snapshot.event_queue_drop_total = telemetry.backpressure.event_queue_drop_total();
+        },
+        |tracker| {
+            telemetry.snapshot.event_queue_drop_total = tracker.event_queue_drop_total();
+        },
+    );
 }
 
 fn update_telemetry_sink(

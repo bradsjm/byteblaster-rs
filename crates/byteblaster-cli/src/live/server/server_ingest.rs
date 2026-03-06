@@ -1,14 +1,10 @@
-use super::types::{AppState, EventKind};
+use super::types::{AppState, EventKind, FileCompleteEventPayload, TelemetryPayload};
 use byteblaster_core::ingest::{
-    IngestError, IngestEvent, IngestTelemetry, IngestWarning, ProductOrigin, QbtIngestStream,
-    WxWireIngestStream,
+    IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
+    ProductOrigin,
 };
-use byteblaster_core::qbt_receiver::{
-    QbtFrameEvent, QbtProtocolWarning, QbtReceiver, QbtReceiverConfig,
-};
-use byteblaster_core::wxwire_receiver::{
-    WxWireReceiver, WxWireReceiverConfig, WxWireReceiverFrameEvent,
-};
+use byteblaster_core::qbt_receiver::{QbtFrameEvent, QbtProtocolWarning, QbtReceiverConfig};
+use byteblaster_core::wxwire_receiver::{WxWireReceiverConfig, WxWireReceiverFrameEvent};
 use futures::StreamExt;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -21,8 +17,7 @@ pub(super) async fn run_qbt_ingest_loop(
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
-    let receiver = QbtReceiver::builder(config).build()?;
-    let mut ingest = QbtIngestStream::new(receiver);
+    let mut ingest = IngestReceiver::build(IngestConfig::Qbt(config))?;
     ingest.start()?;
 
     let mut events = ingest.events()?;
@@ -51,8 +46,7 @@ pub(super) async fn run_wxwire_ingest_loop(
     state: Arc<AppState>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
-    let receiver = WxWireReceiver::builder(config).build()?;
-    let mut ingest = WxWireIngestStream::new(receiver);
+    let mut ingest = IngestReceiver::build(IngestConfig::WxWire(config))?;
     ingest.start()?;
 
     let mut events = ingest.events()?;
@@ -110,13 +104,9 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
         }
         Ok(IngestEvent::Telemetry(snapshot)) => {
             let telemetry_value = match snapshot {
-                IngestTelemetry::Qbt(value) => {
-                    serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!({}))
-                }
-                IngestTelemetry::WxWire(value) => {
-                    serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!({}))
-                }
-                _ => serde_json::json!({}),
+                IngestTelemetry::Qbt(value) => TelemetryPayload::Qbt(value),
+                IngestTelemetry::WxWire(value) => TelemetryPayload::WxWire(value),
+                _ => TelemetryPayload::Unavailable,
             };
             {
                 let mut guard = state
@@ -152,15 +142,9 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
             };
             super::publish(
                 state,
-                EventKind::FileComplete {
-                    filename: retained_meta.filename,
-                    size: retained_meta.size,
-                    timestamp_utc: retained_meta.timestamp_utc,
-                    product: retained_meta.product,
-                    text_product_header: retained_meta.text_product_header,
-                    text_product_enrichment: retained_meta.text_product_enrichment,
-                    text_product_warning: retained_meta.text_product_warning,
-                },
+                EventKind::FileComplete(Box::new(FileCompleteEventPayload::from_metadata(
+                    retained_meta,
+                ))),
             );
             super::log_info(
                 state.quiet,

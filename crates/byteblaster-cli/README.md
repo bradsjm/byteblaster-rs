@@ -26,12 +26,12 @@ Contract:
 For `stream` and `download`:
 
 - `--receiver <qbt|wxwire>` (optional, default `qbt`)
-- `--email <EMAIL>` (required)
+- `--username <EMAIL>` (required)
 - `--password <PASSWORD>` (required when `--receiver wxwire`)
 - `--server <host:port>` (optional, repeatable or comma-delimited)
 - `--server-list-path <PATH>` (optional persisted server list path)
 - `--max-events <N>` (optional for `stream`; default `200` for `download`)
-- `--idle-timeout-secs <SECONDS>` (default `20`)
+- `--idle-timeout-secs <SECONDS>` (default `90`)
 
 Additional `stream` option:
 
@@ -47,11 +47,11 @@ When `--server` is provided for QBT live mode, the CLI now pins that explicit se
 Live mode:
 
 ```bash
-cargo run -p byteblaster-cli -- stream --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- stream --output-dir ./out --email you@example.com --max-events 100
-cargo run -p byteblaster-cli -- download ./out --email you@example.com --idle-timeout-secs 30
-cargo run -p byteblaster-cli -- stream --receiver wxwire --email you@example.com --password your-pass --max-events 100
-cargo run -p byteblaster-cli -- download ./out --receiver wxwire --email you@example.com --password your-pass --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --username you@example.com --max-events 100
+cargo run -p byteblaster-cli -- stream --output-dir ./out --username you@example.com --max-events 100
+cargo run -p byteblaster-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p byteblaster-cli -- stream --receiver wxwire --username you@example.com --password your-pass --max-events 100
+cargo run -p byteblaster-cli -- download ./out --receiver wxwire --username you@example.com --password your-pass --idle-timeout-secs 30
 ```
 
 ## Text product parsing

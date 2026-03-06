@@ -225,7 +225,9 @@ pub(super) async fn health_handler(State(state): State<Arc<AppState>>) -> Json<H
     })
 }
 
-pub(super) async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(super) async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> Json<super::types::TelemetryPayload> {
     let snapshot = state
         .telemetry
         .lock()

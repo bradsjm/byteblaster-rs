@@ -3,9 +3,6 @@ use byteblaster_core::qbt_receiver::{
     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverError,
     QbtReceiverEvent, calculate_qbt_checksum,
 };
-use byteblaster_core::unstable::qbt_receiver::{
-    EndpointRotator, HealthObserver, Watchdog, next_backoff_secs,
-};
 use futures::StreamExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -19,43 +16,6 @@ fn encoded_valid_data_frame() -> Vec<u8> {
     let checksum = calculate_qbt_checksum(&body) as u32;
     let header = build_header("reconnect.bin", 1, 1, checksum, None);
     build_frame(header, &body)
-}
-
-#[test]
-fn reconnect_failover_rotates_endpoints_with_backoff() {
-    let mut rotator = EndpointRotator::new(vec![
-        ("primary.example".to_string(), 2211),
-        ("secondary.example".to_string(), 2211),
-        ("tertiary.example".to_string(), 1000),
-    ]);
-
-    assert_eq!(rotator.next(), Some(("primary.example".to_string(), 2211)));
-    assert_eq!(
-        rotator.next(),
-        Some(("secondary.example".to_string(), 2211))
-    );
-    assert_eq!(rotator.next(), Some(("tertiary.example".to_string(), 1000)));
-    assert_eq!(rotator.next(), Some(("primary.example".to_string(), 2211)));
-
-    assert_eq!(next_backoff_secs(1, 0), 1);
-    assert_eq!(next_backoff_secs(1, 1), 2);
-    assert_eq!(next_backoff_secs(1, 2), 4);
-    assert_eq!(next_backoff_secs(1, 6), 60);
-    assert_eq!(next_backoff_secs(5, 10), 60);
-}
-
-#[test]
-fn connection_idle_timeout() {
-    let watchdog = Watchdog::new(2, 10);
-
-    let now = Instant::now();
-    assert!(!watchdog.should_close_at(now + Duration::from_secs(1)));
-    assert!(watchdog.should_close_at(now + Duration::from_secs(3)));
-
-    watchdog.on_data_received();
-    let after_data = Instant::now();
-    assert!(!watchdog.should_close_at(after_data + Duration::from_secs(1)));
-    assert!(watchdog.should_close_at(after_data + Duration::from_secs(3)));
 }
 
 #[tokio::test]

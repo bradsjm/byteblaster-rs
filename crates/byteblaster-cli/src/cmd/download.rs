@@ -67,7 +67,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
                     product.source_timestamp_utc,
                 )?;
                 written_files.push(completed.path);
-                file_events.push(completed.event);
+                file_events.push(completed.metadata);
             }
             Ok(IngestEvent::Telemetry(_)) | Ok(IngestEvent::Warning(_)) => {
                 seen += 1;

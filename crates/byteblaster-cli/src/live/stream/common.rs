@@ -13,17 +13,15 @@ pub(super) struct LiveStats {
 }
 
 pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
-    let header = completed.event.get("text_product_header");
-    let enrichment = completed.event.get("text_product_enrichment");
-    let warning = completed.event.get("text_product_warning");
+    let metadata = &completed.metadata;
     info!(
         path = %completed.path,
-        filename = %completed.filename,
-        timestamp_utc = completed.timestamp_utc,
-        text_product_afos = header.and_then(|value| value.get("afos")).and_then(|value| value.as_str()),
-        text_product_ttaaii = header.and_then(|value| value.get("ttaaii")).and_then(|value| value.as_str()),
-        text_product_pil_nnn = enrichment.and_then(|value| value.get("pil_nnn")).and_then(|value| value.as_str()),
-        text_product_warning_code = warning.and_then(|value| value.get("code")).and_then(|value| value.as_str()),
+        filename = %metadata.filename,
+        timestamp_utc = metadata.timestamp_utc,
+        text_product_afos = metadata.text_product_header.as_ref().map(|value| value.afos.as_str()),
+        text_product_ttaaii = metadata.text_product_header.as_ref().map(|value| value.ttaaii.as_str()),
+        text_product_pil_nnn = metadata.text_product_enrichment.as_ref().and_then(|value| value.pil_nnn.as_deref()),
+        text_product_warning_code = metadata.text_product_warning.as_ref().map(|value| value.code),
         "wrote file"
     );
 }

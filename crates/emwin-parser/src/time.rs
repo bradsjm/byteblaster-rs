@@ -1,5 +1,27 @@
+//! Time resolution utilities for WMO headers.
+//!
+//! This module provides functions for resolving ambiguous date/time references in WMO headers,
+//! where only day-of-month is provided (not month/year). These utilities use a reference time
+//! to determine the most likely intended date.
+
 use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, TimeZone, Utc};
 
+/// Resolves a day/hour/minute reference to the nearest plausible DateTime relative to a reference.
+///
+/// This function considers candidates in the surrounding months and returns the one closest
+/// to the reference time. Used to resolve DDHHMM fields in WMO headers where only the day
+/// of month is provided.
+///
+/// # Arguments
+///
+/// * `reference` - The reference UTC time (typically current time)
+/// * `day` - Day of month (1-31)
+/// * `hour` - Hour (0-23)
+/// * `minute` - Minute (0-59)
+///
+/// # Returns
+///
+/// The `DateTime<Utc>` closest to reference, or `None` if inputs are invalid
 pub(crate) fn resolve_day_time_nearest(
     reference: DateTime<Utc>,
     day: u32,
@@ -16,6 +38,20 @@ pub(crate) fn resolve_day_time_nearest(
         })
 }
 
+/// Resolves a clock time (hour/minute) to the nearest DateTime relative to a reference.
+///
+/// Similar to `resolve_day_time_nearest` but only uses hour and minute. Considers
+/// candidates from yesterday, today, and tomorrow relative to the reference date.
+///
+/// # Arguments
+///
+/// * `reference` - The reference UTC time
+/// * `hour` - Hour (0-23)
+/// * `minute` - Minute (0-59)
+///
+/// # Returns
+///
+/// The `DateTime<Utc>` closest to reference, or `None` if inputs are invalid
 pub(crate) fn resolve_clock_time_nearest(
     reference: DateTime<Utc>,
     hour: u32,
@@ -42,6 +78,22 @@ pub(crate) fn resolve_clock_time_nearest(
     })
 }
 
+/// Resolves a day/hour/minute reference to a DateTime that is not before the reference time.
+///
+/// This function returns the earliest candidate that is on or after the reference time.
+/// If all candidates are before the reference, returns the latest candidate (most recent).
+/// Useful for determining issuance times that should not be in the future.
+///
+/// # Arguments
+///
+/// * `reference` - The reference UTC time
+/// * `day` - Day of month (1-31)
+/// * `hour` - Hour (0-23)
+/// * `minute` - Minute (0-59)
+///
+/// # Returns
+///
+/// The earliest `DateTime<Utc>` not before reference, or `None` if inputs are invalid
 pub(crate) fn resolve_day_time_not_before(
     reference: DateTime<Utc>,
     day: u32,
@@ -58,6 +110,21 @@ pub(crate) fn resolve_day_time_not_before(
         .or_else(|| candidates.into_iter().max())
 }
 
+/// Generates candidate DateTimes in the surrounding months for a given day/time.
+///
+/// Creates up to 3 candidates: one in the previous month, current month, and next month.
+/// Filters out invalid dates (e.g., day 31 in a 30-day month).
+///
+/// # Arguments
+///
+/// * `reference` - Used to determine the year and month context
+/// * `day` - Day of month (1-31)
+/// * `hour` - Hour (0-23)
+/// * `minute` - Minute (0-59)
+///
+/// # Returns
+///
+/// A vector of valid candidates, or `None` if no valid dates could be constructed
 fn candidate_datetimes(
     reference: DateTime<Utc>,
     day: u32,
@@ -82,6 +149,18 @@ fn candidate_datetimes(
     }
 }
 
+/// Returns the previous, current, and next month relative to the given year/month.
+///
+/// Handles year boundaries correctly (e.g., month 1 returns December of previous year).
+///
+/// # Arguments
+///
+/// * `year` - The reference year
+/// * `month` - The reference month (1-12)
+///
+/// # Returns
+///
+/// Array of 3 (year, month) tuples: [previous, current, next]
 fn surrounding_months(year: i32, month: u32) -> [(i32, u32); 3] {
     let previous = if month == 1 {
         (year - 1, 12)
@@ -97,6 +176,19 @@ fn surrounding_months(year: i32, month: u32) -> [(i32, u32); 3] {
     [previous, (year, month), next]
 }
 
+/// Constructs a UTC DateTime from year, month, day, hour, and minute components.
+///
+/// # Arguments
+///
+/// * `year` - Year (e.g., 2025)
+/// * `month` - Month (1-12)
+/// * `day` - Day of month (1-31)
+/// * `hour` - Hour (0-23)
+/// * `minute` - Minute (0-59)
+///
+/// # Returns
+///
+/// `Some(DateTime<Utc>)` if the components form a valid date/time, `None` otherwise
 fn build_candidate(
     year: i32,
     month: u32,

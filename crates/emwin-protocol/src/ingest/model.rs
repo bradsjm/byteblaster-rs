@@ -1,3 +1,8 @@
+//! Data models for the unified ingest receiver.
+//!
+//! This module defines the core types for receiving products from either QBT or Weather Wire
+//! sources, including product events, telemetry, and warnings.
+
 #[cfg(feature = "qbt")]
 use crate::qbt_receiver::{
     QbtCompletedFile, QbtProtocolWarning, QbtReceiverError, QbtReceiverTelemetrySnapshot,

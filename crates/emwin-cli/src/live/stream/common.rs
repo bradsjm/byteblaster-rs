@@ -1,3 +1,8 @@
+//! Common utilities for live stream command implementation.
+//!
+//! This module provides shared logging and statistics tracking utilities
+//! used by the stream command for consistent output formatting.
+
 use crate::cmd::event_output::text_preview;
 use crate::live::file_pipeline::CompletedFileRecord;
 use crate::live::shared::unix_seconds;

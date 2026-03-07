@@ -1,3 +1,8 @@
+//! Error types for Weather Wire receiver.
+//!
+//! This module defines the error types used by the Weather Wire XMPP receiver,
+//! covering configuration, decoding, lifecycle, and transport errors.
+
 use thiserror::Error;
 
 /// Result alias for weather wire components.

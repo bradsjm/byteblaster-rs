@@ -1,3 +1,9 @@
+//! Product parse issue tracking.
+//!
+//! This module defines the [`ProductParseIssue`] type for tracking non-fatal parsing
+//! problems encountered when processing weather products. Issues are collected during
+//! enrichment and returned alongside successfully parsed data.
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

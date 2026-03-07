@@ -1,3 +1,28 @@
+//! Product enrichment and classification.
+//!
+//! This module provides product type detection and enrichment for both text and non-text
+//! products received from EMWIN. It parses product headers, extracts metadata, and classifies
+//! products into families (text products, METAR bulletins, TAF bulletins, radar graphics, etc.).
+//!
+//! ## Product Types
+//!
+//! - **Text products**: WMO/AFOS formatted text with headers and PILs
+//! - **METAR bulletins**: Collective METAR reports in WMO format
+//! - **TAF bulletins**: Terminal aerodrome forecasts
+//! - **DCP bulletins**: GOES DCP telemetry data
+//! - **FD bulletins**: Winds and temperatures aloft
+//! - **PIREP bulletins**: Pilot reports
+//! - **SIGMET bulletins**: Significant meteorological information
+//! - **Graphics**: Radar images, satellite imagery, etc.
+//!
+//! ## Enrichment Process
+//!
+//! 1. Detect container type (ZIP or raw)
+//! 2. Parse WMO headers and AFOS PILs for text products
+//! 3. Fall back to filename heuristics for non-text products
+//! 4. Extract body elements (VTEC, UGC, polygons, etc.) based on product type
+//! 5. Build [`ProductEnrichment`] with all discovered metadata
+
 use crate::data::{classify_non_text_product, container_from_filename, wmo_office_entry};
 use crate::dcp::{DcpBulletin, parse_dcp_bulletin};
 use crate::fd::{FdBulletin, parse_fd_bulletin};

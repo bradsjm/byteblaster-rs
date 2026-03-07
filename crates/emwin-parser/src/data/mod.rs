@@ -93,10 +93,51 @@ pub(crate) struct NonTextProductMeta {
     pub wmo_prefix: Option<&'static str>,
 }
 
+/// Looks up the human-readable description for a PIL product type code.
+///
+/// # Arguments
+///
+/// * `nnn` - The 3-character PIL prefix (e.g., "AFD", "TOR")
+///
+/// # Returns
+///
+/// The product type description if the PIL is known, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::pil_description;
+///
+/// assert_eq!(pil_description("AFD"), Some("Area Forecast Discussion"));
+/// assert_eq!(pil_description("XYZ"), None);
+/// ```
 pub fn pil_description(nnn: &str) -> Option<&'static str> {
     pil_catalog_entry(nnn).map(|entry| entry.title)
 }
 
+/// Looks up a National Weather Service Location Identifier (NWSLI) entry.
+///
+/// NWSLI codes are 5-character alphanumeric identifiers for hydrologic monitoring locations
+/// (e.g., "CHFA2" for Chena River at Fairbanks, AK).
+///
+/// # Arguments
+///
+/// * `code` - The 5-character NWSLI code (case-insensitive)
+///
+/// # Returns
+///
+/// The matching [`NwslidEntry`] if found, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::nwslid_entry;
+///
+/// if let Some(entry) = nwslid_entry("CHFA2") {
+///     assert_eq!(entry.place_name, "Fairbanks");
+///     assert_eq!(entry.state_code, "AK");
+/// }
+/// ```
 pub fn nwslid_entry(code: &str) -> Option<&'static NwslidEntry> {
     let key = normalize_nwslid(code)?;
     generated_nwslid::NWSLID_CATALOG
@@ -105,6 +146,31 @@ pub fn nwslid_entry(code: &str) -> Option<&'static NwslidEntry> {
         .map(|index| &generated_nwslid::NWSLID_CATALOG[index])
 }
 
+/// Looks up a county entry by UGC (Universal Geographic Code).
+///
+/// UGC county codes follow the format `XXCYYY` where:
+/// - `XX` is the 2-letter state code
+/// - `C` indicates a county
+/// - `YYY` is the 3-digit county number
+///
+/// # Arguments
+///
+/// * `code` - The UGC county code (case-insensitive, with or without the 'C')
+///
+/// # Returns
+///
+/// The matching [`UgcLocationEntry`] if found, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::ugc_county_entry;
+///
+/// if let Some(entry) = ugc_county_entry("ALC001") {
+///     assert_eq!(entry.name, "Autauga");
+///     assert_eq!(entry.code, "ALC001");
+/// }
+/// ```
 pub fn ugc_county_entry(code: &str) -> Option<&'static UgcLocationEntry> {
     let key = normalize_ugc(code, 'C')?;
     generated_ugc::UGC_COUNTY_CATALOG
@@ -113,6 +179,31 @@ pub fn ugc_county_entry(code: &str) -> Option<&'static UgcLocationEntry> {
         .map(|index| &generated_ugc::UGC_COUNTY_CATALOG[index])
 }
 
+/// Looks up a zone entry by UGC (Universal Geographic Code).
+///
+/// UGC zone codes follow the format `XXZYYY` where:
+/// - `XX` is the 2-letter state code
+/// - `Z` indicates a forecast zone
+/// - `YYY` is the 3-digit zone number
+///
+/// # Arguments
+///
+/// * `code` - The UGC zone code (case-insensitive, with or without the 'Z')
+///
+/// # Returns
+///
+/// The matching [`UgcLocationEntry`] if found, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::ugc_zone_entry;
+///
+/// if let Some(entry) = ugc_zone_entry("AKZ317") {
+///     assert_eq!(entry.name, "City and Borough of Yakutat");
+///     assert_eq!(entry.code, "AKZ317");
+/// }
+/// ```
 pub fn ugc_zone_entry(code: &str) -> Option<&'static UgcLocationEntry> {
     let key = normalize_ugc(code, 'Z')?;
     generated_ugc::UGC_ZONE_CATALOG
@@ -121,6 +212,34 @@ pub fn ugc_zone_entry(code: &str) -> Option<&'static UgcLocationEntry> {
         .map(|index| &generated_ugc::UGC_ZONE_CATALOG[index])
 }
 
+/// Looks up a WMO office entry by ICAO code.
+///
+/// WMO office codes are 3-4 letter ICAO identifiers for NWS offices (e.g., "KBOX", "LWX").
+/// Both 3-letter and 4-letter codes are accepted; 4-letter codes have their leading 'K' stripped.
+///
+/// # Arguments
+///
+/// * `code` - The WMO office code (case-insensitive)
+///
+/// # Returns
+///
+/// The matching [`WmoOfficeEntry`] if found, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::wmo_office_entry;
+///
+/// // 3-letter code
+/// if let Some(entry) = wmo_office_entry("LWX") {
+///     assert_eq!(entry.office_name, "WFO Baltimore/Washington");
+/// }
+///
+/// // 4-letter code with K prefix
+/// if let Some(entry) = wmo_office_entry("KLWX") {
+///     assert_eq!(entry.office_name, "WFO Baltimore/Washington");
+/// }
+/// ```
 pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
     let key = normalize_wmo_office(code)?;
     generated_wmo_office::WMO_OFFICE_CATALOG
@@ -129,6 +248,30 @@ pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
         .map(|index| &generated_wmo_office::WMO_OFFICE_CATALOG[index])
 }
 
+/// Looks up a PIL (Product Identifier Line) catalog entry.
+///
+/// Returns the full catalog entry including product type description and capability flags
+/// that indicate what types of data may be present in products with this PIL.
+///
+/// # Arguments
+///
+/// * `nnn` - The 3-character PIL prefix (e.g., "AFD", "TOR")
+///
+/// # Returns
+///
+/// The matching [`PilCatalogEntry`] if found, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::pil_catalog_entry;
+///
+/// if let Some(entry) = pil_catalog_entry("FFW") {
+///     assert_eq!(entry.title, "Flash Flood Warning");
+///     assert!(entry.vtec); // FFW products contain VTEC codes
+///     assert!(entry.ugc);  // FFW products contain UGC geography
+/// }
+/// ```
 pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
     let key = normalize_pil(nnn)?;
     generated_pil::PIL_CATALOG
@@ -137,10 +280,45 @@ pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
         .map(|index| &generated_pil::PIL_CATALOG[index])
 }
 
+/// Returns the WMO TTAAII prefix associated with a PIL product type.
+///
+/// The WMO prefix is the first 2 characters of the TTAAII product type indicator
+/// (e.g., "FX" for Area Forecast Discussion, "WU" for Severe Thunderstorm Warning).
+///
+/// # Arguments
+///
+/// * `nnn` - The 3-character PIL prefix (e.g., "AFD", "TOR")
+///
+/// # Returns
+///
+/// The WMO prefix string if the PIL is known, `None` otherwise
+///
+/// # Example
+///
+/// ```
+/// use emwin_parser::wmo_prefix_for_pil;
+///
+/// assert_eq!(wmo_prefix_for_pil("AFD"), Some("FX"));
+/// assert_eq!(wmo_prefix_for_pil("TOR"), Some("WF"));
+/// ```
 pub fn wmo_prefix_for_pil(nnn: &str) -> Option<&'static str> {
     pil_catalog_entry(nnn).map(|entry| entry.wmo_prefix)
 }
 
+/// Classifies a non-text product filename into its product family and metadata.
+///
+/// This function identifies graphics and binary products (radar images, satellite imagery,
+/// etc.) based on their filename patterns. It handles prefixed filenames (e.g., "20260305-RAD...")
+/// by extracting the actual product name.
+///
+/// # Arguments
+///
+/// * `filename` - The product filename to classify
+///
+/// # Returns
+///
+/// `Some(NonTextProductMeta)` if the file matches a known non-text product pattern,
+/// `None` if it appears to be a text product or unknown format
 pub(crate) fn classify_non_text_product(filename: &str) -> Option<NonTextProductMeta> {
     let canon = canonical_name(filename);
     let upper = canon.to_ascii_uppercase();

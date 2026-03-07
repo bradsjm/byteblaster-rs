@@ -79,6 +79,13 @@ pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     }
 }
 
+/// Classifies a BBB indicator into its amendment/correction type.
+///
+/// Recognizes:
+/// - AA* -> Amendment
+/// - CC* -> Correction  
+/// - RR* -> Delayed Repeat
+/// - Other -> Other
 fn classify_bbb(bbb: &str) -> BbbKind {
     let normalized = bbb.trim().to_ascii_uppercase();
     if normalized.starts_with("AA") {

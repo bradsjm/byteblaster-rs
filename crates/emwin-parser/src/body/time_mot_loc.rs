@@ -1,4 +1,19 @@
-//! TIME...MOT...LOC parsing.
+//! NWS TIME...MOT...LOC (Time Motion Location) parsing module.
+//!
+//! TIME...MOT...LOC lines provide storm movement and location information in
+//! severe weather products. They indicate when a storm was observed, its direction
+//! and speed of movement, and its geographic location.
+//!
+//! ## Format
+//!
+//! `TIME...MOT...LOC HHMMZ DDDdeg SSKT lat1 lon1 [lat2 lon2 ...]`
+//!
+//! Example: `TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853`
+//!
+//! - Time: HHMMZ format (UTC)
+//! - Direction: Movement direction in degrees (0-360)
+//! - Speed: Movement speed in knots
+//! - Coordinates: Latitude/longitude pairs in various formats
 
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -8,7 +23,7 @@ use std::sync::OnceLock;
 use crate::ProductParseIssue;
 use crate::time::resolve_clock_time_nearest;
 
-/// Parsed TIME...MOT...LOC entry.
+/// Parsed TIME...MOT...LOC entry containing storm movement and position data.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct TimeMotLocEntry {
     /// UTC time resolved to a full timestamp.
@@ -24,7 +39,34 @@ pub struct TimeMotLocEntry {
     pub wkt: String,
 }
 
-/// Parse TIME...MOT...LOC entries from text.
+/// Parses all TIME...MOT...LOC entries found in the given text.
+///
+/// This function searches for TIME...MOT...LOC lines throughout the text and
+/// returns all valid matches found. Invalid entries are skipped silently.
+///
+/// # Arguments
+///
+/// * `text` - The text to search for TIME...MOT...LOC entries
+/// * `reference_time` - Reference UTC time for resolving HHMMZ timestamps
+///
+/// # Returns
+///
+/// A vector of parsed `TimeMotLocEntry` structs. Returns an empty vector if no
+/// valid entries are found.
+///
+/// # Examples
+///
+/// ```
+/// use chrono::Utc;
+/// use emwin_parser::parse_time_mot_loc_entries;
+///
+/// let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
+/// let entries = parse_time_mot_loc_entries(text, Utc::now());
+///
+/// assert_eq!(entries.len(), 1);
+/// assert_eq!(entries[0].direction_degrees, 238);
+/// assert_eq!(entries[0].speed_kt, 39);
+/// ```
 pub fn parse_time_mot_loc_entries(
     text: &str,
     reference_time: DateTime<Utc>,
@@ -32,7 +74,21 @@ pub fn parse_time_mot_loc_entries(
     parse_time_mot_loc_entries_with_issues(text, reference_time).0
 }
 
-/// Parse TIME...MOT...LOC entries and collect structured issues.
+/// Parses TIME...MOT...LOC entries and returns any parsing issues encountered.
+///
+/// Similar to `parse_time_mot_loc_entries` but also returns a vector of issues
+/// for entries that failed to parse correctly.
+///
+/// # Arguments
+///
+/// * `text` - The text to search for TIME...MOT...LOC entries
+/// * `reference_time` - Reference UTC time for resolving HHMMZ timestamps
+///
+/// # Returns
+///
+/// A tuple containing:
+/// - Vector of successfully parsed `TimeMotLocEntry` structs
+/// - Vector of `ProductParseIssue` for entries that failed to parse
 pub fn parse_time_mot_loc_entries_with_issues(
     text: &str,
     reference_time: DateTime<Utc>,

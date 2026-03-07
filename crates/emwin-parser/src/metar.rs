@@ -1,36 +1,64 @@
 //! Minimal METAR bulletin parsing for WMO collectives without AFOS PIL lines.
+//!
+//! METAR (Meteorological Aerodrome Report) bulletins contain collective reports
+//! of current weather observations from multiple stations. This module parses
+//! WMO-formatted METAR collectives when the standard AFOS PIL is not available.
 
 use crate::ProductParseIssue;
 use regex::Regex;
 use serde::Serialize;
 use std::sync::OnceLock;
 
+/// Type of METAR report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MetarReportKind {
+    /// Routine METAR observation
     Metar,
+    /// Special (non-routine) observation
     Speci,
 }
 
+/// Individual METAR report from a single station.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MetarReport {
+    /// Type of report (METAR or SPECI)
     pub kind: MetarReportKind,
+    /// ICAO station identifier (e.g., "KBOS")
     pub station: String,
+    /// Observation time in HHMMSSZ format
     pub observation_time: String,
+    /// Complete raw METAR text
     pub raw: String,
 }
 
+/// METAR bulletin containing multiple station reports.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MetarBulletin {
+    /// Individual METAR reports in the bulletin
     pub reports: Vec<MetarReport>,
 }
 
 impl MetarBulletin {
+    /// Returns the number of reports in the bulletin.
     pub fn report_count(&self) -> usize {
         self.reports.len()
     }
 }
 
+/// Parses a METAR bulletin from text content.
+///
+/// Splits the bulletin on `=` characters and attempts to parse each segment
+/// as a METAR or SPECI report. Reports invalid segments as issues.
+///
+/// # Arguments
+///
+/// * `text` - Raw bulletin text containing one or more METAR reports
+///
+/// # Returns
+///
+/// `Some((MetarBulletin, Vec<ProductParseIssue>))` if at least one report was parsed,
+/// `None` if no valid reports were found
 pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<ProductParseIssue>)> {
     let content = normalize_token(text);
     let mut reports = Vec::new();
@@ -59,10 +87,15 @@ pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<Pro
     (!reports.is_empty()).then_some((MetarBulletin { reports }, issues))
 }
 
+/// Normalizes whitespace in a token by collapsing multiple spaces.
 fn normalize_token(token: &str) -> String {
     token.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Parses an individual METAR report from a normalized token.
+///
+/// Extracts the report kind, station identifier, and observation time
+/// using regex matching.
 fn parse_metar_report(token: &str) -> Option<MetarReport> {
     let captures = metar_re().captures(token)?;
     let kind = match captures.name("kind")?.as_str() {
@@ -79,6 +112,9 @@ fn parse_metar_report(token: &str) -> Option<MetarReport> {
     })
 }
 
+/// Returns the compiled METAR regex pattern.
+///
+/// Pattern matches: METAR/SPECI + station (4 chars starting with letter) + time (6 digits + Z)
 fn metar_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

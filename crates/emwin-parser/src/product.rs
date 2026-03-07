@@ -38,6 +38,12 @@ use crate::{
 use chrono::Utc;
 use serde::Serialize;
 
+/// Source of product enrichment data.
+///
+/// Indicates how the product metadata was derived:
+/// - Text products: parsed from WMO/AFOS headers
+/// - Non-text products: classified from filename patterns
+/// - Unknown: unable to determine product type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProductEnrichmentSource {
@@ -52,46 +58,84 @@ pub enum ProductEnrichmentSource {
     Unknown,
 }
 
+/// Enriched product metadata with classification, headers, and parsed content.
+///
+/// This struct contains all metadata extracted from a product, including
+/// source classification, parsed headers, body elements (VTEC, UGC, polygons),
+/// and any issues encountered during processing.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ProductEnrichment {
+    /// How this enrichment was derived
     pub source: ProductEnrichmentSource,
+    /// Product family classification (e.g., "nws_text_product", "metar_collective")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<&'static str>,
+    /// Human-readable product title
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<&'static str>,
+    /// Container type ("raw", "zip")
     pub container: &'static str,
+    /// Product Identifier Line (e.g., "SVR", "TOR")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pil: Option<String>,
+    /// WMO header prefix (e.g., "WU", "WT")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wmo_prefix: Option<&'static str>,
+    /// Parsed metadata flags (VTEC, UGC, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flags: Option<ProductMetadataFlags>,
+    /// Originating WMO office information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub office: Option<WmoOfficeEntry>,
+    /// Parsed text product header (AFOS)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub header: Option<TextProductHeader>,
+    /// Parsed WMO bulletin header
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wmo_header: Option<WmoHeader>,
+    /// BBB amendment/correction type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bbb_kind: Option<BbbKind>,
+    /// Parsed body elements (VTEC, UGC, polygons, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<ProductBody>,
+    /// Parsed METAR bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metar: Option<MetarBulletin>,
+    /// Parsed TAF bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub taf: Option<TafBulletin>,
+    /// Parsed DCP telemetry bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dcp: Option<DcpBulletin>,
+    /// Parsed FD winds/temps bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fd: Option<FdBulletin>,
+    /// Parsed PIREP bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pirep: Option<PirepBulletin>,
+    /// Parsed SIGMET bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sigmet: Option<SigmetBulletin>,
+    /// Issues encountered during parsing
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,
 }
 
+/// Enriches a product by parsing its headers and classifying its type.
+///
+/// This is the main entry point for product enrichment. It detects the product type,
+/// parses appropriate headers, extracts metadata, and returns a comprehensive
+/// `ProductEnrichment` struct.
+///
+/// # Arguments
+///
+/// * `filename` - Original filename of the product
+/// * `bytes` - Raw product content as bytes
+///
+/// # Returns
+///
+/// A `ProductEnrichment` containing all parsed metadata and any issues encountered
 pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     if detected_container(filename, bytes) == "zip" && is_text_product(filename) {
         return unknown_product(filename, bytes);
@@ -128,6 +172,19 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     unknown_product(filename, bytes)
 }
 
+/// Enriches a text product by parsing its headers and body.
+///
+/// Attempts to parse text products with AFOS headers. Falls back to WMO-only
+/// parsing if AFOS line is missing but WMO headers are present.
+///
+/// # Arguments
+///
+/// * `filename` - Original filename
+/// * `bytes` - Raw product content
+///
+/// # Returns
+///
+/// A `ProductEnrichment` with parsed headers, body elements, and any issues
 fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     match parse_text_product_conditioned(bytes) {
         Ok(parsed) => {
@@ -259,6 +316,20 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     }
 }
 
+/// Fallback enrichment for text products that failed initial parsing.
+///
+/// Attempts to parse as WMO bulletin without AFOS line. Falls back to METAR,
+/// TAF, DCP, or FD bulletin parsing if appropriate patterns are detected.
+///
+/// # Arguments
+///
+/// * `filename` - Original filename
+/// * `bytes` - Raw product content
+/// * `error` - The parse error from the initial text product parsing attempt
+///
+/// # Returns
+///
+/// A `ProductEnrichment` derived from WMO header or filename classification
 fn enrich_text_product_fallback(
     filename: &str,
     bytes: &[u8],
@@ -409,11 +480,20 @@ fn enrich_text_product_fallback(
     }
 }
 
+/// Checks if a filename indicates a text product.
+///
+/// Text products have `.TXT` or `.WMO` extensions (case-insensitive).
 fn is_text_product(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     upper.ends_with(".TXT") || upper.ends_with(".WMO")
 }
 
+/// Extracts the filename stem (without extension and path).
+///
+/// # Examples
+///
+/// * `"path/to/file.TXT"` -> `"file"`
+/// * `"data.gz"` -> `"data"`
 fn filename_stem(filename: &str) -> &str {
     filename
         .rsplit_once('/')
@@ -424,6 +504,9 @@ fn filename_stem(filename: &str) -> &str {
         .unwrap_or(filename)
 }
 
+/// Detects if a text product appears to be an FD (winds/temps) bulletin.
+///
+/// Checks AFOS code pattern (FD0, FD1, etc.) or body content markers.
 fn looks_like_fd_text_product(afos: &str, body_text: &str) -> bool {
     matches!(
         afos.get(..3),
@@ -435,6 +518,9 @@ fn looks_like_fd_text_product(afos: &str, body_text: &str) -> bool {
             .any(|line| line.trim_start().starts_with("FT "))
 }
 
+/// Detects if a WMO bulletin appears to be an FD (winds/temps) bulletin.
+///
+/// Checks filename stem starts with "FD" and body contains "DATA BASED ON" and "FT".
 fn looks_like_fd_wmo_bulletin(filename: &str, body_text: &str) -> bool {
     filename_stem(filename).starts_with("FD")
         && body_text.contains("DATA BASED ON ")
@@ -444,6 +530,10 @@ fn looks_like_fd_wmo_bulletin(filename: &str, body_text: &str) -> bool {
             .any(|line| line.trim_start().starts_with("FT "))
 }
 
+/// Detects if a text product appears to be a PIREP bulletin.
+///
+/// Checks AFOS code pattern (PIR, PRCUS, PIREP) or body content markers
+/// (/OV, /TM, UA, UUA).
 fn looks_like_pirep_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("PIR")
         || afos.eq_ignore_ascii_case("PRCUS")
@@ -453,6 +543,10 @@ fn looks_like_pirep_text_product(afos: &str, body_text: &str) -> bool {
             && (body_text.contains(" UA ") || body_text.contains(" UUA ")))
 }
 
+/// Detects if a text product appears to be a SIGMET bulletin.
+///
+/// Checks AFOS code pattern (SIG, WS) or body content markers
+/// (CONVECTIVE SIGMET, KZAK SIGMET, SIGMET).
 fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("SIG")
         || afos.starts_with("WS")
@@ -461,6 +555,9 @@ fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
         || body_text.trim_start().starts_with("SIGMET ")
 }
 
+/// Creates an enrichment for an unknown product type.
+///
+/// Detects container type but sets all metadata to None/Unknown.
 fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     ProductEnrichment {
         source: ProductEnrichmentSource::Unknown,
@@ -485,6 +582,9 @@ fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
     }
 }
 
+/// Detects the container type from filename and byte content.
+///
+/// Checks for ZIP magic bytes first, then falls back to filename extension.
 fn detected_container(filename: &str, bytes: &[u8]) -> &'static str {
     if is_zip_payload(bytes) {
         "zip"
@@ -493,12 +593,16 @@ fn detected_container(filename: &str, bytes: &[u8]) -> &'static str {
     }
 }
 
+/// Checks if byte content appears to be a ZIP archive.
+///
+/// Validates ZIP magic bytes (PK\x03\x04, PK\x05\x06, or PK\x07\x08).
 fn is_zip_payload(bytes: &[u8]) -> bool {
     bytes.starts_with(b"PK\x03\x04")
         || bytes.starts_with(b"PK\x05\x06")
         || bytes.starts_with(b"PK\x07\x08")
 }
 
+/// Maps a `ParserError` to a machine-readable error code.
 fn parser_error_code(error: &ParserError) -> &'static str {
     match error {
         ParserError::EmptyInput => "empty_input",
@@ -509,6 +613,9 @@ fn parser_error_code(error: &ParserError) -> &'static str {
     }
 }
 
+/// Extracts the problematic line content from a `ParserError`.
+///
+/// Returns `Some(line)` for `InvalidWmoHeader` and `MissingAfos` errors.
 fn parser_error_line(error: &ParserError) -> Option<&str> {
     match error {
         ParserError::InvalidWmoHeader { line } | ParserError::MissingAfos { line } => Some(line),

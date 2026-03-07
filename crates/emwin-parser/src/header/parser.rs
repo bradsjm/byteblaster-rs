@@ -1,3 +1,24 @@
+//! WMO/AFOS header parsing implementation.
+//!
+//! This module implements the parsing logic for WMO (World Meteorological Organization)
+//! headers and AFOS (Automation of Field Operations and Services) Product Identifier Lines (PILs).
+//!
+//! ## Header Format
+//!
+//! NWS text products follow this structure:
+//! - Line 1: LDM sequence number (e.g., "000 ")
+//! - Line 2: WMO header (ttaaii cccc ddhhmm [bbb])
+//! - Line 3: AFOS PIL (Product Identifier Line)
+//! - Body: Product content
+//!
+//! Example:
+//! ```text
+//! 000
+//! FXUS61 KBOX 022101
+//! AFDBOX
+//! AREA FORECAST DISCUSSION
+//! ```
+
 use crate::time::resolve_day_time_nearest;
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -150,6 +171,9 @@ pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError
     Ok(parse_text_product_conditioned(bytes)?.header)
 }
 
+/// Parses a text product with full conditioning and header extraction.
+///
+/// Returns the complete parsed product including header, conditioned text, and body.
 pub(crate) fn parse_text_product_conditioned(
     bytes: &[u8],
 ) -> Result<ParsedTextProduct, ParserError> {
@@ -170,6 +194,9 @@ pub(crate) fn parse_text_product_conditioned(
     })
 }
 
+/// Parses a WMO bulletin with conditioning, returning header and body.
+///
+/// Does not attempt to parse AFOS PIL - returns just WMO header information.
 pub(crate) fn parse_wmo_bulletin_conditioned(
     bytes: &[u8],
 ) -> Result<ParsedWmoBulletin, ParserError> {
@@ -190,6 +217,7 @@ pub(crate) fn parse_wmo_bulletin_conditioned(
     })
 }
 
+/// Extracts body text by skipping the first N lines.
 fn body_after_lines(text: &str, lines_to_skip: usize) -> String {
     text.lines()
         .skip(lines_to_skip)
@@ -197,6 +225,10 @@ fn body_after_lines(text: &str, lines_to_skip: usize) -> String {
         .join("\n")
 }
 
+/// Parses WMO header fields from text.
+///
+/// Extracts ttaaii, cccc, ddhhmm, and optional BBB indicator.
+/// Normalizes 4-character ttaaii to 6 characters by appending "00".
 fn parse_wmo(text: &str) -> Result<(String, String, String, Option<String>), ParserError> {
     let search_window = text.get(..100).unwrap_or(text);
     let captures =
@@ -227,6 +259,7 @@ fn parse_wmo(text: &str) -> Result<(String, String, String, Option<String>), Par
     Ok((ttaaii, cccc, ddhhmm, bbb))
 }
 
+/// Parses AFOS PIL from line 3 of the conditioned text.
 fn parse_afos(text: &str) -> Result<String, ParserError> {
     let line3 = text.lines().nth(2).ok_or(ParserError::MissingAfosLine)?;
     let captures = afos_re()
@@ -243,6 +276,14 @@ fn parse_afos(text: &str) -> Result<String, ParserError> {
     Ok(afos)
 }
 
+/// Conditions raw text for parsing by normalizing control characters and headers.
+///
+/// Performs the following transformations:
+/// - Removes carriage returns and null bytes
+/// - Strips SOH (Start of Header) character and preceding content
+/// - Strips ETX (End of Text) character
+/// - Adds LDM sequence line if missing
+/// - Ensures trailing newline
 fn condition_text(input: &str) -> Result<String, ParserError> {
     let mut text = input.replace('\r', "").trim().to_string();
     if text.is_empty() {
@@ -277,11 +318,13 @@ fn condition_text(input: &str) -> Result<String, ParserError> {
     Ok(text)
 }
 
+/// Regex for LDM sequence line detection.
 fn ldm_sequence_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^\d\d\d\s?").expect("ldm sequence regex compiles"))
 }
 
+/// Regex for WMO header parsing (line 2).
 fn wmo_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -292,6 +335,7 @@ fn wmo_re() -> &'static Regex {
     })
 }
 
+/// Regex for AFOS PIL parsing (line 3).
 fn afos_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^([A-Z0-9]{4,6})\s*\t*$").expect("afos regex compiles"))

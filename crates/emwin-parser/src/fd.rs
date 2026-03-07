@@ -1,4 +1,21 @@
 //! Minimal FD winds/temps aloft bulletin parsing.
+//!
+//! FD (Forecast Winds and Temperatures Aloft) bulletins contain forecast data
+//! for wind direction, wind speed, and temperature at standard pressure altitudes.
+//! These forecasts are used for flight planning and aviation weather analysis.
+//!
+//! ## FD Bulletin Format
+//!
+//! - Header lines: "DATA BASED ON DDHHMMZ" and "VALID DDHHMMZ"
+//! - Level line: "FT alt1 alt2 alt3 ..." (altitudes in hundreds of feet)
+//! - Data lines: "STATION dirspd dirspd ..." where dirspd encodes wind and temp
+//!
+//! ## Wind/Temperature Encoding
+//!
+//! - 4-digit codes: `DDSS` -> direction (DD*10), speed (SS) in knots
+//! - 6-digit codes: `DDSSXX` -> direction, speed, temperature in Celsius
+//! - Special code 9900 indicates calm winds (0° direction, 0 kt speed)
+//! - Direction >= 500 indicates speed > 100 knots (subtract 500 from direction, add 100 to speed)
 
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -7,32 +24,60 @@ use std::sync::OnceLock;
 
 use crate::time::resolve_day_time_nearest;
 
+/// FD bulletin containing winds and temperatures aloft forecasts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FdBulletin {
+    /// Data based on timestamp (DDHHMMZ format)
     pub based_on_time: String,
+    /// Validity timestamp (DDHHMMZ format)
     pub valid_time: String,
+    /// Altitude levels in hundreds of feet (e.g., [30, 60, 90] for 3000, 6000, 9000 ft)
     pub levels: Vec<u32>,
+    /// Forecast entries by station
     pub forecasts: Vec<FdForecast>,
+    /// Complete raw bulletin text
     pub raw: String,
 }
 
+/// Forecast data for a single station.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FdForecast {
+    /// Station identifier (ICAO code, e.g., "KBOS")
     pub station: String,
+    /// Forecast values at each altitude level
     pub groups: Vec<FdLevelForecast>,
 }
 
+/// Forecast values at a specific altitude.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FdLevelForecast {
+    /// Altitude in hundreds of feet
     pub altitude_hundreds_ft: u32,
+    /// Wind direction in degrees (0-360)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wind_direction_degrees: Option<u16>,
+    /// Wind speed in knots
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wind_speed_kt: Option<u16>,
+    /// Temperature in Celsius
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_c: Option<i16>,
 }
 
+/// Parses an FD bulletin from text content.
+///
+/// Extracts the data timestamps, altitude levels, and station forecasts.
+/// Validates that timestamps are within 5 days of the reference time.
+///
+/// # Arguments
+///
+/// * `text` - Raw FD bulletin text
+/// * `routing_code` - Optional routing code for station prefix inference (e.g., "FD1US1")
+/// * `reference_time` - Reference UTC time for timestamp validation
+///
+/// # Returns
+///
+/// `Some(FdBulletin)` if parsing succeeds, `None` if validation fails
 pub(crate) fn parse_fd_bulletin(
     text: &str,
     routing_code: Option<&str>,
@@ -91,6 +136,7 @@ pub(crate) fn parse_fd_bulletin(
     })
 }
 
+/// Parses DDHHMMZ timestamp and validates it is within 5 days of reference.
 fn parse_ddhhmmz(reference_time: DateTime<Utc>, value: &str) -> Option<DateTime<Utc>> {
     if value.len() != 7 || !value.ends_with('Z') {
         return None;
@@ -107,6 +153,9 @@ fn parse_ddhhmmz(reference_time: DateTime<Utc>, value: &str) -> Option<DateTime<
         .then_some(resolved)
 }
 
+/// Parses the FT line to extract altitude levels.
+///
+/// Input: "FT 3000 6000 9000 12000" -> [30, 60, 90, 120]
 fn parse_levels(line: &str) -> Option<Vec<u32>> {
     let levels = line
         .split_whitespace()
@@ -116,6 +165,10 @@ fn parse_levels(line: &str) -> Option<Vec<u32>> {
     Some(levels)
 }
 
+/// Parses a single station forecast line.
+///
+/// Extracts the station identifier and decodes wind/temperature groups
+/// for each altitude level.
 fn parse_forecast_line(
     line: &str,
     levels: &[u32],
@@ -148,6 +201,7 @@ fn parse_forecast_line(
     Some(FdForecast { station, groups })
 }
 
+/// Normalizes text by stripping control characters and empty lines.
 fn normalized_lines(text: &str) -> Vec<String> {
     text.lines()
         .map(strip_control_chars)
@@ -156,12 +210,19 @@ fn normalized_lines(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Removes non-whitespace control characters from a line.
 fn strip_control_chars(line: &str) -> String {
     line.chars()
         .filter(|ch| !ch.is_ascii_control() || ch.is_ascii_whitespace())
         .collect()
 }
 
+/// Normalizes a station identifier to ICAO format.
+///
+/// 3-letter codes get a country prefix based on routing code:
+/// - US -> K prefix (e.g., "BOS" -> "KBOS")
+/// - CN -> C prefix
+/// - Other -> P prefix
 fn normalize_station(raw: &str, routing_code: Option<&str>) -> String {
     if raw.len() >= 4 {
         return raw.to_string();
@@ -180,12 +241,21 @@ fn normalize_station(raw: &str, routing_code: Option<&str>) -> String {
     format!("{prefix}{raw}")
 }
 
+/// Decoded wind/temperature data from an FD group.
 struct DecodedGroup {
     wind_direction_degrees: Option<u16>,
     wind_speed_kt: Option<u16>,
     temperature_c: Option<i16>,
 }
 
+/// Decodes a wind/temperature group from FD format.
+///
+/// Format variations:
+/// - 4 digits (DDSS): direction (degrees/10), speed (knots)
+/// - 6 digits (DDSSXX): direction, speed, temperature (Celsius)
+/// - 7 digits (DDSS+XX or DDSS-XX): direction, speed, signed temperature
+/// - 9900: calm (0°, 0 kt)
+/// - Direction >= 500: subtract 500, add 100 to speed
 fn decode_group(text: &str) -> Option<DecodedGroup> {
     if !matches!(text.len(), 4 | 6 | 7)
         || !text
@@ -226,6 +296,7 @@ fn decode_group(text: &str) -> Option<DecodedGroup> {
     })
 }
 
+/// Regex for "DATA BASED ON" timestamp extraction.
 fn based_on_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -233,6 +304,7 @@ fn based_on_re() -> &'static Regex {
     })
 }
 
+/// Regex for "VALID" timestamp extraction.
 fn valid_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

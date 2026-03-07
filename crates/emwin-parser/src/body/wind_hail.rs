@@ -1,11 +1,26 @@
-//! WIND/HAIL tag parsing.
+//! NWS WIND/HAIL tag parsing module.
+//!
+//! WIND/HAIL tags provide information about severe wind and hail threats
+//! in severe weather warnings. The module supports both legacy format tags
+//! (WIND... and HAIL...) and modern format tags (MAXHAILSIZE, MAXWINDGUST, etc.).
+//!
+//! ## Legacy Format
+//!
+//! `WIND...>60MPH HAIL...<1.00IN`
+//!
+//! ## Modern Format
+//!
+//! - `HAILTHREAT...RADARINDICATED`
+//! - `MAX HAIL SIZE...1.00 IN`
+//! - `WINDTHREAT...OBSERVED`
+//! - `MAX WIND GUST...60 MPH`
 
 use regex::Regex;
 use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
 
-/// Parsed wind/hail tag kind.
+/// Type of wind/hail tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WindHailKind {
@@ -17,7 +32,7 @@ pub enum WindHailKind {
     MaxHailSize,
 }
 
-/// Parsed wind/hail entry.
+/// Parsed wind/hail tag entry with threat information.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct WindHailEntry {
     pub kind: WindHailKind,
@@ -29,12 +44,50 @@ pub struct WindHailEntry {
     pub comparison: Option<char>,
 }
 
-/// Parse wind and hail tags from text.
+/// Parses all wind and hail tags found in the given text.
+///
+/// This function searches for both legacy (WIND.../HAIL...) and modern
+/// (MAXHAILSIZE, MAXWINDGUST, etc.) wind/hail tags throughout the text.
+/// Invalid tags are skipped silently.
+///
+/// # Arguments
+///
+/// * `text` - The text to search for wind/hail tags
+///
+/// # Returns
+///
+/// A vector of parsed `WindHailEntry` structs. Returns an empty vector if no
+/// valid tags are found.
+///
+/// # Examples
+///
+/// ```
+/// use emwin_parser::parse_wind_hail_entries;
+///
+/// let text = "WIND...>60MPH HAIL...<1.00IN";
+/// let entries = parse_wind_hail_entries(text);
+///
+/// assert_eq!(entries.len(), 2);
+/// assert_eq!(entries[0].kind, emwin_parser::WindHailKind::LegacyWind);
+/// ```
 pub fn parse_wind_hail_entries(text: &str) -> Vec<WindHailEntry> {
     parse_wind_hail_entries_with_issues(text).0
 }
 
-/// Parse wind and hail tags and collect structured issues.
+/// Parses wind and hail tags and returns any parsing issues encountered.
+///
+/// Similar to `parse_wind_hail_entries` but also returns a vector of issues
+/// for tags that failed to parse correctly.
+///
+/// # Arguments
+///
+/// * `text` - The text to search for wind/hail tags
+///
+/// # Returns
+///
+/// A tuple containing:
+/// - Vector of successfully parsed `WindHailEntry` structs
+/// - Vector of `ProductParseIssue` for tags that failed to parse
 pub fn parse_wind_hail_entries_with_issues(
     text: &str,
 ) -> (Vec<WindHailEntry>, Vec<ProductParseIssue>) {
@@ -72,6 +125,7 @@ pub fn parse_wind_hail_entries_with_issues(
     (entries, issues)
 }
 
+/// Regex for legacy WIND.../HAIL... format tags.
 fn legacy_wind_hail_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -82,6 +136,7 @@ fn legacy_wind_hail_regex() -> &'static Regex {
     })
 }
 
+/// Regex to detect modern wind/hail tag lines.
 fn modern_wind_hail_candidate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -92,6 +147,7 @@ fn modern_wind_hail_candidate_regex() -> &'static Regex {
     })
 }
 
+/// Regex to extract modern tag label and value.
 fn modern_wind_hail_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -99,6 +155,7 @@ fn modern_wind_hail_regex() -> &'static Regex {
     })
 }
 
+/// Parses a legacy WIND.../HAIL... tag capture.
 fn parse_legacy_wind_hail_capture(
     captures: &regex::Captures<'_>,
     raw: &str,
@@ -136,6 +193,9 @@ fn parse_legacy_wind_hail_capture(
     ])
 }
 
+/// Parses a modern wind/hail tag line.
+///
+/// Recognizes HAILTHREAT, WINDTHREAT, MAX HAIL SIZE, MAX WIND GUST tags.
 fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, ProductParseIssue> {
     let Some(captures) = modern_wind_hail_regex().captures(line) else {
         return Err(invalid_wind_hail_issue(line));
@@ -183,6 +243,7 @@ fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, Prod
     Ok(Some(entry))
 }
 
+/// Parses a numeric value line with optional comparison operator.
 fn parse_numeric_line(
     kind: WindHailKind,
     value: &str,
@@ -232,6 +293,7 @@ fn parse_numeric_line(
     })
 }
 
+/// Regex to parse numeric values with optional comparison and units.
 fn numeric_value_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -240,6 +302,7 @@ fn numeric_value_regex() -> &'static Regex {
     })
 }
 
+/// Creates a standardized parsing issue for wind/hail errors.
 fn invalid_wind_hail_issue(raw: &str) -> ProductParseIssue {
     ProductParseIssue::new(
         "wind_hail_parse",

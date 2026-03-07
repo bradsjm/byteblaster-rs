@@ -1,22 +1,46 @@
 //! Minimal TAF bulletin parsing for WMO bulletins without AFOS PIL lines.
+//!
+//! TAF (Terminal Aerodrome Forecast) bulletins contain weather forecasts for
+//! specific airports. This module parses TAF reports when the standard AFOS PIL
+//! is not available, extracting station, validity times, and amendment status.
 
 use regex::Regex;
 use serde::Serialize;
 use std::sync::OnceLock;
 
+/// TAF bulletin containing a terminal aerodrome forecast.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TafBulletin {
+    /// ICAO station identifier (e.g., "KBOS")
     pub station: String,
+    /// Issue time in HHMMSSZ format
     pub issue_time: String,
+    /// Validity period start (DDHH format)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_from: Option<String>,
+    /// Validity period end (DDHH format)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_to: Option<String>,
+    /// True if this is an amended forecast (TAF AMD)
     pub amendment: bool,
+    /// True if this is a corrected forecast (TAF COR)
     pub correction: bool,
+    /// Complete raw TAF text
     pub raw: String,
 }
 
+/// Parses a TAF bulletin from text content.
+///
+/// Extracts the station identifier, issue time, validity period, and
+/// amendment/correction status from TAF text.
+///
+/// # Arguments
+///
+/// * `text` - Raw TAF bulletin text
+///
+/// # Returns
+///
+/// `Some(TafBulletin)` if a valid TAF was parsed, `None` otherwise
 pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
     let raw = taf_body(text)?;
     let captures = taf_re().captures(&raw)?;
@@ -36,6 +60,9 @@ pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
     })
 }
 
+/// Extracts and normalizes the TAF body from text.
+///
+/// Joins lines with spaces and removes duplicate "TAF TAF" prefixes.
 fn taf_body(text: &str) -> Option<String> {
     let raw = text
         .lines()
@@ -47,6 +74,9 @@ fn taf_body(text: &str) -> Option<String> {
     normalized.starts_with("TAF").then_some(normalized)
 }
 
+/// Removes duplicate TAF prefix if present.
+///
+/// Some bulletins have "TAF TAF" which should be normalized to "TAF".
 fn normalize_taf_prefix(raw: &str) -> String {
     let normalized = raw.split_whitespace().collect::<Vec<_>>().join(" ");
     if let Some(rest) = normalized.strip_prefix("TAF TAF ") {
@@ -56,6 +86,9 @@ fn normalize_taf_prefix(raw: &str) -> String {
     }
 }
 
+/// Returns the compiled TAF parsing regex.
+///
+/// Pattern: TAF [AMD|COR] <station> <issue_time> [<valid_from>/<valid_to>]
 fn taf_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

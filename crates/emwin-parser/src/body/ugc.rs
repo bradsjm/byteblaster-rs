@@ -483,6 +483,38 @@ mod tests {
     }
 
     #[test]
+    fn parse_county_range_with_gt_is_valid_and_dense() {
+        let text = "NMC005>007-051200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(ids(&sections[0].counties["NM"]), vec![5, 6, 7]);
+        assert_eq!(
+            names(&sections[0].counties["NM"]),
+            vec![Some("Chaves"), Some("Cibola"), Some("Colfax")]
+        );
+    }
+
+    #[test]
+    fn parse_pyiem_nm_county_sample_keeps_dense_county_expansion() {
+        let text = "NMC001-005>007-011-019-027-028-031-033-039-041-043-045-047-049-053-055-057-061-040300-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(
+            ids(&sections[0].counties["NM"]),
+            vec![
+                1, 5, 6, 7, 11, 19, 27, 28, 31, 33, 39, 41, 43, 45, 47, 49, 53, 55, 57, 61
+            ]
+        );
+        assert!(
+            sections[0].counties["NM"]
+                .iter()
+                .any(|area| area.id == 6 && area.name == Some("Cibola"))
+        );
+    }
+
+    #[test]
     fn parse_ugc_multiple() {
         let text = "IAC001-IAC003-IAC005-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
@@ -553,6 +585,17 @@ mod tests {
         let text = "INVALID-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
         assert!(sections.is_empty());
+    }
+
+    #[test]
+    fn malformed_shorthand_first_token_is_not_parsed() {
+        let text = "IA078-170300-\n";
+
+        assert!(parse_ugc_sections(text, test_valid_time()).is_empty());
+
+        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
+        assert!(sections.is_empty());
+        assert!(issues.is_empty());
     }
 
     #[test]

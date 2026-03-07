@@ -332,19 +332,24 @@ impl GeoFilter {
         };
 
         matches_geo_states(&self.states, sections)
-            && matches_ugc_codes(&self.counties, sections, |section| &section.counties, 'C')
-            && matches_ugc_codes(&self.zones, sections, |section| &section.zones, 'Z')
-            && matches_ugc_codes(
+            && matches_enriched_ugc_codes(
+                &self.counties,
+                sections,
+                |section| &section.counties,
+                'C',
+            )
+            && matches_enriched_ugc_codes(&self.zones, sections, |section| &section.zones, 'Z')
+            && matches_enriched_ugc_codes(
                 &self.fire_zones,
                 sections,
                 |section| &section.fire_zones,
                 'F',
             )
-            && matches_ugc_codes(
+            && matches_enriched_ugc_codes(
                 &self.marine_zones,
                 sections,
                 |section| &section.marine_zones,
-                'M',
+                'Z',
             )
     }
 }
@@ -440,18 +445,18 @@ fn matches_geo_states(allowed: &Option<BTreeSet<String>>, sections: &[UgcSection
     }
 }
 
-fn matches_ugc_codes(
+fn matches_enriched_ugc_codes(
     allowed: &Option<BTreeSet<String>>,
     sections: &[UgcSection],
-    select: fn(&UgcSection) -> &std::collections::BTreeMap<String, Vec<u16>>,
+    select: fn(&UgcSection) -> &std::collections::BTreeMap<String, Vec<emwin_parser::UgcArea>>,
     class_code: char,
 ) -> bool {
     match allowed {
         Some(allowed) => sections.iter().any(|section| {
-            select(section).iter().any(|(state, numbers)| {
-                numbers
+            select(section).iter().any(|(state, areas)| {
+                areas
                     .iter()
-                    .any(|number| allowed.contains(&format!("{state}{class_code}{number:03}")))
+                    .any(|area| allowed.contains(&format!("{state}{class_code}{:03}", area.id)))
             })
         }),
         None => true,

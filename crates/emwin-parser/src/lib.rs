@@ -12,6 +12,7 @@
 //! - **AFOS PIL extraction**: Parses the Product Identifier Line (PIL) with robust error handling
 //! - **Text conditioning**: Handles SOH/ETX control characters, null bytes, missing LDM sequences
 //! - **PIL lookup**: Built-in product type descriptions for common meteorological products
+//! - **UGC geography lookup**: Built-in county and zone catalogs keyed by canonical UGC codes
 //! - **Header enrichment**: Classifies BBB indicators (Amendment, Correction, Delayed Repeat)
 //! - **Zero-copy parsing**: Efficient byte-based parsing with minimal allocations
 //!
@@ -41,7 +42,7 @@ mod time;
 
 pub use body::{
     HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody, TimeMotLocEntry,
-    UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind, enrich_body,
+    UgcArea, UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind, enrich_body,
     parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
     parse_latlon_polygons_with_issues, parse_time_mot_loc_entries,
     parse_time_mot_loc_entries_with_issues, parse_ugc_sections, parse_ugc_sections_with_issues,
@@ -51,7 +52,9 @@ pub use body::{
 pub use data::{
     NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, PIL_ENTRY_COUNT,
     PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO, PilCatalogEntry,
-    ProductMetadataFlags, nwslid_entry, pil_catalog_entry, pil_description, wmo_prefix_for_pil,
+    ProductMetadataFlags, UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC,
+    UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH, UgcLocationEntry, nwslid_entry, pil_catalog_entry,
+    pil_description, ugc_county_entry, ugc_zone_entry, wmo_prefix_for_pil,
 };
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, enrich_header,

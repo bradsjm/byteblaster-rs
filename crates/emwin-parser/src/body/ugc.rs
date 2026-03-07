@@ -11,6 +11,7 @@
 //! - `IAC001>005-NEZ010-` - Multiple counties with expiration
 
 use crate::ProductParseIssue;
+use crate::data::{ugc_county_entry, ugc_zone_entry};
 use crate::time::resolve_day_time_not_before;
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -18,22 +19,38 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// A parsed UGC section containing codes and expiration time.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct UgcSection {
-    /// County UGC numbers grouped by state/prefix.
+    /// County UGC areas grouped by state/prefix.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
-    pub counties: BTreeMap<String, Vec<u16>>,
-    /// Zone UGC numbers grouped by state/prefix.
+    pub counties: BTreeMap<String, Vec<UgcArea>>,
+    /// Zone UGC areas grouped by state/prefix.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
-    pub zones: BTreeMap<String, Vec<u16>>,
-    /// Fire weather UGC numbers grouped by state/prefix.
+    pub zones: BTreeMap<String, Vec<UgcArea>>,
+    /// Fire weather UGC areas grouped by state/prefix.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
-    pub fire_zones: BTreeMap<String, Vec<u16>>,
-    /// Marine UGC numbers grouped by state/prefix.
+    pub fire_zones: BTreeMap<String, Vec<UgcArea>>,
+    /// Marine UGC areas grouped by state/prefix.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
-    pub marine_zones: BTreeMap<String, Vec<u16>>,
+    pub marine_zones: BTreeMap<String, Vec<UgcArea>>,
     /// Expiration time for this UGC section
     pub expires: DateTime<Utc>,
+}
+
+/// Enriched county or zone area within a UGC section.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct UgcArea {
+    /// Three-digit UGC identifier within the enclosing state.
+    pub id: u16,
+    /// Human-readable county or zone name when present in the generated lookup catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<&'static str>,
+    /// Representative latitude for the county or zone when present in the generated lookup catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lat: Option<f64>,
+    /// Representative longitude for the county or zone when present in the generated lookup catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lon: Option<f64>,
 }
 
 /// A single UGC code representing a county or zone.
@@ -72,6 +89,16 @@ impl UgcClass {
             _ => UgcClass::Unknown,
         }
     }
+
+    fn as_char(self) -> char {
+        match self {
+            UgcClass::County => 'C',
+            UgcClass::Zone => 'Z',
+            UgcClass::FireZone => 'F',
+            UgcClass::Marine => 'M',
+            UgcClass::Unknown => 'Z',
+        }
+    }
 }
 
 impl UgcSection {
@@ -82,18 +109,39 @@ impl UgcSection {
         let mut marine_zones = BTreeMap::new();
 
         for code in codes {
-            let bucket = match code.geoclass {
-                UgcClass::County => &mut counties,
-                UgcClass::Zone => &mut zones,
-                UgcClass::FireZone => &mut fire_zones,
-                UgcClass::Marine => &mut marine_zones,
-                UgcClass::Unknown => &mut zones,
-            };
-
-            bucket
-                .entry(code.state)
-                .or_insert_with(Vec::new)
-                .push(code.number);
+            match code.geoclass {
+                UgcClass::County => {
+                    counties
+                        .entry(code.state.clone())
+                        .or_insert_with(Vec::new)
+                        .push(build_area(&code, Some(ugc_county_entry)));
+                }
+                UgcClass::Zone | UgcClass::Unknown => {
+                    let bucket = if is_marine_zone_state(&code.state) {
+                        &mut marine_zones
+                    } else {
+                        &mut zones
+                    };
+                    bucket
+                        .entry(code.state.clone())
+                        .or_insert_with(Vec::new)
+                        .push(build_area(&code, Some(ugc_zone_entry)));
+                }
+                UgcClass::FireZone => {
+                    let area = build_area(&code, None);
+                    fire_zones
+                        .entry(code.state)
+                        .or_insert_with(Vec::new)
+                        .push(area);
+                }
+                UgcClass::Marine => {
+                    let area = build_area(&code, None);
+                    marine_zones
+                        .entry(code.state)
+                        .or_insert_with(Vec::new)
+                        .push(area);
+                }
+            }
         }
 
         Self {
@@ -104,6 +152,46 @@ impl UgcSection {
             expires,
         }
     }
+}
+
+fn build_area(
+    code: &UgcCode,
+    lookup: Option<fn(&str) -> Option<&'static crate::data::UgcLocationEntry>>,
+) -> UgcArea {
+    let canonical = format!(
+        "{}{}{:03}",
+        code.state,
+        code.geoclass.as_char(),
+        code.number
+    );
+    let entry = lookup.and_then(|lookup| lookup(&canonical));
+
+    UgcArea {
+        id: code.number,
+        name: entry.map(|entry| entry.name),
+        lat: entry.map(|entry| entry.latitude),
+        lon: entry.map(|entry| entry.longitude),
+    }
+}
+
+fn is_marine_zone_state(state: &str) -> bool {
+    matches!(
+        state,
+        "AM" | "AN"
+            | "GM"
+            | "LC"
+            | "LE"
+            | "LH"
+            | "LM"
+            | "LO"
+            | "LS"
+            | "PH"
+            | "PK"
+            | "PM"
+            | "PS"
+            | "PZ"
+            | "SL"
+    )
 }
 
 /// Parses all UGC sections found in the given text.
@@ -131,7 +219,13 @@ impl UgcSection {
 /// let sections = parse_ugc_sections(text, Utc::now());
 ///
 /// assert_eq!(sections.len(), 1);
-/// assert_eq!(sections[0].counties["IA"], vec![1, 2, 3]);
+/// assert_eq!(
+///     sections[0].counties["IA"]
+///         .iter()
+///         .map(|area| area.id)
+///         .collect::<Vec<_>>(),
+///     vec![1, 2, 3]
+/// );
 /// ```
 pub fn parse_ugc_sections(text: &str, valid_time: DateTime<Utc>) -> Vec<UgcSection> {
     parse_ugc_sections_with_issues(text, valid_time).0
@@ -352,6 +446,14 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
+    fn ids(areas: &[UgcArea]) -> Vec<u16> {
+        areas.iter().map(|area| area.id).collect()
+    }
+
+    fn names(areas: &[UgcArea]) -> Vec<Option<&'static str>> {
+        areas.iter().map(|area| area.name).collect()
+    }
+
     fn test_valid_time() -> DateTime<Utc> {
         // 2025-03-05 12:00:00 UTC
         Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0).unwrap()
@@ -363,7 +465,8 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1]));
+        assert_eq!(sections[0].counties["IA"][0].id, 1);
+        assert_eq!(sections[0].counties["IA"][0].name, Some("Adair"));
     }
 
     #[test]
@@ -372,7 +475,11 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 2, 3]));
+        assert_eq!(ids(&sections[0].counties["IA"]), vec![1, 2, 3]);
+        assert_eq!(
+            names(&sections[0].counties["IA"]),
+            vec![Some("Adair"), None, Some("Adams")]
+        );
     }
 
     #[test]
@@ -381,25 +488,38 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 3, 5]));
+        assert_eq!(ids(&sections[0].counties["IA"]), vec![1, 3, 5]);
     }
 
     #[test]
     fn parse_ugc_zone_class() {
-        let text = "IAZ001>003-051200-\n";
+        let text = "AKZ317>319-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
-        assert_eq!(sections[0].zones.get("IA"), Some(&vec![1, 2, 3]));
+        assert_eq!(ids(&sections[0].zones["AK"]), vec![317, 318, 319]);
+        assert_eq!(
+            names(&sections[0].zones["AK"]),
+            vec![
+                Some("City and Borough of Yakutat"),
+                Some("Municipality of Skagway"),
+                Some("Haines Borough and Klukwan"),
+            ]
+        );
     }
 
     #[test]
     fn parse_ugc_mixed_states() {
-        let text = "IAC001>003-NEC005-051200-\n";
+        let text = "ALC001-003-005-GAC005-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].counties.get("IA"), Some(&vec![1, 2, 3]));
-        assert_eq!(sections[0].counties.get("NE"), Some(&vec![5]));
+        assert_eq!(ids(&sections[0].counties["AL"]), vec![1, 3, 5]);
+        assert_eq!(
+            names(&sections[0].counties["AL"]),
+            vec![Some("Autauga"), Some("Baldwin"), Some("Barbour")]
+        );
+        assert_eq!(ids(&sections[0].counties["GA"]), vec![5]);
+        assert_eq!(names(&sections[0].counties["GA"]), vec![Some("Bacon")]);
     }
 
     #[test]
@@ -451,16 +571,14 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].zones.get("DC"), Some(&vec![1]));
+        assert_eq!(ids(&sections[0].zones["DC"]), vec![1]);
         assert_eq!(
-            sections[0].zones.get("MD"),
-            Some(&vec![4, 5, 6, 7, 9, 10, 11, 13, 14, 16, 17, 18])
+            ids(&sections[0].zones["MD"]),
+            vec![4, 5, 6, 7, 9, 10, 11, 13, 14, 16, 17, 18]
         );
         assert_eq!(
-            sections[0].zones.get("VA"),
-            Some(&vec![
-                36, 37, 38, 39, 40, 41, 42, 50, 51, 52, 53, 54, 55, 56, 57
-            ])
+            ids(&sections[0].zones["VA"]),
+            vec![36, 37, 38, 39, 40, 41, 42, 50, 51, 52, 53, 54, 55, 56, 57]
         );
     }
 
@@ -470,10 +588,7 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(
-            sections[0].zones.get("MD"),
-            Some(&vec![4, 5, 6, 7, 9, 10, 11])
-        );
+        assert_eq!(ids(&sections[0].zones["MD"]), vec![4, 5, 6, 7, 9, 10, 11]);
     }
 
     #[test]
@@ -483,10 +598,8 @@ mod tests {
 
         assert_eq!(sections.len(), 1);
         assert_eq!(
-            sections[0].zones.get("KS"),
-            Some(&vec![
-                8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56
-            ])
+            ids(&sections[0].zones["KS"]),
+            vec![8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56]
         );
     }
 
@@ -496,7 +609,20 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].fire_zones.get("CO"), Some(&vec![214, 216]));
+        assert_eq!(ids(&sections[0].fire_zones["CO"]), vec![214, 216]);
+        assert_eq!(names(&sections[0].fire_zones["CO"]), vec![None, None]);
+        assert!(sections[0].counties.is_empty());
+        assert!(sections[0].zones.is_empty());
+    }
+
+    #[test]
+    fn marine_prefixes_route_z_codes_into_marine_zones() {
+        let text = "AMZ250-252-170200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].zones.is_empty());
+        assert_eq!(ids(&sections[0].marine_zones["AM"]), vec![250, 252]);
     }
 
     #[test]
@@ -505,7 +631,17 @@ mod tests {
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].zones.get("GM"), Some(&vec![730, 750]));
+        assert!(sections[0].zones.is_empty());
+        assert_eq!(ids(&sections[0].marine_zones["GM"]), vec![730, 750]);
+        assert_eq!(
+            names(&sections[0].marine_zones["GM"]),
+            vec![
+                Some(
+                    "Apalachee Bay or Coastal Waters From Keaton Beach to Ochlockonee River Fl out to 20 Nm",
+                ),
+                Some("Coastal waters from Okaloosa-Walton County Line to Mexico Beach out 20 NM"),
+            ]
+        );
     }
 
     #[test]
@@ -519,6 +655,24 @@ mod tests {
             issues
                 .iter()
                 .all(|issue| issue.code == "invalid_ugc_expiration")
+        );
+    }
+
+    #[test]
+    fn ugc_serialization_includes_area_fields_when_available() {
+        let text = "ALC001-003-005-051200-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+        let json = serde_json::to_value(&sections[0]).expect("ugc section serializes");
+
+        assert_eq!(
+            json["counties"],
+            serde_json::json!({
+                "AL": [
+                    { "id": 1, "name": "Autauga", "lat": 32.5349, "lon": -86.6428 },
+                    { "id": 3, "name": "Baldwin", "lat": 30.7273, "lon": -87.7169 },
+                    { "id": 5, "name": "Barbour", "lat": 31.8696, "lon": -85.3932 }
+                ]
+            })
         );
     }
 }

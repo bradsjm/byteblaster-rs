@@ -12,6 +12,7 @@ This crate provides parsing, enrichment, and lookup capabilities for WMO (World 
 - **AFOS PIL extraction**: Parses the Product Identifier Line (PIL) with robust error handling
 - **Text conditioning**: Handles SOH/ETX control characters, null bytes, missing LDM sequences
 - **PIL lookup**: Built-in product type descriptions for common meteorological products
+- **UGC geography lookup**: Built-in county and zone name catalogs keyed by canonical UGC codes
 - **Header enrichment**: Classifies BBB indicators (Amendment, Correction, Delayed Repeat)
 - **Zero-copy parsing**: Efficient byte-based parsing with minimal allocations
 
@@ -148,6 +149,34 @@ pub fn pil_description(nnn: &str) -> Option<&'static str>
 
 **Returns**: Description string if the PIL prefix is known, `None` otherwise.
 
+### UGC Lookup
+
+Look up county and zone metadata by canonical UGC code:
+
+```rust
+use emwin_parser::{ugc_county_entry, ugc_zone_entry};
+
+assert_eq!(ugc_county_entry("ALC001").map(|entry| entry.name), Some("Autauga"));
+assert_eq!(
+    ugc_zone_entry("AKZ317").map(|entry| entry.name),
+    Some("City and Borough of Yakutat")
+);
+```
+
+Parsed UGC sections now emit compact enriched area objects:
+
+```json
+{
+  "counties": {
+    "AL": [
+      { "id": 1, "name": "Autauga", "lat": 32.5349, "lon": -86.6428 },
+      { "id": 3, "name": "Baldwin", "lat": 30.7273, "lon": -87.7169 },
+      { "id": 5, "name": "Barbour", "lat": 31.8696, "lon": -85.3932 }
+    ]
+  }
+}
+```
+
 ## Error Handling
 
 All parsing operations return `Result` types with typed errors:
@@ -178,6 +207,13 @@ The built-in PIL lookup table includes:
 - `PIL_SOURCE_COMMIT`: Git commit hash for PIL data source
 - `pil_catalog_entry()`: Full metadata including `wmo_prefix`, `title`, `ugc`, `vtec`, `cz`, `latlong`, `time_mot_loc`, `wind_hail`, and `hvtec`
 - `enrich_header()` and `enrich_product()`: Surface those catalog flags in parsed output as `flags`
+
+The built-in UGC lookup tables include:
+
+- `UGC_COUNTY_ENTRY_COUNT` and `UGC_ZONE_ENTRY_COUNT`: Number of generated county and zone records
+- `UGC_GENERATED_AT_UTC`: Timestamp when the UGC tables were generated
+- `UGC_COUNTY_SOURCE_PATH` and `UGC_ZONE_SOURCE_PATH`: Source JSON files for the generated tables
+- `ugc_county_entry()` and `ugc_zone_entry()`: Full metadata including `code`, `name`, `latitude`, and `longitude`
 
 ## Supported Product Types
 

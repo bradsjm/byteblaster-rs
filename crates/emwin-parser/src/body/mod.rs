@@ -20,7 +20,9 @@ pub use latlon::{LatLonPolygon, parse_latlon_polygons, parse_latlon_polygons_wit
 pub use time_mot_loc::{
     TimeMotLocEntry, parse_time_mot_loc_entries, parse_time_mot_loc_entries_with_issues,
 };
-pub use ugc::{UgcClass, UgcCode, UgcSection, parse_ugc_sections, parse_ugc_sections_with_issues};
+pub use ugc::{
+    UgcArea, UgcClass, UgcCode, UgcSection, parse_ugc_sections, parse_ugc_sections_with_issues,
+};
 pub use vtec::{VtecCode, parse_vtec_codes, parse_vtec_codes_with_issues};
 pub use wind_hail::{
     WindHailEntry, WindHailKind, parse_wind_hail_entries, parse_wind_hail_entries_with_issues,
@@ -70,7 +72,13 @@ $$
         // Test UGC parsing
         let ugc_sections = parse_ugc_sections(text, Utc::now());
         assert_eq!(ugc_sections.len(), 1);
-        assert_eq!(ugc_sections[0].counties.get("NE"), Some(&vec![1, 2, 3]));
+        assert_eq!(
+            ugc_sections[0].counties["NE"]
+                .iter()
+                .map(|area| area.id)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
 
         // Test HVTEC parsing
         let hvtec_codes = parse_hvtec_codes(text);

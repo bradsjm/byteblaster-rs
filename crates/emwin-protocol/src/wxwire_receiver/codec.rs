@@ -1,3 +1,9 @@
+//! Weather Wire XMPP message codec.
+//!
+//! This module provides decoding of XMPP stanzas into weather wire product files.
+//! It parses NWWS-OI namespace payloads, extracts metadata, and converts payloads
+//! to NOAAPort format.
+
 use crate::wxwire_receiver::error::{WxWireDecodeError, WxWireReceiverError};
 use crate::wxwire_receiver::model::{
     WxWireReceiverFile, WxWireReceiverFrameEvent, WxWireReceiverWarning,
@@ -72,6 +78,10 @@ impl WxWireFrameDecoder for WxWireDecoder {
     fn reset(&mut self) {}
 }
 
+/// Parses an XML stanza into an XMPP Element.
+///
+/// Attempts direct parsing first. If that fails (e.g., missing namespace),
+/// injects the default jabber:client namespace and retries.
 fn parse_message_element(stanza: &str) -> Result<Element, xmpp_parsers::minidom::Error> {
     match stanza.parse::<Element>() {
         Ok(element) => Ok(element),
@@ -79,6 +89,10 @@ fn parse_message_element(stanza: &str) -> Result<Element, xmpp_parsers::minidom:
     }
 }
 
+/// Adds the default jabber:client namespace to the root element if missing.
+///
+/// Some stanzas arrive without the xmlns attribute, which causes parsing
+/// to fail. This function injects the namespace to enable successful parsing.
 fn add_default_client_ns_on_root(xml: &str) -> String {
     let Some(open_start) = xml.find('<') else {
         return xml.to_string();
@@ -115,6 +129,10 @@ struct ParsedMessage {
     warning: Option<WxWireReceiverWarning>,
 }
 
+/// Parses an XMPP message into a weather wire file.
+///
+/// Extracts the NWWS-OI payload, metadata attributes, and converts the
+/// body to NOAAPort format.
 fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WxWireReceiverError> {
     let subject = message
         .get_best_body_cloned(vec![""])
@@ -192,6 +210,9 @@ fn parse_message_to_file(message: &Message) -> Result<ParsedMessage, WxWireRecei
     })
 }
 
+/// Parses an RFC3339 timestamp, falling back to current time on failure.
+///
+/// Returns the parsed timestamp and an optional warning if parsing failed.
 fn parse_timestamp_or_now(raw: &str) -> (SystemTime, Option<WxWireReceiverWarning>) {
     match parse_rfc3339_to_system_time(raw) {
         Some(ts) => (ts, None),
@@ -208,11 +229,13 @@ fn parse_timestamp_or_now(raw: &str) -> (SystemTime, Option<WxWireReceiverWarnin
     }
 }
 
+/// Parses an RFC3339 timestamp string into SystemTime.
 fn parse_rfc3339_to_system_time(raw: &str) -> Option<SystemTime> {
     let parsed = OffsetDateTime::parse(raw, &Rfc3339).ok()?;
     chrono_to_system_time(parsed.unix_timestamp(), parsed.nanosecond())
 }
 
+/// Converts seconds and nanoseconds since Unix epoch to SystemTime.
 fn chrono_to_system_time(seconds: i64, nanos: u32) -> Option<SystemTime> {
     if seconds >= 0 {
         Some(UNIX_EPOCH + Duration::new(seconds as u64, nanos))
@@ -221,6 +244,13 @@ fn chrono_to_system_time(seconds: i64, nanos: u32) -> Option<SystemTime> {
     }
 }
 
+/// Builds a filename from weather product metadata.
+///
+/// Priority order:
+/// 1. AWIPS ID if present and not "NONE"
+/// 2. TTAAII + CCCC combination
+/// 3. Product ID
+/// 4. Timestamp-based fallback
 fn build_filename(
     awipsid: &str,
     ttaaii: &str,
@@ -247,6 +277,10 @@ fn build_filename(
     format!("wxwire_{secs}.TXT")
 }
 
+/// Converts plain text to NOAAPort format.
+///
+/// Adds SOH (Start of Header) prefix, converts double newlines to CRLF,
+/// and adds ETX (End of Text) suffix.
 fn convert_to_noaaport(text: &str) -> String {
     let mut noaaport = format!("\x01{}", text.replace("\n\n", "\r\r\n"));
     if !noaaport.ends_with('\n') {

@@ -1,3 +1,9 @@
+//! QBT relay runtime implementation.
+//!
+//! This module implements the relay server that accepts downstream client connections
+//! and forwards upstream QBT data. It handles client authentication, quality monitoring,
+//! metrics logging, and graceful shutdown.
+
 use super::auth::AuthParser;
 use super::state::QbtRelayState;
 use super::{QbtRelayConfig, QbtRelayError, QbtRelayResult};
@@ -109,6 +115,7 @@ pub async fn run(
     Ok(())
 }
 
+/// Runs the metrics logging loop, periodically emitting relay statistics.
 async fn run_metrics_logger(
     state: Arc<QbtRelayState>,
     config: QbtRelayConfig,
@@ -142,6 +149,10 @@ async fn run_metrics_logger(
     }
 }
 
+/// Runs the upstream connection loop, maintaining connection to QBT servers.
+///
+/// Connects to upstream servers in rotation, handles authentication,
+/// and forwards received data to downstream clients.
 async fn run_upstream_loop(
     state: Arc<QbtRelayState>,
     config: QbtRelayConfig,
@@ -248,6 +259,10 @@ async fn run_upstream_loop(
     }
 }
 
+/// Runs the TCP accept loop, accepting downstream client connections.
+///
+/// Accepts connections up to max_clients limit, handles capacity rejection,
+/// and spawns client session tasks for authenticated clients.
 async fn run_accept_loop(
     state: Arc<QbtRelayState>,
     config: QbtRelayConfig,
@@ -296,6 +311,10 @@ async fn run_accept_loop(
     }
 }
 
+/// Manages a single downstream client session.
+///
+/// Handles authentication, monitors for re-auth timeouts, and forwards
+/// upstream data to the client. Disconnects slow or unresponsive clients.
 async fn run_client_session(
     state: Arc<QbtRelayState>,
     config: QbtRelayConfig,
@@ -470,6 +489,10 @@ async fn run_client_session(
     Ok(())
 }
 
+/// Writes queued chunks to a downstream client socket.
+///
+/// Consumes from the writer queue and sends data to the client.
+/// Updates forwarded bytes metrics on success.
 async fn run_client_writer(
     state: Arc<QbtRelayState>,
     mut writer: tokio::net::tcp::OwnedWriteHalf,
@@ -489,6 +512,11 @@ async fn run_client_writer(
     }
 }
 
+/// Monitors forwarding quality and pauses/resumes based on quality ratio.
+///
+/// Tracks the ratio of forwarded vs attempted bytes over a rolling window.
+/// Pauses forwarding when quality drops below threshold, resumes when
+/// quality recovers.
 async fn run_quality_monitor(
     state: Arc<QbtRelayState>,
     config: QbtRelayConfig,
@@ -523,6 +551,7 @@ async fn run_quality_monitor(
     }
 }
 
+/// Returns the current Unix time in seconds.
 fn unix_time_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

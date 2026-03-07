@@ -1,3 +1,8 @@
+//! Relay state management and metrics.
+//!
+//! This module provides shared state for the relay runtime, including metrics
+//! tracking, client management, and quality monitoring.
+
 use bytes::Bytes;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -7,6 +12,7 @@ use std::sync::{Mutex, RwLock};
 use super::QbtRelayConfig;
 use crate::qbt_receiver::protocol::server_list_wire::build_server_list_wire;
 
+/// Relay metrics tracked via atomic counters.
 #[derive(Default)]
 pub(super) struct Metrics {
     pub(super) upstream_connection_attempts_total: AtomicU64,
@@ -65,18 +71,21 @@ pub struct QbtRelayHealthSnapshot {
     pub downstream_active_clients: u64,
 }
 
+/// Quality tracking bucket for a single time window.
 #[derive(Default, Clone, Copy)]
 struct QualityBucket {
     attempted: u64,
     forwarded: u64,
 }
 
+/// Rolling window for tracking forwarding quality.
 pub(super) struct QualityWindow {
     buckets: Vec<QualityBucket>,
     index: usize,
 }
 
 impl QualityWindow {
+    /// Creates a new quality window with the specified number of buckets.
     pub(super) fn new(size: usize) -> Self {
         let window_size = size.max(1);
         Self {
@@ -85,21 +94,27 @@ impl QualityWindow {
         }
     }
 
+    /// Rotates to the next bucket, clearing it for new data.
     pub(super) fn rotate(&mut self) {
         self.index = (self.index + 1) % self.buckets.len();
         self.buckets[self.index] = QualityBucket::default();
     }
 
+    /// Records attempted bytes in the current bucket.
     pub(super) fn add_attempted(&mut self, bytes: u64) {
         self.buckets[self.index].attempted =
             self.buckets[self.index].attempted.saturating_add(bytes);
     }
 
+    /// Records successfully forwarded bytes in the current bucket.
     pub(super) fn add_forwarded(&mut self, bytes: u64) {
         self.buckets[self.index].forwarded =
             self.buckets[self.index].forwarded.saturating_add(bytes);
     }
 
+    /// Calculates the forwarding quality ratio (0.0 to 1.0).
+    ///
+    /// Returns 1.0 if no bytes have been attempted (empty window).
     pub(super) fn ratio(&self) -> f64 {
         let attempted = self
             .buckets
@@ -117,11 +132,17 @@ impl QualityWindow {
     }
 }
 
+/// Shared state for the relay runtime.
 pub struct QbtRelayState {
+    /// Metrics counters for telemetry.
     pub(super) metrics: Metrics,
+    /// Connected client metadata keyed by client ID.
     pub(super) clients: Mutex<HashMap<u64, QbtRelayClientMeta>>,
+    /// Counter for generating unique client IDs.
     pub(super) next_client_id: AtomicU64,
+    /// Rolling quality window for monitoring.
     pub(super) quality_window: Mutex<QualityWindow>,
+    /// Cached server list wire frame to send to new clients.
     latest_server_list_wire: RwLock<Bytes>,
 }
 
@@ -131,6 +152,9 @@ impl QbtRelayState {
         Self::from_upstream_servers(&config.upstream_servers, config.quality_window_secs)
     }
 
+    /// Creates state from upstream servers list.
+    ///
+    /// Initializes the server list wire frame and quality window.
     pub fn from_upstream_servers(servers: &[(String, u16)], quality_window_secs: usize) -> Self {
         Self {
             metrics: Metrics::default(),
@@ -141,6 +165,7 @@ impl QbtRelayState {
         }
     }
 
+    /// Returns the cached server list wire frame.
     pub fn latest_server_list_wire(&self) -> Bytes {
         self.latest_server_list_wire
             .read()
@@ -148,6 +173,7 @@ impl QbtRelayState {
             .clone()
     }
 
+    /// Captures a snapshot of current metrics.
     pub fn metrics_snapshot(&self) -> QbtRelayMetricsSnapshot {
         let users = self
             .clients
@@ -212,6 +238,7 @@ impl QbtRelayState {
         }
     }
 
+    /// Captures a health status snapshot.
     pub fn health_snapshot(&self) -> QbtRelayHealthSnapshot {
         QbtRelayHealthSnapshot {
             status: "ok",

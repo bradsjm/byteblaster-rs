@@ -97,7 +97,7 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
 
             let (body, issues) = if let Some(ref flags) = flags {
                 let reference_time = header.timestamp(Utc::now());
-                enrich_body(&parsed.conditioned_text, flags, reference_time)
+                enrich_body(&parsed.body_text, flags, reference_time)
             } else {
                 (None, Vec::new())
             };
@@ -131,7 +131,7 @@ fn enrich_text_product_fallback(
 ) -> ProductEnrichment {
     if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
         (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some((metar, issues)) = parse_metar_bulletin(&parsed_wmo.conditioned_text)
+        && let Some((metar, issues)) = parse_metar_bulletin(&parsed_wmo.body_text)
     {
         return ProductEnrichment {
             source: ProductEnrichmentSource::WmoMetarBulletin,
@@ -154,7 +154,7 @@ fn enrich_text_product_fallback(
 
     if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
         (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some(taf) = parse_taf_bulletin(&parsed_wmo.conditioned_text)
+        && let Some(taf) = parse_taf_bulletin(&parsed_wmo.body_text)
     {
         return ProductEnrichment {
             source: ProductEnrichmentSource::WmoTafBulletin,
@@ -177,8 +177,7 @@ fn enrich_text_product_fallback(
 
     if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
         (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some(dcp) =
-            parse_dcp_bulletin(filename, &parsed_wmo.header, &parsed_wmo.conditioned_text)
+        && let Some(dcp) = parse_dcp_bulletin(filename, &parsed_wmo.header, &parsed_wmo.body_text)
     {
         return ProductEnrichment {
             source: ProductEnrichmentSource::WmoDcpBulletin,
@@ -477,6 +476,29 @@ mod tests {
             Some("D6805150 066030901")
         );
         assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn body_enrichment_uses_body_text_not_afos_line() {
+        let enrichment = enrich_product(
+            "RECLWXVA.TXT",
+            b"SXUS41 KLWX 070303\nRECLWX\nVAZ507-508-071100-\n\nForecast for Shenandoah National Park Above 2000 Feet\nNational Weather Service Baltimore MD/Washington DC\n1003 PM EST Fri Mar 6 2026\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
+        assert_eq!(enrichment.pil.as_deref(), Some("REC"));
+        assert!(enrichment.issues.is_empty());
+        assert_eq!(
+            enrichment
+                .body
+                .as_ref()
+                .and_then(|body| body.ugc.as_ref())
+                .map(|sections| sections[0].zones["VA"]
+                    .iter()
+                    .map(|area| area.id)
+                    .collect::<Vec<_>>()),
+            Some(vec![507, 508])
+        );
     }
 
     #[test]

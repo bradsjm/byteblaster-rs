@@ -42,7 +42,6 @@ fn looks_like_dcp_wmo_header(wmo_header: &WmoHeader) -> bool {
 
 fn body_lines(text: &str) -> Vec<String> {
     text.lines()
-        .skip(2)
         .map(strip_control_chars)
         .filter(|line| !line.trim().is_empty())
         .map(|line| line.trim().to_string())
@@ -88,7 +87,8 @@ mod tests {
 
     #[test]
     fn parses_misdcp_bulletin() {
-        let text = "000 \nSXMS50 KWAL 070258\n83786162 066025814\n16.23\n003\n137\n071\n088\n12.9\n137\n007\n00000\n 42-0NN  45E\n";
+        let text =
+            "83786162 066025814\n16.23\n003\n137\n071\n088\n12.9\n137\n007\n00000\n 42-0NN  45E\n";
         let bulletin = parse_dcp_bulletin("MISDCPSV.TXT", &wmo(), text)
             .expect("expected DCP bulletin parsing to succeed");
 
@@ -98,13 +98,13 @@ mod tests {
 
     #[test]
     fn ignores_non_dcp_filename() {
-        let text = "000 \nSXMS50 KWAL 070258\n83786162 066025814\n16.23\n";
+        let text = "83786162 066025814\n16.23\n";
         assert!(parse_dcp_bulletin("mystery.txt", &wmo(), text).is_none());
     }
 
     #[test]
     fn parses_misa_bulletin_with_control_character_prefix() {
-        let text = "000 \nSXPA50 KWAL 070309\n\x1eD6805150 066030901 \n05.06 \n008 \n180 \n056 \n098 \n12.8 \n183 \n018 \n00000 \n 39-0NN 141E\n";
+        let text = "\x1eD6805150 066030901 \n05.06 \n008 \n180 \n056 \n098 \n12.8 \n183 \n018 \n00000 \n 39-0NN 141E\n";
         let bulletin = parse_dcp_bulletin(
             "MISA50US.TXT",
             &WmoHeader {

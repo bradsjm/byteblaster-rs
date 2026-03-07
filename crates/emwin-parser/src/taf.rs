@@ -37,19 +37,8 @@ pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
 }
 
 fn taf_body(text: &str) -> Option<String> {
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.len() <= 2 {
-        return None;
-    }
-
-    let first_body = lines
-        .iter()
-        .enumerate()
-        .skip(2)
-        .find_map(|(index, line)| (!line.trim().is_empty()).then_some(index))?;
-
-    let raw = lines[first_body..]
-        .iter()
+    let raw = text
+        .lines()
         .map(|line| line.trim())
         .collect::<Vec<_>>()
         .join(" ");
@@ -83,8 +72,7 @@ mod tests {
 
     #[test]
     fn parses_amended_taf_bulletin() {
-        let text =
-            "000 \nFTXX01 KWBC 070200\nTAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n";
+        let text = "TAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n";
         let taf = parse_taf_bulletin(text).expect("expected TAF bulletin parsing to succeed");
 
         assert_eq!(taf.station, "WBCF");
@@ -97,7 +85,7 @@ mod tests {
 
     #[test]
     fn parses_bulletin_with_marker_line_before_taf_report() {
-        let text = "000 \nFTVN41 KWBC 070303\nTAF\nTAF SVJC 070400Z 0706/0806 07005KT 9999 FEW013 TX33/0718Z\n      TN23/0708Z\n      TEMPO 0706/0710 08004KT CAVOK\n     FM071100 09006KT 9999 FEW013=\n";
+        let text = "TAF\nTAF SVJC 070400Z 0706/0806 07005KT 9999 FEW013 TX33/0718Z\n      TN23/0708Z\n      TEMPO 0706/0710 08004KT CAVOK\n     FM071100 09006KT 9999 FEW013=\n";
         let taf = parse_taf_bulletin(text).expect("expected TAF bulletin parsing to succeed");
 
         assert_eq!(taf.station, "SVJC");

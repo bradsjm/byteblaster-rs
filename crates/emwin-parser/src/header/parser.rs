@@ -41,12 +41,14 @@ pub struct TextProductHeader {
 pub(crate) struct ParsedTextProduct {
     pub(crate) header: TextProductHeader,
     pub(crate) conditioned_text: String,
+    pub(crate) body_text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ParsedWmoBulletin {
     pub(crate) header: WmoHeader,
     pub(crate) conditioned_text: String,
+    pub(crate) body_text: String,
 }
 
 impl WmoHeader {
@@ -153,6 +155,7 @@ pub(crate) fn parse_text_product_conditioned(
 ) -> Result<ParsedTextProduct, ParserError> {
     let parsed = parse_wmo_bulletin_conditioned(bytes)?;
     let afos = parse_afos(&parsed.conditioned_text)?;
+    let body_text = body_after_lines(&parsed.conditioned_text, 3);
 
     Ok(ParsedTextProduct {
         header: TextProductHeader {
@@ -163,6 +166,7 @@ pub(crate) fn parse_text_product_conditioned(
             afos,
         },
         conditioned_text: parsed.conditioned_text,
+        body_text,
     })
 }
 
@@ -171,6 +175,7 @@ pub(crate) fn parse_wmo_bulletin_conditioned(
 ) -> Result<ParsedWmoBulletin, ParserError> {
     let raw = String::from_utf8_lossy(bytes).replace('\0', "");
     let conditioned = condition_text(&raw)?;
+    let body_text = body_after_lines(&conditioned, 2);
     let (ttaaii, cccc, ddhhmm, bbb) = parse_wmo(&conditioned)?;
 
     Ok(ParsedWmoBulletin {
@@ -181,7 +186,15 @@ pub(crate) fn parse_wmo_bulletin_conditioned(
             bbb,
         },
         conditioned_text: conditioned,
+        body_text,
     })
+}
+
+fn body_after_lines(text: &str, lines_to_skip: usize) -> String {
+    text.lines()
+        .skip(lines_to_skip)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn parse_wmo(text: &str) -> Result<(String, String, String, Option<String>), ParserError> {

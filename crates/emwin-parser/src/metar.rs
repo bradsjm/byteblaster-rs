@@ -32,7 +32,7 @@ impl MetarBulletin {
 }
 
 pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<ProductParseIssue>)> {
-    let content = metar_body(text);
+    let content = normalize_token(text);
     let mut reports = Vec::new();
     let mut issues = Vec::new();
 
@@ -57,22 +57,6 @@ pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<Pro
     }
 
     (!reports.is_empty()).then_some((MetarBulletin { reports }, issues))
-}
-
-fn metar_body(text: &str) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.len() <= 2 {
-        return String::new();
-    }
-
-    let first_body = lines
-        .iter()
-        .enumerate()
-        .skip(2)
-        .find_map(|(index, line)| (!line.trim().is_empty()).then_some(index))
-        .unwrap_or(lines.len());
-
-    lines[first_body..].join("\n")
 }
 
 fn normalize_token(token: &str) -> String {

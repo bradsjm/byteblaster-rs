@@ -26,7 +26,7 @@ pub(crate) fn parse_dcp_bulletin(
     }
 
     Some(DcpBulletin {
-        platform_id: lines.first().cloned(),
+        platform_id: lines.first().and_then(|line| extract_platform_id(line)),
         lines,
     })
 }
@@ -60,15 +60,63 @@ fn looks_like_dcp_payload(lines: &[String]) -> bool {
         None => return false,
     };
 
-    first.chars().filter(|ch| ch.is_ascii_digit()).count() >= 8
-        && first
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace())
-        && lines.iter().skip(1).any(|line| {
-            line.chars().all(|ch| {
-                ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || ".+-".contains(ch)
-            })
+    let Some(platform_id) = extract_platform_id(first) else {
+        return false;
+    };
+
+    has_inline_telemetry(first, &platform_id)
+        || lines
+            .iter()
+            .skip(1)
+            .any(|line| looks_like_telemetry_line(line))
+}
+
+fn extract_platform_id(line: &str) -> Option<String> {
+    let line = line.trim_start();
+    let mut chars = line.char_indices().peekable();
+
+    let first_end = loop {
+        let (idx, ch) = chars.next()?;
+
+        if ch.is_ascii_whitespace() {
+            break idx;
+        }
+
+        if !ch.is_ascii_alphanumeric() {
+            return None;
+        }
+    };
+
+    let first = &line[..first_end];
+    if first.len() < 8 {
+        return None;
+    }
+
+    let remainder = line[first_end..].trim_start();
+    let digit_count = remainder
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .count();
+    if digit_count < 9 {
+        return None;
+    }
+
+    let second = &remainder[..digit_count];
+    Some(format!("{first} {second}"))
+}
+
+fn has_inline_telemetry(line: &str, platform_id: &str) -> bool {
+    let remainder = line.strip_prefix(platform_id).unwrap_or(line).trim();
+    !remainder.is_empty()
+        && remainder.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || "@%`^+-.".contains(ch)
         })
+        && remainder.chars().any(|ch| !ch.is_ascii_digit())
+}
+
+fn looks_like_telemetry_line(line: &str) -> bool {
+    line.chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || ".+-".contains(ch))
 }
 
 #[cfg(test)]
@@ -119,5 +167,24 @@ mod tests {
 
         assert_eq!(bulletin.platform_id.as_deref(), Some("D6805150 066030901"));
         assert_eq!(bulletin.lines.len(), 11);
+    }
+
+    #[test]
+    fn parses_single_line_misdcp_bulletin_with_inline_telemetry_noise() {
+        let text = "2211F77E 066032650bB1F@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@Ta@TaJ 40+0NN  57E%\n";
+        let bulletin = parse_dcp_bulletin(
+            "MISDCPNI.TXT",
+            &WmoHeader {
+                ttaaii: "SXMN20".to_string(),
+                cccc: "KWAL".to_string(),
+                ddhhmm: "070326".to_string(),
+                bbb: None,
+            },
+            text,
+        )
+        .expect("expected MISDCP inline telemetry bulletin parsing to succeed");
+
+        assert_eq!(bulletin.platform_id.as_deref(), Some("2211F77E 066032650"));
+        assert_eq!(bulletin.lines.len(), 1);
     }
 }

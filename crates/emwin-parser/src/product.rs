@@ -506,6 +506,33 @@ mod tests {
     }
 
     #[test]
+    fn misdcp_inline_telemetry_bulletins_share_wallops_telemetry_fallback() {
+        let enrichment = enrich_product(
+            "MISDCPNI.TXT",
+            b"SXMN20 KWAL 070326\n2211F77E 066032650bB1F@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@Ta@TaJ 40+0NN  57E%\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
+        assert_eq!(
+            enrichment
+                .dcp
+                .as_ref()
+                .and_then(|bulletin| bulletin.platform_id.as_deref()),
+            Some("2211F77E 066032650")
+        );
+        assert_eq!(
+            enrichment.office.as_ref().map(|office| office.code),
+            Some("WAL")
+        );
+        assert_eq!(
+            enrichment.dcp.as_ref().map(|bulletin| bulletin.lines.len()),
+            Some(1)
+        );
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
     fn body_enrichment_uses_body_text_not_afos_line() {
         let enrichment = enrich_product(
             "RECLWXVA.TXT",

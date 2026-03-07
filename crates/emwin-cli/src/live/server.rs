@@ -281,8 +281,11 @@ mod tests {
     fn file_complete_event(filename: &str) -> EventKind {
         let data = if filename.eq_ignore_ascii_case("TAFPDKGA.TXT") {
             b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n".as_slice()
+        } else if filename.eq_ignore_ascii_case("TAFWBCFJ.TXT") {
+            b"000 \nFTXX01 KWBC 070200\nTAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n"
+                .as_slice()
         } else if filename.eq_ignore_ascii_case("SVROAXNE.TXT") {
-            br#"000 
+            br#"000
 WUUS53 KOAX 051200
 SVROAX
 
@@ -323,6 +326,9 @@ $$
             family: None,
             container: None,
             wmo_prefix: None,
+            office: None,
+            office_city: None,
+            office_state: None,
             cccc: None,
             ttaaii: None,
             afos: None,
@@ -526,12 +532,27 @@ Body
         let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
             event: Some("file_complete".to_string()),
             pil: Some("taf,afd".to_string()),
+            office: Some("ffc".to_string()),
+            office_state: Some("ga".to_string()),
             cccc: Some("kffc".to_string()),
             family: Some("NWS_TEXT_PRODUCT".to_string()),
             container: Some("raw".to_string()),
             ..empty_events_query()
         });
         let event = file_complete_event("TAFPDKGA.TXT");
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_office_city_for_wmo_only_fallbacks() {
+        let event = file_complete_event("TAFWBCFJ.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            office: Some("wbc".to_string()),
+            office_city: Some("national centers for environmental prediction".to_string()),
+            office_state: Some("md".to_string()),
+            ..empty_events_query()
+        });
 
         assert!(event_matches_filter(&filter, &event));
     }

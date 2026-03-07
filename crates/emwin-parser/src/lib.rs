@@ -56,8 +56,9 @@ pub use data::{
     NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, PIL_ENTRY_COUNT,
     PIL_GENERATED_AT_UTC, PilCatalogEntry, ProductMetadataFlags, UGC_COUNTY_ENTRY_COUNT,
     UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH,
-    UgcLocationEntry, nwslid_entry, pil_catalog_entry, pil_description, ugc_county_entry,
-    ugc_zone_entry, wmo_prefix_for_pil,
+    UgcLocationEntry, WMO_OFFICE_ENTRY_COUNT, WMO_OFFICE_GENERATED_AT_UTC, WMO_OFFICE_SOURCE_PATH,
+    WmoOfficeEntry, nwslid_entry, pil_catalog_entry, pil_description, ugc_county_entry,
+    ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
 };
 pub use dcp::DcpBulletin;
 pub use header::{

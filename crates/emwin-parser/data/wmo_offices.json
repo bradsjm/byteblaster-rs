@@ -1,0 +1,2900 @@
+[
+  {
+    "code": "AAQ",
+    "office_name": "WFO Palmer",
+    "city": "Palmer",
+    "state": "AK"
+  },
+  {
+    "code": "ABE",
+    "office_name": "WFO Bethel",
+    "city": "Bethel",
+    "state": "AK"
+  },
+  {
+    "code": "ABI",
+    "office_name": "WFO San Angelo",
+    "city": "San Angelo",
+    "state": "TX"
+  },
+  {
+    "code": "ABQ",
+    "office_name": "WFO Albuquerque",
+    "city": "Albuquerque",
+    "state": "NM"
+  },
+  {
+    "code": "ABR",
+    "office_name": "WFO Aberdeen",
+    "city": "Aberdeen",
+    "state": "SD"
+  },
+  {
+    "code": "ACG",
+    "office_name": "WFO Juneau",
+    "city": "Juneau",
+    "state": "AK"
+  },
+  {
+    "code": "ACR",
+    "office_name": "Alaska RFC - Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "ACT",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "ACY",
+    "office_name": "WFO Atlantic City",
+    "city": "Atlantic City",
+    "state": "NJ"
+  },
+  {
+    "code": "AEC",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "AER",
+    "office_name": "WFO Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "AFC",
+    "office_name": "WFO Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "AFG",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "AGS",
+    "office_name": "WFO Augusta Bush",
+    "city": "Augusta Bush",
+    "state": "GA"
+  },
+  {
+    "code": "AHN",
+    "office_name": "WFO Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "AJK",
+    "office_name": "WFO Juneau",
+    "city": "Juneau",
+    "state": "AK"
+  },
+  {
+    "code": "AKQ",
+    "office_name": "WFO Wakefield",
+    "city": "Wakefield",
+    "state": "VA"
+  },
+  {
+    "code": "ALB",
+    "office_name": "WFO Albany",
+    "city": "Albany",
+    "state": "NY"
+  },
+  {
+    "code": "ALO",
+    "office_name": "WFO Des Moines",
+    "city": "Des Moines",
+    "state": "IA"
+  },
+  {
+    "code": "ALR",
+    "office_name": "Southeast RFC - Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "ALS",
+    "office_name": "WFO Alamosa",
+    "city": "Alamosa",
+    "state": "CO"
+  },
+  {
+    "code": "ALU",
+    "office_name": "WFO Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "ALY",
+    "office_name": "WFO Albany",
+    "city": "Albany",
+    "state": "NY"
+  },
+  {
+    "code": "AMA",
+    "office_name": "WFO Amarillo",
+    "city": "Amarillo",
+    "state": "TX"
+  },
+  {
+    "code": "AMX",
+    "office_name": "WFO Key West",
+    "city": "Key West",
+    "state": "FL"
+  },
+  {
+    "code": "ANC",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "APD",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "APF",
+    "office_name": "WFO Miami",
+    "city": "Miami",
+    "state": "FL"
+  },
+  {
+    "code": "APN",
+    "office_name": "WFO Alpena",
+    "city": "Alpena",
+    "state": "MI"
+  },
+  {
+    "code": "APX",
+    "office_name": "WFO Gaylord 9SSW",
+    "city": "Gaylord 9SSW",
+    "state": "MI"
+  },
+  {
+    "code": "ARX",
+    "office_name": "WFO La Crosse",
+    "city": "La Crosse",
+    "state": "WI"
+  },
+  {
+    "code": "AST",
+    "office_name": "WFO Astoria",
+    "city": "Astoria",
+    "state": "OR"
+  },
+  {
+    "code": "ATL",
+    "office_name": "WFO Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "ATR",
+    "office_name": "Southeast RFC - Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "ATT",
+    "office_name": "WFO Austin/San Antonio",
+    "city": "Austin/San Antonio",
+    "state": "TX"
+  },
+  {
+    "code": "AUS",
+    "office_name": "WFO Austin/San Antonio",
+    "city": "Austin/San Antonio",
+    "state": "TX"
+  },
+  {
+    "code": "AVL",
+    "office_name": "WFO Asheville",
+    "city": "Asheville",
+    "state": "NC"
+  },
+  {
+    "code": "AVP",
+    "office_name": "WFO Binghamton",
+    "city": "Binghamton",
+    "state": "NY"
+  },
+  {
+    "code": "AWC",
+    "office_name": "WFO Yuma",
+    "city": "Yuma",
+    "state": "AZ"
+  },
+  {
+    "code": "BBX",
+    "office_name": "WFO Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "BCQ",
+    "office_name": "Central Region Headquarters",
+    "city": "Central Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "BDL",
+    "office_name": "WFO Hartford",
+    "city": "Hartford",
+    "state": "CT"
+  },
+  {
+    "code": "BDR",
+    "office_name": "WFO Bridgeport",
+    "city": "Bridgeport",
+    "state": "CT"
+  },
+  {
+    "code": "BFF",
+    "office_name": "WFO Cheyenne",
+    "city": "Cheyenne",
+    "state": "WY"
+  },
+  {
+    "code": "BFL",
+    "office_name": "WFO San Joaquin Valley - Hanford",
+    "city": "San Joaquin Valley - Hanford",
+    "state": "CA"
+  },
+  {
+    "code": "BGM",
+    "office_name": "WFO Binghamton",
+    "city": "Binghamton",
+    "state": "NY"
+  },
+  {
+    "code": "BGR",
+    "office_name": "WFO Caribou",
+    "city": "Caribou",
+    "state": "ME"
+  },
+  {
+    "code": "BHM",
+    "office_name": "WFO Birmingham",
+    "city": "Birmingham",
+    "state": "AL"
+  },
+  {
+    "code": "BHX",
+    "office_name": "WFO Eureka",
+    "city": "Eureka",
+    "state": "CA"
+  },
+  {
+    "code": "BIL",
+    "office_name": "WFO Billings",
+    "city": "Billings",
+    "state": "MT"
+  },
+  {
+    "code": "BIS",
+    "office_name": "WFO Bismarck",
+    "city": "Bismarck",
+    "state": "ND"
+  },
+  {
+    "code": "BIX",
+    "office_name": "WFO Biloxi",
+    "city": "Biloxi",
+    "state": "MS"
+  },
+  {
+    "code": "BLX",
+    "office_name": "WFO Billings",
+    "city": "Billings",
+    "state": "MT"
+  },
+  {
+    "code": "BMX",
+    "office_name": "WFO Birmingham",
+    "city": "Birmingham",
+    "state": "AL"
+  },
+  {
+    "code": "BNA",
+    "office_name": "WFO Nashville",
+    "city": "Nashville",
+    "state": "TN"
+  },
+  {
+    "code": "BNO",
+    "office_name": "WFO Burns",
+    "city": "Burns",
+    "state": "OR"
+  },
+  {
+    "code": "BOI",
+    "office_name": "WFO Boise",
+    "city": "Boise",
+    "state": "ID"
+  },
+  {
+    "code": "BOS",
+    "office_name": "WFO Boston",
+    "city": "Boston",
+    "state": "MA"
+  },
+  {
+    "code": "BOU",
+    "office_name": "WFO Denver",
+    "city": "Denver",
+    "state": "CO"
+  },
+  {
+    "code": "BOX",
+    "office_name": "WFO Boston",
+    "city": "Boston",
+    "state": "MA"
+  },
+  {
+    "code": "BRO",
+    "office_name": "WFO Brownsville",
+    "city": "Brownsville",
+    "state": "TX"
+  },
+  {
+    "code": "BRW",
+    "office_name": "WFO Aberdeen",
+    "city": "Aberdeen",
+    "state": "SD"
+  },
+  {
+    "code": "BTM",
+    "office_name": "WFO Missoula",
+    "city": "Missoula",
+    "state": "MT"
+  },
+  {
+    "code": "BTR",
+    "office_name": "WFO New Orleans/Baton Rouge",
+    "city": "New Orleans/Baton Rouge",
+    "state": "LA"
+  },
+  {
+    "code": "BTV",
+    "office_name": "WFO Burlington",
+    "city": "Burlington",
+    "state": "VT"
+  },
+  {
+    "code": "BUF",
+    "office_name": "WFO Buffalo",
+    "city": "Buffalo",
+    "state": "NY"
+  },
+  {
+    "code": "BWG",
+    "office_name": "WFO Louisville",
+    "city": "Louisville",
+    "state": "KY"
+  },
+  {
+    "code": "BWI",
+    "office_name": "WFO Baltimore",
+    "city": "Baltimore",
+    "state": "MD"
+  },
+  {
+    "code": "BYZ",
+    "office_name": "WFO Billings",
+    "city": "Billings",
+    "state": "MT"
+  },
+  {
+    "code": "CAC",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "CAE",
+    "office_name": "WFO Columbia",
+    "city": "Columbia",
+    "state": "SC"
+  },
+  {
+    "code": "CAK",
+    "office_name": "WFO Akron/Canton",
+    "city": "Akron/Canton",
+    "state": "OH"
+  },
+  {
+    "code": "CAN",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "CAO",
+    "office_name": "WFO Albuquerque",
+    "city": "Albuquerque",
+    "state": "NM"
+  },
+  {
+    "code": "CAP",
+    "office_name": "CAP Message",
+    "city": "CAP Message",
+    "state": "XX"
+  },
+  {
+    "code": "CAR",
+    "office_name": "WFO Caribou",
+    "city": "Caribou",
+    "state": "ME"
+  },
+  {
+    "code": "CBW",
+    "office_name": "WFO Caribou",
+    "city": "Caribou",
+    "state": "ME"
+  },
+  {
+    "code": "CBX",
+    "office_name": "WFO Boise",
+    "city": "Boise",
+    "state": "ID"
+  },
+  {
+    "code": "CCA",
+    "office_name": "Tropical Prediction Center",
+    "city": "Tropical Prediction Center",
+    "state": "XX"
+  },
+  {
+    "code": "CCX",
+    "office_name": "WFO Central Pennsylvania - State College",
+    "city": "Central Pennsylvania - State College",
+    "state": "PA"
+  },
+  {
+    "code": "CHA",
+    "office_name": "WFO Knoxville/Tri-Cities",
+    "city": "Knoxville/Tri-Cities",
+    "state": "TN"
+  },
+  {
+    "code": "CHI",
+    "office_name": "WFO Chicago",
+    "city": "Chicago",
+    "state": "IL"
+  },
+  {
+    "code": "CHS",
+    "office_name": "WFO Charleston",
+    "city": "Charleston",
+    "state": "SC"
+  },
+  {
+    "code": "CLE",
+    "office_name": "WFO Cleveland",
+    "city": "Cleveland",
+    "state": "OH"
+  },
+  {
+    "code": "CLL",
+    "office_name": "WFO Houston/Galveston",
+    "city": "Houston/Galveston",
+    "state": "TX"
+  },
+  {
+    "code": "CLT",
+    "office_name": "WFO Charlotte",
+    "city": "Charlotte",
+    "state": "NC"
+  },
+  {
+    "code": "CLX",
+    "office_name": "WFO Charleston",
+    "city": "Charleston",
+    "state": "SC"
+  },
+  {
+    "code": "CMH",
+    "office_name": "WFO Columbus",
+    "city": "Columbus",
+    "state": "OH"
+  },
+  {
+    "code": "CON",
+    "office_name": "WFO Concord",
+    "city": "Concord",
+    "state": "NH"
+  },
+  {
+    "code": "COS",
+    "office_name": "WFO Colorado Springs",
+    "city": "Colorado Springs",
+    "state": "CO"
+  },
+  {
+    "code": "COU",
+    "office_name": "WFO Columbia",
+    "city": "Columbia",
+    "state": "MO"
+  },
+  {
+    "code": "CPR",
+    "office_name": "WFO Casper",
+    "city": "Casper",
+    "state": "WY"
+  },
+  {
+    "code": "CRN",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "CRP",
+    "office_name": "WFO Corpus Christi",
+    "city": "Corpus Christi",
+    "state": "TX"
+  },
+  {
+    "code": "CRS",
+    "office_name": "WFO Riverton",
+    "city": "Riverton",
+    "state": "WY"
+  },
+  {
+    "code": "CRW",
+    "office_name": "WFO Charleston",
+    "city": "Charleston",
+    "state": "WV"
+  },
+  {
+    "code": "CSG",
+    "office_name": "WFO Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "CTP",
+    "office_name": "WFO State College",
+    "city": "State College",
+    "state": "PA"
+  },
+  {
+    "code": "CVG",
+    "office_name": "WFO Cincinnati",
+    "city": "Cincinnati",
+    "state": "OH"
+  },
+  {
+    "code": "CYS",
+    "office_name": "WFO Cheyenne",
+    "city": "Cheyenne",
+    "state": "WY"
+  },
+  {
+    "code": "DAB",
+    "office_name": "WFO Daytona Beach",
+    "city": "Daytona Beach",
+    "state": "FL"
+  },
+  {
+    "code": "DAL",
+    "office_name": "Dallas",
+    "city": "Dallas",
+    "state": "TX"
+  },
+  {
+    "code": "DAY",
+    "office_name": "WFO Dayton",
+    "city": "Dayton",
+    "state": "OH"
+  },
+  {
+    "code": "DBQ",
+    "office_name": "WFO Dubuque",
+    "city": "Dubuque",
+    "state": "IA"
+  },
+  {
+    "code": "DDC",
+    "office_name": "WFO Dodge City",
+    "city": "Dodge City",
+    "state": "KS"
+  },
+  {
+    "code": "DEN",
+    "office_name": "WFO Denver",
+    "city": "Denver",
+    "state": "CO"
+  },
+  {
+    "code": "DFW",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "DIX",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "DLH",
+    "office_name": "WFO Duluth",
+    "city": "Duluth",
+    "state": "MN"
+  },
+  {
+    "code": "DMX",
+    "office_name": "WFO Des Moines",
+    "city": "Des Moines",
+    "state": "IA"
+  },
+  {
+    "code": "DOX",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "DRK",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "DRO",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "DRT",
+    "office_name": "WFO Del Rio",
+    "city": "Del Rio",
+    "state": "TX"
+  },
+  {
+    "code": "DSM",
+    "office_name": "WFO Des Moines",
+    "city": "Des Moines",
+    "state": "IA"
+  },
+  {
+    "code": "DTW",
+    "office_name": "WFO Detroit Metro",
+    "city": "Detroit Metro",
+    "state": "MI"
+  },
+  {
+    "code": "DTX",
+    "office_name": "WFO Detroit/Pontiac",
+    "city": "Detroit/Pontiac",
+    "state": "MI"
+  },
+  {
+    "code": "DVN",
+    "office_name": "WFO Davenport",
+    "city": "Davenport",
+    "state": "IA"
+  },
+  {
+    "code": "DYX",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "EAU",
+    "office_name": "WFO Minneapolis",
+    "city": "Minneapolis",
+    "state": "MN"
+  },
+  {
+    "code": "EAX",
+    "office_name": "WFO Pleasant Hill",
+    "city": "Pleasant Hill",
+    "state": "MO"
+  },
+  {
+    "code": "ECA",
+    "office_name": "Tropical Prediction Center",
+    "city": "Tropical Prediction Center",
+    "state": "XX"
+  },
+  {
+    "code": "ECG",
+    "office_name": "WFO Wakefield",
+    "city": "Wakefield",
+    "state": "VA"
+  },
+  {
+    "code": "EHU",
+    "office_name": "Southern Region Headquarters",
+    "city": "Southern Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "EKA",
+    "office_name": "WFO Eureka",
+    "city": "Eureka",
+    "state": "CA"
+  },
+  {
+    "code": "EKN",
+    "office_name": "WFO Elkins",
+    "city": "Elkins",
+    "state": "WV"
+  },
+  {
+    "code": "EKO",
+    "office_name": "WFO Elko",
+    "city": "Elko",
+    "state": "NV"
+  },
+  {
+    "code": "ELP",
+    "office_name": "WFO El Paso",
+    "city": "El Paso",
+    "state": "TX"
+  },
+  {
+    "code": "ELY",
+    "office_name": "WFO Elko",
+    "city": "Elko",
+    "state": "NV"
+  },
+  {
+    "code": "EMX",
+    "office_name": "WFO Tucson",
+    "city": "Tucson",
+    "state": "AZ"
+  },
+  {
+    "code": "ENS",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "ENX",
+    "office_name": "WFO Albany",
+    "city": "Albany",
+    "state": "NY"
+  },
+  {
+    "code": "EOX",
+    "office_name": "WFO Tallahassee",
+    "city": "Tallahassee",
+    "state": "FL"
+  },
+  {
+    "code": "EPD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "EPI",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "EPZ",
+    "office_name": "WFO El Paso",
+    "city": "El Paso",
+    "state": "TX"
+  },
+  {
+    "code": "EQI",
+    "office_name": "WFO Boston",
+    "city": "Boston",
+    "state": "MA"
+  },
+  {
+    "code": "ERD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "ERI",
+    "office_name": "WFO Erie",
+    "city": "Erie",
+    "state": "PA"
+  },
+  {
+    "code": "ERN",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "EUG",
+    "office_name": "WFO Eugene",
+    "city": "Eugene",
+    "state": "OR"
+  },
+  {
+    "code": "EVV",
+    "office_name": "WFO Evansville",
+    "city": "Evansville",
+    "state": "IN"
+  },
+  {
+    "code": "EVX",
+    "office_name": "WFO Mobile",
+    "city": "Mobile",
+    "state": "AL"
+  },
+  {
+    "code": "EWR",
+    "office_name": "WFO Newark",
+    "city": "Newark",
+    "state": "NJ"
+  },
+  {
+    "code": "EWX",
+    "office_name": "WFO Austin/San Antonio",
+    "city": "Austin/San Antonio",
+    "state": "TX"
+  },
+  {
+    "code": "EYW",
+    "office_name": "WFO Key West",
+    "city": "Key West",
+    "state": "FL"
+  },
+  {
+    "code": "FAI",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "FAR",
+    "office_name": "WFO Fargo",
+    "city": "Fargo",
+    "state": "ND"
+  },
+  {
+    "code": "FAT",
+    "office_name": "WFO Fresno",
+    "city": "Fresno",
+    "state": "CA"
+  },
+  {
+    "code": "FCA",
+    "office_name": "WFO Kalispell",
+    "city": "Kalispell",
+    "state": "MT"
+  },
+  {
+    "code": "FCX",
+    "office_name": "WFO Blacksburg",
+    "city": "Blacksburg",
+    "state": "VA"
+  },
+  {
+    "code": "FDR",
+    "office_name": "WFO Oklahoma City",
+    "city": "Oklahoma City",
+    "state": "OK"
+  },
+  {
+    "code": "FDX",
+    "office_name": "WFO Albuquerque",
+    "city": "Albuquerque",
+    "state": "NM"
+  },
+  {
+    "code": "FFC",
+    "office_name": "WFO Peachtree City",
+    "city": "Peachtree City",
+    "state": "GA"
+  },
+  {
+    "code": "FGF",
+    "office_name": "WFO Grand Forks",
+    "city": "Grand Forks",
+    "state": "ND"
+  },
+  {
+    "code": "FGZ",
+    "office_name": "WFO Flagstaff",
+    "city": "Flagstaff",
+    "state": "AZ"
+  },
+  {
+    "code": "FLG",
+    "office_name": "WFO Flagstaff",
+    "city": "Flagstaff",
+    "state": "AZ"
+  },
+  {
+    "code": "FLL",
+    "office_name": "WFO Miami",
+    "city": "Miami",
+    "state": "FL"
+  },
+  {
+    "code": "FLO",
+    "office_name": "WFO Wilmington",
+    "city": "Wilmington",
+    "state": "NC"
+  },
+  {
+    "code": "FMY",
+    "office_name": "WFO Tampa Bay Area - Ruskin",
+    "city": "Tampa Bay Area - Ruskin",
+    "state": "FL"
+  },
+  {
+    "code": "FNT",
+    "office_name": "WFO Flint",
+    "city": "Flint",
+    "state": "MI"
+  },
+  {
+    "code": "FSD",
+    "office_name": "WFO Sioux Falls",
+    "city": "Sioux Falls",
+    "state": "SD"
+  },
+  {
+    "code": "FSM",
+    "office_name": "WFO Fort Smith",
+    "city": "Fort Smith",
+    "state": "AR"
+  },
+  {
+    "code": "FSX",
+    "office_name": "WFO Flagstaff",
+    "city": "Flagstaff",
+    "state": "AZ"
+  },
+  {
+    "code": "FTG",
+    "office_name": "WFO Denver",
+    "city": "Denver",
+    "state": "CO"
+  },
+  {
+    "code": "FTW",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "FWA",
+    "office_name": "WFO Northern Indiana - North Webster",
+    "city": "Northern Indiana - North Webster",
+    "state": "IN"
+  },
+  {
+    "code": "FWD",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "FWF",
+    "office_name": "WFO Los Angeles",
+    "city": "Los Angeles",
+    "state": "CA"
+  },
+  {
+    "code": "FWR",
+    "office_name": "West Gulf RFC - Fort Worth",
+    "city": "Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "FWS",
+    "office_name": "Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "GED",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "GEG",
+    "office_name": "WFO Spokane",
+    "city": "Spokane",
+    "state": "WA"
+  },
+  {
+    "code": "GGW",
+    "office_name": "WFO Glasgow",
+    "city": "Glasgow",
+    "state": "MT"
+  },
+  {
+    "code": "GID",
+    "office_name": "WFO Hastings",
+    "city": "Hastings",
+    "state": "NE"
+  },
+  {
+    "code": "GJT",
+    "office_name": "WFO Grand Junction",
+    "city": "Grand Junction",
+    "state": "CO"
+  },
+  {
+    "code": "GJX",
+    "office_name": "WFO Grand Junction",
+    "city": "Grand Junction",
+    "state": "CO"
+  },
+  {
+    "code": "GLD",
+    "office_name": "WFO Goodland",
+    "city": "Goodland",
+    "state": "KS"
+  },
+  {
+    "code": "GLS",
+    "office_name": "WFO Galveston",
+    "city": "Galveston",
+    "state": "TX"
+  },
+  {
+    "code": "GNV",
+    "office_name": "WFO Jacksonville",
+    "city": "Jacksonville",
+    "state": "FL"
+  },
+  {
+    "code": "GRB",
+    "office_name": "WFO Green Bay",
+    "city": "Green Bay",
+    "state": "WI"
+  },
+  {
+    "code": "GRI",
+    "office_name": "WFO Hastings",
+    "city": "Hastings",
+    "state": "NE"
+  },
+  {
+    "code": "GRK",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "GRR",
+    "office_name": "WFO Grand Rapids",
+    "city": "Grand Rapids",
+    "state": "MI"
+  },
+  {
+    "code": "GSO",
+    "office_name": "WFO Raleigh/Durham",
+    "city": "Raleigh/Durham",
+    "state": "NC"
+  },
+  {
+    "code": "GSP",
+    "office_name": "WFO Greenville",
+    "city": "Greenville",
+    "state": "SC"
+  },
+  {
+    "code": "GTF",
+    "office_name": "WFO Great Falls",
+    "city": "Great Falls",
+    "state": "MT"
+  },
+  {
+    "code": "GUA",
+    "office_name": "WFO Guam",
+    "city": "Guam",
+    "state": "GU"
+  },
+  {
+    "code": "GUM",
+    "office_name": "WFO Guam",
+    "city": "Guam",
+    "state": "GU"
+  },
+  {
+    "code": "GWX",
+    "office_name": "WFO Jackson",
+    "city": "Jackson",
+    "state": "MS"
+  },
+  {
+    "code": "GYX",
+    "office_name": "WFO Gray",
+    "city": "Gray",
+    "state": "ME"
+  },
+  {
+    "code": "HAR",
+    "office_name": "WFO Central Pennsylvania - State College",
+    "city": "Central Pennsylvania - State College",
+    "state": "PA"
+  },
+  {
+    "code": "HAT",
+    "office_name": "WFO Morehead City",
+    "city": "Morehead City",
+    "state": "NC"
+  },
+  {
+    "code": "HFD",
+    "office_name": "Northeast RFC - Taunton",
+    "city": "Taunton",
+    "state": "MA"
+  },
+  {
+    "code": "HFO",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "HGX",
+    "office_name": "WFO Houston",
+    "city": "Houston",
+    "state": "TX"
+  },
+  {
+    "code": "HLN",
+    "office_name": "WFO Helena",
+    "city": "Helena",
+    "state": "MT"
+  },
+  {
+    "code": "HNL",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "HNX",
+    "office_name": "WFO San Joaquin Valley/Hanford",
+    "city": "San Joaquin Valley/Hanford",
+    "state": "CA"
+  },
+  {
+    "code": "HON",
+    "office_name": "WFO Huron",
+    "city": "Huron",
+    "state": "SD"
+  },
+  {
+    "code": "HOU",
+    "office_name": "WFO Houston/Galveston",
+    "city": "Houston/Galveston",
+    "state": "TX"
+  },
+  {
+    "code": "HPX",
+    "office_name": "WFO Paducah",
+    "city": "Paducah",
+    "state": "KY"
+  },
+  {
+    "code": "HSD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "HSV",
+    "office_name": "WFO Huntsville",
+    "city": "Huntsville",
+    "state": "AL"
+  },
+  {
+    "code": "HTL",
+    "office_name": "WFO Houghton Lake",
+    "city": "Houghton Lake",
+    "state": "MI"
+  },
+  {
+    "code": "HTX",
+    "office_name": "WFO Birmingham",
+    "city": "Birmingham",
+    "state": "AL"
+  },
+  {
+    "code": "HUL",
+    "office_name": "WFO Caribou",
+    "city": "Caribou",
+    "state": "ME"
+  },
+  {
+    "code": "HUN",
+    "office_name": "WFO Huntsville",
+    "city": "Huntsville",
+    "state": "AL"
+  },
+  {
+    "code": "HUR",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "HWA",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "IAD",
+    "office_name": "WFO Dulles Airport",
+    "city": "Dulles Airport",
+    "state": "DC"
+  },
+  {
+    "code": "ICT",
+    "office_name": "WFO Wichita",
+    "city": "Wichita",
+    "state": "KS"
+  },
+  {
+    "code": "ILG",
+    "office_name": "WFO Wilmington",
+    "city": "Wilmington",
+    "state": "DE"
+  },
+  {
+    "code": "ILM",
+    "office_name": "WFO Wilmington",
+    "city": "Wilmington",
+    "state": "NC"
+  },
+  {
+    "code": "ILN",
+    "office_name": "WFO Wilmington",
+    "city": "Wilmington",
+    "state": "OH"
+  },
+  {
+    "code": "ILX",
+    "office_name": "WFO Lincoln",
+    "city": "Lincoln",
+    "state": "IL"
+  },
+  {
+    "code": "IND",
+    "office_name": "WFO Indianapolis",
+    "city": "Indianapolis",
+    "state": "IN"
+  },
+  {
+    "code": "INL",
+    "office_name": "WFO International Falls",
+    "city": "International Falls",
+    "state": "MN"
+  },
+  {
+    "code": "INT",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "INW",
+    "office_name": "WFO Flagstaff",
+    "city": "Flagstaff",
+    "state": "AZ"
+  },
+  {
+    "code": "IPT",
+    "office_name": "WFO Central Pennsylvania - State College",
+    "city": "Central Pennsylvania - State College",
+    "state": "PA"
+  },
+  {
+    "code": "ISN",
+    "office_name": "WFO Williston",
+    "city": "Williston",
+    "state": "ND"
+  },
+  {
+    "code": "ISP",
+    "office_name": "WFO New York City - Upton",
+    "city": "New York City - Upton",
+    "state": "NY"
+  },
+  {
+    "code": "ITO",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "IWA",
+    "office_name": "WFO Phoenix",
+    "city": "Phoenix",
+    "state": "AZ"
+  },
+  {
+    "code": "IWX",
+    "office_name": "WFO Northern Indiana",
+    "city": "Northern Indiana",
+    "state": "IN"
+  },
+  {
+    "code": "JAA",
+    "office_name": "Middle Atlantic RFC - State College",
+    "city": "State College",
+    "state": "PA"
+  },
+  {
+    "code": "JAN",
+    "office_name": "WFO Jackson",
+    "city": "Jackson",
+    "state": "MS"
+  },
+  {
+    "code": "JAX",
+    "office_name": "WFO Jacksonville",
+    "city": "Jacksonville",
+    "state": "FL"
+  },
+  {
+    "code": "JFK",
+    "office_name": "WFO New York City - Upton",
+    "city": "New York City - Upton",
+    "state": "NY"
+  },
+  {
+    "code": "JGX",
+    "office_name": "WFO Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "JKL",
+    "office_name": "WFO Jackson",
+    "city": "Jackson",
+    "state": "KY"
+  },
+  {
+    "code": "JNU",
+    "office_name": "WFO Juneau",
+    "city": "Juneau",
+    "state": "AK"
+  },
+  {
+    "code": "KEY",
+    "office_name": "WFO Key West",
+    "city": "Key West",
+    "state": "FL"
+  },
+  {
+    "code": "KRF",
+    "office_name": "Missouri Basin RFC - Pleasant Hill",
+    "city": "Pleasant Hill",
+    "state": "MO"
+  },
+  {
+    "code": "KTY",
+    "office_name": "Ohio RFC - Wilmington",
+    "city": "Wilmington",
+    "state": "OH"
+  },
+  {
+    "code": "LAN",
+    "office_name": "WFO Lansing",
+    "city": "Lansing",
+    "state": "MI"
+  },
+  {
+    "code": "LAS",
+    "office_name": "WFO Las Vegas",
+    "city": "Las Vegas",
+    "state": "NV"
+  },
+  {
+    "code": "LAT",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "LAX",
+    "office_name": "WFO Los Angeles",
+    "city": "Los Angeles",
+    "state": "CA"
+  },
+  {
+    "code": "LBB",
+    "office_name": "WFO Lubbock",
+    "city": "Lubbock",
+    "state": "TX"
+  },
+  {
+    "code": "LBF",
+    "office_name": "WFO North Platte",
+    "city": "North Platte",
+    "state": "NE"
+  },
+  {
+    "code": "LCH",
+    "office_name": "WFO Lake Charles",
+    "city": "Lake Charles",
+    "state": "LA"
+  },
+  {
+    "code": "LEX",
+    "office_name": "WFO Lexington",
+    "city": "Lexington",
+    "state": "KY"
+  },
+  {
+    "code": "LFT",
+    "office_name": "WFO Lake Charles",
+    "city": "Lake Charles",
+    "state": "LA"
+  },
+  {
+    "code": "LGA",
+    "office_name": "WFO New York",
+    "city": "New York",
+    "state": "NY"
+  },
+  {
+    "code": "LIC",
+    "office_name": "WFO Limon",
+    "city": "Limon",
+    "state": "CO"
+  },
+  {
+    "code": "LIH",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "LIO",
+    "office_name": "WFO Cleveland",
+    "city": "Cleveland",
+    "state": "OH"
+  },
+  {
+    "code": "LIT",
+    "office_name": "WFO Little Rock",
+    "city": "Little Rock",
+    "state": "AR"
+  },
+  {
+    "code": "LIX",
+    "office_name": "WFO New Orleans/Baton Rouge",
+    "city": "New Orleans/Baton Rouge",
+    "state": "LA"
+  },
+  {
+    "code": "LKN",
+    "office_name": "WFO Elko",
+    "city": "Elko",
+    "state": "NV"
+  },
+  {
+    "code": "LMK",
+    "office_name": "WFO Louisville",
+    "city": "Louisville",
+    "state": "KY"
+  },
+  {
+    "code": "LMT",
+    "office_name": "WFO Klamath Falls",
+    "city": "Klamath Falls",
+    "state": "OR"
+  },
+  {
+    "code": "LND",
+    "office_name": "WFO Riverton",
+    "city": "Riverton",
+    "state": "WY"
+  },
+  {
+    "code": "LNK",
+    "office_name": "WFO Lincoln",
+    "city": "Lincoln",
+    "state": "NE"
+  },
+  {
+    "code": "LNX",
+    "office_name": "WFO North Platte",
+    "city": "North Platte",
+    "state": "NE"
+  },
+  {
+    "code": "LOM",
+    "office_name": "Lower Mississippi RFC - Slidell",
+    "city": "Slidell",
+    "state": "LA"
+  },
+  {
+    "code": "LOT",
+    "office_name": "WFO Romeoville",
+    "city": "Romeoville",
+    "state": "IL"
+  },
+  {
+    "code": "LOX",
+    "office_name": "WFO Los Angeles/Oxnard",
+    "city": "Los Angeles/Oxnard",
+    "state": "CA"
+  },
+  {
+    "code": "LRX",
+    "office_name": "WFO Elko",
+    "city": "Elko",
+    "state": "NV"
+  },
+  {
+    "code": "LSE",
+    "office_name": "WFO La Crosse",
+    "city": "La Crosse",
+    "state": "WI"
+  },
+  {
+    "code": "LSX",
+    "office_name": "WFO St. Louis",
+    "city": "St. Louis",
+    "state": "MO"
+  },
+  {
+    "code": "LUB",
+    "office_name": "WFO Lubbock",
+    "city": "Lubbock",
+    "state": "TX"
+  },
+  {
+    "code": "LVX",
+    "office_name": "WFO Louisville",
+    "city": "Louisville",
+    "state": "KY"
+  },
+  {
+    "code": "LWS",
+    "office_name": "WFO Lewiston",
+    "city": "Lewiston",
+    "state": "ID"
+  },
+  {
+    "code": "LWX",
+    "office_name": "WFO Baltimore/Washington",
+    "city": "Baltimore/Washington",
+    "state": "DC"
+  },
+  {
+    "code": "LYH",
+    "office_name": "WFO Lynchburg",
+    "city": "Lynchburg",
+    "state": "VA"
+  },
+  {
+    "code": "LZK",
+    "office_name": "WFO North Little Rock",
+    "city": "North Little Rock",
+    "state": "AR"
+  },
+  {
+    "code": "MAF",
+    "office_name": "WFO Midland",
+    "city": "Midland",
+    "state": "TX"
+  },
+  {
+    "code": "MAX",
+    "office_name": "WFO Medford",
+    "city": "Medford",
+    "state": "OR"
+  },
+  {
+    "code": "MBX",
+    "office_name": "WFO Bismarck",
+    "city": "Bismarck",
+    "state": "ND"
+  },
+  {
+    "code": "MCI",
+    "office_name": "WFO Kansas City/Pleasant Hill",
+    "city": "Kansas City/Pleasant Hill",
+    "state": "MO"
+  },
+  {
+    "code": "MCN",
+    "office_name": "WFO Atlanta",
+    "city": "Atlanta",
+    "state": "GA"
+  },
+  {
+    "code": "MCO",
+    "office_name": "WFO Melbourne",
+    "city": "Melbourne",
+    "state": "FL"
+  },
+  {
+    "code": "MCT",
+    "office_name": "WFO Salt Lake City",
+    "city": "Salt Lake City",
+    "state": "UT"
+  },
+  {
+    "code": "MEF",
+    "office_name": "WFO Medford",
+    "city": "Medford",
+    "state": "OR"
+  },
+  {
+    "code": "MEG",
+    "office_name": "WFO Memphis",
+    "city": "Memphis",
+    "state": "TN"
+  },
+  {
+    "code": "MEI",
+    "office_name": "WFO Meridian",
+    "city": "Meridian",
+    "state": "MS"
+  },
+  {
+    "code": "MEM",
+    "office_name": "WFO Memphis",
+    "city": "Memphis",
+    "state": "TN"
+  },
+  {
+    "code": "MFD",
+    "office_name": "WFO Mansfield",
+    "city": "Mansfield",
+    "state": "OH"
+  },
+  {
+    "code": "MFL",
+    "office_name": "WFO Miami",
+    "city": "Miami",
+    "state": "FL"
+  },
+  {
+    "code": "MFR",
+    "office_name": "WFO Medford",
+    "city": "Medford",
+    "state": "OR"
+  },
+  {
+    "code": "MGM",
+    "office_name": "WFO Montgomery",
+    "city": "Montgomery",
+    "state": "AL"
+  },
+  {
+    "code": "MHX",
+    "office_name": "WFO Newport/Morehead City",
+    "city": "Newport/Morehead City",
+    "state": "NC"
+  },
+  {
+    "code": "MIA",
+    "office_name": "WFO Miami",
+    "city": "Miami",
+    "state": "FL"
+  },
+  {
+    "code": "MKC",
+    "office_name": "WFO Kansas City",
+    "city": "Kansas City",
+    "state": "MO"
+  },
+  {
+    "code": "MKE",
+    "office_name": "WFO Milwaukee",
+    "city": "Milwaukee",
+    "state": "WI"
+  },
+  {
+    "code": "MKG",
+    "office_name": "WFO Muskegon",
+    "city": "Muskegon",
+    "state": "MI"
+  },
+  {
+    "code": "MKX",
+    "office_name": "WFO Milwaukee/Sullivan",
+    "city": "Milwaukee/Sullivan",
+    "state": "WI"
+  },
+  {
+    "code": "MLB",
+    "office_name": "WFO Melbourne",
+    "city": "Melbourne",
+    "state": "FL"
+  },
+  {
+    "code": "MLI",
+    "office_name": "WFO Moline",
+    "city": "Moline",
+    "state": "IL"
+  },
+  {
+    "code": "MLS",
+    "office_name": "WFO Miles City",
+    "city": "Miles City",
+    "state": "MT"
+  },
+  {
+    "code": "MMO",
+    "office_name": "WFO Marseilles",
+    "city": "Marseilles",
+    "state": "IL"
+  },
+  {
+    "code": "MOB",
+    "office_name": "WFO Mobile",
+    "city": "Mobile",
+    "state": "AL"
+  },
+  {
+    "code": "MPO",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "MPX",
+    "office_name": "WFO Chanhassen",
+    "city": "Chanhassen",
+    "state": "MN"
+  },
+  {
+    "code": "MQT",
+    "office_name": "WFO Marquette",
+    "city": "Marquette",
+    "state": "MI"
+  },
+  {
+    "code": "MRD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "MRX",
+    "office_name": "WFO Morristown/Knoxville",
+    "city": "Morristown/Knoxville",
+    "state": "TN"
+  },
+  {
+    "code": "MRY",
+    "office_name": "WFO San Francisco Bay Area - Monterey",
+    "city": "San Francisco Bay Area - Monterey",
+    "state": "CA"
+  },
+  {
+    "code": "MSG",
+    "office_name": "Western Region Headquarters",
+    "city": "Western Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "MSL",
+    "office_name": "WFO Huntsville",
+    "city": "Huntsville",
+    "state": "AL"
+  },
+  {
+    "code": "MSN",
+    "office_name": "WFO Madison",
+    "city": "Madison",
+    "state": "WI"
+  },
+  {
+    "code": "MSO",
+    "office_name": "WFO Missoula",
+    "city": "Missoula",
+    "state": "MT"
+  },
+  {
+    "code": "MSP",
+    "office_name": "WFO Minneapolis",
+    "city": "Minneapolis",
+    "state": "MN"
+  },
+  {
+    "code": "MSR",
+    "office_name": "North Central RFC - Chanhassen",
+    "city": "Chanhassen",
+    "state": "MN"
+  },
+  {
+    "code": "MTR",
+    "office_name": "WFO Meeteese Rim",
+    "city": "Meeteese Rim",
+    "state": "WY"
+  },
+  {
+    "code": "MTX",
+    "office_name": "WFO Salt Lake City",
+    "city": "Salt Lake City",
+    "state": "UT"
+  },
+  {
+    "code": "MYR",
+    "office_name": "WFO Wilmington",
+    "city": "Wilmington",
+    "state": "NC"
+  },
+  {
+    "code": "NAM",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "NBC",
+    "office_name": "WFO Charleston",
+    "city": "Charleston",
+    "state": "SC"
+  },
+  {
+    "code": "NEC",
+    "office_name": "National Earthquake Center",
+    "city": "National Earthquake Center",
+    "state": "CO"
+  },
+  {
+    "code": "NEW",
+    "office_name": "WFO New Orleans/Baton Rouge",
+    "city": "New Orleans/Baton Rouge",
+    "state": "LA"
+  },
+  {
+    "code": "NFD",
+    "office_name": "World Weather Building",
+    "city": "World Weather Building",
+    "state": "XX"
+  },
+  {
+    "code": "NHC",
+    "office_name": "National Hurricane Center",
+    "city": "National Hurricane Center",
+    "state": "FL"
+  },
+  {
+    "code": "NMC",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "NMW",
+    "office_name": "Astoria CG",
+    "city": "Astoria CG",
+    "state": "OR"
+  },
+  {
+    "code": "NQA",
+    "office_name": "WFO Memphis",
+    "city": "Memphis",
+    "state": "TN"
+  },
+  {
+    "code": "NSB",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "NTC",
+    "office_name": "HQ/Silver Spring",
+    "city": "HQ/Silver Spring",
+    "state": "MD"
+  },
+  {
+    "code": "NWR",
+    "office_name": "WFO North Central Lower Michigan - Gaylord",
+    "city": "North Central Lower Michigan - Gaylord",
+    "state": "MI"
+  },
+  {
+    "code": "NYC",
+    "office_name": "WFO Central Park",
+    "city": "Central Park",
+    "state": "NY"
+  },
+  {
+    "code": "OAX",
+    "office_name": "WFO Valley",
+    "city": "Valley",
+    "state": "NE"
+  },
+  {
+    "code": "OFK",
+    "office_name": "WFO Norfolk",
+    "city": "Norfolk",
+    "state": "NE"
+  },
+  {
+    "code": "OGG",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "OHL",
+    "office_name": "Ohio RFC - Wilmington",
+    "city": "Wilmington",
+    "state": "OH"
+  },
+  {
+    "code": "OHW",
+    "office_name": "Ohio RFC - Wilmington",
+    "city": "Wilmington",
+    "state": "OH"
+  },
+  {
+    "code": "OHX",
+    "office_name": "WFO Nashville",
+    "city": "Nashville",
+    "state": "TN"
+  },
+  {
+    "code": "OKC",
+    "office_name": "WFO Oklahoma City",
+    "city": "Oklahoma City",
+    "state": "OK"
+  },
+  {
+    "code": "OKX",
+    "office_name": "WFO New York",
+    "city": "New York",
+    "state": "NY"
+  },
+  {
+    "code": "OLM",
+    "office_name": "WFO Olympia",
+    "city": "Olympia",
+    "state": "WA"
+  },
+  {
+    "code": "OMA",
+    "office_name": "WFO Omaha",
+    "city": "Omaha",
+    "state": "NE"
+  },
+  {
+    "code": "ORF",
+    "office_name": "WFO Wakefield",
+    "city": "Wakefield",
+    "state": "VA"
+  },
+  {
+    "code": "ORH",
+    "office_name": "WFO Worcester",
+    "city": "Worcester",
+    "state": "MA"
+  },
+  {
+    "code": "ORN",
+    "office_name": "Lower Mississippi RFC - Slidell",
+    "city": "Slidell",
+    "state": "LA"
+  },
+  {
+    "code": "OTX",
+    "office_name": "WFO Spokane",
+    "city": "Spokane",
+    "state": "WA"
+  },
+  {
+    "code": "OUN",
+    "office_name": "WFO Norman/Oklahoma City",
+    "city": "Norman/Oklahoma City",
+    "state": "OK"
+  },
+  {
+    "code": "PAH",
+    "office_name": "WFO Paducah",
+    "city": "Paducah",
+    "state": "KY"
+  },
+  {
+    "code": "PAN",
+    "office_name": "Tropical Prediction Center",
+    "city": "Tropical Prediction Center",
+    "state": "XX"
+  },
+  {
+    "code": "PBI",
+    "office_name": "WFO Miami",
+    "city": "Miami",
+    "state": "FL"
+  },
+  {
+    "code": "PBP",
+    "office_name": "Pacific Region Headquarters",
+    "city": "Pacific Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "PBZ",
+    "office_name": "WFO Pittsburgh",
+    "city": "Pittsburgh",
+    "state": "PA"
+  },
+  {
+    "code": "PDT",
+    "office_name": "WFO Pendleton",
+    "city": "Pendleton",
+    "state": "OR"
+  },
+  {
+    "code": "PDX",
+    "office_name": "WFO Portland",
+    "city": "Portland",
+    "state": "OR"
+  },
+  {
+    "code": "PFD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "PHI",
+    "office_name": "WFO Mount Holly/Philadelphia",
+    "city": "Mount Holly/Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "PHL",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "PHX",
+    "office_name": "WFO Phoenix",
+    "city": "Phoenix",
+    "state": "AZ"
+  },
+  {
+    "code": "PIA",
+    "office_name": "WFO Peoria Regional",
+    "city": "Peoria Regional",
+    "state": "IL"
+  },
+  {
+    "code": "PIH",
+    "office_name": "WFO Pocatello",
+    "city": "Pocatello",
+    "state": "ID"
+  },
+  {
+    "code": "PIT",
+    "office_name": "WFO Pittsburgh",
+    "city": "Pittsburgh",
+    "state": "PA"
+  },
+  {
+    "code": "PNS",
+    "office_name": "WFO Mobile",
+    "city": "Mobile",
+    "state": "AL"
+  },
+  {
+    "code": "PQR",
+    "office_name": "WFO Portland",
+    "city": "Portland",
+    "state": "OR"
+  },
+  {
+    "code": "PSR",
+    "office_name": "WFO Phoenix",
+    "city": "Phoenix",
+    "state": "AZ"
+  },
+  {
+    "code": "PTR",
+    "office_name": "Northwest RFC - Portland",
+    "city": "Portland",
+    "state": "OR"
+  },
+  {
+    "code": "PUB",
+    "office_name": "WFO Pueblo",
+    "city": "Pueblo",
+    "state": "CO"
+  },
+  {
+    "code": "PUX",
+    "office_name": "WFO Pueblo",
+    "city": "Pueblo",
+    "state": "CO"
+  },
+  {
+    "code": "PVD",
+    "office_name": "WFO Providence",
+    "city": "Providence",
+    "state": "RI"
+  },
+  {
+    "code": "PWM",
+    "office_name": "WFO Portland",
+    "city": "Portland",
+    "state": "ME"
+  },
+  {
+    "code": "QLM",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "RAH",
+    "office_name": "WFO Raleigh",
+    "city": "Raleigh",
+    "state": "NC"
+  },
+  {
+    "code": "RAP",
+    "office_name": "WFO Rapid City",
+    "city": "Rapid City",
+    "state": "SD"
+  },
+  {
+    "code": "RAX",
+    "office_name": "WFO Raleigh/Durham",
+    "city": "Raleigh/Durham",
+    "state": "NC"
+  },
+  {
+    "code": "RBL",
+    "office_name": "WFO Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "RDD",
+    "office_name": "WFO Redding",
+    "city": "Redding",
+    "state": "CA"
+  },
+  {
+    "code": "RDG",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "RDU",
+    "office_name": "WFO Raleigh-Durham Airport",
+    "city": "Raleigh-Durham Airport",
+    "state": "NC"
+  },
+  {
+    "code": "REV",
+    "office_name": "WFO Reno",
+    "city": "Reno",
+    "state": "NV"
+  },
+  {
+    "code": "RFD",
+    "office_name": "WFO Rockford",
+    "city": "Rockford",
+    "state": "IL"
+  },
+  {
+    "code": "RHA",
+    "office_name": "Middle Atlantic RFC - State College",
+    "city": "State College",
+    "state": "PA"
+  },
+  {
+    "code": "RIC",
+    "office_name": "WFO Richmond",
+    "city": "Richmond",
+    "state": "VA"
+  },
+  {
+    "code": "RIW",
+    "office_name": "WFO Riverton",
+    "city": "Riverton",
+    "state": "WY"
+  },
+  {
+    "code": "RLX",
+    "office_name": "WFO Charleston",
+    "city": "Charleston",
+    "state": "WV"
+  },
+  {
+    "code": "RNK",
+    "office_name": "WFO Blacksburg",
+    "city": "Blacksburg",
+    "state": "VA"
+  },
+  {
+    "code": "RNO",
+    "office_name": "WFO Reno",
+    "city": "Reno",
+    "state": "NV"
+  },
+  {
+    "code": "ROA",
+    "office_name": "WFO Blacksburg",
+    "city": "Blacksburg",
+    "state": "VA"
+  },
+  {
+    "code": "ROC",
+    "office_name": "WFO Buffalo",
+    "city": "Buffalo",
+    "state": "NY"
+  },
+  {
+    "code": "ROW",
+    "office_name": "WFO Roswell",
+    "city": "Roswell",
+    "state": "NM"
+  },
+  {
+    "code": "RRM",
+    "office_name": "WFO Glasgow",
+    "city": "Glasgow",
+    "state": "MT"
+  },
+  {
+    "code": "RSA",
+    "office_name": "California-Nevada RFC - Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "RST",
+    "office_name": "WFO Rochester",
+    "city": "Rochester",
+    "state": "MN"
+  },
+  {
+    "code": "RTX",
+    "office_name": "WFO Portland",
+    "city": "Portland",
+    "state": "OR"
+  },
+  {
+    "code": "SAC",
+    "office_name": "WFO Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "SAN",
+    "office_name": "WFO San Diego",
+    "city": "San Diego",
+    "state": "CA"
+  },
+  {
+    "code": "SAT",
+    "office_name": "WFO San Antonio",
+    "city": "San Antonio",
+    "state": "TX"
+  },
+  {
+    "code": "SAV",
+    "office_name": "WFO Savannah",
+    "city": "Savannah",
+    "state": "GA"
+  },
+  {
+    "code": "SBN",
+    "office_name": "WFO Northern Indiana - North Webster",
+    "city": "Northern Indiana - North Webster",
+    "state": "IN"
+  },
+  {
+    "code": "SBY",
+    "office_name": "WFO Wakefield",
+    "city": "Wakefield",
+    "state": "VA"
+  },
+  {
+    "code": "SCK",
+    "office_name": "WFO Stockton",
+    "city": "Stockton",
+    "state": "CA"
+  },
+  {
+    "code": "SDF",
+    "office_name": "WFO Louisville",
+    "city": "Louisville",
+    "state": "KY"
+  },
+  {
+    "code": "SEA",
+    "office_name": "WFO Seattle",
+    "city": "Seattle",
+    "state": "WA"
+  },
+  {
+    "code": "SEW",
+    "office_name": "WFO Seattle Sand PT",
+    "city": "Seattle Sand PT",
+    "state": "WA"
+  },
+  {
+    "code": "SFM",
+    "office_name": "WFO Sanford",
+    "city": "Sanford",
+    "state": "ME"
+  },
+  {
+    "code": "SFO",
+    "office_name": "WFO San Francisco",
+    "city": "San Francisco",
+    "state": "CA"
+  },
+  {
+    "code": "SFX",
+    "office_name": "WFO Pocatello/Idaho Falls",
+    "city": "Pocatello/Idaho Falls",
+    "state": "ID"
+  },
+  {
+    "code": "SGF",
+    "office_name": "WFO Springfield",
+    "city": "Springfield",
+    "state": "MO"
+  },
+  {
+    "code": "SGX",
+    "office_name": "WFO San Diego",
+    "city": "San Diego",
+    "state": "CA"
+  },
+  {
+    "code": "SHR",
+    "office_name": "WFO Sheridan",
+    "city": "Sheridan",
+    "state": "WY"
+  },
+  {
+    "code": "SHV",
+    "office_name": "WFO Shreveport",
+    "city": "Shreveport",
+    "state": "LA"
+  },
+  {
+    "code": "SIL",
+    "office_name": "WFO New Orleans/Baton Rouge",
+    "city": "New Orleans/Baton Rouge",
+    "state": "LA"
+  },
+  {
+    "code": "SIY",
+    "office_name": "WFO Medford",
+    "city": "Medford",
+    "state": "OR"
+  },
+  {
+    "code": "SJT",
+    "office_name": "WFO San Angelo",
+    "city": "San Angelo",
+    "state": "TX"
+  },
+  {
+    "code": "SJU",
+    "office_name": "WFO San Juan",
+    "city": "San Juan",
+    "state": "PR"
+  },
+  {
+    "code": "SLC",
+    "office_name": "WFO Salt Lake City",
+    "city": "Salt Lake City",
+    "state": "UT"
+  },
+  {
+    "code": "SLE",
+    "office_name": "WFO Salem",
+    "city": "Salem",
+    "state": "OR"
+  },
+  {
+    "code": "SMX",
+    "office_name": "WFO Santa Maria",
+    "city": "Santa Maria",
+    "state": "CA"
+  },
+  {
+    "code": "SNT",
+    "office_name": "WFO Pocatello/Idaho Falls",
+    "city": "Pocatello/Idaho Falls",
+    "state": "ID"
+  },
+  {
+    "code": "SOR",
+    "office_name": "WFO Seattle/Tacoma",
+    "city": "Seattle/Tacoma",
+    "state": "WA"
+  },
+  {
+    "code": "SOX",
+    "office_name": "WFO San Diego",
+    "city": "San Diego",
+    "state": "CA"
+  },
+  {
+    "code": "SPC",
+    "office_name": "Storm Prediction Center",
+    "city": "Storm Prediction Center",
+    "state": "XX"
+  },
+  {
+    "code": "SPD",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "SPI",
+    "office_name": "WFO Springfield",
+    "city": "Springfield",
+    "state": "IL"
+  },
+  {
+    "code": "SPN",
+    "office_name": "Spanish Product",
+    "city": "Spanish Product",
+    "state": "XX"
+  },
+  {
+    "code": "SPS",
+    "office_name": "WFO Dallas/Fort Worth",
+    "city": "Dallas/Fort Worth",
+    "state": "TX"
+  },
+  {
+    "code": "SRX",
+    "office_name": "WFO Tulsa",
+    "city": "Tulsa",
+    "state": "OK"
+  },
+  {
+    "code": "SSM",
+    "office_name": "Sault Ste Marie",
+    "city": "Sault Ste Marie",
+    "state": "MI"
+  },
+  {
+    "code": "SST",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "STC",
+    "office_name": "WFO St. Cloud",
+    "city": "St. Cloud",
+    "state": "MN"
+  },
+  {
+    "code": "STL",
+    "office_name": "WFO St. Louis",
+    "city": "St. Louis",
+    "state": "MO"
+  },
+  {
+    "code": "STO",
+    "office_name": "WFO Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "STR",
+    "office_name": "Colorado Basin RFC - Salt Lake City",
+    "city": "Salt Lake City",
+    "state": "UT"
+  },
+  {
+    "code": "STU",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "SUS",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "SUX",
+    "office_name": "WFO Sioux City",
+    "city": "Sioux City",
+    "state": "SD"
+  },
+  {
+    "code": "SWB",
+    "office_name": "WFO Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "SYR",
+    "office_name": "WFO Binghamton",
+    "city": "Binghamton",
+    "state": "NY"
+  },
+  {
+    "code": "TAE",
+    "office_name": "WFO Tallahassee",
+    "city": "Tallahassee",
+    "state": "FL"
+  },
+  {
+    "code": "TAR",
+    "office_name": "Northeast RFC - Taunton",
+    "city": "Taunton",
+    "state": "MA"
+  },
+  {
+    "code": "TBW",
+    "office_name": "WFO Tampa",
+    "city": "Tampa",
+    "state": "FL"
+  },
+  {
+    "code": "TFX",
+    "office_name": "WFO Great Falls",
+    "city": "Great Falls",
+    "state": "MT"
+  },
+  {
+    "code": "THR",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "TIR",
+    "office_name": "Ohio RFC - Wilmington",
+    "city": "Wilmington",
+    "state": "OH"
+  },
+  {
+    "code": "TLH",
+    "office_name": "WFO Tallahassee",
+    "city": "Tallahassee",
+    "state": "FL"
+  },
+  {
+    "code": "TOL",
+    "office_name": "WFO Toledo",
+    "city": "Toledo",
+    "state": "OH"
+  },
+  {
+    "code": "TOP",
+    "office_name": "WFO Topeka",
+    "city": "Topeka",
+    "state": "KS"
+  },
+  {
+    "code": "TPA",
+    "office_name": "WFO Tampa Bay Area - Ruskin",
+    "city": "Tampa Bay Area - Ruskin",
+    "state": "FL"
+  },
+  {
+    "code": "TRI",
+    "office_name": "WFO Tri-Cities",
+    "city": "Tri-Cities",
+    "state": "TN"
+  },
+  {
+    "code": "TSA",
+    "office_name": "WFO Tulsa",
+    "city": "Tulsa",
+    "state": "OK"
+  },
+  {
+    "code": "TTN",
+    "office_name": "WFO Philadelphia",
+    "city": "Philadelphia",
+    "state": "PA"
+  },
+  {
+    "code": "TUA",
+    "office_name": "Arkansas-Red Basin RFC - Tulsa",
+    "city": "Tulsa",
+    "state": "OK"
+  },
+  {
+    "code": "TUL",
+    "office_name": "WFO Tulsa",
+    "city": "Tulsa",
+    "state": "OK"
+  },
+  {
+    "code": "TUP",
+    "office_name": "WFO Tupelo",
+    "city": "Tupelo",
+    "state": "MS"
+  },
+  {
+    "code": "TUR",
+    "office_name": "Arkansas-Red Basin RFC - Tulsa",
+    "city": "Tulsa",
+    "state": "OK"
+  },
+  {
+    "code": "TUS",
+    "office_name": "WFO Tucson",
+    "city": "Tucson",
+    "state": "AZ"
+  },
+  {
+    "code": "TWC",
+    "office_name": "WFO Tucson",
+    "city": "Tucson",
+    "state": "AZ"
+  },
+  {
+    "code": "TWX",
+    "office_name": "WFO Topeka",
+    "city": "Topeka",
+    "state": "KS"
+  },
+  {
+    "code": "TYS",
+    "office_name": "WFO Knoxville/Tri-Cities",
+    "city": "Knoxville/Tri-Cities",
+    "state": "TN"
+  },
+  {
+    "code": "TYX",
+    "office_name": "WFO Burlington",
+    "city": "Burlington",
+    "state": "VT"
+  },
+  {
+    "code": "UCR",
+    "office_name": "WFO Los Angeles",
+    "city": "Los Angeles",
+    "state": "CA"
+  },
+  {
+    "code": "UEX",
+    "office_name": "WFO Hastings",
+    "city": "Hastings",
+    "state": "NE"
+  },
+  {
+    "code": "UIL",
+    "office_name": "WFO Seattle/Tacoma",
+    "city": "Seattle/Tacoma",
+    "state": "WA"
+  },
+  {
+    "code": "UMN",
+    "office_name": "WFO Monett 4SW",
+    "city": "Monett 4SW",
+    "state": "MO"
+  },
+  {
+    "code": "UNR",
+    "office_name": "WFO Rapid City",
+    "city": "Rapid City",
+    "state": "SD"
+  },
+  {
+    "code": "USA",
+    "office_name": "WFO Sacramento",
+    "city": "Sacramento",
+    "state": "CA"
+  },
+  {
+    "code": "USJ",
+    "office_name": "WFO San Joaquin Valley - Hanford",
+    "city": "San Joaquin Valley - Hanford",
+    "state": "CA"
+  },
+  {
+    "code": "VAX",
+    "office_name": "WFO Jacksonville",
+    "city": "Jacksonville",
+    "state": "FL"
+  },
+  {
+    "code": "VCT",
+    "office_name": "WFO Victoria",
+    "city": "Victoria",
+    "state": "TX"
+  },
+  {
+    "code": "VEF",
+    "office_name": "WFO Las Vegas",
+    "city": "Las Vegas",
+    "state": "NV"
+  },
+  {
+    "code": "VHW",
+    "office_name": "Western Region Headquarters",
+    "city": "Western Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "VRB",
+    "office_name": "WFO Melbourne",
+    "city": "Melbourne",
+    "state": "FL"
+  },
+  {
+    "code": "VRH",
+    "office_name": "Alaska Region Headquarters",
+    "city": "Alaska Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "VTN",
+    "office_name": "WFO North Platte",
+    "city": "North Platte",
+    "state": "NE"
+  },
+  {
+    "code": "VTX",
+    "office_name": "WFO Los Angeles",
+    "city": "Los Angeles",
+    "state": "CA"
+  },
+  {
+    "code": "VUY",
+    "office_name": "Eastern Region Headquarters",
+    "city": "Eastern Region Headquarters",
+    "state": "XX"
+  },
+  {
+    "code": "WAK",
+    "office_name": "WFO Honolulu",
+    "city": "Honolulu",
+    "state": "HI"
+  },
+  {
+    "code": "WAL",
+    "office_name": "Wallops Island",
+    "city": "Wallops Island",
+    "state": "VA"
+  },
+  {
+    "code": "WBC",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "MD"
+  },
+  {
+    "code": "WCA",
+    "office_name": "Tropical Prediction Center",
+    "city": "Tropical Prediction Center",
+    "state": "XX"
+  },
+  {
+    "code": "WCM",
+    "office_name": "WFO Anchorage",
+    "city": "Anchorage",
+    "state": "AK"
+  },
+  {
+    "code": "WCZ",
+    "office_name": "WFO Fairbanks",
+    "city": "Fairbanks",
+    "state": "AK"
+  },
+  {
+    "code": "WMC",
+    "office_name": "WFO Winnemucca",
+    "city": "Winnemucca",
+    "state": "NV"
+  },
+  {
+    "code": "WNC",
+    "office_name": "Network Control Facility",
+    "city": "Network Control Facility",
+    "state": "XX"
+  },
+  {
+    "code": "WNH",
+    "office_name": "Hydrometeorological Prediction Center",
+    "city": "Hydrometeorological Prediction Center",
+    "state": "MD"
+  },
+  {
+    "code": "WNM",
+    "office_name": "Ocean Prediction Center/Ocean Forecast",
+    "city": "Ocean Prediction Center/Ocean Forecast",
+    "state": "MD"
+  },
+  {
+    "code": "WNO",
+    "office_name": "World Weather Building",
+    "city": "World Weather Building",
+    "state": "XX"
+  },
+  {
+    "code": "WNS",
+    "office_name": "NWS Storm Prediction Center - Norman",
+    "city": "Norman",
+    "state": "OK"
+  },
+  {
+    "code": "WRN",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "WSH",
+    "office_name": "National Centers for Environmental Prediction",
+    "city": "National Centers for Environmental Prediction",
+    "state": "DC"
+  },
+  {
+    "code": "WXM",
+    "office_name": "Weather Message",
+    "city": "Weather Message",
+    "state": "XX"
+  },
+  {
+    "code": "YKM",
+    "office_name": "WFO Yakima",
+    "city": "Yakima",
+    "state": "WA"
+  },
+  {
+    "code": "YNG",
+    "office_name": "WFO Youngstown",
+    "city": "Youngstown",
+    "state": "OH"
+  },
+  {
+    "code": "ZSE",
+    "office_name": "WFO Seattle/Tacoma",
+    "city": "Seattle/Tacoma",
+    "state": "WA"
+  }
+]

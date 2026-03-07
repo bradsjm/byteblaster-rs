@@ -177,6 +177,23 @@ Parsed UGC sections now emit compact enriched area objects:
 }
 ```
 
+### WMO Office Lookup
+
+Look up WMO office metadata by 3-letter office code or 4-letter `CCCC`:
+
+```rust
+use emwin_parser::wmo_office_entry;
+
+assert_eq!(
+    wmo_office_entry("LWX").map(|entry| entry.office_name),
+    Some("WFO Baltimore/Washington")
+);
+assert_eq!(
+    wmo_office_entry("KLWX").map(|entry| entry.city),
+    Some("Baltimore/Washington")
+);
+```
+
 ## Error Handling
 
 All parsing operations return `Result` types with typed errors:
@@ -211,6 +228,13 @@ The built-in UGC lookup tables include:
 - `UGC_GENERATED_AT_UTC`: Timestamp when the UGC tables were generated
 - `UGC_COUNTY_SOURCE_PATH` and `UGC_ZONE_SOURCE_PATH`: Source JSON files for the generated tables
 - `ugc_county_entry()` and `ugc_zone_entry()`: Full metadata including `code`, `name`, `latitude`, and `longitude`
+
+The built-in WMO office lookup table includes:
+
+- `WMO_OFFICE_ENTRY_COUNT`: Number of generated office records
+- `WMO_OFFICE_GENERATED_AT_UTC`: Timestamp when the office table was generated
+- `WMO_OFFICE_SOURCE_PATH`: Source JSON file for the generated table
+- `wmo_office_entry()`: Full metadata including `code`, `office_name`, `city`, and `state`
 
 ## Supported Product Types
 

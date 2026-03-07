@@ -129,6 +129,9 @@ impl EventFilter {
                     family: csv_values(query.family.as_deref(), normalize_lower),
                     container: csv_values(query.container.as_deref(), normalize_lower),
                     wmo_prefix: csv_values(query.wmo_prefix.as_deref(), normalize_upper),
+                    office: csv_values(query.office.as_deref(), normalize_upper),
+                    office_city: csv_values(query.office_city.as_deref(), normalize_lower),
+                    office_state: csv_values(query.office_state.as_deref(), normalize_upper),
                 },
                 header: HeaderFilter {
                     cccc: csv_values(query.cccc.as_deref(), normalize_upper),
@@ -254,6 +257,9 @@ pub(crate) struct ProductFilter {
     pub(crate) family: Option<BTreeSet<String>>,
     pub(crate) container: Option<BTreeSet<String>>,
     pub(crate) wmo_prefix: Option<BTreeSet<String>>,
+    pub(crate) office: Option<BTreeSet<String>>,
+    pub(crate) office_city: Option<BTreeSet<String>>,
+    pub(crate) office_state: Option<BTreeSet<String>>,
 }
 
 impl ProductFilter {
@@ -262,6 +268,9 @@ impl ProductFilter {
             || self.family.is_some()
             || self.container.is_some()
             || self.wmo_prefix.is_some()
+            || self.office.is_some()
+            || self.office_city.is_some()
+            || self.office_state.is_some()
     }
 
     fn matches(&self, product: &emwin_parser::ProductEnrichment) -> bool {
@@ -269,6 +278,21 @@ impl ProductFilter {
             && matches_option_set(&self.family, product.family, normalize_lower)
             && matches_option_set(&self.container, Some(product.container), normalize_lower)
             && matches_option_set(&self.wmo_prefix, product.wmo_prefix, normalize_upper)
+            && matches_option_set(
+                &self.office,
+                product.office.as_ref().map(|office| office.code),
+                normalize_upper,
+            )
+            && matches_option_set(
+                &self.office_city,
+                product.office.as_ref().map(|office| office.city),
+                normalize_lower,
+            )
+            && matches_option_set(
+                &self.office_state,
+                product.office.as_ref().map(|office| office.state),
+                normalize_upper,
+            )
     }
 }
 
@@ -520,6 +544,9 @@ pub(crate) struct EventsQuery {
     pub(crate) family: Option<String>,
     pub(crate) container: Option<String>,
     pub(crate) wmo_prefix: Option<String>,
+    pub(crate) office: Option<String>,
+    pub(crate) office_city: Option<String>,
+    pub(crate) office_state: Option<String>,
     pub(crate) cccc: Option<String>,
     pub(crate) ttaaii: Option<String>,
     pub(crate) afos: Option<String>,

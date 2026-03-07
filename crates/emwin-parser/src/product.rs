@@ -1,11 +1,11 @@
-use crate::data::{classify_non_text_product, container_from_filename};
+use crate::data::{classify_non_text_product, container_from_filename, wmo_office_entry};
 use crate::dcp::{DcpBulletin, parse_dcp_bulletin};
 use crate::header::{parse_text_product_conditioned, parse_wmo_bulletin_conditioned};
 use crate::metar::{MetarBulletin, parse_metar_bulletin};
 use crate::taf::{TafBulletin, parse_taf_bulletin};
 use crate::{
     BbbKind, ParserError, ProductBody, ProductMetadataFlags, ProductParseIssue, TextProductHeader,
-    WmoHeader, enrich_body, enrich_header, wmo_prefix_for_pil,
+    WmoHeader, WmoOfficeEntry, enrich_body, enrich_header, wmo_prefix_for_pil,
 };
 use chrono::Utc;
 use serde::Serialize;
@@ -35,6 +35,8 @@ pub struct ProductEnrichment {
     pub wmo_prefix: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flags: Option<ProductMetadataFlags>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub office: Option<WmoOfficeEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub header: Option<TextProductHeader>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,6 +73,7 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             pil: meta.pil.map(str::to_string),
             wmo_prefix: meta.wmo_prefix,
             flags: None,
+            office: None,
             header: None,
             wmo_header: None,
             bbb_kind: None,
@@ -110,6 +113,7 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                 pil: pil.clone(),
                 wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
                 flags,
+                office: wmo_office_entry(&header.cccc).copied(),
                 header: Some(header),
                 wmo_header: None,
                 bbb_kind,
@@ -141,6 +145,7 @@ fn enrich_text_product_fallback(
             pil: None,
             wmo_prefix: None,
             flags: None,
+            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
             bbb_kind: None,
@@ -164,6 +169,7 @@ fn enrich_text_product_fallback(
             pil: None,
             wmo_prefix: None,
             flags: None,
+            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
             bbb_kind: None,
@@ -187,6 +193,7 @@ fn enrich_text_product_fallback(
             pil: None,
             wmo_prefix: None,
             flags: None,
+            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
             bbb_kind: None,
@@ -206,6 +213,7 @@ fn enrich_text_product_fallback(
         pil: None,
         wmo_prefix: None,
         flags: None,
+        office: None,
         header: None,
         wmo_header: None,
         bbb_kind: None,
@@ -236,6 +244,7 @@ fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         pil: None,
         wmo_prefix: None,
         flags: None,
+        office: None,
         header: None,
         wmo_header: None,
         bbb_kind: None,
@@ -295,6 +304,10 @@ mod tests {
         assert_eq!(enrichment.flags.map(|flags| flags.ugc), Some(false));
         assert_eq!(enrichment.flags.map(|flags| flags.vtec), Some(false));
         assert_eq!(
+            enrichment.office.as_ref().map(|office| office.code),
+            Some("FFC")
+        );
+        assert_eq!(
             enrichment
                 .header
                 .as_ref()
@@ -322,6 +335,7 @@ mod tests {
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
         assert!(enrichment.dcp.is_none());
+        assert!(enrichment.office.is_none());
     }
 
     #[test]
@@ -347,6 +361,7 @@ mod tests {
             enrichment.metar.as_ref().map(MetarBulletin::report_count),
             Some(1)
         );
+        assert!(enrichment.office.is_none());
         assert!(enrichment.taf.is_none());
         assert!(enrichment.dcp.is_none());
         assert!(enrichment.issues.is_empty());
@@ -377,6 +392,10 @@ mod tests {
         assert_eq!(
             enrichment.taf.as_ref().map(|taf| taf.issue_time.as_str()),
             Some("070244Z")
+        );
+        assert_eq!(
+            enrichment.office.as_ref().map(|office| office.code),
+            Some("WBC")
         );
         assert_eq!(
             enrichment
@@ -451,6 +470,10 @@ mod tests {
             Some("83786162 066025814")
         );
         assert_eq!(
+            enrichment.office.as_ref().map(|office| office.code),
+            Some("WAL")
+        );
+        assert_eq!(
             enrichment.dcp.as_ref().map(|bulletin| bulletin.lines.len()),
             Some(11)
         );
@@ -474,6 +497,10 @@ mod tests {
                 .as_ref()
                 .and_then(|bulletin| bulletin.platform_id.as_deref()),
             Some("D6805150 066030901")
+        );
+        assert_eq!(
+            enrichment.office.as_ref().map(|office| office.code),
+            Some("WAL")
         );
         assert!(enrichment.issues.is_empty());
     }
@@ -509,6 +536,7 @@ mod tests {
         assert_eq!(enrichment.family, Some("radar_graphic"));
         assert_eq!(enrichment.title, Some("Radar graphic"));
         assert_eq!(enrichment.flags, None);
+        assert!(enrichment.office.is_none());
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
@@ -524,6 +552,7 @@ mod tests {
         assert_eq!(enrichment.container, "raw");
         assert_eq!(enrichment.flags, None);
         assert!(enrichment.family.is_none());
+        assert!(enrichment.office.is_none());
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
@@ -537,6 +566,7 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::Unknown);
         assert_eq!(enrichment.container, "zip");
         assert!(enrichment.family.is_none());
+        assert!(enrichment.office.is_none());
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());

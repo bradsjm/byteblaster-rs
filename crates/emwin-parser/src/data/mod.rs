@@ -3,6 +3,7 @@
 mod generated_nwslid;
 mod generated_pil;
 mod generated_ugc;
+mod generated_wmo_office;
 mod graphics;
 
 use std::sync::OnceLock;
@@ -12,6 +13,9 @@ pub use generated_pil::{PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC};
 pub use generated_ugc::{
     UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT,
     UGC_ZONE_SOURCE_PATH,
+};
+pub use generated_wmo_office::{
+    WMO_OFFICE_ENTRY_COUNT, WMO_OFFICE_GENERATED_AT_UTC, WMO_OFFICE_SOURCE_PATH,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +49,14 @@ pub struct UgcLocationEntry {
     pub name: &'static str,
     pub latitude: f64,
     pub longitude: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct WmoOfficeEntry {
+    pub code: &'static str,
+    pub office_name: &'static str,
+    pub city: &'static str,
+    pub state: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -109,6 +121,14 @@ pub fn ugc_zone_entry(code: &str) -> Option<&'static UgcLocationEntry> {
         .map(|index| &generated_ugc::UGC_ZONE_CATALOG[index])
 }
 
+pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
+    let key = normalize_wmo_office(code)?;
+    generated_wmo_office::WMO_OFFICE_CATALOG
+        .binary_search_by_key(&key.as_str(), |entry| entry.code)
+        .ok()
+        .map(|index| &generated_wmo_office::WMO_OFFICE_CATALOG[index])
+}
+
 pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
     let key = normalize_pil(nnn)?;
     generated_pil::PIL_CATALOG
@@ -154,6 +174,15 @@ fn normalize_ugc(code: &str, expected_class: char) -> Option<String> {
         Some(key)
     } else {
         None
+    }
+}
+
+fn normalize_wmo_office(code: &str) -> Option<String> {
+    let key = code.trim().to_ascii_uppercase();
+    match key.len() {
+        3 if key.chars().all(|ch| ch.is_ascii_alphanumeric()) => Some(key),
+        4 if key.chars().all(|ch| ch.is_ascii_alphanumeric()) => Some(key[1..].to_string()),
+        _ => None,
     }
 }
 
@@ -213,7 +242,7 @@ pub(super) fn imgmod_re() -> &'static regex::Regex {
 mod tests {
     use super::{
         classify_non_text_product, nwslid_entry, pil_catalog_entry, pil_description,
-        ugc_county_entry, ugc_zone_entry, wmo_prefix_for_pil,
+        ugc_county_entry, ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
     };
 
     #[test]
@@ -306,5 +335,23 @@ mod tests {
         assert!(ugc_county_entry("AKZ317").is_none());
         assert!(ugc_zone_entry("ALC001").is_none());
         assert!(ugc_zone_entry("BAD").is_none());
+    }
+
+    #[test]
+    fn wmo_office_lookup_supports_three_and_four_letter_codes() {
+        let entry = wmo_office_entry("LWX").expect("expected generated office entry");
+        assert_eq!(entry.code, "LWX");
+        assert_eq!(entry.office_name, "WFO Baltimore/Washington");
+        assert_eq!(entry.city, "Baltimore/Washington");
+        assert_eq!(entry.state, "DC");
+
+        let entry = wmo_office_entry("KLWX").expect("expected generated office entry");
+        assert_eq!(entry.code, "LWX");
+    }
+
+    #[test]
+    fn wmo_office_lookup_rejects_invalid_codes() {
+        assert!(wmo_office_entry("XX").is_none());
+        assert!(wmo_office_entry("ABCDE").is_none());
     }
 }

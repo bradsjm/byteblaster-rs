@@ -35,6 +35,7 @@
 
 mod body;
 mod data;
+mod dcp;
 mod header;
 mod issue;
 mod metar;
@@ -58,6 +59,7 @@ pub use data::{
     UgcLocationEntry, nwslid_entry, pil_catalog_entry, pil_description, ugc_county_entry,
     ugc_zone_entry, wmo_prefix_for_pil,
 };
+pub use dcp::DcpBulletin;
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, WmoHeader, enrich_header,
     parse_text_product,

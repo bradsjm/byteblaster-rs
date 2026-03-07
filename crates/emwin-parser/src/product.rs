@@ -1,4 +1,5 @@
 use crate::data::{classify_non_text_product, container_from_filename};
+use crate::dcp::{DcpBulletin, parse_dcp_bulletin};
 use crate::header::{parse_text_product_conditioned, parse_wmo_bulletin_conditioned};
 use crate::metar::{MetarBulletin, parse_metar_bulletin};
 use crate::taf::{TafBulletin, parse_taf_bulletin};
@@ -15,6 +16,7 @@ pub enum ProductEnrichmentSource {
     TextHeader,
     WmoMetarBulletin,
     WmoTafBulletin,
+    WmoDcpBulletin,
     FilenameNonText,
     Unknown,
 }
@@ -45,6 +47,8 @@ pub struct ProductEnrichment {
     pub metar: Option<MetarBulletin>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub taf: Option<TafBulletin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dcp: Option<DcpBulletin>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,
 }
@@ -73,6 +77,7 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             body: None,
             metar: None,
             taf: None,
+            dcp: None,
             issues: Vec::new(),
         };
     }
@@ -111,6 +116,7 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                 body,
                 metar: None,
                 taf: None,
+                dcp: None,
                 issues,
             }
         }
@@ -141,6 +147,7 @@ fn enrich_text_product_fallback(
             body: None,
             metar: Some(metar),
             taf: None,
+            dcp: None,
             issues,
         };
     }
@@ -163,6 +170,31 @@ fn enrich_text_product_fallback(
             body: None,
             metar: None,
             taf: Some(taf),
+            dcp: None,
+            issues: Vec::new(),
+        };
+    }
+
+    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
+        (&error, parse_wmo_bulletin_conditioned(bytes))
+        && let Some(dcp) =
+            parse_dcp_bulletin(filename, &parsed_wmo.header, &parsed_wmo.conditioned_text)
+    {
+        return ProductEnrichment {
+            source: ProductEnrichmentSource::WmoDcpBulletin,
+            family: Some("dcp_telemetry_bulletin"),
+            title: Some("GOES DCP telemetry bulletin"),
+            container: container_from_filename(filename),
+            pil: None,
+            wmo_prefix: None,
+            flags: None,
+            header: None,
+            wmo_header: Some(parsed_wmo.header),
+            bbb_kind: None,
+            body: None,
+            metar: None,
+            taf: None,
+            dcp: Some(dcp),
             issues: Vec::new(),
         };
     }
@@ -181,6 +213,7 @@ fn enrich_text_product_fallback(
         body: None,
         metar: None,
         taf: None,
+        dcp: None,
         issues: vec![ProductParseIssue::new(
             "text_product_parse",
             parser_error_code(&error),
@@ -210,6 +243,7 @@ fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         body: None,
         metar: None,
         taf: None,
+        dcp: None,
         issues: Vec::new(),
     }
 }
@@ -272,6 +306,7 @@ mod tests {
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
     }
 
     #[test]
@@ -287,6 +322,7 @@ mod tests {
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
     }
 
     #[test]
@@ -313,6 +349,7 @@ mod tests {
             Some(1)
         );
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
         assert!(enrichment.issues.is_empty());
     }
 
@@ -351,6 +388,94 @@ mod tests {
         );
         assert_eq!(enrichment.taf.as_ref().map(|taf| taf.amendment), Some(true));
         assert!(enrichment.metar.is_none());
+        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn taf_bulletins_with_marker_line_before_report_use_wmo_fallback() {
+        let enrichment = enrich_product(
+            "TAFMD1.TXT",
+            b"FTVN41 KWBC 070303\nTAF\nTAF SVJC 070400Z 0706/0806 07005KT 9999 FEW013 TX33/0718Z\n      TN23/0708Z\n      TEMPO 0706/0710 08004KT CAVOK\n     FM071100 09006KT 9999 FEW013=\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.family, Some("taf_bulletin"));
+        assert_eq!(
+            enrichment
+                .wmo_header
+                .as_ref()
+                .map(|header| header.ttaaii.as_str()),
+            Some("FTVN41")
+        );
+        assert_eq!(
+            enrichment.taf.as_ref().map(|taf| taf.station.as_str()),
+            Some("SVJC")
+        );
+        assert_eq!(
+            enrichment.taf.as_ref().map(|taf| taf.issue_time.as_str()),
+            Some("070400Z")
+        );
+        assert_eq!(
+            enrichment
+                .taf
+                .as_ref()
+                .map(|taf| (taf.valid_from.as_deref(), taf.valid_to.as_deref())),
+            Some((Some("0706"), Some("0806")))
+        );
+        assert!(enrichment.issues.is_empty());
+        assert!(enrichment.dcp.is_none());
+    }
+
+    #[test]
+    fn dcp_bulletins_use_wmo_fallback_without_afos() {
+        let enrichment = enrich_product(
+            "MISDCPSV.TXT",
+            b"SXMS50 KWAL 070258\n83786162 066025814\n16.23\n003\n137\n071\n088\n12.9\n137\n007\n00000\n 42-0NN  45E\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
+        assert_eq!(enrichment.title, Some("GOES DCP telemetry bulletin"));
+        assert_eq!(
+            enrichment
+                .wmo_header
+                .as_ref()
+                .map(|header| header.ttaaii.as_str()),
+            Some("SXMS50")
+        );
+        assert_eq!(
+            enrichment
+                .dcp
+                .as_ref()
+                .and_then(|bulletin| bulletin.platform_id.as_deref()),
+            Some("83786162 066025814")
+        );
+        assert_eq!(
+            enrichment.dcp.as_ref().map(|bulletin| bulletin.lines.len()),
+            Some(11)
+        );
+        assert!(enrichment.metar.is_none());
+        assert!(enrichment.taf.is_none());
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn misa_bulletins_share_wallops_telemetry_fallback() {
+        let enrichment = enrich_product(
+            "MISA50US.TXT",
+            b"SXPA50 KWAL 070309\n\x1eD6805150 066030901 \n05.06 \n008 \n180 \n056 \n098 \n12.8 \n183 \n018 \n00000 \n 39-0NN 141E\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
+        assert_eq!(
+            enrichment
+                .dcp
+                .as_ref()
+                .and_then(|bulletin| bulletin.platform_id.as_deref()),
+            Some("D6805150 066030901")
+        );
         assert!(enrichment.issues.is_empty());
     }
 
@@ -366,6 +491,7 @@ mod tests {
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
     }
 
     #[test]
@@ -379,6 +505,7 @@ mod tests {
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
     }
 
     #[test]
@@ -392,6 +519,7 @@ mod tests {
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
+        assert!(enrichment.dcp.is_none());
         assert!(enrichment.issues.is_empty());
     }
 }

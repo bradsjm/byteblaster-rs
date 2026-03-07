@@ -53,9 +53,18 @@ fn taf_body(text: &str) -> Option<String> {
         .map(|line| line.trim())
         .collect::<Vec<_>>()
         .join(" ");
-    let normalized = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let normalized = normalize_taf_prefix(&raw);
 
     normalized.starts_with("TAF").then_some(normalized)
+}
+
+fn normalize_taf_prefix(raw: &str) -> String {
+    let normalized = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some(rest) = normalized.strip_prefix("TAF TAF ") {
+        format!("TAF {rest}")
+    } else {
+        normalized
+    }
 }
 
 fn taf_re() -> &'static Regex {
@@ -84,6 +93,20 @@ mod tests {
         assert_eq!(taf.valid_to.as_deref(), Some("0803"));
         assert!(taf.amendment);
         assert!(!taf.correction);
+    }
+
+    #[test]
+    fn parses_bulletin_with_marker_line_before_taf_report() {
+        let text = "000 \nFTVN41 KWBC 070303\nTAF\nTAF SVJC 070400Z 0706/0806 07005KT 9999 FEW013 TX33/0718Z\n      TN23/0708Z\n      TEMPO 0706/0710 08004KT CAVOK\n     FM071100 09006KT 9999 FEW013=\n";
+        let taf = parse_taf_bulletin(text).expect("expected TAF bulletin parsing to succeed");
+
+        assert_eq!(taf.station, "SVJC");
+        assert_eq!(taf.issue_time, "070400Z");
+        assert_eq!(taf.valid_from.as_deref(), Some("0706"));
+        assert_eq!(taf.valid_to.as_deref(), Some("0806"));
+        assert!(!taf.amendment);
+        assert!(!taf.correction);
+        assert!(taf.raw.starts_with("TAF SVJC 070400Z"));
     }
 
     #[test]

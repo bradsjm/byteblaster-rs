@@ -14,7 +14,6 @@ Run via Docker (no local Rust toolchain required):
 
 ```bash
 docker run --rm ghcr.io/bradsjm/emwin-rs/emwin-cli:latest --help
-docker run --rm -p 2211:2211 -p 9090:9090 ghcr.io/bradsjm/emwin-rs/emwin-cli:latest relay --username you@example.com
 ```
 
 ## Use `emwin-protocol` in your app

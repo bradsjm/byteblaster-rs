@@ -1,6 +1,7 @@
 //! TIME...MOT...LOC parsing.
 
 use regex::Regex;
+use serde::ser::{SerializeSeq, Serializer};
 use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
@@ -15,6 +16,7 @@ pub struct TimeMotLocEntry {
     /// Motion speed in knots.
     pub speed_kt: u16,
     /// Coordinate pairs as (latitude, longitude) in decimal degrees.
+    #[serde(serialize_with = "serialize_points")]
     pub points: Vec<(f64, f64)>,
     /// WKT representation as POINT or LINESTRING.
     pub wkt: String,
@@ -249,6 +251,21 @@ fn parse_coordinate(text: &str, is_lat: bool) -> Option<f64> {
     Some(if negative { -value } else { value })
 }
 
+fn serialize_points<S>(points: &[(f64, f64)], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(points.len()))?;
+    for (lat, lon) in points {
+        seq.serialize_element(&[round_coordinate(*lat), round_coordinate(*lon)])?;
+    }
+    seq.end()
+}
+
+fn round_coordinate(value: f64) -> f64 {
+    (value * 1_000_000.0).round() / 1_000_000.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,5 +320,14 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
         assert!((entries[0].points[0].1 + 88.53).abs() < 0.01);
+    }
+
+    #[test]
+    fn serializes_points_without_float_artifacts() {
+        let text = "TIME...MOT...LOC 0009Z 212DEG 40KT 4017 09764";
+        let entries = parse_time_mot_loc_entries(text);
+
+        let json = serde_json::to_value(&entries[0]).expect("entry serializes");
+        assert_eq!(json["points"], serde_json::json!([[40.17, -97.64]]));
     }
 }

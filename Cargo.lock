@@ -459,6 +459,7 @@ dependencies = [
  "chrono",
  "regex",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

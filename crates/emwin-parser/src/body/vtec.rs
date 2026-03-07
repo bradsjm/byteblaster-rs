@@ -52,11 +52,15 @@ pub struct VtecCode {
     /// Event Tracking Number (ETN) - unique identifier for this event type/office
     pub etn: u32,
 
-    /// Event begin time in UTC
-    pub begin: DateTime<Utc>,
+    /// Event begin time in UTC. Some products use `000000T0000Z` to indicate
+    /// an unspecified begin time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub begin: Option<DateTime<Utc>>,
 
-    /// Event end time in UTC
-    pub end: DateTime<Utc>,
+    /// Event end time in UTC. Some products use `000000T0000Z` to indicate
+    /// an unspecified end time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<DateTime<Utc>>,
 }
 
 /// VTEC action codes indicating what action to take for an event.
@@ -149,6 +153,7 @@ fn vtec_phenomena_description(code: &str) -> Option<&'static str> {
         "BZ" => Some("Blizzard"),
         "CF" => Some("Coastal Flood"),
         "CW" => Some("Cold Weather"),
+        "DF" => Some("Debris Flow"),
         "DS" => Some("Dust Storm"),
         "DU" => Some("Blowing Dust"),
         "EC" => Some("Extreme Cold"),
@@ -205,6 +210,7 @@ fn vtec_phenomena_description(code: &str) -> Option<&'static str> {
         "WI" => Some("Wind"),
         "WS" => Some("Winter Storm"),
         "WW" => Some("Winter Weather"),
+        "XH" => Some("Extreme Heat"),
         "ZF" => Some("Freezing Fog"),
         "ZR" => Some("Freezing Rain"),
         _ => None,
@@ -386,7 +392,7 @@ fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, 
         )
     })?;
 
-    let begin = parse_vtec_time(begin_str).ok_or_else(|| {
+    let begin = parse_vtec_optional_time(begin_str).ok_or_else(|| {
         ProductParseIssue::new(
             "vtec_parse",
             "invalid_vtec_begin_time",
@@ -394,7 +400,7 @@ fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, 
             Some(raw.to_string()),
         )
     })?;
-    let end = parse_vtec_time(end_str).ok_or_else(|| {
+    let end = parse_vtec_optional_time(end_str).ok_or_else(|| {
         ProductParseIssue::new(
             "vtec_parse",
             "invalid_vtec_end_time",
@@ -421,6 +427,14 @@ fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, 
         begin,
         end,
     })
+}
+
+fn parse_vtec_optional_time(time_str: &str) -> Option<Option<DateTime<Utc>>> {
+    if time_str == "000000T0000Z" {
+        return Some(None);
+    }
+
+    parse_vtec_time(time_str).map(Some)
 }
 
 fn parse_vtec_time(time_str: &str) -> Option<DateTime<Utc>> {
@@ -476,8 +490,52 @@ mod tests {
         let codes = parse_vtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].begin.timestamp(), 1740830400);
-        assert_eq!(codes[0].end.timestamp(), 1741197600);
+        assert_eq!(
+            codes[0].begin.map(|value| value.timestamp()),
+            Some(1740830400)
+        );
+        assert_eq!(
+            codes[0].end.map(|value| value.timestamp()),
+            Some(1741197600)
+        );
+    }
+
+    #[test]
+    fn parse_vtec_with_unspecified_begin_time() {
+        let text = "/O.CON.KGID.SV.W.0001.000000T0000Z-260307T0030Z/";
+        let codes = parse_vtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].action, VtecAction::Continued);
+        assert_eq!(codes[0].begin, None);
+        assert_eq!(
+            codes[0].end.map(|value| value.timestamp()),
+            Some(1772843400)
+        );
+    }
+
+    #[test]
+    fn parse_vtec_with_unspecified_end_time() {
+        let text = "/O.NEW.KDMX.XH.W.0001.260307T0000Z-000000T0000Z/";
+        let codes = parse_vtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].phenomena, "XH");
+        assert_eq!(codes[0].phenomena_description, Some("Extreme Heat"));
+        assert_eq!(
+            codes[0].begin.map(|value| value.timestamp()),
+            Some(1772841600)
+        );
+        assert_eq!(codes[0].end, None);
+    }
+
+    #[test]
+    fn parse_vtec_debris_flow_description() {
+        let text = "/O.NEW.KDMX.DF.W.0001.260307T0000Z-260307T0030Z/";
+        let codes = parse_vtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].phenomena_description, Some("Debris Flow"));
     }
 
     #[test]

@@ -12,6 +12,7 @@
 //! - `LAT...LON 44001234 89005678` (8-digit format)
 
 use regex::Regex;
+use serde::ser::{SerializeSeq, Serializer};
 use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
@@ -20,6 +21,7 @@ use crate::ProductParseIssue;
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct LatLonPolygon {
     /// Coordinate pairs as (latitude, longitude) in decimal degrees
+    #[serde(serialize_with = "serialize_points")]
     pub points: Vec<(f64, f64)>,
     /// PostGIS WKT (Well-Known Text) representation
     pub wkt: String,
@@ -201,7 +203,7 @@ fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String
     None
 }
 
-fn parse_coordinate(coord: &str, _is_latitude: bool) -> Option<f64> {
+fn parse_coordinate(coord: &str, is_latitude: bool) -> Option<f64> {
     let coord = coord.trim();
 
     // Handle negative values (already decimal)
@@ -209,31 +211,31 @@ fn parse_coordinate(coord: &str, _is_latitude: bool) -> Option<f64> {
         return coord.parse().ok();
     }
 
-    match coord.len() {
+    let value = match coord.len() {
         4 => {
             // DDMM format: DD + MM/60
             let degrees: f64 = coord[0..2].parse().ok()?;
             let minutes: f64 = coord[2..4].parse().ok()?;
-            Some(degrees + minutes / 60.0)
+            degrees + minutes / 60.0
         }
         5 => {
             // DDMMM format (rare): DD + MMM/1000 as decimal degrees
             let degrees: f64 = coord[0..2].parse().ok()?;
             let decimal: f64 = coord[2..5].parse().ok()?;
-            Some(degrees + decimal / 1000.0)
+            degrees + decimal / 1000.0
         }
         6 => {
             // DDMMSS format: DD + MM/60 + SS/3600
             let degrees: f64 = coord[0..2].parse().ok()?;
             let minutes: f64 = coord[2..4].parse().ok()?;
             let seconds: f64 = coord[4..6].parse().ok()?;
-            Some(degrees + minutes / 60.0 + seconds / 3600.0)
+            degrees + minutes / 60.0 + seconds / 3600.0
         }
         7 => {
             // DDMMMMM format (rare): DD + MMMMM/100000 as decimal degrees
             let degrees: f64 = coord[0..2].parse().ok()?;
             let decimal: f64 = coord[2..7].parse().ok()?;
-            Some(degrees + decimal / 100000.0)
+            degrees + decimal / 100000.0
         }
         8 => {
             // DDMMSSxx format (hundredths of seconds): DD + MM/60 + SS.xx/3600
@@ -241,13 +243,30 @@ fn parse_coordinate(coord: &str, _is_latitude: bool) -> Option<f64> {
             let minutes: f64 = coord[2..4].parse().ok()?;
             let seconds: f64 = coord[4..6].parse().ok()?;
             let hundredths: f64 = coord[6..8].parse().ok()?;
-            Some(degrees + minutes / 60.0 + (seconds + hundredths / 100.0) / 3600.0)
+            degrees + minutes / 60.0 + (seconds + hundredths / 100.0) / 3600.0
         }
         _ => {
             // Try direct decimal parse
-            coord.parse().ok()
+            coord.parse().ok()?
         }
+    };
+
+    Some(if is_latitude { value } else { -value })
+}
+
+fn serialize_points<S>(points: &[(f64, f64)], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(points.len()))?;
+    for (lat, lon) in points {
+        seq.serialize_element(&[round_coordinate(*lat), round_coordinate(*lon)])?;
     }
+    seq.end()
+}
+
+fn round_coordinate(value: f64) -> f64 {
+    (value * 1_000_000.0).round() / 1_000_000.0
 }
 
 fn format_wkt(points: &[(f64, f64)]) -> String {
@@ -273,11 +292,11 @@ mod tests {
 
         // 4400 → 44.0°
         assert!((polygons[0].points[0].0 - 44.0).abs() < 0.01);
-        assert!((polygons[0].points[0].1 - 89.0).abs() < 0.01);
+        assert!((polygons[0].points[0].1 + 89.0).abs() < 0.01);
 
         // 4500 → 45.0°
         assert!((polygons[0].points[1].0 - 45.0).abs() < 0.01);
-        assert!((polygons[0].points[1].1 - 88.0).abs() < 0.01);
+        assert!((polygons[0].points[1].1 + 88.0).abs() < 0.01);
     }
 
     #[test]
@@ -289,7 +308,7 @@ mod tests {
         assert_eq!(polygons.len(), 1);
         // 4430 → 44 + 30/60 = 44.5°
         assert!((polygons[0].points[0].0 - 44.5).abs() < 0.01);
-        assert!((polygons[0].points[0].1 - 89.5).abs() < 0.01);
+        assert!((polygons[0].points[0].1 + 89.5).abs() < 0.01);
     }
 
     #[test]
@@ -314,6 +333,23 @@ mod tests {
         // 44301234 → 44 + 30/60 + (12.34)/3600
         let expected_lat = 44.0 + 30.0 / 60.0 + 12.34 / 3600.0;
         assert!((polygons[0].points[0].0 - expected_lat).abs() < 0.00001);
+    }
+
+    #[test]
+    fn serializes_points_without_float_artifacts() {
+        let text = "LAT...LON 4000 9802 4000 9822 4011 9817";
+        let polygons = parse_latlon_polygons(text);
+
+        let json = serde_json::to_value(&polygons[0]).expect("polygon serializes");
+        assert_eq!(
+            json["points"],
+            serde_json::json!([
+                [40.0, -98.033333],
+                [40.0, -98.366667],
+                [40.183333, -98.283333],
+                [40.0, -98.033333]
+            ])
+        );
     }
 
     #[test]
@@ -401,6 +437,6 @@ mod tests {
 
         assert_eq!(polygons.len(), 1);
         assert_eq!(polygons[0].points.len(), 4);
-        assert!((polygons[0].points[0].1 - 96.216666).abs() < 0.01);
+        assert!((polygons[0].points[0].1 + 96.216666).abs() < 0.01);
     }
 }

@@ -4776,7 +4776,7 @@
   "TAF": {
     "wmo_prefix": "FT",
     "title": "Terminal Aerodrome Forecast",
-    "ugc": true,
+    "ugc": false,
     "vtec": false,
     "cz": false,
     "latlong": false,

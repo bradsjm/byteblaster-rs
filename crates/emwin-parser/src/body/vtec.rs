@@ -6,7 +6,7 @@
 //!
 //! Example: `/O.NEW.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/`
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, Utc};
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -156,6 +156,7 @@ fn vtec_status_description(code: char) -> Option<&'static str> {
         'O' => Some("Operational"),
         'T' => Some("Test"),
         'E' => Some("Experimental"),
+        'X' => Some("Experimental VTEC"),
         _ => None,
     }
 }
@@ -166,6 +167,9 @@ fn vtec_significance_description(code: char) -> Option<&'static str> {
         'A' => Some("Watch"),
         'Y' => Some("Advisory"),
         'S' => Some("Statement"),
+        'O' => Some("Outlook"),
+        'N' => Some("Synopsis"),
+        'F' => Some("Forecast"),
         _ => None,
     }
 }
@@ -230,7 +234,7 @@ pub fn parse_vtec_codes_with_issues(text: &str) -> (Vec<VtecCode>, Vec<ProductPa
 
 fn vtec_candidate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"/[OTE]\.[^/\r\n]+/").expect("vtec candidate regex compiles"))
+    RE.get_or_init(|| Regex::new(r"/[OTEX]\.[^/\r\n]+/").expect("vtec candidate regex compiles"))
 }
 
 fn vtec_regex() -> &'static Regex {
@@ -366,7 +370,11 @@ fn parse_vtec_optional_time(time_str: &str) -> Option<Option<DateTime<Utc>>> {
         return Some(None);
     }
 
-    parse_vtec_time(time_str).map(Some)
+    let parsed = parse_vtec_time(time_str)?;
+    if parsed.year() < 1971 {
+        return Some(None);
+    }
+    Some(Some(parsed))
 }
 
 fn parse_vtec_time(time_str: &str) -> Option<DateTime<Utc>> {
@@ -509,6 +517,45 @@ mod tests {
     }
 
     #[test]
+    fn parse_vtec_supports_experimental_vtec_status() {
+        let text = "/X.NEW.KIWX.FL.A.0001.070115T1614Z-000000T0000Z/";
+        let codes = parse_vtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].status, 'X');
+        assert_eq!(codes[0].status_description, Some("Experimental VTEC"));
+        assert_eq!(codes[0].phenomena, "FL");
+        assert_eq!(codes[0].significance_description, Some("Watch"));
+        assert_eq!(codes[0].end, None);
+    }
+
+    #[test]
+    fn parse_vtec_supports_outlook_synopsis_and_forecast_significance() {
+        for (significance, description) in [('O', "Outlook"), ('N', "Synopsis"), ('F', "Forecast")]
+        {
+            let text = format!("/O.NEW.KDMX.HY.{significance}.0123.250301T1200Z-250301T1300Z/");
+            let codes = parse_vtec_codes(&text);
+
+            assert_eq!(codes.len(), 1);
+            assert_eq!(codes[0].significance, significance);
+            assert_eq!(codes[0].significance_description, Some(description));
+        }
+    }
+
+    #[test]
+    fn parse_vtec_1970_timestamp_is_unspecified() {
+        let text = "/O.EXT.KSEW.FL.W.0005.700101T0000Z-200108T1230Z/";
+        let codes = parse_vtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].begin, None);
+        assert_eq!(
+            codes[0].end.map(|value| value.timestamp()),
+            Some(1578486600)
+        );
+    }
+
+    #[test]
     fn parse_vtec_empty() {
         let codes = parse_vtec_codes("");
         assert!(codes.is_empty());
@@ -529,6 +576,26 @@ mod tests {
         assert!(codes.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_vtec_end_time");
+    }
+
+    #[test]
+    fn parse_vtec_invalid_begin_reports_issue() {
+        let text = "/O.NEW.KDMX.TO.W.0123.invalid-250301T1300Z/";
+        let (codes, issues) = parse_vtec_codes_with_issues(text);
+
+        assert!(codes.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_vtec_begin_time");
+    }
+
+    #[test]
+    fn parse_vtec_invalid_etn_reports_issue() {
+        let text = "/O.NEW.KDMX.TO.W.A123.250301T1200Z-250301T1300Z/";
+        let (codes, issues) = parse_vtec_codes_with_issues(text);
+
+        assert!(codes.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_vtec_etn");
     }
 
     #[test]

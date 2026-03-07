@@ -25,20 +25,23 @@ pub struct HvtecCode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<NwslidEntry>,
 
-    /// Severity level (1, 2, or 3)
+    /// Severity level
     pub severity: HvtecSeverity,
 
     /// Immediate cause of flooding
     pub cause: HvtecCause,
 
-    /// Event begin time in UTC
-    pub begin: DateTime<Utc>,
+    /// Event begin time in UTC when provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub begin: Option<DateTime<Utc>>,
 
-    /// Forecast crest time in UTC
-    pub crest: DateTime<Utc>,
+    /// Forecast crest time in UTC when provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crest: Option<DateTime<Utc>>,
 
-    /// Event end time in UTC
-    pub end: DateTime<Utc>,
+    /// Event end time in UTC when provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<DateTime<Utc>>,
 
     /// Record status indicator
     pub record: HvtecRecord,
@@ -47,12 +50,14 @@ pub struct HvtecCode {
 /// Severity levels for HVTEC flood events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecSeverity {
-    /// Level 1 - Minor flooding
-    Level1,
-    /// Level 2 - Moderate flooding
-    Level2,
-    /// Level 3 - Major flooding
-    Level3,
+    /// No flooding indicated.
+    None,
+    /// Minor flooding.
+    Minor,
+    /// Moderate flooding.
+    Moderate,
+    /// Major flooding.
+    Major,
     /// Unknown severity
     Unknown,
 }
@@ -60,9 +65,11 @@ pub enum HvtecSeverity {
 impl HvtecSeverity {
     fn from_str(s: &str) -> Self {
         match s {
-            "1" => HvtecSeverity::Level1,
-            "2" => HvtecSeverity::Level2,
-            "3" => HvtecSeverity::Level3,
+            "N" | "0" => HvtecSeverity::None,
+            "1" => HvtecSeverity::Minor,
+            "2" => HvtecSeverity::Moderate,
+            "3" => HvtecSeverity::Major,
+            "U" => HvtecSeverity::Unknown,
             _ => HvtecSeverity::Unknown,
         }
     }
@@ -75,10 +82,32 @@ pub enum HvtecCause {
     ExcessiveRainfall,
     /// Snowmelt (SM)
     Snowmelt,
+    /// Rain and snowmelt (RS)
+    RainAndSnowmelt,
     /// Dam/Levee Break or Failure (DM)
     DamFailure,
+    /// Glacier-dammed lake outburst (GO)
+    GlacierOutburst,
     /// Ice Jam (IJ)
     IceJam,
+    /// Rain and/or snowmelt and/or ice jam (IC)
+    RainSnowmeltIceJam,
+    /// Upstream flooding plus storm surge (FS)
+    UpstreamFloodingStormSurge,
+    /// Upstream flooding plus tidal effects (FT)
+    UpstreamFloodingTidalEffects,
+    /// Elevated upstream flow plus tidal effects (ET)
+    ElevatedUpstreamFlowTidalEffects,
+    /// Wind and/or tidal effects (WT)
+    WindTidalEffects,
+    /// Upstream dam or reservoir release (DR)
+    UpstreamDamRelease,
+    /// Other multiple causes (MC)
+    MultipleCauses,
+    /// Other effects (OT)
+    OtherEffects,
+    /// Unknown cause (UU)
+    Unknown,
     /// Other/Unknown cause
     Other,
 }
@@ -88,8 +117,19 @@ impl HvtecCause {
         match s {
             "ER" => HvtecCause::ExcessiveRainfall,
             "SM" => HvtecCause::Snowmelt,
+            "RS" => HvtecCause::RainAndSnowmelt,
             "DM" => HvtecCause::DamFailure,
+            "GO" => HvtecCause::GlacierOutburst,
             "IJ" => HvtecCause::IceJam,
+            "IC" => HvtecCause::RainSnowmeltIceJam,
+            "FS" => HvtecCause::UpstreamFloodingStormSurge,
+            "FT" => HvtecCause::UpstreamFloodingTidalEffects,
+            "ET" => HvtecCause::ElevatedUpstreamFlowTidalEffects,
+            "WT" => HvtecCause::WindTidalEffects,
+            "DR" => HvtecCause::UpstreamDamRelease,
+            "MC" => HvtecCause::MultipleCauses,
+            "OT" => HvtecCause::OtherEffects,
+            "UU" => HvtecCause::Unknown,
             _ => HvtecCause::Other,
         }
     }
@@ -102,8 +142,10 @@ pub enum HvtecRecord {
     NoRecord,
     /// Near record - approaching record levels
     NearRecord,
-    /// Record - at or exceeding record levels
-    Record,
+    /// Record is not applicable
+    NotApplicable,
+    /// Record status is unavailable
+    Unavailable,
     /// Unknown record status
     Unknown,
 }
@@ -113,7 +155,8 @@ impl HvtecRecord {
         match s {
             "NO" => HvtecRecord::NoRecord,
             "NR" => HvtecRecord::NearRecord,
-            "OO" => HvtecRecord::Record,
+            "OO" => HvtecRecord::NotApplicable,
+            "UU" => HvtecRecord::Unavailable,
             _ => HvtecRecord::Unknown,
         }
     }
@@ -143,7 +186,7 @@ impl HvtecRecord {
 ///
 /// assert_eq!(codes.len(), 1);
 /// assert_eq!(codes[0].nwslid, "MSRM1");
-/// assert_eq!(codes[0].severity, emwin_parser::HvtecSeverity::Level3);
+/// assert_eq!(codes[0].severity, emwin_parser::HvtecSeverity::Major);
 /// assert!(codes[0].location.is_none());
 /// ```
 pub fn parse_hvtec_codes(text: &str) -> Vec<HvtecCode> {
@@ -257,7 +300,7 @@ fn parse_hvtec_capture(
             )
         })?);
 
-    let begin = parse_hvtec_time(begin_str).ok_or_else(|| {
+    let begin = parse_hvtec_optional_time(begin_str).ok_or_else(|| {
         ProductParseIssue::new(
             "hvtec_parse",
             "invalid_hvtec_begin_time",
@@ -265,7 +308,7 @@ fn parse_hvtec_capture(
             Some(raw.to_string()),
         )
     })?;
-    let crest = parse_hvtec_time(crest_str).ok_or_else(|| {
+    let crest = parse_hvtec_optional_time(crest_str).ok_or_else(|| {
         ProductParseIssue::new(
             "hvtec_parse",
             "invalid_hvtec_crest_time",
@@ -273,7 +316,7 @@ fn parse_hvtec_capture(
             Some(raw.to_string()),
         )
     })?;
-    let end = parse_hvtec_time(end_str).ok_or_else(|| {
+    let end = parse_hvtec_optional_time(end_str).ok_or_else(|| {
         ProductParseIssue::new(
             "hvtec_parse",
             "invalid_hvtec_end_time",
@@ -292,6 +335,14 @@ fn parse_hvtec_capture(
         end,
         record,
     })
+}
+
+fn parse_hvtec_optional_time(time_str: &str) -> Option<Option<DateTime<Utc>>> {
+    if time_str == "000000T0000Z" {
+        return Some(None);
+    }
+
+    parse_hvtec_time(time_str).map(Some)
 }
 
 fn parse_hvtec_time(time_str: &str) -> Option<DateTime<Utc>> {
@@ -316,7 +367,7 @@ mod tests {
         assert_eq!(codes.len(), 1);
         assert_eq!(codes[0].nwslid, "MSRM1");
         assert!(codes[0].location.is_none());
-        assert_eq!(codes[0].severity, HvtecSeverity::Level3);
+        assert_eq!(codes[0].severity, HvtecSeverity::Major);
         assert_eq!(codes[0].cause, HvtecCause::ExcessiveRainfall);
         assert_eq!(codes[0].record, HvtecRecord::NoRecord);
     }
@@ -340,9 +391,9 @@ mod tests {
     #[test]
     fn parse_hvtec_severity_levels() {
         for (level, expected) in [
-            ("1", HvtecSeverity::Level1),
-            ("2", HvtecSeverity::Level2),
-            ("3", HvtecSeverity::Level3),
+            ("1", HvtecSeverity::Minor),
+            ("2", HvtecSeverity::Moderate),
+            ("3", HvtecSeverity::Major),
         ] {
             let text = format!(
                 "/MSRM1.{}.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/",
@@ -358,6 +409,7 @@ mod tests {
         let causes = vec![
             ("ER", HvtecCause::ExcessiveRainfall),
             ("SM", HvtecCause::Snowmelt),
+            ("RS", HvtecCause::RainAndSnowmelt),
             ("DM", HvtecCause::DamFailure),
             ("IJ", HvtecCause::IceJam),
         ];
@@ -377,7 +429,8 @@ mod tests {
         let records = vec![
             ("NO", HvtecRecord::NoRecord),
             ("NR", HvtecRecord::NearRecord),
-            ("OO", HvtecRecord::Record),
+            ("OO", HvtecRecord::NotApplicable),
+            ("UU", HvtecRecord::Unavailable),
         ];
 
         for (record_str, expected) in records {
@@ -395,9 +448,45 @@ mod tests {
         let text = "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/";
         let codes = parse_hvtec_codes(text);
 
-        assert_eq!(codes[0].begin.timestamp(), 1740830400);
-        assert_eq!(codes[0].crest.timestamp(), 1740852000);
-        assert_eq!(codes[0].end.timestamp(), 1740873600);
+        assert_eq!(
+            codes[0].begin.map(|value| value.timestamp()),
+            Some(1740830400)
+        );
+        assert_eq!(
+            codes[0].crest.map(|value| value.timestamp()),
+            Some(1740852000)
+        );
+        assert_eq!(
+            codes[0].end.map(|value| value.timestamp()),
+            Some(1740873600)
+        );
+    }
+
+    #[test]
+    fn parse_hvtec_supports_none_severity_and_zero_times() {
+        let text = "/00000.0.ER.000000T0000Z.000000T0000Z.000000T0000Z.OO/";
+        let codes = parse_hvtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].nwslid, "00000");
+        assert_eq!(codes[0].severity, HvtecSeverity::None);
+        assert_eq!(codes[0].begin, None);
+        assert_eq!(codes[0].crest, None);
+        assert_eq!(codes[0].end, None);
+        assert_eq!(codes[0].record, HvtecRecord::NotApplicable);
+    }
+
+    #[test]
+    fn parse_hvtec_supports_named_none_severity_and_rs_cause() {
+        let text = "/00000.N.RS.000000T0000Z.000000T0000Z.000000T0000Z.OO/";
+        let codes = parse_hvtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].severity, HvtecSeverity::None);
+        assert_eq!(codes[0].cause, HvtecCause::RainAndSnowmelt);
+        assert_eq!(codes[0].begin, None);
+        assert_eq!(codes[0].crest, None);
+        assert_eq!(codes[0].end, None);
     }
 
     #[test]

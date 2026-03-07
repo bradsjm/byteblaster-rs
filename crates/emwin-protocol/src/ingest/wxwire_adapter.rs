@@ -1,3 +1,8 @@
+//! Weather Wire receiver event adapter for unified ingest.
+//!
+//! This module adapts Weather Wire receiver events into the unified ingest event stream,
+//! mapping XMPP-based weather product events to the common ingest format.
+
 use crate::ingest::model::{IngestError, IngestEvent, IngestTelemetry, IngestWarning};
 use crate::wxwire_receiver::{WxWireReceiverError, WxWireReceiverEvent, WxWireReceiverFrameEvent};
 use futures::{Stream, StreamExt, future};

@@ -36,10 +36,13 @@
 mod body;
 mod data;
 mod dcp;
+mod fd;
 mod header;
 mod issue;
 mod metar;
+mod pirep;
 mod product;
+mod sigmet;
 mod taf;
 mod time;
 
@@ -61,11 +64,14 @@ pub use data::{
     ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
 };
 pub use dcp::DcpBulletin;
+pub use fd::{FdBulletin, FdForecast, FdLevelForecast};
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, WmoHeader, enrich_header,
     parse_text_product,
 };
 pub use issue::ProductParseIssue;
 pub use metar::{MetarBulletin, MetarReport, MetarReportKind};
+pub use pirep::{PirepBulletin, PirepKind, PirepReport};
 pub use product::{ProductEnrichment, ProductEnrichmentSource, enrich_product};
+pub use sigmet::{SigmetBulletin, SigmetSection};
 pub use taf::TafBulletin;

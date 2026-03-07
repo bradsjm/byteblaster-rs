@@ -4,85 +4,62 @@ Core Rust library for EMWIN protocol parsing, client runtime, and file assembly.
 
 ## What it provides
 
-- Protocol layer
-  - XOR wire transform handling (`0xFF`)
-  - Stateful frame decoder (`/PF`, `/ServerList`)
-  - V1 + V2 body handling and checksum validation policies
-  - Compression policy for V2 payloads (`RequireZlibHeader`, `TryAlways`)
-- Client runtime
-  - TCP connection loop with endpoint rotation and backoff
-  - Authentication heartbeat
-  - Watchdog health monitoring
-  - Event stream + handler fanout with fault isolation
-  - Server-list persistence and rotation management
-- Unified ingest runtime
-  - Single receiver abstraction over QBT and Weather Wire
-  - Normalized product, telemetry, and warning events
-- File layer
-  - Segment-to-file assembly
-  - Duplicate block/file suppression
+- **QBT Receiver** (`qbt_receiver`): EMWIN QBT satellite receiver client
+  - Protocol layer
+    - XOR wire transform handling (`0xFF`)
+    - Stateful frame decoder (`/PF`, `/ServerList`)
+    - V1 + V2 body handling and checksum validation policies
+    - Compression policy for V2 payloads (`RequireZlibHeader`, `TryAlways`)
+  - Client runtime
+    - TCP connection loop with endpoint rotation and backoff
+    - Authentication heartbeat
+    - Watchdog health monitoring
+    - Event stream + handler fanout with fault isolation
+    - Server-list persistence and rotation management
+  - File layer
+    - Segment-to-file assembly
+    - Duplicate block/file suppression
 
-## Public modules
+- **Weather Wire Receiver** (`wxwire_receiver`): NWWS-OI XMPP-based receiver
+  - Custom XMPP transport with STARTTLS and SASL authentication
+  - XEP-0198 stream management for reliability
+  - MUC room joining for product broadcasts
+  - Full-file event emission (not segmented)
 
-- `ingest`
-- `qbt_receiver`
-- `wxwire_receiver`
+- **Unified Ingest** (`ingest`): Single abstraction over QBT and Weather Wire
+  - Normalized product events regardless of source
+  - Common telemetry and warning handling
 
-## Receiver lifecycle contract
+## Features
 
-- Receiver configs are validated before startup.
-- `start()` may only be called once per running instance.
-- `events()` is a single-consumer subscription; calling it more than once now returns an error.
-- `stop()` is idempotent and shuts down background tasks before returning.
+This crate uses Cargo features to enable receiver implementations:
 
-## Re-exported entry points
+- `qbt` (enabled by default): QBT satellite receiver
+- `wxwire` (enabled by default): Weather Wire receiver
+- `telemetry-serde`: Enable serialization for telemetry snapshots
 
-See `src/lib.rs` for current canonical exports.
+## Quick Start
 
-Key exported QBT receiver types include:
-
-- `QbtReceiver`, `QbtReceiverBuilder`, `QbtReceiverEvent`
-- `QbtReceiverConfig`, `QbtDecodeConfig`, `QbtChecksumPolicy`, `QbtV2CompressionPolicy`
-- `QbtFrameEvent`, `QbtSegment`, `QbtServerList`
-- `QbtFileAssembler`, `QbtCompletedFile`
-
-## Example (decoder)
-
-```rust
-use emwin_core::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
-
-fn decode_wire_chunk(wire: &[u8]) {
-    let mut decoder = QbtProtocolDecoder::default();
-    let events = decoder.feed(wire).expect("decode failed");
-    println!("decoded {} event(s)", events.len());
-}
-```
-
-## Using from another app
-
-Add `emwin-protocol` from the repository:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-emwin-protocol = { git = "https://github.com/bradsjm/emwin-rs", tag = "v0.1.0", package = "emwin-protocol" }
+emwin-protocol = { git = "https://github.com/bradsjm/emwin-rs" }
 ```
 
-Or use a local path while developing both projects:
+## Examples
 
-```toml
-[dependencies]
-emwin-protocol = { path = "../emwin-rs/crates/emwin-protocol" }
-```
-
-Minimal usage example:
+### QBT Receiver
 
 ```rust
-use emwin_core::ingest::{IngestConfig, IngestReceiver};
-use emwin_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
+use emwin_protocol::qbt_receiver::{
+    QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
+    default_qbt_upstream_servers,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut receiver = IngestReceiver::build(IngestConfig::Qbt(QbtReceiverConfig {
+    let config = QbtReceiverConfig {
         email: "you@example.com".to_string(),
         servers: default_qbt_upstream_servers(),
         server_list_path: None,
@@ -92,14 +69,189 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         watchdog_timeout_secs: 49,
         max_exceptions: 10,
         decode: QbtDecodeConfig::default(),
-    }))?;
+    };
+    
+    let mut receiver = QbtReceiver::builder(config).build()?;
     receiver.start()?;
+    
+    // Receive events
+    let mut events = receiver.events()?;
+    while let Some(event) = events.next().await {
+        println!("{:?}", event?);
+    }
+    
     receiver.stop().await?;
     Ok(())
 }
 ```
 
-## Quality gates
+### Weather Wire Receiver
+
+```rust
+use emwin_protocol::wxwire_receiver::{
+    WxWireReceiver, WxWireReceiverClient, WxWireReceiverConfig,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = WxWireReceiverConfig {
+        username: "you@example.com".to_string(),
+        password: "secret".to_string(),
+        ..WxWireReceiverConfig::default()
+    };
+    
+    let mut receiver = WxWireReceiver::builder(config).build()?;
+    receiver.start()?;
+    
+    // Receive events
+    let mut events = receiver.events()?;
+    while let Some(event) = events.next().await {
+        println!("{:?}", event?);
+    }
+    
+    receiver.stop().await?;
+    Ok(())
+}
+```
+
+### Unified Ingest Receiver
+
+```rust
+use emwin_protocol::ingest::{IngestConfig, IngestEvent, IngestReceiver};
+use emwin_protocol::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
+use futures::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = QbtReceiverConfig {
+        email: "you@example.com".to_string(),
+        servers: default_qbt_upstream_servers(),
+        server_list_path: None,
+        follow_server_list_updates: true,
+        reconnect_delay_secs: 5,
+        connection_timeout_secs: 5,
+        watchdog_timeout_secs: 49,
+        max_exceptions: 10,
+        decode: QbtDecodeConfig::default(),
+    };
+    
+    let mut receiver = IngestReceiver::build(IngestConfig::Qbt(config))?;
+    receiver.start()?;
+    
+    let mut ingest_stream = receiver.events()?;
+    
+    while let Some(event) = ingest_stream.next().await {
+        match event? {
+            IngestEvent::Product(product) => {
+                println!("Received product: {}", product.filename);
+            }
+            IngestEvent::Connected { endpoint } => {
+                println!("Connected to: {}", endpoint);
+            }
+            IngestEvent::Disconnected => {
+                println!("Disconnected");
+            }
+            IngestEvent::Telemetry(telemetry) => {
+                println!("Telemetry: {:?}", telemetry);
+            }
+            IngestEvent::Warning(warning) => {
+                eprintln!("Warning: {:?}", warning);
+            }
+        }
+    }
+    
+    receiver.stop().await?;
+    Ok(())
+}
+```
+
+### Protocol Decoder (Low-level)
+
+```rust
+use emwin_protocol::qbt_receiver::protocol::codec::{QbtFrameDecoder, QbtProtocolDecoder};
+
+fn decode_wire_chunk(wire: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut decoder = QbtProtocolDecoder::default();
+    let events = decoder.feed(wire)?;
+    println!("Decoded {} event(s)", events.len());
+    for event in events {
+        println!("{:?}", event);
+    }
+    Ok(())
+}
+```
+
+## Public Modules
+
+- `ingest`: Unified product ingestion abstraction
+- `qbt_receiver`: EMWIN QBT satellite receiver
+- `wxwire_receiver`: Weather Wire XMPP receiver
+
+## Key Exported Types
+
+### QBT Receiver
+
+- `QbtReceiver`, `QbtReceiverBuilder`, `QbtReceiverClient`, `QbtReceiverEvent`
+- `QbtReceiverConfig`, `QbtDecodeConfig`, `QbtChecksumPolicy`, `QbtV2CompressionPolicy`
+- `QbtFrameDecoder`, `QbtProtocolDecoder`, `QbtFrameEncoder`
+- `QbtFrameEvent`, `QbtSegment`, `QbtServerList`
+- `QbtFileAssembler`, `QbtCompletedFile`
+- `QbtReceiverTelemetrySnapshot`
+
+### Weather Wire Receiver
+
+- `WxWireReceiver`, `WxWireReceiverBuilder`, `WxWireReceiverClient`, `WxWireReceiverEvent`
+- `WxWireReceiverConfig`
+- `WxWireDecoder`, `WxWireFrameDecoder`
+- `WxWireReceiverFile`, `WxWireReceiverFrameEvent`, `WxWireReceiverWarning`
+- `WxWireReceiverTelemetrySnapshot`
+
+### Unified Ingest
+
+- `IngestReceiver`, `IngestConfig`
+- `IngestEvent`, `ReceivedProduct`, `ProductOrigin`
+- `IngestTelemetry`, `IngestWarning`, `IngestError`
+
+## Receiver Lifecycle Contract
+
+- Receiver configs are validated before startup via `build()`.
+- `start()` may only be called once per running instance.
+- `events()` is a single-consumer subscription; calling it more than once returns an error.
+- `stop()` is idempotent and shuts down background tasks before returning.
+
+## Configuration
+
+### QBT Receiver Configuration
+
+```rust
+QbtReceiverConfig {
+    email: "you@example.com".to_string(),          // Authentication email
+    servers: default_qbt_upstream_servers(),       // Initial server list
+    server_list_path: None,                        // Optional persistence path
+    follow_server_list_updates: true,              // Accept server list from upstream
+    reconnect_delay_secs: 5,                       // Delay between reconnects
+    connection_timeout_secs: 5,                    // TCP connect timeout
+    watchdog_timeout_secs: 49,                     // Health check timeout
+    max_exceptions: 10,                            // Max exceptions before reconnect
+    decode: QbtDecodeConfig::default(),            // Decoder policies
+}
+```
+
+### Weather Wire Receiver Configuration
+
+```rust
+WxWireReceiverConfig {
+    username: "you@example.com".to_string(),       // NWWS-OI username
+    password: "secret".to_string(),                // NWWS-OI password
+    idle_timeout_secs: 90,                         // Idle warning threshold
+    event_channel_capacity: 1024,                  // Event buffer size
+    inbound_channel_capacity: 512,                 // Stanza buffer size
+    telemetry_emit_interval_secs: 5,               // Telemetry frequency
+    connect_timeout_secs: 10,                      // Connection timeout
+}
+```
+
+## Quality Gates
 
 From workspace root:
 
@@ -109,8 +261,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test -p emwin-protocol
 ```
 
-## Normative source
+## Protocol Documentation
 
-Protocol requirements and expected behavior are defined in:
+See the `docs/` directory for detailed protocol specifications:
 
-- `../../docs/protocol.md`
+- `docs/EMWIN QBT TCP Protocol.md`: QBT protocol specification
+- `docs/weather-wire.md`: Weather Wire protocol specification
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

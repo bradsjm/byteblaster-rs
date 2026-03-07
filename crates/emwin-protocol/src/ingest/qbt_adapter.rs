@@ -1,3 +1,9 @@
+//! QBT receiver event adapter for unified ingest.
+//!
+//! This module adapts QBT receiver events into the unified ingest event stream,
+//! handling file assembly from segments and mapping protocol-specific events to
+//! the common ingest format.
+
 use crate::ingest::model::{IngestError, IngestEvent, IngestTelemetry, IngestWarning};
 use crate::qbt_receiver::{
     QbtFileAssembler, QbtFrameEvent, QbtReceiverError, QbtReceiverEvent, QbtSegmentAssembler,

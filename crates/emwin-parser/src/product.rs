@@ -1,7 +1,10 @@
 use crate::data::{classify_non_text_product, container_from_filename, wmo_office_entry};
 use crate::dcp::{DcpBulletin, parse_dcp_bulletin};
+use crate::fd::{FdBulletin, parse_fd_bulletin};
 use crate::header::{parse_text_product_conditioned, parse_wmo_bulletin_conditioned};
 use crate::metar::{MetarBulletin, parse_metar_bulletin};
+use crate::pirep::{PirepBulletin, parse_pirep_bulletin};
+use crate::sigmet::{SigmetBulletin, parse_sigmet_bulletin};
 use crate::taf::{TafBulletin, parse_taf_bulletin};
 use crate::{
     BbbKind, ParserError, ProductBody, ProductMetadataFlags, ProductParseIssue, TextProductHeader,
@@ -14,6 +17,9 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum ProductEnrichmentSource {
     TextHeader,
+    WmoFdBulletin,
+    TextPirepBulletin,
+    TextSigmetBulletin,
     WmoMetarBulletin,
     WmoTafBulletin,
     WmoDcpBulletin,
@@ -51,6 +57,12 @@ pub struct ProductEnrichment {
     pub taf: Option<TafBulletin>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dcp: Option<DcpBulletin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fd: Option<FdBulletin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pirep: Option<PirepBulletin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sigmet: Option<SigmetBulletin>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,
 }
@@ -81,6 +93,9 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             metar: None,
             taf: None,
             dcp: None,
+            fd: None,
+            pirep: None,
+            sigmet: None,
             issues: Vec::new(),
         };
     }
@@ -97,9 +112,97 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             let title = header_enrichment.pil_description;
             let flags = header_enrichment.flags;
             let bbb_kind = header_enrichment.bbb_kind;
+            let reference_time = header.timestamp(Utc::now());
+
+            if let Some(fd) = reference_time.and_then(|reference_time| {
+                looks_like_fd_text_product(&header.afos, &parsed.body_text)
+                    .then(|| {
+                        parse_fd_bulletin(
+                            &parsed.body_text,
+                            Some(header.afos.as_str()),
+                            reference_time,
+                        )
+                    })
+                    .flatten()
+            }) {
+                return ProductEnrichment {
+                    source: ProductEnrichmentSource::TextHeader,
+                    family: Some("fd_bulletin"),
+                    title: Some("Winds and temperatures aloft"),
+                    container: container_from_filename(filename),
+                    pil: pil.clone(),
+                    wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
+                    flags,
+                    office: wmo_office_entry(&header.cccc).copied(),
+                    header: Some(header),
+                    wmo_header: None,
+                    bbb_kind,
+                    body: None,
+                    metar: None,
+                    taf: None,
+                    dcp: None,
+                    fd: Some(fd),
+                    pirep: None,
+                    sigmet: None,
+                    issues: Vec::new(),
+                };
+            }
+
+            if let Some(pirep) = looks_like_pirep_text_product(&header.afos, &parsed.body_text)
+                .then(|| parse_pirep_bulletin(&parsed.body_text))
+                .flatten()
+            {
+                return ProductEnrichment {
+                    source: ProductEnrichmentSource::TextPirepBulletin,
+                    family: Some("pirep_bulletin"),
+                    title: Some("Pilot report bulletin"),
+                    container: container_from_filename(filename),
+                    pil: pil.clone(),
+                    wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
+                    flags,
+                    office: wmo_office_entry(&header.cccc).copied(),
+                    header: Some(header),
+                    wmo_header: None,
+                    bbb_kind,
+                    body: None,
+                    metar: None,
+                    taf: None,
+                    dcp: None,
+                    fd: None,
+                    pirep: Some(pirep),
+                    sigmet: None,
+                    issues: Vec::new(),
+                };
+            }
+
+            if let Some(sigmet) = looks_like_sigmet_text_product(&header.afos, &parsed.body_text)
+                .then(|| parse_sigmet_bulletin(&parsed.body_text))
+                .flatten()
+            {
+                return ProductEnrichment {
+                    source: ProductEnrichmentSource::TextSigmetBulletin,
+                    family: Some("sigmet_bulletin"),
+                    title: Some("SIGMET bulletin"),
+                    container: container_from_filename(filename),
+                    pil: pil.clone(),
+                    wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
+                    flags,
+                    office: wmo_office_entry(&header.cccc).copied(),
+                    header: Some(header),
+                    wmo_header: None,
+                    bbb_kind,
+                    body: None,
+                    metar: None,
+                    taf: None,
+                    dcp: None,
+                    fd: None,
+                    pirep: None,
+                    sigmet: Some(sigmet),
+                    issues: Vec::new(),
+                };
+            }
 
             let (body, issues) = if let Some(ref flags) = flags {
-                let reference_time = header.timestamp(Utc::now());
                 enrich_body(&parsed.body_text, flags, reference_time)
             } else {
                 (None, Vec::new())
@@ -121,6 +224,9 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                 metar: None,
                 taf: None,
                 dcp: None,
+                fd: None,
+                pirep: None,
+                sigmet: None,
                 issues,
             }
         }
@@ -133,6 +239,42 @@ fn enrich_text_product_fallback(
     bytes: &[u8],
     error: ParserError,
 ) -> ProductEnrichment {
+    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
+        (&error, parse_wmo_bulletin_conditioned(bytes))
+        && let Some(reference_time) = parsed_wmo.header.timestamp(Utc::now())
+        && let Some(fd) = looks_like_fd_wmo_bulletin(filename, &parsed_wmo.body_text)
+            .then(|| {
+                parse_fd_bulletin(
+                    &parsed_wmo.body_text,
+                    Some(filename_stem(filename)),
+                    reference_time,
+                )
+            })
+            .flatten()
+    {
+        return ProductEnrichment {
+            source: ProductEnrichmentSource::WmoFdBulletin,
+            family: Some("fd_bulletin"),
+            title: Some("Winds and temperatures aloft"),
+            container: container_from_filename(filename),
+            pil: None,
+            wmo_prefix: None,
+            flags: None,
+            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
+            header: None,
+            wmo_header: Some(parsed_wmo.header),
+            bbb_kind: None,
+            body: None,
+            metar: None,
+            taf: None,
+            dcp: None,
+            fd: Some(fd),
+            pirep: None,
+            sigmet: None,
+            issues: Vec::new(),
+        };
+    }
+
     if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
         (&error, parse_wmo_bulletin_conditioned(bytes))
         && let Some((metar, issues)) = parse_metar_bulletin(&parsed_wmo.body_text)
@@ -153,6 +295,9 @@ fn enrich_text_product_fallback(
             metar: Some(metar),
             taf: None,
             dcp: None,
+            fd: None,
+            pirep: None,
+            sigmet: None,
             issues,
         };
     }
@@ -177,6 +322,9 @@ fn enrich_text_product_fallback(
             metar: None,
             taf: Some(taf),
             dcp: None,
+            fd: None,
+            pirep: None,
+            sigmet: None,
             issues: Vec::new(),
         };
     }
@@ -201,6 +349,9 @@ fn enrich_text_product_fallback(
             metar: None,
             taf: None,
             dcp: Some(dcp),
+            fd: None,
+            pirep: None,
+            sigmet: None,
             issues: Vec::new(),
         };
     }
@@ -221,6 +372,9 @@ fn enrich_text_product_fallback(
         metar: None,
         taf: None,
         dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
         issues: vec![ProductParseIssue::new(
             "text_product_parse",
             parser_error_code(&error),
@@ -233,6 +387,53 @@ fn enrich_text_product_fallback(
 fn is_text_product(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     upper.ends_with(".TXT") || upper.ends_with(".WMO")
+}
+
+fn filename_stem(filename: &str) -> &str {
+    filename
+        .rsplit_once('/')
+        .map(|(_, tail)| tail)
+        .unwrap_or(filename)
+        .split_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(filename)
+}
+
+fn looks_like_fd_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(
+        afos.get(..3),
+        Some("FD0" | "FD1" | "FD2" | "FD3" | "FD8" | "FD9" | "FDI")
+    ) || body_text.contains("DATA BASED ON ")
+        && body_text.contains("VALID ")
+        && body_text
+            .lines()
+            .any(|line| line.trim_start().starts_with("FT "))
+}
+
+fn looks_like_fd_wmo_bulletin(filename: &str, body_text: &str) -> bool {
+    filename_stem(filename).starts_with("FD")
+        && body_text.contains("DATA BASED ON ")
+        && body_text.contains("VALID ")
+        && body_text
+            .lines()
+            .any(|line| line.trim_start().starts_with("FT "))
+}
+
+fn looks_like_pirep_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("PIR")
+        || afos.eq_ignore_ascii_case("PRCUS")
+        || afos.eq_ignore_ascii_case("PIREP")
+        || ((body_text.contains("/OV ") || body_text.contains("/OV"))
+            && body_text.contains("/TM")
+            && (body_text.contains(" UA ") || body_text.contains(" UUA ")))
+}
+
+fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("SIG")
+        || afos.starts_with("WS")
+        || body_text.trim_start().starts_with("CONVECTIVE SIGMET ")
+        || body_text.trim_start().starts_with("KZAK SIGMET ")
+        || body_text.trim_start().starts_with("SIGMET ")
 }
 
 fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
@@ -252,6 +453,9 @@ fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         metar: None,
         taf: None,
         dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
         issues: Vec::new(),
     }
 }

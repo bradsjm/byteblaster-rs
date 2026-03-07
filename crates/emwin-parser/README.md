@@ -11,6 +11,7 @@ This crate provides parsing, enrichment, and lookup capabilities for WMO (World 
 - **WMO header parsing**: Extracts TTAAII, CCCC, DDHHMM, and optional BBB indicators
 - **AFOS PIL extraction**: Parses the Product Identifier Line (PIL) with robust error handling
 - **Text conditioning**: Handles SOH/ETX control characters, null bytes, missing LDM sequences
+- **Structured bulletin enrichment**: Detects and decodes FD winds aloft, PIREPs, SIGMETs, METAR collectives, TAF bulletins, and Wallops DCP telemetry bulletins
 - **PIL lookup**: Built-in product type descriptions for common meteorological products
 - **UGC geography lookup**: Built-in county and zone name catalogs keyed by canonical UGC codes
 - **Header enrichment**: Classifies BBB indicators (Amendment, Correction, Delayed Repeat)
@@ -69,6 +70,20 @@ if let Some(bbb_kind) = enriched.bbb_kind {
     println!("This is a {:?}", bbb_kind);  // Amendment, Correction, etc.
 }
 ```
+
+### Product Enrichment
+
+`enrich_product()` routes supported bulletins into structured families when the
+body shape is deterministic enough to parse safely.
+
+Current structured families include:
+
+- FD winds and temperatures aloft bulletins
+- PIREP bulletins
+- SIGMET bulletins
+- METAR collectives
+- TAF bulletins
+- GOES DCP telemetry bulletins
 
 ### PIL Lookup
 

@@ -2,12 +2,12 @@
 //!
 //! LAT...LON blocks define geographic warning areas as polygons using
 //! coordinate pairs. Coordinates use a 4-8 digit format representing
-//! degrees and decimal minutes or decimal degrees.
+//! decimal degrees or degrees/minutes/seconds variants.
 //!
 //! Format: `LAT...LON coordinate1 coordinate2 coordinate3 ...`
 //!
 //! Examples:
-//! - `LAT...LON 4400 8900 4500 8800 4600 8900` (4-digit format)
+//! - `LAT...LON 4400 8900 4500 8800 4600 8900` (4-digit hundredths format)
 //! - `LAT...LON 440012 890056` (6-digit format)
 //! - `LAT...LON 44001234 89005678` (8-digit format)
 
@@ -35,7 +35,8 @@ pub struct LatLonPolygon {
 ///
 /// # Coordinate Formats
 ///
-/// - 4 digits: `DDMM` format → `DD.MM` degrees
+/// - 4 digits: hundredths of degrees (`4270` -> `42.70`)
+/// - 5 digits: hundredths of degrees with leading zero support (`08449` -> `84.49`)
 /// - 6 digits: `DDMMSS` format → `DD.MMSS` degrees
 /// - 8 digits: `DDMMSSxx` format → `DD.MMSSxx` degrees (hundredths of seconds)
 ///
@@ -132,7 +133,84 @@ fn parse_latlon_capture(
         )
     })?;
 
-    if coords.len() < 6 || !coords.len().is_multiple_of(2) {
+    let points = parse_points(&coords, raw)?;
+
+    // Ensure polygon is closed (first point == last point)
+    if points.len() > 2 && points[0] != *points.last().unwrap() {
+        let mut points = points;
+        points.push(points[0]);
+        let wkt = format_wkt(&points);
+        return Ok(LatLonPolygon { points, wkt });
+    }
+
+    let wkt = format_wkt(&points);
+
+    Ok(LatLonPolygon { points, wkt })
+}
+
+fn parse_points(coords: &[String], raw: &str) -> Result<Vec<(f64, f64)>, ProductParseIssue> {
+    let mut points = Vec::with_capacity(coords.len() / 2);
+    let mut pending_latitude: Option<f64> = None;
+
+    for coord in coords {
+        if coord.len() == 8 && !coord.starts_with('-') {
+            if pending_latitude.is_some() {
+                return Err(ProductParseIssue::new(
+                    "latlon_parse",
+                    "invalid_latlon_coordinate_count",
+                    format!("LAT...LON block has an invalid coordinate count: `{raw}`"),
+                    Some(raw.to_string()),
+                ));
+            }
+
+            let lat = parse_coordinate(&coord[..4], true).ok_or_else(|| {
+                ProductParseIssue::new(
+                    "latlon_parse",
+                    "invalid_latlon_latitude",
+                    format!("could not parse LAT...LON latitude from block: `{raw}`"),
+                    Some(raw.to_string()),
+                )
+            })?;
+            let lon = parse_coordinate(&coord[4..], false).ok_or_else(|| {
+                ProductParseIssue::new(
+                    "latlon_parse",
+                    "invalid_latlon_longitude",
+                    format!("could not parse LAT...LON longitude from block: `{raw}`"),
+                    Some(raw.to_string()),
+                )
+            })?;
+            points.push((lat, lon));
+            continue;
+        }
+
+        let value = parse_coordinate(coord, pending_latitude.is_none()).ok_or_else(|| {
+            ProductParseIssue::new(
+                "latlon_parse",
+                if pending_latitude.is_none() {
+                    "invalid_latlon_latitude"
+                } else {
+                    "invalid_latlon_longitude"
+                },
+                format!(
+                    "could not parse LAT...LON {} from block: `{raw}`",
+                    if pending_latitude.is_none() {
+                        "latitude"
+                    } else {
+                        "longitude"
+                    }
+                ),
+                Some(raw.to_string()),
+            )
+        })?;
+
+        if let Some(lat) = pending_latitude.take() {
+            points.push((lat, value));
+        } else {
+            pending_latitude = Some(value);
+        }
+    }
+
+    if pending_latitude.is_some() || points.len() < 3 {
         return Err(ProductParseIssue::new(
             "latlon_parse",
             "invalid_latlon_coordinate_count",
@@ -141,36 +219,7 @@ fn parse_latlon_capture(
         ));
     }
 
-    let mut points = Vec::with_capacity(coords.len() / 2);
-
-    for chunk in coords.chunks(2) {
-        let lat = parse_coordinate(&chunk[0], true).ok_or_else(|| {
-            ProductParseIssue::new(
-                "latlon_parse",
-                "invalid_latlon_latitude",
-                format!("could not parse LAT...LON latitude from block: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-        let lon = parse_coordinate(&chunk[1], false).ok_or_else(|| {
-            ProductParseIssue::new(
-                "latlon_parse",
-                "invalid_latlon_longitude",
-                format!("could not parse LAT...LON longitude from block: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-        points.push((lat, lon));
-    }
-
-    // Ensure polygon is closed (first point == last point)
-    if points.len() > 2 && points[0] != *points.last().unwrap() {
-        points.push(points[0]);
-    }
-
-    let wkt = format_wkt(&points);
-
-    Ok(LatLonPolygon { points, wkt })
+    Ok(points)
 }
 
 fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
@@ -213,16 +262,12 @@ fn parse_coordinate(coord: &str, is_latitude: bool) -> Option<f64> {
 
     let value = match coord.len() {
         4 => {
-            // DDMM format: DD + MM/60
-            let degrees: f64 = coord[0..2].parse().ok()?;
-            let minutes: f64 = coord[2..4].parse().ok()?;
-            degrees + minutes / 60.0
+            let hundredths: f64 = coord.parse().ok()?;
+            hundredths / 100.0
         }
         5 => {
-            // DDMMM format (rare): DD + MMM/1000 as decimal degrees
-            let degrees: f64 = coord[0..2].parse().ok()?;
-            let decimal: f64 = coord[2..5].parse().ok()?;
-            degrees + decimal / 1000.0
+            let hundredths: f64 = coord.parse().ok()?;
+            hundredths / 100.0
         }
         6 => {
             // DDMMSS format: DD + MM/60 + SS/3600
@@ -290,25 +335,23 @@ mod tests {
         assert_eq!(polygons.len(), 1);
         assert_eq!(polygons[0].points.len(), 4);
 
-        // 4400 → 44.0°
+        // 4400 -> 44.00 degrees
         assert!((polygons[0].points[0].0 - 44.0).abs() < 0.01);
         assert!((polygons[0].points[0].1 + 89.0).abs() < 0.01);
 
-        // 4500 → 45.0°
+        // 4500 -> 45.00 degrees
         assert!((polygons[0].points[1].0 - 45.0).abs() < 0.01);
         assert!((polygons[0].points[1].1 + 88.0).abs() < 0.01);
     }
 
     #[test]
-    fn parse_polygon_with_minutes() {
-        // 4-digit format: DDMM (degrees, minutes)
+    fn parse_polygon_4digit_hundredths() {
         let text = "LAT...LON 4430 8930 4530 8830 4430 8930";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        // 4430 → 44 + 30/60 = 44.5°
-        assert!((polygons[0].points[0].0 - 44.5).abs() < 0.01);
-        assert!((polygons[0].points[0].1 + 89.5).abs() < 0.01);
+        assert!((polygons[0].points[0].0 - 44.30).abs() < 0.01);
+        assert!((polygons[0].points[0].1 + 89.30).abs() < 0.01);
     }
 
     #[test]
@@ -325,14 +368,13 @@ mod tests {
 
     #[test]
     fn parse_polygon_8digit() {
-        // 8-digit format: DDMMSSxx (degrees, minutes, seconds, hundredths)
-        let text = "LAT...LON 44301234 89305678 44301240 89305680 44301234 89305678";
+        // 8-digit format: packed lat/lon pair in hundredths of degrees.
+        let text = "LAT...LON 44308930 45308830 44308930";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        // 44301234 → 44 + 30/60 + (12.34)/3600
-        let expected_lat = 44.0 + 30.0 / 60.0 + 12.34 / 3600.0;
-        assert!((polygons[0].points[0].0 - expected_lat).abs() < 0.00001);
+        assert!((polygons[0].points[0].0 - 44.30).abs() < 0.00001);
+        assert!((polygons[0].points[0].1 + 89.30).abs() < 0.00001);
     }
 
     #[test]
@@ -344,10 +386,10 @@ mod tests {
         assert_eq!(
             json["points"],
             serde_json::json!([
-                [40.0, -98.033333],
-                [40.0, -98.366667],
-                [40.183333, -98.283333],
-                [40.0, -98.033333]
+                [40.0, -98.02],
+                [40.0, -98.22],
+                [40.11, -98.17],
+                [40.0, -98.02]
             ])
         );
     }
@@ -368,7 +410,7 @@ mod tests {
         let polygons = parse_latlon_polygons(text);
 
         assert!(polygons[0].wkt.starts_with("POLYGON(("));
-        assert!(polygons[0].wkt.contains("89.000000 44.000000"));
+        assert!(polygons[0].wkt.contains("-89.000000 44.000000"));
         assert!(polygons[0].wkt.ends_with("))"));
     }
 
@@ -437,6 +479,46 @@ mod tests {
 
         assert_eq!(polygons.len(), 1);
         assert_eq!(polygons[0].points.len(), 4);
-        assert!((polygons[0].points[0].1 + 96.216666).abs() < 0.01);
+        assert!((polygons[0].points[0].1 + 96.13).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_latlon_svsgrrmi_polygon() {
+        let text = "LAT...LON 4270 8449 4278 8454 4288 8437 4278 8436 4278 8416 4276 8416";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(polygons[0].points.len(), 7);
+        assert_eq!(
+            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"],
+            serde_json::json!([
+                [42.7, -84.49],
+                [42.78, -84.54],
+                [42.88, -84.37],
+                [42.78, -84.36],
+                [42.78, -84.16],
+                [42.76, -84.16],
+                [42.7, -84.49]
+            ])
+        );
+    }
+
+    #[test]
+    fn parse_latlon_with_packed_wrapped_tail() {
+        let text = "LAT...LON 4101 9512 4106 9519 4116 9512 4116 9493 41109493";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"],
+            serde_json::json!([
+                [41.01, -95.12],
+                [41.06, -95.19],
+                [41.16, -95.12],
+                [41.16, -94.93],
+                [41.10, -94.93],
+                [41.01, -95.12]
+            ])
+        );
     }
 }

@@ -1,16 +1,18 @@
 //! TIME...MOT...LOC parsing.
 
+use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::ser::{SerializeSeq, Serializer};
 use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::time::resolve_clock_time_nearest;
 
 /// Parsed TIME...MOT...LOC entry.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct TimeMotLocEntry {
-    /// UTC time token in HHMMZ form.
-    pub time_utc: String,
+    /// UTC time resolved to a full timestamp.
+    pub time_utc: DateTime<Utc>,
     /// Motion direction in degrees.
     pub direction_degrees: u16,
     /// Motion speed in knots.
@@ -23,13 +25,17 @@ pub struct TimeMotLocEntry {
 }
 
 /// Parse TIME...MOT...LOC entries from text.
-pub fn parse_time_mot_loc_entries(text: &str) -> Vec<TimeMotLocEntry> {
-    parse_time_mot_loc_entries_with_issues(text).0
+pub fn parse_time_mot_loc_entries(
+    text: &str,
+    reference_time: DateTime<Utc>,
+) -> Vec<TimeMotLocEntry> {
+    parse_time_mot_loc_entries_with_issues(text, reference_time).0
 }
 
 /// Parse TIME...MOT...LOC entries and collect structured issues.
 pub fn parse_time_mot_loc_entries_with_issues(
     text: &str,
+    reference_time: DateTime<Utc>,
 ) -> (Vec<TimeMotLocEntry>, Vec<ProductParseIssue>) {
     let mut entries = Vec::new();
     let mut issues = Vec::new();
@@ -42,7 +48,7 @@ pub fn parse_time_mot_loc_entries_with_issues(
             continue;
         };
 
-        match parse_time_mot_loc_capture(&captures, line) {
+        match parse_time_mot_loc_capture(&captures, line, reference_time) {
             Ok(entry) => entries.push(entry),
             Err(issue) => issues.push(issue),
         }
@@ -74,11 +80,20 @@ fn time_mot_loc_regex() -> &'static Regex {
 fn parse_time_mot_loc_capture(
     captures: &regex::Captures<'_>,
     raw: &str,
+    reference_time: DateTime<Utc>,
 ) -> Result<TimeMotLocEntry, ProductParseIssue> {
-    let time_utc = captures
+    let time_token = captures
         .get(1)
-        .map(|value| value.as_str().to_string())
+        .map(|value| value.as_str())
         .ok_or_else(|| invalid_format_issue(raw))?;
+    let time_utc = parse_time_token(time_token, reference_time).ok_or_else(|| {
+        ProductParseIssue::new(
+            "time_mot_loc_parse",
+            "invalid_time_mot_loc_time",
+            format!("could not parse TIME...MOT...LOC time from line: `{raw}`"),
+            Some(raw.to_string()),
+        )
+    })?;
     let direction_degrees = captures
         .get(2)
         .and_then(|value| value.as_str().parse().ok())
@@ -163,6 +178,16 @@ fn parse_time_mot_loc_capture(
         points,
         wkt,
     })
+}
+
+fn parse_time_token(token: &str, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    if token.len() != 5 || !token.ends_with('Z') {
+        return None;
+    }
+
+    let hour: u32 = token[0..2].parse().ok()?;
+    let minute: u32 = token[2..4].parse().ok()?;
+    resolve_clock_time_nearest(reference_time, hour, minute)
 }
 
 fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
@@ -273,10 +298,16 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_point() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
-        let entries = parse_time_mot_loc_entries(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
 
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].time_utc, "2310Z");
+        assert_eq!(
+            entries[0].time_utc.to_rfc3339(),
+            "2026-03-06T23:10:00+00:00"
+        );
         assert_eq!(entries[0].direction_degrees, 238);
         assert_eq!(entries[0].speed_kt, 39);
         assert_eq!(entries[0].points.len(), 1);
@@ -286,7 +317,10 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_linestring() {
         let text = "TIME...MOT...LOC 2359Z 332DEG 25KT 3704 9736 3699 9720";
-        let entries = parse_time_mot_loc_entries(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:55:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
@@ -296,7 +330,10 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_invalid_reports_issue() {
         let text = "TIME...MOT...LOC 2359Z 332DEG 25KT 3704";
-        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:55:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time);
 
         assert!(entries.is_empty());
         assert_eq!(issues.len(), 1);
@@ -306,7 +343,10 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_wrapped_across_lines() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT\r\n3221 08853 3225 08849\n";
-        let entries = parse_time_mot_loc_entries(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
@@ -315,7 +355,10 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_with_split_coordinate_token() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 088\r\n53 3225 08849\n";
-        let entries = parse_time_mot_loc_entries(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
@@ -325,9 +368,26 @@ mod tests {
     #[test]
     fn serializes_points_without_float_artifacts() {
         let text = "TIME...MOT...LOC 0009Z 212DEG 40KT 4017 09764";
-        let entries = parse_time_mot_loc_entries(text);
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-07T00:10:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
 
         let json = serde_json::to_value(&entries[0]).expect("entry serializes");
         assert_eq!(json["points"], serde_json::json!([[40.17, -97.64]]));
+    }
+
+    #[test]
+    fn parse_time_mot_loc_rolls_to_previous_day_when_closest() {
+        let text = "TIME...MOT...LOC 2359Z 332DEG 25KT 3704 9736";
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-07T00:05:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let entries = parse_time_mot_loc_entries(text, reference_time);
+
+        assert_eq!(
+            entries[0].time_utc.to_rfc3339(),
+            "2026-03-06T23:59:00+00:00"
+        );
     }
 }

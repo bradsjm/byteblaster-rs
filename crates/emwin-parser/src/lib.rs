@@ -41,7 +41,7 @@ mod time;
 
 pub use body::{
     HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody, TimeMotLocEntry,
-    UgcClass, UgcCode, UgcSection, VtecAction, VtecCode, WindHailEntry, WindHailKind, enrich_body,
+    UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind, enrich_body,
     parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
     parse_latlon_polygons_with_issues, parse_time_mot_loc_entries,
     parse_time_mot_loc_entries_with_issues, parse_ugc_sections, parse_ugc_sections_with_issues,

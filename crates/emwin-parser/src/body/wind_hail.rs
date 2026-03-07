@@ -21,7 +21,6 @@ pub enum WindHailKind {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct WindHailEntry {
     pub kind: WindHailKind,
-    pub raw_value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub numeric_value: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,10 +119,6 @@ fn parse_legacy_wind_hail_capture(
     Ok(vec![
         WindHailEntry {
             kind: WindHailKind::LegacyWind,
-            raw_value: captures
-                .get(2)
-                .map(|value| value.as_str().to_string())
-                .unwrap_or_default(),
             numeric_value: Some(wind_value),
             units: Some(wind_units),
             comparison: captures
@@ -132,10 +127,6 @@ fn parse_legacy_wind_hail_capture(
         },
         WindHailEntry {
             kind: WindHailKind::LegacyHail,
-            raw_value: captures
-                .get(5)
-                .map(|value| value.as_str().to_string())
-                .unwrap_or_default(),
             numeric_value: Some(hail_value),
             units: Some("IN".to_string()),
             comparison: captures
@@ -162,14 +153,12 @@ fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, Prod
     let entry = match label.as_str() {
         "HAILTHREAT" => WindHailEntry {
             kind: WindHailKind::HailThreat,
-            raw_value: value,
             numeric_value: None,
             units: None,
             comparison: None,
         },
         "WINDTHREAT" => WindHailEntry {
             kind: WindHailKind::WindThreat,
-            raw_value: value,
             numeric_value: None,
             units: None,
             comparison: None,
@@ -237,7 +226,6 @@ fn parse_numeric_line(
 
     Ok(WindHailEntry {
         kind,
-        raw_value: value.to_string(),
         numeric_value: Some(numeric_value),
         units: Some(units),
         comparison,
@@ -247,7 +235,7 @@ fn parse_numeric_line(
 fn numeric_value_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?i)^([<>])?\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Z]+)\s*$")
+        Regex::new(r"(?i)^([<>])?\s*([0-9]+(?:\.[0-9]+)?|\.[0-9]+)\s*([A-Z]+)\s*$")
             .expect("numeric value regex compiles")
     })
 }
@@ -297,5 +285,17 @@ mod tests {
         assert!(entries.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_wind_hail_wind_value");
+    }
+
+    #[test]
+    fn parse_modern_hail_with_leading_dot_decimal() {
+        let text = "MAX HAIL SIZE...<.75 IN";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxHailSize);
+        assert_eq!(entries[0].comparison, Some('<'));
+        assert_eq!(entries[0].numeric_value, Some(0.75));
+        assert_eq!(entries[0].units.as_deref(), Some("IN"));
     }
 }

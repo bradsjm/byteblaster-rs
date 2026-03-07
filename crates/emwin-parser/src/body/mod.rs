@@ -21,7 +21,7 @@ pub use time_mot_loc::{
     TimeMotLocEntry, parse_time_mot_loc_entries, parse_time_mot_loc_entries_with_issues,
 };
 pub use ugc::{UgcClass, UgcCode, UgcSection, parse_ugc_sections, parse_ugc_sections_with_issues};
-pub use vtec::{VtecAction, VtecCode, parse_vtec_codes, parse_vtec_codes_with_issues};
+pub use vtec::{VtecCode, parse_vtec_codes, parse_vtec_codes_with_issues};
 pub use wind_hail::{
     WindHailEntry, WindHailKind, parse_wind_hail_entries, parse_wind_hail_entries_with_issues,
 };
@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn integration_parse_all_types() {
         let text = r#"
-000 
+000
 WUUS53 KOAX 051200
         SVROAX
 
@@ -58,7 +58,7 @@ NEC001>003-051300-
 East Central Cuming County in northeastern Nebraska...
 
 This is a test product.
-$$            
+$$
         "#;
 
         // Test VTEC parsing
@@ -83,7 +83,7 @@ $$
         assert_eq!(polygons[0].points.len(), 5); // 4 points + 1 closed
 
         // Test TIME...MOT...LOC parsing
-        let time_mot_loc_entries = parse_time_mot_loc_entries(text);
+        let time_mot_loc_entries = parse_time_mot_loc_entries(text, Utc::now());
         assert_eq!(time_mot_loc_entries.len(), 1);
         assert_eq!(time_mot_loc_entries[0].direction_degrees, 300);
 
@@ -99,7 +99,7 @@ $$
         assert!(parse_vtec_codes(text).is_empty());
         assert!(parse_hvtec_codes(text).is_empty());
         assert!(parse_latlon_polygons(text).is_empty());
-        assert!(parse_time_mot_loc_entries(text).is_empty());
+        assert!(parse_time_mot_loc_entries(text, Utc::now()).is_empty());
         assert!(parse_ugc_sections(text, Utc::now()).is_empty());
         assert!(parse_wind_hail_entries(text).is_empty());
     }

@@ -22,11 +22,8 @@ pub struct VtecCode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_description: Option<&'static str>,
 
-    /// Action to be taken for this event
-    pub action: VtecAction,
-
-    /// Raw 3-character VTEC action code
-    pub action_code: String,
+    /// Canonical 3-character VTEC action code
+    pub action: String,
 
     /// Human-readable action description when known
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -61,85 +58,6 @@ pub struct VtecCode {
     /// an unspecified end time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end: Option<DateTime<Utc>>,
-}
-
-/// VTEC action codes indicating what action to take for an event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum VtecAction {
-    /// New event
-    New,
-    /// Continuation of an existing event
-    Continued,
-    /// Changed in time
-    ChangedInTime,
-    /// Changed in area
-    ChangedInArea,
-    /// Changed in both time and area
-    ChangedInTimeAndArea,
-    /// Cancellation of an event
-    Cancelled,
-    /// Event upgrade (e.g., Watch to Warning)
-    Upgraded,
-    /// Event expiration
-    Expired,
-    /// Corrected event
-    Corrected,
-    /// Routine message
-    Routine,
-    /// Unknown or unrecognized action
-    Unknown,
-}
-
-impl VtecAction {
-    fn from_code(code: &str) -> Self {
-        match code {
-            "NEW" => VtecAction::New,
-            "CON" => VtecAction::Continued,
-            "EXT" => VtecAction::ChangedInTime,
-            "EXA" => VtecAction::ChangedInArea,
-            "EXB" => VtecAction::ChangedInTimeAndArea,
-            "CAN" => VtecAction::Cancelled,
-            "UPG" => VtecAction::Upgraded,
-            "EXP" => VtecAction::Expired,
-            "COR" => VtecAction::Corrected,
-            "ROU" => VtecAction::Routine,
-            _ => VtecAction::Unknown,
-        }
-    }
-
-    /// Returns the canonical VTEC action code when known.
-    pub fn code(self) -> Option<&'static str> {
-        match self {
-            VtecAction::New => Some("NEW"),
-            VtecAction::Continued => Some("CON"),
-            VtecAction::ChangedInTime => Some("EXT"),
-            VtecAction::ChangedInArea => Some("EXA"),
-            VtecAction::ChangedInTimeAndArea => Some("EXB"),
-            VtecAction::Cancelled => Some("CAN"),
-            VtecAction::Upgraded => Some("UPG"),
-            VtecAction::Expired => Some("EXP"),
-            VtecAction::Corrected => Some("COR"),
-            VtecAction::Routine => Some("ROU"),
-            VtecAction::Unknown => None,
-        }
-    }
-
-    /// Returns a human-readable description of the action when known.
-    pub fn description(self) -> Option<&'static str> {
-        match self {
-            VtecAction::New => Some("New"),
-            VtecAction::Continued => Some("Continued"),
-            VtecAction::ChangedInTime => Some("Changed in Time"),
-            VtecAction::ChangedInArea => Some("Changed in Area"),
-            VtecAction::ChangedInTimeAndArea => Some("Changed in Time and Area"),
-            VtecAction::Cancelled => Some("Cancelled"),
-            VtecAction::Upgraded => Some("Upgraded"),
-            VtecAction::Expired => Some("Expired"),
-            VtecAction::Corrected => Some("Corrected"),
-            VtecAction::Routine => Some("Routine"),
-            VtecAction::Unknown => None,
-        }
-    }
 }
 
 fn vtec_phenomena_description(code: &str) -> Option<&'static str> {
@@ -213,6 +131,22 @@ fn vtec_phenomena_description(code: &str) -> Option<&'static str> {
         "XH" => Some("Extreme Heat"),
         "ZF" => Some("Freezing Fog"),
         "ZR" => Some("Freezing Rain"),
+        _ => None,
+    }
+}
+
+fn vtec_action_description(code: &str) -> Option<&'static str> {
+    match code {
+        "NEW" => Some("New"),
+        "CON" => Some("Continued"),
+        "EXT" => Some("Changed in Time"),
+        "EXA" => Some("Changed in Area"),
+        "EXB" => Some("Changed in Time and Area"),
+        "CAN" => Some("Cancelled"),
+        "UPG" => Some("Upgraded"),
+        "EXP" => Some("Expired"),
+        "COR" => Some("Corrected"),
+        "ROU" => Some("Routine"),
         _ => None,
     }
 }
@@ -330,7 +264,6 @@ fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, 
             Some(raw.to_string()),
         )
     })?;
-    let action = VtecAction::from_code(action_code);
     let office = cap
         .get(3)
         .map(|value| value.as_str().to_string())
@@ -408,15 +341,14 @@ fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, 
             Some(raw.to_string()),
         )
     })?;
-    let action_description = action.description();
+    let action_description = vtec_action_description(action_code);
     let phenomena_description = vtec_phenomena_description(&phenomena);
     let significance_description = vtec_significance_description(significance);
 
     Ok(VtecCode {
         status,
         status_description,
-        action,
-        action_code: action_code.to_string(),
+        action: action_code.to_string(),
         action_description,
         office,
         phenomena,
@@ -459,8 +391,7 @@ mod tests {
         assert_eq!(codes.len(), 1);
         assert_eq!(codes[0].status, 'O');
         assert_eq!(codes[0].status_description, Some("Operational"));
-        assert_eq!(codes[0].action, VtecAction::New);
-        assert_eq!(codes[0].action_code, "NEW");
+        assert_eq!(codes[0].action, "NEW");
         assert_eq!(codes[0].action_description, Some("New"));
         assert_eq!(codes[0].office, "KDMX");
         assert_eq!(codes[0].phenomena, "TO");
@@ -506,7 +437,8 @@ mod tests {
         let codes = parse_vtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].action, VtecAction::Continued);
+        assert_eq!(codes[0].action, "CON");
+        assert_eq!(codes[0].action_description, Some("Continued"));
         assert_eq!(codes[0].begin, None);
         assert_eq!(
             codes[0].end.map(|value| value.timestamp()),
@@ -541,27 +473,16 @@ mod tests {
     #[test]
     fn parse_vtec_various_actions() {
         let actions = vec![
-            ("NEW", VtecAction::New),
-            ("CON", VtecAction::Continued),
-            ("EXT", VtecAction::ChangedInTime),
-            ("EXA", VtecAction::ChangedInArea),
-            ("EXB", VtecAction::ChangedInTimeAndArea),
-            ("CAN", VtecAction::Cancelled),
-            ("UPG", VtecAction::Upgraded),
-            ("EXP", VtecAction::Expired),
-            ("COR", VtecAction::Corrected),
-            ("ROU", VtecAction::Routine),
-            ("XXX", VtecAction::Unknown),
+            "NEW", "CON", "EXT", "EXA", "EXB", "CAN", "UPG", "EXP", "COR", "ROU", "XXX",
         ];
 
-        for (action_str, expected) in actions {
+        for action_str in actions {
             let text = format!(
                 "/O.{}.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/",
                 action_str
             );
             let codes = parse_vtec_codes(&text);
-            assert_eq!(codes[0].action, expected);
-            assert_eq!(codes[0].action_code, action_str);
+            assert_eq!(codes[0].action, action_str);
         }
     }
 

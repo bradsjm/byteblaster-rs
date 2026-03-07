@@ -388,11 +388,7 @@ impl VtecFilter {
             Some(code.phenomena.as_str()),
             normalize_upper,
         ) && matches_char_set(&self.significance, code.significance)
-            && matches_option_set(
-                &self.action,
-                Some(code.action_code.as_str()),
-                normalize_upper,
-            )
+            && matches_option_set(&self.action, Some(code.action.as_str()), normalize_upper)
             && matches_option_set(&self.office, Some(code.office.as_str()), normalize_upper)
             && matches_number_set(&self.etn, code.etn)
     }

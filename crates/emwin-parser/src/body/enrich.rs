@@ -110,12 +110,25 @@ pub fn enrich_body(
     }
 
     if flags.time_mot_loc {
-        let (parsed, parse_issues) = parse_time_mot_loc_entries_with_issues(text);
-        if !parsed.is_empty() {
-            body.time_mot_loc = Some(parsed);
-            has_content = true;
+        match reference_time {
+            Some(reference_time) => {
+                let (parsed, parse_issues) =
+                    parse_time_mot_loc_entries_with_issues(text, reference_time);
+                if !parsed.is_empty() {
+                    body.time_mot_loc = Some(parsed);
+                    has_content = true;
+                }
+                issues.extend(parse_issues);
+            }
+            None => {
+                issues.push(ProductParseIssue::new(
+                    "time_mot_loc_parse",
+                    "missing_reference_time",
+                    "could not parse TIME...MOT...LOC entries because the header timestamp could not be resolved",
+                    None,
+                ));
+            }
         }
-        issues.extend(parse_issues);
     }
 
     if flags.wind_hail {

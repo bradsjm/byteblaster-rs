@@ -16,6 +16,32 @@ pub(crate) fn resolve_day_time_nearest(
         })
 }
 
+pub(crate) fn resolve_clock_time_nearest(
+    reference: DateTime<Utc>,
+    hour: u32,
+    minute: u32,
+) -> Option<DateTime<Utc>> {
+    if hour > 23 || minute > 59 {
+        return None;
+    }
+
+    let base_date = reference.date_naive();
+    let time = NaiveTime::from_hms_opt(hour, minute, 0)?;
+    let mut candidates = Vec::with_capacity(3);
+
+    for day_offset in [-1_i64, 0, 1] {
+        let date = base_date.checked_add_signed(chrono::TimeDelta::days(day_offset))?;
+        candidates.push(Utc.from_utc_datetime(&date.and_time(time)));
+    }
+
+    candidates.into_iter().min_by_key(|candidate| {
+        candidate
+            .signed_duration_since(reference)
+            .num_seconds()
+            .abs()
+    })
+}
+
 pub(crate) fn resolve_day_time_not_before(
     reference: DateTime<Utc>,
     day: u32,

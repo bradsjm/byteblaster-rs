@@ -202,9 +202,6 @@ The built-in PIL lookup table includes:
 
 - `PIL_ENTRY_COUNT`: Number of product types in the lookup table
 - `PIL_GENERATED_AT_UTC`: Timestamp when the PIL table was generated
-- `PIL_SOURCE_REPO`: Source repository for PIL data
-- `PIL_SOURCE_PATH`: Path to PIL data in source repo
-- `PIL_SOURCE_COMMIT`: Git commit hash for PIL data source
 - `pil_catalog_entry()`: Full metadata including `wmo_prefix`, `title`, `ugc`, `vtec`, `cz`, `latlong`, `time_mot_loc`, `wind_hail`, and `hvtec`
 - `enrich_header()` and `enrich_product()`: Surface those catalog flags in parsed output as `flags`
 

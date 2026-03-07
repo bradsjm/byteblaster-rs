@@ -37,7 +37,9 @@ mod body;
 mod data;
 mod header;
 mod issue;
+mod metar;
 mod product;
+mod taf;
 mod time;
 
 pub use body::{
@@ -51,14 +53,16 @@ pub use body::{
 };
 pub use data::{
     NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, PIL_ENTRY_COUNT,
-    PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO, PilCatalogEntry,
-    ProductMetadataFlags, UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC,
-    UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH, UgcLocationEntry, nwslid_entry, pil_catalog_entry,
-    pil_description, ugc_county_entry, ugc_zone_entry, wmo_prefix_for_pil,
+    PIL_GENERATED_AT_UTC, PilCatalogEntry, ProductMetadataFlags, UGC_COUNTY_ENTRY_COUNT,
+    UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH,
+    UgcLocationEntry, nwslid_entry, pil_catalog_entry, pil_description, ugc_county_entry,
+    ugc_zone_entry, wmo_prefix_for_pil,
 };
 pub use header::{
-    BbbKind, ParserError, TextProductEnrichment, TextProductHeader, enrich_header,
+    BbbKind, ParserError, TextProductEnrichment, TextProductHeader, WmoHeader, enrich_header,
     parse_text_product,
 };
 pub use issue::ProductParseIssue;
+pub use metar::{MetarBulletin, MetarReport, MetarReportKind};
 pub use product::{ProductEnrichment, ProductEnrichmentSource, enrich_product};
+pub use taf::TafBulletin;

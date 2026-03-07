@@ -8,9 +8,7 @@ mod graphics;
 use std::sync::OnceLock;
 
 pub use generated_nwslid::{NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC};
-pub use generated_pil::{
-    PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC, PIL_SOURCE_COMMIT, PIL_SOURCE_PATH, PIL_SOURCE_REPO,
-};
+pub use generated_pil::{PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC};
 pub use generated_ugc::{
     UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT,
     UGC_ZONE_SOURCE_PATH,

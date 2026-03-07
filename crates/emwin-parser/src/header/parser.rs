@@ -9,6 +9,21 @@ use thiserror::Error;
 ///
 /// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WmoHeader {
+    /// WMO product type indicator (6 characters, normalized from 4 to "00")
+    pub ttaaii: String,
+    /// 4-letter ICAO station code
+    pub cccc: String,
+    /// Day and time (UTC) in DDHHMM format
+    pub ddhhmm: String,
+    /// Optional BBB indicator (CORrection, AMEndment, RR, etc.)
+    pub bbb: Option<String>,
+}
+
+/// Parsed WMO/AFOS text product header.
+///
+/// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductHeader {
     /// WMO product type indicator (6 characters, normalized from 4 to "00")
     pub ttaaii: String,
@@ -28,7 +43,13 @@ pub(crate) struct ParsedTextProduct {
     pub(crate) conditioned_text: String,
 }
 
-impl TextProductHeader {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ParsedWmoBulletin {
+    pub(crate) header: WmoHeader,
+    pub(crate) conditioned_text: String,
+}
+
+impl WmoHeader {
     /// Parse the ddhhmm field into a UTC DateTime.
     ///
     /// Uses the provided reference time to determine the nearest plausible month and year.
@@ -55,6 +76,21 @@ impl TextProductHeader {
         }
 
         resolve_day_time_nearest(reference_time, day, hour, minute)
+    }
+}
+
+impl TextProductHeader {
+    /// Parse the ddhhmm field into a UTC DateTime.
+    ///
+    /// Uses the provided reference time to determine the nearest plausible month and year.
+    pub fn timestamp(&self, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        WmoHeader {
+            ttaaii: self.ttaaii.clone(),
+            cccc: self.cccc.clone(),
+            ddhhmm: self.ddhhmm.clone(),
+            bbb: self.bbb.clone(),
+        }
+        .timestamp(reference_time)
     }
 }
 
@@ -115,18 +151,34 @@ pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError
 pub(crate) fn parse_text_product_conditioned(
     bytes: &[u8],
 ) -> Result<ParsedTextProduct, ParserError> {
-    let raw = String::from_utf8_lossy(bytes).replace('\0', "");
-    let conditioned = condition_text(&raw)?;
-    let (ttaaii, cccc, ddhhmm, bbb) = parse_wmo(&conditioned)?;
-    let afos = parse_afos(&conditioned)?;
+    let parsed = parse_wmo_bulletin_conditioned(bytes)?;
+    let afos = parse_afos(&parsed.conditioned_text)?;
 
     Ok(ParsedTextProduct {
         header: TextProductHeader {
+            ttaaii: parsed.header.ttaaii,
+            cccc: parsed.header.cccc,
+            ddhhmm: parsed.header.ddhhmm,
+            bbb: parsed.header.bbb,
+            afos,
+        },
+        conditioned_text: parsed.conditioned_text,
+    })
+}
+
+pub(crate) fn parse_wmo_bulletin_conditioned(
+    bytes: &[u8],
+) -> Result<ParsedWmoBulletin, ParserError> {
+    let raw = String::from_utf8_lossy(bytes).replace('\0', "");
+    let conditioned = condition_text(&raw)?;
+    let (ttaaii, cccc, ddhhmm, bbb) = parse_wmo(&conditioned)?;
+
+    Ok(ParsedWmoBulletin {
+        header: WmoHeader {
             ttaaii,
             cccc,
             ddhhmm,
             bbb,
-            afos,
         },
         conditioned_text: conditioned,
     })

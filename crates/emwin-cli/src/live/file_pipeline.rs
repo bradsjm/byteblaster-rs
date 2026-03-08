@@ -88,7 +88,8 @@ mod tests {
     use emwin_parser::ProductEnrichmentSource;
 
     use super::{
-        build_completed_file_metadata, metadata_sidecar_path, write_completed_metadata_json,
+        build_completed_file_metadata, metadata_sidecar_path, persist_completed_record,
+        write_completed_metadata_json,
     };
     use std::path::{Path, PathBuf};
 
@@ -168,6 +169,32 @@ mod tests {
         assert_eq!(
             decoded["product"]["issues"][0]["code"],
             "invalid_wmo_header"
+        );
+    }
+
+    #[test]
+    fn persist_completed_record_writes_payload_and_metadata_sidecar() {
+        let tmp = tempfile::tempdir().expect("tempdir should exist");
+        let payload = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n";
+        let metadata = build_completed_file_metadata("nested/AFDBOX.TXT", 1704070800, payload);
+
+        let record = persist_completed_record(tmp.path(), "nested/AFDBOX.TXT", payload, metadata)
+            .expect("completed record should persist");
+
+        assert_eq!(
+            std::fs::read(&record.path).expect("payload file should be readable"),
+            payload
+        );
+
+        let sidecar: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&record.metadata_path).expect("metadata file should be readable"),
+        )
+        .expect("metadata json should decode");
+
+        assert_eq!(sidecar["filename"], "nested/AFDBOX.TXT");
+        assert_eq!(
+            PathBuf::from(&record.metadata_path),
+            tmp.path().join("nested/AFDBOX.JSON")
         );
     }
 }

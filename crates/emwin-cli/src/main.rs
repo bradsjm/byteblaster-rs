@@ -2,7 +2,6 @@
 //!
 //! This application provides commands for:
 //! - Streaming events from live servers
-//! - Downloading and assembling files from live servers
 //! - Running an HTTP server with SSE endpoints
 
 mod cmd;
@@ -74,35 +73,6 @@ enum Commands {
         /// Maximum number of events to process.
         #[arg(long, env = "EMWIN_MAX_EVENTS")]
         max_events: Option<usize>,
-        /// Idle timeout in seconds.
-        #[arg(long, env = "EMWIN_IDLE_TIMEOUT_SECS", default_value_t = 90)]
-        idle_timeout_secs: u64,
-    },
-    /// Download and assemble files from a live server.
-    Download {
-        /// Output directory for downloaded files.
-        output_dir: String,
-        /// Account username for live mode authentication.
-        #[arg(long, env = "EMWIN_USERNAME")]
-        username: Option<String>,
-        /// Password for receivers that require one (for example wxwire).
-        #[arg(long, env = "EMWIN_PASSWORD")]
-        password: Option<String>,
-        /// Receiver backend to use in live mode.
-        #[arg(long, value_enum, env = "EMWIN_RECEIVER", default_value_t = ReceiverKind::Qbt)]
-        receiver: ReceiverKind,
-        /// Custom server endpoints (comma-separated or multiple).
-        #[arg(long = "server", env = "EMWIN_SERVER", value_delimiter = ',')]
-        servers: Vec<String>,
-        /// Path to persisted server list file.
-        #[arg(long, env = "EMWIN_SERVER_LIST_PATH")]
-        server_list_path: Option<String>,
-        /// Repeatable file metadata filters using server /events field names.
-        #[arg(long = "filter")]
-        filters: Vec<String>,
-        /// Maximum number of events to process.
-        #[arg(long, env = "EMWIN_MAX_EVENTS", default_value_t = 200)]
-        max_events: usize,
         /// Idle timeout in seconds.
         #[arg(long, env = "EMWIN_IDLE_TIMEOUT_SECS", default_value_t = 90)]
         idle_timeout_secs: u64,
@@ -197,29 +167,6 @@ async fn main() -> crate::error::CliResult<()> {
             };
             live::stream::run(output_dir, live, text_preview_chars).await
         }
-        Commands::Download {
-            output_dir,
-            username,
-            password,
-            receiver,
-            servers,
-            server_list_path,
-            filters,
-            max_events,
-            idle_timeout_secs,
-        } => {
-            let live = LiveOptions {
-                receiver,
-                username,
-                password,
-                servers,
-                server_list_path,
-                file_filter: crate::live::filter::FileEventFilter::from_cli_filters(&filters)?,
-                max_events,
-                idle_timeout_secs,
-            };
-            cmd::download::run(output_dir, live, text_preview_chars).await
-        }
         Commands::Server {
             username,
             password,
@@ -270,4 +217,54 @@ fn init_logging() {
         .with_writer(std::io::stderr)
         .with_ansi(ansi)
         .try_init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Commands};
+    use clap::{CommandFactory, Parser};
+
+    #[test]
+    fn root_help_does_not_list_download() {
+        let help = Cli::command().render_long_help().to_string();
+
+        assert!(help.contains("stream"));
+        assert!(!help.contains("download"));
+    }
+
+    #[test]
+    fn stream_help_mentions_output_dir_but_not_download() {
+        let mut command = Cli::command();
+        let help = command
+            .find_subcommand_mut("stream")
+            .expect("stream subcommand should exist")
+            .render_long_help()
+            .to_string();
+
+        assert!(help.contains("--output-dir"));
+        assert!(!help.contains("download"));
+    }
+
+    #[test]
+    fn download_subcommand_is_rejected() {
+        let error = Cli::try_parse_from(["emwin", "download", "./out"])
+            .expect_err("download subcommand should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'download'")
+        );
+    }
+
+    #[test]
+    fn stream_default_max_events_is_unbounded() {
+        let cli = Cli::try_parse_from(["emwin", "stream"]).expect("stream args should parse");
+
+        let Commands::Stream { max_events, .. } = cli.command else {
+            panic!("expected stream command");
+        };
+
+        assert_eq!(max_events, None);
+    }
 }

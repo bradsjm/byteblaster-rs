@@ -1,19 +1,16 @@
 # emwin-cli
 
-CLI application for EMWIN live event streaming and file download workflows. Built on `emwin-protocol` and `emwin-parser`.
+CLI application for EMWIN live event streaming workflows. Built on `emwin-protocol` and `emwin-parser`.
 
 ## Commands
 
 - `stream`
   - Connect to EMWIN servers and stream events.
   - Optional `--output-dir <PATH>`: assemble completed files from stream events and write them to disk.
-- `download <output_dir>`
-  - Connect live, assemble completed files, write to `output_dir`.
 
 ## Output formats
 
 - `stream` always emits structured `tracing` logs to `stderr` and does not emit JSON payloads.
-- `download` emits machine-readable JSON payloads to `stdout`.
 
 Contract:
 
@@ -23,7 +20,7 @@ Contract:
 
 ## Live mode options
 
-For `stream` and `download`:
+For `stream`:
 
 - `--receiver <qbt|wxwire>` (optional, default `qbt`)
 - `--username <EMAIL>` (required)
@@ -31,14 +28,14 @@ For `stream` and `download`:
 - `--server <host:port>` (optional, repeatable or comma-delimited)
 - `--server-list-path <PATH>` (optional persisted server list path)
 - `--filter <key=value>` (optional, repeatable; reuses `server /events` file filter keys such as `has_issues=true` or `issue_code=invalid_wmo_header`)
-- `--max-events <N>` (optional for `stream`; default `200` for `download`)
+- `--max-events <N>` (optional; defaults to unbounded)
 - `--idle-timeout-secs <SECONDS>` (default `90`)
 
 Additional `stream` option:
 
 - `--output-dir <PATH>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
 
-Additional `download` behavior:
+Additional `stream --output-dir` behavior:
 
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
 - sidecar names replace the original extension, for example `AFDBOX.TXT` -> `AFDBOX.JSON`
@@ -46,7 +43,7 @@ Additional `download` behavior:
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
 When `--server` is provided for QBT live mode, the CLI now pins that explicit server set across
-`stream`, `download`, and `server` instead of later replacing it with server-list updates.
+`stream` and `server` instead of later replacing it with server-list updates.
 
 ## Environment variables and `.env`
 
@@ -86,10 +83,8 @@ Live mode:
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
-cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
-cargo run -p emwin-cli -- download ./out --username you@example.com --filter issue_code=invalid_wmo_header
 cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password your-pass --max-events 100
-cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@example.com --password your-pass --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username you@example.com --password your-pass --max-events 100
 ```
 
 ## Server filter examples

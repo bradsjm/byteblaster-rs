@@ -97,7 +97,7 @@ cargo test -p emwin-protocol <test_name> -- --nocapture
 
 ```bash
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
-cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
 ```
 
@@ -105,7 +105,7 @@ Live mode examples:
 
 ```bash
 cargo run -p emwin-cli -- stream --email you@example.com --max-events 100
-cargo run -p emwin-cli -- download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --output-dir ./out --email you@example.com --max-events 100
 ```
 
 ## Code Style Guidelines

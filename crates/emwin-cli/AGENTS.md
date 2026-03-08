@@ -72,7 +72,7 @@ cargo test -p emwin-cli <test_name> -- --nocapture
 
 ```bash
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
-cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
 ```
 
@@ -80,7 +80,7 @@ Live mode examples:
 
 ```bash
 cargo run -p emwin-cli -- stream --email you@example.com --max-events 100
-cargo run -p emwin-cli -- download ./out --email you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- stream --output-dir ./out --email you@example.com --max-events 100
 ```
 
 ## Crate Architecture Boundaries
@@ -115,7 +115,7 @@ cargo run -p emwin-cli -- download ./out --email you@example.com --idle-timeout-
 - Types/traits/enums: `UpperCamelCase`.
 - Functions/modules/variables: `snake_case`.
 - Constants: `SCREAMING_SNAKE_CASE`.
-- Use names that reflect command semantics (`stream`, `download`, `server`).
+- Use names that reflect command semantics (`stream`, `server`, `relay`).
 
 ### Error handling
 
@@ -126,17 +126,15 @@ cargo run -p emwin-cli -- download ./out --email you@example.com --idle-timeout-
 
 ### Output and logging contract
 
-- Command payloads and machine-readable data go to `stdout`.
+- Machine-readable command payloads go to `stdout` when a command defines one.
 - Diagnostics/logs/warnings go to `stderr`.
-- JSON output must remain deterministic and backwards-stable for clients.
 - Keep text output concise and unambiguous.
 
 ## Testing Expectations
 
-- Prefer integration tests in `crates/emwin-cli/tests/*.rs`.
+- Prefer unit tests in the defining module and add integration tests only when command-process coverage is required.
 - Validate stdout/stderr channel behavior for contract-sensitive changes.
-- Validate JSON shape/fields when changing output payloads.
-- For download behavior, assert filesystem side effects deterministically.
+- For `stream --output-dir`, assert filesystem side effects deterministically.
 - Keep tests deterministic and independent from external network timing.
 
 ## Documentation Requirements

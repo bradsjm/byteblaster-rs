@@ -284,6 +284,10 @@ mod tests {
         } else if filename.eq_ignore_ascii_case("TAFWBCFJ.TXT") {
             b"000 \nFTXX01 KWBC 070200\nTAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n"
                 .as_slice()
+        } else if filename.eq_ignore_ascii_case("TAFWMOONLY.TXT") {
+            b"000 \nFTUS80 KWBC 070200\nTAF SBAF 070200Z 0703/0803 00000KT CAVOK=\n".as_slice()
+        } else if filename.eq_ignore_ascii_case("BROKEN.TXT") {
+            b"000 \nINVALID HEADER\nAFDBOX\nBody\n".as_slice()
         } else if filename.eq_ignore_ascii_case("SVROAXNE.TXT") {
             br#"000
 WUUS53 KOAX 051200
@@ -304,6 +308,44 @@ This is a test product.
 $$
 "#
             .as_slice()
+        } else if filename.eq_ignore_ascii_case("SVRWIND.TXT") {
+            br#"000
+WUUS53 KOAX 051200
+SVROAX
+
+URGENT - IMMEDIATE BROADCAST REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Omaha/Valley NE
+1200 PM CST Wed Mar 5 2025
+
+NEC001>003-051300-
+/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/
+
+LAT...LON 4143 9613 4145 9610 4140 9608 4138 9612
+TIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613 4140 9608
+HAILTHREAT...RADARINDICATED
+MAXHAILSIZE...1.00 IN
+WINDTHREAT...OBSERVED
+MAXWINDGUST...60 MPH
+"#
+            .as_slice()
+        } else if filename.eq_ignore_ascii_case("FFWOAXNE.TXT") {
+            br#"000
+WUUS53 KOAX 051200
+FFWOAX
+
+Flash Flood Warning
+National Weather Service Omaha/Valley NE
+1200 PM CST Wed Mar 5 2025
+
+NEC001>003-051300-
+/O.NEW.KOAX.FF.W.0001.250305T1200Z-250305T1800Z/
+/MSRM1.3.ER.250305T1200Z.250305T1800Z.250306T0000Z.NO/
+
+LAT...LON 4143 9613 4145 9610 4140 9608 4138 9612
+TIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613 4140 9608
+"#
+            .as_slice()
         } else {
             b"ignored".as_slice()
         };
@@ -322,6 +364,7 @@ $$
         EventsQuery {
             event: None,
             filename: None,
+            source: None,
             pil: None,
             family: None,
             container: None,
@@ -329,10 +372,20 @@ $$
             office: None,
             office_city: None,
             office_state: None,
+            bbb_kind: None,
             cccc: None,
             ttaaii: None,
             afos: None,
             bbb: None,
+            has_issues: None,
+            issue_kind: None,
+            issue_code: None,
+            has_vtec: None,
+            has_ugc: None,
+            has_hvtec: None,
+            has_latlon: None,
+            has_time_mot_loc: None,
+            has_wind_hail: None,
             state: None,
             county: None,
             zone: None,
@@ -343,6 +396,13 @@ $$
             vtec_action: None,
             vtec_office: None,
             etn: None,
+            hvtec_nwslid: None,
+            hvtec_severity: None,
+            hvtec_cause: None,
+            hvtec_record: None,
+            wind_hail_kind: None,
+            min_wind_mph: None,
+            min_hail_inches: None,
             min_size: None,
             max_size: None,
         }
@@ -562,6 +622,19 @@ Body
     }
 
     #[test]
+    fn events_filter_matches_wmo_header_fallback_fields() {
+        let event = file_complete_event("TAFWMOONLY.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            source: Some("wmo_taf_bulletin".to_string()),
+            cccc: Some("kwbc".to_string()),
+            ttaaii: Some("ftus80".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
     fn events_filter_matches_geographic_codes() {
         let event = file_complete_event("SVROAXNE.TXT");
         let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
@@ -608,6 +681,76 @@ Body
         });
 
         assert!(!event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_issue_fields() {
+        let event = file_complete_event("BROKEN.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            has_issues: Some("true".to_string()),
+            issue_kind: Some("text_product_parse".to_string()),
+            issue_code: Some("invalid_wmo_header".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_body_presence_for_hvtec_product() {
+        let event = file_complete_event("FFWOAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            has_vtec: Some("true".to_string()),
+            has_ugc: Some("true".to_string()),
+            has_hvtec: Some("true".to_string()),
+            has_latlon: Some("true".to_string()),
+            has_time_mot_loc: Some("true".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_body_presence_for_wind_hail_product() {
+        let event = file_complete_event("SVRWIND.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            has_vtec: Some("true".to_string()),
+            has_ugc: Some("true".to_string()),
+            has_latlon: Some("true".to_string()),
+            has_time_mot_loc: Some("true".to_string()),
+            has_wind_hail: Some("true".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_hvtec_fields() {
+        let event = file_complete_event("FFWOAXNE.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            hvtec_nwslid: Some("MSRM1".to_string()),
+            hvtec_severity: Some("major".to_string()),
+            hvtec_cause: Some("excessive_rainfall".to_string()),
+            hvtec_record: Some("no_record".to_string()),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_wind_hail_fields() {
+        let event = file_complete_event("SVRWIND.TXT");
+        let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
+            wind_hail_kind: Some("hail_threat,max_wind_gust".to_string()),
+            min_wind_mph: Some(50.0),
+            min_hail_inches: Some(1.0),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
     }
 
     #[test]

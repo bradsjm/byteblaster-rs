@@ -115,19 +115,27 @@ Server endpoints:
 
 - `event` - comma-delimited event names such as `file_complete`, `telemetry`, or `connected`
 - `filename` - wildcard filename match such as `*.TXT` or `A_*`
-- `pil`, `family`, `container`, `wmo_prefix`, `office`, `office_city`, `office_state` - product metadata filters (`office` matches the normalized 3-letter office code, while `container` reflects parsed container values such as `raw` or `zip`)
-- `cccc`, `ttaaii`, `afos`, `bbb` - text product header filters
+- `source`, `pil`, `family`, `container`, `wmo_prefix`, `office`, `office_city`, `office_state`, `bbb_kind` - product metadata filters (`source` uses parsed enrichment sources such as `text_header` or `wmo_taf_bulletin`; `office` matches the normalized 3-letter office code; `container` reflects parsed container values such as `raw` or `zip`)
+- `cccc`, `ttaaii`, `afos`, `bbb` - header filters (`cccc`, `ttaaii`, and `bbb` match both AFOS-backed headers and WMO-only bulletin headers when present)
+- `has_issues`, `issue_kind`, `issue_code` - parse/QC issue filters
+- `has_vtec`, `has_ugc`, `has_hvtec`, `has_latlon`, `has_time_mot_loc`, `has_wind_hail` - parsed body presence filters using `true`/`false` or `1`/`0`
 - `state`, `county`, `zone`, `fire_zone`, `marine_zone` - UGC geographic filters using canonical codes such as `NE`, `IAC001`, `CAZ041`, `COF214`, `AMZ250`
 - `vtec_phenomena`, `vtec_significance`, `vtec_action`, `vtec_office`, `etn` - VTEC filters using canonical codes such as `TO`, `W`, `NEW`, `KDMX`, and `123`
+- `hvtec_nwslid`, `hvtec_severity`, `hvtec_cause`, `hvtec_record` - HVTEC filters using values such as `MSRM1`, `major`, `excessive_rainfall`, and `no_record`
+- `wind_hail_kind`, `min_wind_mph`, `min_hail_inches` - severe-tag filters using kinds such as `max_wind_gust`, `hail_threat`, `legacy_hail`
 - `min_size`, `max_size` - completed file size bounds in bytes
 
 Examples:
 
 - `GET /events?event=file_complete&pil=TAF,AFD`
 - `GET /events?event=file_complete&family=nws_text_product&container=raw`
+- `GET /events?event=file_complete&source=wmo_taf_bulletin&cccc=KWBC`
 - `GET /events?event=file_complete&office=FFC&office_state=GA`
+- `GET /events?event=file_complete&has_issues=true&issue_code=invalid_wmo_header`
 - `GET /events?event=file_complete&cccc=KBOX&ttaaii=FXUS61`
 - `GET /events?event=file_complete&county=IAC001&vtec_phenomena=TO&vtec_significance=W`
+- `GET /events?event=file_complete&has_hvtec=true&hvtec_cause=excessive_rainfall`
+- `GET /events?event=file_complete&has_wind_hail=true&min_wind_mph=50&min_hail_inches=1.00`
 - `GET /events?event=file_complete&state=NE&vtec_office=KOAX&vtec_action=NEW`
 
 Optional live-mode endpoint/persistence overrides:

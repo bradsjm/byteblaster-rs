@@ -1,7 +1,10 @@
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::{RetainedFiles, file_download_url, wildcard_match};
-use emwin_parser::{ProductBody, TextProductHeader, UgcSection, VtecCode};
+use emwin_parser::{
+    BbbKind, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, ProductBody, ProductEnrichment,
+    ProductEnrichmentSource, ProductParseIssue, UgcSection, VtecCode, WindHailEntry, WindHailKind,
+};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
 use serde::{Deserialize, Serialize};
@@ -125,6 +128,7 @@ impl EventFilter {
                     max: query.max_size,
                 },
                 product: ProductFilter {
+                    source: csv_values(query.source.as_deref(), normalize_lower),
                     pil: csv_values(query.pil.as_deref(), normalize_upper),
                     family: csv_values(query.family.as_deref(), normalize_lower),
                     container: csv_values(query.container.as_deref(), normalize_lower),
@@ -132,12 +136,18 @@ impl EventFilter {
                     office: csv_values(query.office.as_deref(), normalize_upper),
                     office_city: csv_values(query.office_city.as_deref(), normalize_lower),
                     office_state: csv_values(query.office_state.as_deref(), normalize_upper),
+                    bbb_kind: csv_values(query.bbb_kind.as_deref(), normalize_lower),
                 },
                 header: HeaderFilter {
                     cccc: csv_values(query.cccc.as_deref(), normalize_upper),
                     ttaaii: csv_values(query.ttaaii.as_deref(), normalize_upper),
                     afos: csv_values(query.afos.as_deref(), normalize_upper),
                     bbb: csv_values(query.bbb.as_deref(), normalize_upper),
+                },
+                issues: IssueFilter {
+                    has_issues: parse_optional_bool(query.has_issues.as_deref()),
+                    kinds: csv_values(query.issue_kind.as_deref(), normalize_lower),
+                    codes: csv_values(query.issue_code.as_deref(), normalize_lower),
                 },
                 geo: GeoFilter {
                     states: csv_values(query.state.as_deref(), normalize_upper),
@@ -152,6 +162,25 @@ impl EventFilter {
                     action: csv_values(query.vtec_action.as_deref(), normalize_upper),
                     office: csv_values(query.vtec_office.as_deref(), normalize_upper),
                     etn: csv_numbers(query.etn.as_deref()),
+                },
+                hvtec: HvtecFilter {
+                    present: parse_optional_bool(query.has_hvtec.as_deref()),
+                    nwslid: csv_values(query.hvtec_nwslid.as_deref(), normalize_upper),
+                    severity: csv_values(query.hvtec_severity.as_deref(), normalize_lower),
+                    cause: csv_values(query.hvtec_cause.as_deref(), normalize_lower),
+                    record: csv_values(query.hvtec_record.as_deref(), normalize_lower),
+                },
+                wind_hail: WindHailFilter {
+                    present: parse_optional_bool(query.has_wind_hail.as_deref()),
+                    kinds: csv_values(query.wind_hail_kind.as_deref(), normalize_lower),
+                    min_wind_mph: query.min_wind_mph,
+                    min_hail_inches: query.min_hail_inches,
+                },
+                presence: BodyPresenceFilter {
+                    has_vtec: parse_optional_bool(query.has_vtec.as_deref()),
+                    has_ugc: parse_optional_bool(query.has_ugc.as_deref()),
+                    has_latlon: parse_optional_bool(query.has_latlon.as_deref()),
+                    has_time_mot_loc: parse_optional_bool(query.has_time_mot_loc.as_deref()),
                 },
             },
         }
@@ -182,8 +211,12 @@ pub(crate) struct FileEventFilter {
     pub(crate) size: SizeRange,
     pub(crate) product: ProductFilter,
     pub(crate) header: HeaderFilter,
+    pub(crate) issues: IssueFilter,
     pub(crate) geo: GeoFilter,
     pub(crate) vtec: VtecFilter,
+    pub(crate) hvtec: HvtecFilter,
+    pub(crate) wind_hail: WindHailFilter,
+    pub(crate) presence: BodyPresenceFilter,
 }
 
 impl FileEventFilter {
@@ -192,8 +225,12 @@ impl FileEventFilter {
             || self.size.has_constraints()
             || self.product.has_constraints()
             || self.header.has_constraints()
+            || self.issues.has_constraints()
             || self.geo.has_constraints()
             || self.vtec.has_constraints()
+            || self.hvtec.has_constraints()
+            || self.wind_hail.has_constraints()
+            || self.presence.has_constraints()
     }
 
     fn matches_metadata(&self, metadata: &CompletedFileMetadata) -> bool {
@@ -211,7 +248,15 @@ impl FileEventFilter {
             return false;
         }
 
-        if !self.header.matches(metadata.product.header.as_ref()) {
+        if !self.header.matches(&metadata.product) {
+            return false;
+        }
+
+        if !self.issues.matches(&metadata.product.issues) {
+            return false;
+        }
+
+        if !self.presence.matches(metadata.product.body.as_ref()) {
             return false;
         }
 
@@ -219,7 +264,15 @@ impl FileEventFilter {
             return false;
         }
 
-        self.vtec.matches(metadata.product.body.as_ref())
+        if !self.vtec.matches(metadata.product.body.as_ref()) {
+            return false;
+        }
+
+        if !self.hvtec.matches(metadata.product.body.as_ref()) {
+            return false;
+        }
+
+        self.wind_hail.matches(metadata.product.body.as_ref())
     }
 }
 
@@ -253,6 +306,7 @@ impl SizeRange {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct ProductFilter {
+    pub(crate) source: Option<BTreeSet<String>>,
     pub(crate) pil: Option<BTreeSet<String>>,
     pub(crate) family: Option<BTreeSet<String>>,
     pub(crate) container: Option<BTreeSet<String>>,
@@ -260,21 +314,25 @@ pub(crate) struct ProductFilter {
     pub(crate) office: Option<BTreeSet<String>>,
     pub(crate) office_city: Option<BTreeSet<String>>,
     pub(crate) office_state: Option<BTreeSet<String>>,
+    pub(crate) bbb_kind: Option<BTreeSet<String>>,
 }
 
 impl ProductFilter {
     fn has_constraints(&self) -> bool {
-        self.pil.is_some()
+        self.source.is_some()
+            || self.pil.is_some()
             || self.family.is_some()
             || self.container.is_some()
             || self.wmo_prefix.is_some()
             || self.office.is_some()
             || self.office_city.is_some()
             || self.office_state.is_some()
+            || self.bbb_kind.is_some()
     }
 
-    fn matches(&self, product: &emwin_parser::ProductEnrichment) -> bool {
-        matches_option_set(&self.pil, product.pil.as_deref(), normalize_upper)
+    fn matches(&self, product: &ProductEnrichment) -> bool {
+        matches_serialized_option(&self.source, Some(product.source), product_source_name)
+            && matches_option_set(&self.pil, product.pil.as_deref(), normalize_upper)
             && matches_option_set(&self.family, product.family, normalize_lower)
             && matches_option_set(&self.container, Some(product.container), normalize_lower)
             && matches_option_set(&self.wmo_prefix, product.wmo_prefix, normalize_upper)
@@ -293,6 +351,7 @@ impl ProductFilter {
                 product.office.as_ref().map(|office| office.state),
                 normalize_upper,
             )
+            && matches_serialized_option(&self.bbb_kind, product.bbb_kind, bbb_kind_name)
     }
 }
 
@@ -309,19 +368,64 @@ impl HeaderFilter {
         self.cccc.is_some() || self.ttaaii.is_some() || self.afos.is_some() || self.bbb.is_some()
     }
 
-    fn matches(&self, header: Option<&TextProductHeader>) -> bool {
+    fn matches(&self, product: &ProductEnrichment) -> bool {
         if !self.has_constraints() {
             return true;
         }
 
-        let Some(header) = header else {
-            return false;
-        };
+        let header_matches = product.header.as_ref().is_some_and(|header| {
+            matches_option_set(&self.cccc, Some(header.cccc.as_str()), normalize_upper)
+                && matches_option_set(&self.ttaaii, Some(header.ttaaii.as_str()), normalize_upper)
+                && matches_option_set(&self.afos, Some(header.afos.as_str()), normalize_upper)
+                && matches_option_set(&self.bbb, header.bbb.as_deref(), normalize_upper)
+        });
+        let wmo_header_matches = product.wmo_header.as_ref().is_some_and(|header| {
+            matches_option_set(&self.cccc, Some(header.cccc.as_str()), normalize_upper)
+                && matches_option_set(&self.ttaaii, Some(header.ttaaii.as_str()), normalize_upper)
+                && self.afos.is_none()
+                && matches_option_set(&self.bbb, header.bbb.as_deref(), normalize_upper)
+        });
 
-        matches_option_set(&self.cccc, Some(header.cccc.as_str()), normalize_upper)
-            && matches_option_set(&self.ttaaii, Some(header.ttaaii.as_str()), normalize_upper)
-            && matches_option_set(&self.afos, Some(header.afos.as_str()), normalize_upper)
-            && matches_option_set(&self.bbb, header.bbb.as_deref(), normalize_upper)
+        header_matches || wmo_header_matches
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct IssueFilter {
+    pub(crate) has_issues: Option<bool>,
+    pub(crate) kinds: Option<BTreeSet<String>>,
+    pub(crate) codes: Option<BTreeSet<String>>,
+}
+
+impl IssueFilter {
+    fn has_constraints(&self) -> bool {
+        self.has_issues.is_some() || self.kinds.is_some() || self.codes.is_some()
+    }
+
+    fn matches(&self, issues: &[ProductParseIssue]) -> bool {
+        if let Some(has_issues) = self.has_issues
+            && has_issues == issues.is_empty()
+        {
+            return false;
+        }
+
+        if let Some(kinds) = &self.kinds
+            && !issues
+                .iter()
+                .any(|issue| kinds.contains(&normalize_lower(issue.kind)))
+        {
+            return false;
+        }
+
+        if let Some(codes) = &self.codes
+            && !issues
+                .iter()
+                .any(|issue| codes.contains(&normalize_lower(issue.code)))
+        {
+            return false;
+        }
+
+        true
     }
 }
 
@@ -423,6 +527,160 @@ impl VtecFilter {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct HvtecFilter {
+    pub(crate) present: Option<bool>,
+    pub(crate) nwslid: Option<BTreeSet<String>>,
+    pub(crate) severity: Option<BTreeSet<String>>,
+    pub(crate) cause: Option<BTreeSet<String>>,
+    pub(crate) record: Option<BTreeSet<String>>,
+}
+
+impl HvtecFilter {
+    fn has_constraints(&self) -> bool {
+        self.present.is_some()
+            || self.nwslid.is_some()
+            || self.severity.is_some()
+            || self.cause.is_some()
+            || self.record.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        if !self.has_constraints() {
+            return true;
+        }
+
+        let codes = body.and_then(|body| body.hvtec.as_deref());
+        if let Some(present) = self.present
+            && present != codes.is_some_and(|codes| !codes.is_empty())
+        {
+            return false;
+        }
+
+        if self.nwslid.is_none()
+            && self.severity.is_none()
+            && self.cause.is_none()
+            && self.record.is_none()
+        {
+            return true;
+        }
+
+        let Some(codes) = codes else {
+            return false;
+        };
+
+        codes.iter().any(|code| self.matches_code(code))
+    }
+
+    fn matches_code(&self, code: &HvtecCode) -> bool {
+        matches_option_set(&self.nwslid, Some(code.nwslid.as_str()), normalize_upper)
+            && matches_serialized_option(&self.severity, Some(code.severity), hvtec_severity_name)
+            && matches_serialized_option(&self.cause, Some(code.cause), hvtec_cause_name)
+            && matches_serialized_option(&self.record, Some(code.record), hvtec_record_name)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct WindHailFilter {
+    pub(crate) present: Option<bool>,
+    pub(crate) kinds: Option<BTreeSet<String>>,
+    pub(crate) min_wind_mph: Option<f64>,
+    pub(crate) min_hail_inches: Option<f64>,
+}
+
+impl Eq for WindHailFilter {}
+
+impl WindHailFilter {
+    fn has_constraints(&self) -> bool {
+        self.present.is_some()
+            || self.kinds.is_some()
+            || self.min_wind_mph.is_some()
+            || self.min_hail_inches.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        if !self.has_constraints() {
+            return true;
+        }
+
+        let entries = body.and_then(|body| body.wind_hail.as_deref());
+        if let Some(present) = self.present
+            && present != entries.is_some_and(|entries| !entries.is_empty())
+        {
+            return false;
+        }
+
+        let Some(entries) = entries else {
+            return self.kinds.is_none()
+                && self.min_wind_mph.is_none()
+                && self.min_hail_inches.is_none();
+        };
+
+        if let Some(kinds) = &self.kinds
+            && !entries
+                .iter()
+                .any(|entry| kinds.contains(wind_hail_kind_name(entry.kind)))
+        {
+            return false;
+        }
+
+        if let Some(min_wind_mph) = self.min_wind_mph
+            && !entries.iter().any(|entry| {
+                is_wind_entry(entry)
+                    && entry
+                        .numeric_value
+                        .zip(entry.units.as_deref())
+                        .is_some_and(|(value, units)| wind_speed_mph(value, units) >= min_wind_mph)
+            })
+        {
+            return false;
+        }
+
+        if let Some(min_hail_inches) = self.min_hail_inches
+            && !entries.iter().any(|entry| {
+                is_hail_entry(entry)
+                    && entry
+                        .numeric_value
+                        .is_some_and(|value| value >= min_hail_inches)
+            })
+        {
+            return false;
+        }
+
+        true
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct BodyPresenceFilter {
+    pub(crate) has_vtec: Option<bool>,
+    pub(crate) has_ugc: Option<bool>,
+    pub(crate) has_latlon: Option<bool>,
+    pub(crate) has_time_mot_loc: Option<bool>,
+}
+
+impl BodyPresenceFilter {
+    fn has_constraints(&self) -> bool {
+        self.has_vtec.is_some()
+            || self.has_ugc.is_some()
+            || self.has_latlon.is_some()
+            || self.has_time_mot_loc.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        matches_optional_presence(self.has_vtec, body.and_then(|body| body.vtec.as_deref()))
+            && matches_optional_presence(self.has_ugc, body.and_then(|body| body.ugc.as_deref()))
+            && matches_optional_presence(
+                self.has_latlon,
+                body.and_then(|body| body.latlon.as_deref()),
+            )
+            && matches_optional_presence(
+                self.has_time_mot_loc,
+                body.and_then(|body| body.time_mot_loc.as_deref()),
+            )
+    }
+}
+
 fn matches_option_set(
     allowed: &Option<BTreeSet<String>>,
     value: Option<&str>,
@@ -447,6 +705,27 @@ fn matches_char_set(allowed: &Option<BTreeSet<String>>, value: char) -> bool {
 fn matches_number_set(allowed: &Option<BTreeSet<u32>>, value: u32) -> bool {
     match allowed {
         Some(allowed) => allowed.contains(&value),
+        None => true,
+    }
+}
+
+fn matches_serialized_option<T: Copy>(
+    allowed: &Option<BTreeSet<String>>,
+    value: Option<T>,
+    serialize: fn(T) -> &'static str,
+) -> bool {
+    match allowed {
+        Some(allowed) => value
+            .map(serialize)
+            .map(|serialized| allowed.contains(serialized))
+            .unwrap_or(false),
+        None => true,
+    }
+}
+
+fn matches_optional_presence<T>(expected: Option<bool>, values: Option<&[T]>) -> bool {
+    match expected {
+        Some(expected) => expected == values.is_some_and(|values| !values.is_empty()),
         None => true,
     }
 }
@@ -511,6 +790,110 @@ fn csv_numbers(raw: Option<&str>) -> Option<BTreeSet<u32>> {
     (!values.is_empty()).then_some(values)
 }
 
+fn parse_optional_bool(raw: Option<&str>) -> Option<bool> {
+    match raw.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) if value.eq_ignore_ascii_case("true") || value == "1" => Some(true),
+        Some(value) if value.eq_ignore_ascii_case("false") || value == "0" => Some(false),
+        _ => None,
+    }
+}
+
+fn product_source_name(value: ProductEnrichmentSource) -> &'static str {
+    match value {
+        ProductEnrichmentSource::TextHeader => "text_header",
+        ProductEnrichmentSource::WmoFdBulletin => "wmo_fd_bulletin",
+        ProductEnrichmentSource::TextPirepBulletin => "text_pirep_bulletin",
+        ProductEnrichmentSource::TextSigmetBulletin => "text_sigmet_bulletin",
+        ProductEnrichmentSource::WmoMetarBulletin => "wmo_metar_bulletin",
+        ProductEnrichmentSource::WmoTafBulletin => "wmo_taf_bulletin",
+        ProductEnrichmentSource::WmoDcpBulletin => "wmo_dcp_bulletin",
+        ProductEnrichmentSource::FilenameNonText => "filename_non_text",
+        ProductEnrichmentSource::Unknown => "unknown",
+    }
+}
+
+fn bbb_kind_name(value: BbbKind) -> &'static str {
+    match value {
+        BbbKind::Amendment => "amendment",
+        BbbKind::Correction => "correction",
+        BbbKind::DelayedRepeat => "delayed_repeat",
+        BbbKind::Other => "other",
+    }
+}
+
+fn hvtec_severity_name(value: HvtecSeverity) -> &'static str {
+    match value {
+        HvtecSeverity::None => "none",
+        HvtecSeverity::Minor => "minor",
+        HvtecSeverity::Moderate => "moderate",
+        HvtecSeverity::Major => "major",
+        HvtecSeverity::Unknown => "unknown",
+    }
+}
+
+fn hvtec_cause_name(value: HvtecCause) -> &'static str {
+    match value {
+        HvtecCause::ExcessiveRainfall => "excessive_rainfall",
+        HvtecCause::Snowmelt => "snowmelt",
+        HvtecCause::RainAndSnowmelt => "rain_and_snowmelt",
+        HvtecCause::DamFailure => "dam_failure",
+        HvtecCause::GlacierOutburst => "glacier_outburst",
+        HvtecCause::IceJam => "ice_jam",
+        HvtecCause::RainSnowmeltIceJam => "rain_snowmelt_ice_jam",
+        HvtecCause::UpstreamFloodingStormSurge => "upstream_flooding_storm_surge",
+        HvtecCause::UpstreamFloodingTidalEffects => "upstream_flooding_tidal_effects",
+        HvtecCause::ElevatedUpstreamFlowTidalEffects => "elevated_upstream_flow_tidal_effects",
+        HvtecCause::WindTidalEffects => "wind_tidal_effects",
+        HvtecCause::UpstreamDamRelease => "upstream_dam_release",
+        HvtecCause::MultipleCauses => "multiple_causes",
+        HvtecCause::OtherEffects => "other_effects",
+        HvtecCause::Unknown => "unknown",
+        HvtecCause::Other => "other",
+    }
+}
+
+fn hvtec_record_name(value: HvtecRecord) -> &'static str {
+    match value {
+        HvtecRecord::NoRecord => "no_record",
+        HvtecRecord::NearRecord => "near_record",
+        HvtecRecord::NotApplicable => "not_applicable",
+        HvtecRecord::Unavailable => "unavailable",
+        HvtecRecord::Unknown => "unknown",
+    }
+}
+
+fn wind_hail_kind_name(value: WindHailKind) -> &'static str {
+    match value {
+        WindHailKind::LegacyWind => "legacy_wind",
+        WindHailKind::LegacyHail => "legacy_hail",
+        WindHailKind::WindThreat => "wind_threat",
+        WindHailKind::MaxWindGust => "max_wind_gust",
+        WindHailKind::HailThreat => "hail_threat",
+        WindHailKind::MaxHailSize => "max_hail_size",
+    }
+}
+
+fn is_wind_entry(entry: &WindHailEntry) -> bool {
+    matches!(
+        entry.kind,
+        WindHailKind::LegacyWind | WindHailKind::MaxWindGust
+    )
+}
+
+fn is_hail_entry(entry: &WindHailEntry) -> bool {
+    matches!(
+        entry.kind,
+        WindHailKind::LegacyHail | WindHailKind::MaxHailSize
+    )
+}
+
+fn wind_speed_mph(value: f64, units: &str) -> f64 {
+    match normalize_upper(units).as_str() {
+        "KTS" | "KT" => value * 1.150_78,
+        _ => value,
+    }
+}
+
 fn normalize_upper(value: &str) -> String {
     value.trim().to_ascii_uppercase()
 }
@@ -540,6 +923,7 @@ pub(crate) struct AppState {
 pub(crate) struct EventsQuery {
     pub(crate) event: Option<String>,
     pub(crate) filename: Option<String>,
+    pub(crate) source: Option<String>,
     pub(crate) pil: Option<String>,
     pub(crate) family: Option<String>,
     pub(crate) container: Option<String>,
@@ -547,10 +931,20 @@ pub(crate) struct EventsQuery {
     pub(crate) office: Option<String>,
     pub(crate) office_city: Option<String>,
     pub(crate) office_state: Option<String>,
+    pub(crate) bbb_kind: Option<String>,
     pub(crate) cccc: Option<String>,
     pub(crate) ttaaii: Option<String>,
     pub(crate) afos: Option<String>,
     pub(crate) bbb: Option<String>,
+    pub(crate) has_issues: Option<String>,
+    pub(crate) issue_kind: Option<String>,
+    pub(crate) issue_code: Option<String>,
+    pub(crate) has_vtec: Option<String>,
+    pub(crate) has_ugc: Option<String>,
+    pub(crate) has_hvtec: Option<String>,
+    pub(crate) has_latlon: Option<String>,
+    pub(crate) has_time_mot_loc: Option<String>,
+    pub(crate) has_wind_hail: Option<String>,
     pub(crate) state: Option<String>,
     pub(crate) county: Option<String>,
     pub(crate) zone: Option<String>,
@@ -561,6 +955,13 @@ pub(crate) struct EventsQuery {
     pub(crate) vtec_action: Option<String>,
     pub(crate) vtec_office: Option<String>,
     pub(crate) etn: Option<String>,
+    pub(crate) hvtec_nwslid: Option<String>,
+    pub(crate) hvtec_severity: Option<String>,
+    pub(crate) hvtec_cause: Option<String>,
+    pub(crate) hvtec_record: Option<String>,
+    pub(crate) wind_hail_kind: Option<String>,
+    pub(crate) min_wind_mph: Option<f64>,
+    pub(crate) min_hail_inches: Option<f64>,
     pub(crate) min_size: Option<usize>,
     pub(crate) max_size: Option<usize>,
 }

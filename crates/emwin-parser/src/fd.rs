@@ -35,8 +35,6 @@ pub struct FdBulletin {
     pub levels: Vec<u32>,
     /// Forecast entries by station
     pub forecasts: Vec<FdForecast>,
-    /// Complete raw bulletin text
-    pub raw: String,
 }
 
 /// Forecast data for a single station.
@@ -84,14 +82,14 @@ pub(crate) fn parse_fd_bulletin(
     reference_time: DateTime<Utc>,
 ) -> Option<FdBulletin> {
     let lines = normalized_lines(text);
-    let raw = lines.join("\n");
+    let normalized = lines.join("\n");
     let based_on_time = based_on_re()
-        .captures(&raw)?
+        .captures(&normalized)?
         .name("time")?
         .as_str()
         .to_string();
     let valid_time = valid_re()
-        .captures(&raw)?
+        .captures(&normalized)?
         .name("time")?
         .as_str()
         .to_string();
@@ -132,7 +130,6 @@ pub(crate) fn parse_fd_bulletin(
         valid_time,
         levels,
         forecasts,
-        raw,
     })
 }
 
@@ -352,6 +349,8 @@ mod tests {
             bulletin.forecasts[0].groups[0].wind_direction_degrees,
             Some(140)
         );
+        let json = serde_json::to_value(&bulletin).expect("fd bulletin serializes");
+        assert!(json.get("raw").is_none());
     }
 
     #[test]

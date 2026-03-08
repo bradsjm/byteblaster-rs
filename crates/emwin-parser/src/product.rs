@@ -32,8 +32,8 @@ use crate::pirep::{PirepBulletin, parse_pirep_bulletin};
 use crate::sigmet::{SigmetBulletin, parse_sigmet_bulletin};
 use crate::taf::{TafBulletin, parse_taf_bulletin};
 use crate::{
-    BbbKind, ParserError, ProductBody, ProductMetadataFlags, ProductParseIssue, TextProductHeader,
-    WmoHeader, WmoOfficeEntry, enrich_body, enrich_header, wmo_prefix_for_pil,
+    BbbKind, ParserError, ProductBody, ProductParseIssue, TextProductHeader, WmoHeader,
+    WmoOfficeEntry, enrich_body, enrich_header, wmo_prefix_for_pil,
 };
 use chrono::Utc;
 use serde::Serialize;
@@ -81,9 +81,6 @@ pub struct ProductEnrichment {
     /// WMO header prefix (e.g., "WU", "WT")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wmo_prefix: Option<&'static str>,
-    /// Parsed metadata flags (VTEC, UGC, etc.)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flags: Option<ProductMetadataFlags>,
     /// Originating WMO office information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub office: Option<WmoOfficeEntry>,
@@ -153,7 +150,6 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
             container: meta.container,
             pil: meta.pil.map(str::to_string),
             wmo_prefix: meta.wmo_prefix,
-            flags: None,
             office: None,
             header: None,
             wmo_header: None,
@@ -214,7 +210,6 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                     container: container_from_filename(filename),
                     pil: pil.clone(),
                     wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-                    flags,
                     office: wmo_office_entry(&header.cccc).copied(),
                     header: Some(header),
                     wmo_header: None,
@@ -241,7 +236,6 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                     container: container_from_filename(filename),
                     pil: pil.clone(),
                     wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-                    flags,
                     office: wmo_office_entry(&header.cccc).copied(),
                     header: Some(header),
                     wmo_header: None,
@@ -268,7 +262,6 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                     container: container_from_filename(filename),
                     pil: pil.clone(),
                     wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-                    flags,
                     office: wmo_office_entry(&header.cccc).copied(),
                     header: Some(header),
                     wmo_header: None,
@@ -297,7 +290,6 @@ fn enrich_text_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
                 container: container_from_filename(filename),
                 pil: pil.clone(),
                 wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-                flags,
                 office: wmo_office_entry(&header.cccc).copied(),
                 header: Some(header),
                 wmo_header: None,
@@ -355,7 +347,6 @@ fn enrich_text_product_fallback(
             container: container_from_filename(filename),
             pil: None,
             wmo_prefix: None,
-            flags: None,
             office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
@@ -382,7 +373,6 @@ fn enrich_text_product_fallback(
             container: container_from_filename(filename),
             pil: None,
             wmo_prefix: None,
-            flags: None,
             office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
@@ -409,7 +399,6 @@ fn enrich_text_product_fallback(
             container: container_from_filename(filename),
             pil: None,
             wmo_prefix: None,
-            flags: None,
             office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
@@ -436,7 +425,6 @@ fn enrich_text_product_fallback(
             container: container_from_filename(filename),
             pil: None,
             wmo_prefix: None,
-            flags: None,
             office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
             header: None,
             wmo_header: Some(parsed_wmo.header),
@@ -459,7 +447,6 @@ fn enrich_text_product_fallback(
         container: container_from_filename(filename),
         pil: None,
         wmo_prefix: None,
-        flags: None,
         office: None,
         header: None,
         wmo_header: None,
@@ -566,7 +553,6 @@ fn unknown_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
         container: detected_container(filename, bytes),
         pil: None,
         wmo_prefix: None,
-        flags: None,
         office: None,
         header: None,
         wmo_header: None,
@@ -637,8 +623,6 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.pil.as_deref(), Some("TAF"));
         assert_eq!(enrichment.wmo_prefix, Some("FT"));
-        assert_eq!(enrichment.flags.map(|flags| flags.ugc), Some(false));
-        assert_eq!(enrichment.flags.map(|flags| flags.vtec), Some(false));
         assert_eq!(
             enrichment.office.as_ref().map(|office| office.code),
             Some("FFC")
@@ -655,6 +639,8 @@ mod tests {
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
         assert!(enrichment.dcp.is_none());
+        let json = serde_json::to_value(&enrichment).expect("enrichment serializes");
+        assert!(json.get("flags").is_none());
     }
 
     #[test]
@@ -664,7 +650,6 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.family, Some("nws_text_product"));
         assert_eq!(enrichment.pil, None);
-        assert_eq!(enrichment.flags, None);
         assert_eq!(enrichment.issues.len(), 1);
         assert_eq!(enrichment.issues[0].code, "invalid_wmo_header");
         assert!(enrichment.wmo_header.is_none());
@@ -898,7 +883,6 @@ mod tests {
         assert_eq!(enrichment.source, ProductEnrichmentSource::FilenameNonText);
         assert_eq!(enrichment.family, Some("radar_graphic"));
         assert_eq!(enrichment.title, Some("Radar graphic"));
-        assert_eq!(enrichment.flags, None);
         assert!(enrichment.office.is_none());
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_none());
@@ -913,13 +897,14 @@ mod tests {
 
         assert_eq!(enrichment.source, ProductEnrichmentSource::Unknown);
         assert_eq!(enrichment.container, "raw");
-        assert_eq!(enrichment.flags, None);
         assert!(enrichment.family.is_none());
         assert!(enrichment.office.is_none());
         assert!(enrichment.wmo_header.is_none());
         assert!(enrichment.metar.is_none());
         assert!(enrichment.taf.is_none());
         assert!(enrichment.dcp.is_none());
+        let json = serde_json::to_value(&enrichment).expect("enrichment serializes");
+        assert!(json.get("flags").is_none());
     }
 
     #[test]

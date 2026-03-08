@@ -87,7 +87,10 @@ pub fn parse_latlon_polygons_with_issues(
         };
 
         match parse_latlon_capture(&captures, raw) {
-            Ok(polygon) => polygons.push(polygon),
+            Ok((polygon, parse_issues)) => {
+                polygons.push(polygon);
+                issues.extend(parse_issues);
+            }
             Err(issue) => issues.push(issue),
         }
     }
@@ -114,7 +117,7 @@ fn latlon_regex() -> &'static Regex {
 fn parse_latlon_capture(
     cap: &regex::Captures<'_>,
     raw: &str,
-) -> Result<LatLonPolygon, ProductParseIssue> {
+) -> Result<(LatLonPolygon, Vec<ProductParseIssue>), ProductParseIssue> {
     let coords_str = cap.get(1).map(|value| value.as_str()).ok_or_else(|| {
         ProductParseIssue::new(
             "latlon_parse",
@@ -124,7 +127,7 @@ fn parse_latlon_capture(
         )
     })?;
     let raw_coords: Vec<&str> = coords_str.split_whitespace().collect();
-    let coords = normalize_coordinate_tokens(&raw_coords).ok_or_else(|| {
+    let (coords, mut issues) = normalize_coordinate_tokens(&raw_coords).ok_or_else(|| {
         ProductParseIssue::new(
             "latlon_parse",
             "invalid_latlon_coordinate_format",
@@ -134,18 +137,19 @@ fn parse_latlon_capture(
     })?;
 
     let points = parse_points(&coords, raw)?;
+    let points = validate_polygon(points, raw, &mut issues)?;
 
     // Ensure polygon is closed (first point == last point)
     if points.len() > 2 && points[0] != *points.last().unwrap() {
         let mut points = points;
         points.push(points[0]);
         let wkt = format_wkt(&points);
-        return Ok(LatLonPolygon { points, wkt });
+        return Ok((LatLonPolygon { points, wkt }, issues));
     }
 
     let wkt = format_wkt(&points);
 
-    Ok(LatLonPolygon { points, wkt })
+    Ok((LatLonPolygon { points, wkt }, issues))
 }
 
 fn parse_points(coords: &[String], raw: &str) -> Result<Vec<(f64, f64)>, ProductParseIssue> {
@@ -222,16 +226,33 @@ fn parse_points(coords: &[String], raw: &str) -> Result<Vec<(f64, f64)>, Product
     Ok(points)
 }
 
-fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
+fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<ProductParseIssue>)> {
     let mut normalized = Vec::new();
+    let mut issues = Vec::new();
     let mut index = 0;
 
     while index < tokens.len() {
         let token = consume_coordinate_token(tokens, &mut index)?;
+        // Some warning products lose an internal separator and fuse a longitude
+        // token with the following latitude token, e.g. `98112979` instead of
+        // `9811 2979`. Only repair the narrow 4+4 case when the stream is
+        // already in pairwise 4/5-digit mode and a longitude is definitively
+        // expected next.
+        if let Some((lon, lat)) = split_fused_coordinate_token(&normalized, &token) {
+            issues.push(ProductParseIssue::new(
+                "latlon_parse",
+                "latlon_fused_token_repaired",
+                format!("repaired fused LAT...LON coordinate token `{token}` into `{lon}` `{lat}`"),
+                Some(token),
+            ));
+            normalized.push(lon);
+            normalized.push(lat);
+            continue;
+        }
         normalized.push(token);
     }
 
-    Some(normalized)
+    Some((normalized, issues))
 }
 
 fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
@@ -296,7 +317,121 @@ fn parse_coordinate(coord: &str, is_latitude: bool) -> Option<f64> {
         }
     };
 
+    let value = if is_latitude {
+        value
+    } else if value < 40.0 {
+        // Some NWS text products publish western-hemisphere longitudes as
+        // truncated hundredths without the leading `10x`, which yields
+        // implausibly small magnitudes like `11.23`. Match pyIEM's narrow
+        // recovery by shifting those values back into the expected range.
+        value + 100.0
+    } else {
+        value
+    };
+
     Some(if is_latitude { value } else { -value })
+}
+
+fn split_fused_coordinate_token(normalized: &[String], token: &str) -> Option<(String, String)> {
+    if token.starts_with('-') || token.len() != 8 || normalized.len().is_multiple_of(2) {
+        return None;
+    }
+
+    if normalized
+        .iter()
+        .any(|coord| coord.starts_with('-') || coord.len() > 5)
+    {
+        return None;
+    }
+
+    let lon = token[..4].to_string();
+    let lat = token[4..].to_string();
+    let pending_latitude = normalized.last()?;
+
+    parse_coordinate(pending_latitude, true)?;
+    parse_coordinate(&lon, false)?;
+    parse_coordinate(&lat, true)?;
+
+    Some((lon, lat))
+}
+
+fn validate_polygon(
+    mut points: Vec<(f64, f64)>,
+    raw: &str,
+    _issues: &mut Vec<ProductParseIssue>,
+) -> Result<Vec<(f64, f64)>, ProductParseIssue> {
+    if points.len() < 3 {
+        return Err(ProductParseIssue::new(
+            "latlon_parse",
+            "invalid_latlon_coordinate_count",
+            format!("LAT...LON block has an invalid coordinate count: `{raw}`"),
+            Some(raw.to_string()),
+        ));
+    }
+
+    if points.first() != points.last() {
+        points.push(points[0]);
+    }
+
+    // Only reject geometry when the source polygon is unambiguously broken,
+    // such as a bow-tie crossing. Degenerate but non-crossing polygons are left
+    // alone for compatibility with existing consumers.
+    if points.len() > 4 && has_self_intersection(&points) {
+        return Err(ProductParseIssue::new(
+            "latlon_parse",
+            "latlon_geometry_invalid",
+            format!("LAT...LON block produced a self-intersecting polygon: `{raw}`"),
+            Some(raw.to_string()),
+        ));
+    }
+
+    Ok(points)
+}
+
+fn has_self_intersection(points: &[(f64, f64)]) -> bool {
+    let segment_count = points.len().saturating_sub(1);
+    for first_index in 0..segment_count {
+        let first_start = point_xy(points[first_index]);
+        let first_end = point_xy(points[first_index + 1]);
+
+        for second_index in (first_index + 1)..segment_count {
+            if second_index == first_index + 1
+                || (first_index == 0 && second_index == segment_count - 1)
+            {
+                continue;
+            }
+
+            let second_start = point_xy(points[second_index]);
+            let second_end = point_xy(points[second_index + 1]);
+            if segments_intersect(first_start, first_end, second_start, second_end) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn point_xy(point: (f64, f64)) -> (f64, f64) {
+    (point.1, point.0)
+}
+
+fn segments_intersect(
+    first_start: (f64, f64),
+    first_end: (f64, f64),
+    second_start: (f64, f64),
+    second_end: (f64, f64),
+) -> bool {
+    let first_orientation = orientation(first_start, first_end, second_start);
+    let second_orientation = orientation(first_start, first_end, second_end);
+    let third_orientation = orientation(second_start, second_end, first_start);
+    let fourth_orientation = orientation(second_start, second_end, first_end);
+
+    first_orientation * second_orientation < 0.0 && third_orientation * fourth_orientation < 0.0
+}
+
+fn orientation(first: (f64, f64), second: (f64, f64), third: (f64, f64)) -> f64 {
+    (second.1 - first.1) * (third.0 - second.0) - (second.0 - first.0) * (third.1 - second.1)
 }
 
 fn serialize_points<S>(points: &[(f64, f64)], serializer: S) -> Result<S::Ok, S::Error>
@@ -520,5 +655,33 @@ mod tests {
                 [41.01, -95.12]
             ])
         );
+    }
+
+    #[test]
+    fn parse_latlon_repairs_fused_middle_token() {
+        let text = "LAT...LON 2955 9771 2945 9803 2953 98112979 9782 2975 9780";
+        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "latlon_fused_token_repaired");
+        assert_eq!(
+            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"][2],
+            serde_json::json!([29.53, -98.11])
+        );
+        assert_eq!(
+            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"][3],
+            serde_json::json!([29.79, -97.82])
+        );
+    }
+
+    #[test]
+    fn parse_latlon_rejects_self_intersecting_polygon() {
+        let text = "LAT...LON 4000 9800 4100 9700 4000 9700 4100 9800";
+        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(polygons.is_empty());
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "latlon_geometry_invalid");
     }
 }

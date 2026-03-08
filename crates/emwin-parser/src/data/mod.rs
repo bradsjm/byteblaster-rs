@@ -54,6 +54,7 @@ pub struct UgcLocationEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct WmoOfficeEntry {
     pub code: &'static str,
+    #[serde(skip_serializing)]
     pub office_name: &'static str,
     pub city: &'static str,
     pub state: &'static str,
@@ -522,6 +523,8 @@ mod tests {
         assert_eq!(entry.office_name, "WFO Baltimore/Washington");
         assert_eq!(entry.city, "Baltimore/Washington");
         assert_eq!(entry.state, "DC");
+        let json = serde_json::to_value(entry).expect("office entry serializes");
+        assert!(json.get("office_name").is_none());
 
         let entry = wmo_office_entry("KLWX").expect("expected generated office entry");
         assert_eq!(entry.code, "LWX");

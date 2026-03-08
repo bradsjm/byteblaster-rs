@@ -11,6 +11,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 /// Container for all parsed body elements from a text product.
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
@@ -140,9 +141,78 @@ pub fn enrich_body(
         issues.extend(parse_issues);
     }
 
+    issues.extend(validate_body_qc(&body, flags));
+
     // Note: `cz` stands for county zones and is intentionally not parsed here.
 
     (has_content.then_some(body), issues)
+}
+
+fn validate_body_qc(body: &ProductBody, flags: &ProductMetadataFlags) -> Vec<ProductParseIssue> {
+    let mut issues = Vec::new();
+
+    if flags.vtec
+        && flags.latlong
+        && body
+            .vtec
+            .as_ref()
+            .is_some_and(|entries| !entries.is_empty())
+        && body.latlon.as_ref().is_none_or(Vec::is_empty)
+    {
+        // Warning products that advertise both VTEC and LAT...LON content can
+        // lose their polygon in dissemination. Surface that as QC instead of
+        // failing the rest of the body parse.
+        issues.push(ProductParseIssue::new(
+            "body_qc",
+            "vtec_missing_required_polygon",
+            "parsed VTEC content but did not recover a LAT...LON polygon from the source text",
+            None,
+        ));
+    }
+
+    if let Some(ugc_sections) = &body.ugc {
+        let mut duplicates = BTreeSet::new();
+
+        for section in ugc_sections {
+            let mut seen = BTreeSet::new();
+            collect_duplicate_ugc_codes(&section.counties, 'C', &mut seen, &mut duplicates);
+            collect_duplicate_ugc_codes(&section.zones, 'Z', &mut seen, &mut duplicates);
+            collect_duplicate_ugc_codes(&section.fire_zones, 'F', &mut seen, &mut duplicates);
+            collect_duplicate_ugc_codes(&section.marine_zones, 'M', &mut seen, &mut duplicates);
+        }
+
+        if !duplicates.is_empty() {
+            // Some malformed products repeat UGCs across segments or within a
+            // single section. Keep the parsed geography, but mark the duplication.
+            issues.push(ProductParseIssue::new(
+                "body_qc",
+                "ugc_duplicate_code",
+                format!(
+                    "encountered duplicated UGC codes in parsed product body: {}",
+                    duplicates.into_iter().collect::<Vec<_>>().join(", ")
+                ),
+                None,
+            ));
+        }
+    }
+
+    issues
+}
+
+fn collect_duplicate_ugc_codes(
+    groups: &std::collections::BTreeMap<String, Vec<crate::UgcArea>>,
+    class_code: char,
+    seen: &mut BTreeSet<String>,
+    duplicates: &mut BTreeSet<String>,
+) {
+    for (state, areas) in groups {
+        for area in areas {
+            let canonical = format!("{state}{class_code}{:03}", area.id);
+            if !seen.insert(canonical.clone()) {
+                duplicates.insert(canonical);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -246,5 +316,47 @@ MAXWINDGUST...60 MPH
 
         assert!(body.is_none());
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn enrich_body_reports_missing_polygon_for_vtec_products() {
+        let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/\nTIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613";
+        let flags = ProductMetadataFlags {
+            ugc: false,
+            vtec: true,
+            latlong: true,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: true,
+            wind_hail: false,
+        };
+
+        let (_, issues) = enrich_body(text, &flags, Some(Utc::now()));
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "vtec_missing_required_polygon")
+        );
+    }
+
+    #[test]
+    fn enrich_body_reports_duplicate_ugc_codes() {
+        let text = "IAC001-IAC001-041200-\n";
+        let flags = ProductMetadataFlags {
+            ugc: true,
+            vtec: false,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: false,
+            wind_hail: false,
+        };
+
+        let (_, issues) = enrich_body(text, &flags, Some(Utc::now()));
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "ugc_duplicate_code")
+        );
     }
 }

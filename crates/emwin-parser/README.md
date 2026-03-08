@@ -235,7 +235,7 @@ The built-in PIL lookup table includes:
 - `PIL_ENTRY_COUNT`: Number of product types in the lookup table
 - `PIL_GENERATED_AT_UTC`: Timestamp when the PIL table was generated
 - `pil_catalog_entry()`: Full metadata including `wmo_prefix`, `title`, `ugc`, `vtec`, `cz`, `latlong`, `time_mot_loc`, `wind_hail`, and `hvtec`
-- `enrich_header()` and `enrich_product()`: Surface those catalog flags in parsed output as `flags`
+- `enrich_header()`: Surfaces those catalog flags for parser decisions and header enrichment
 
 The built-in UGC lookup tables include:
 
@@ -250,6 +250,7 @@ The built-in WMO office lookup table includes:
 - `WMO_OFFICE_GENERATED_AT_UTC`: Timestamp when the office table was generated
 - `WMO_OFFICE_SOURCE_PATH`: Source JSON file for the generated table
 - `wmo_office_entry()`: Full metadata including `code`, `office_name`, `city`, and `state`
+  Serialized product output includes `code`, `city`, and `state`; `office_name` remains available from the lookup API but is omitted from serialized payloads.
 
 ## Supported Product Types
 

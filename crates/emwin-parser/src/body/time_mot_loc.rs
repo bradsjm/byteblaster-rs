@@ -96,6 +96,12 @@ pub fn parse_time_mot_loc_entries_with_issues(
     let mut entries = Vec::new();
     let mut issues = Vec::new();
     let normalized = text.replace('\r', "").replace('\n', " ");
+    let marker_count = time_mot_loc_marker_regex().find_iter(&normalized).count();
+    let candidate_count = time_mot_loc_candidate_regex()
+        .find_iter(&normalized)
+        .count();
+
+    issues.extend(find_non_line_aligned_marker_issues(text));
 
     for candidate in time_mot_loc_candidate_regex().find_iter(&normalized) {
         let line = candidate.as_str().trim();
@@ -105,9 +111,21 @@ pub fn parse_time_mot_loc_entries_with_issues(
         };
 
         match parse_time_mot_loc_capture(&captures, line, reference_time) {
-            Ok(entry) => entries.push(entry),
+            Ok((entry, parse_issues)) => {
+                entries.push(entry);
+                issues.extend(parse_issues);
+            }
             Err(issue) => issues.push(issue),
         }
+    }
+
+    if marker_count > candidate_count {
+        issues.push(ProductParseIssue::new(
+            "time_mot_loc_parse",
+            "time_mot_loc_regex_failed_after_marker",
+            "found TIME...MOT...LOC marker but could not match the expected field layout",
+            None,
+        ));
     }
 
     (entries, issues)
@@ -120,6 +138,13 @@ fn time_mot_loc_candidate_regex() -> &'static Regex {
             r"(?i)TIME\.\.\.MOT\.\.\.LOC\s+[0-9]{4}Z\s+[0-9]{1,3}DEG\s+[0-9]{1,3}KT\s+(?:[0-9]{1,8}\s*)+",
         )
         .expect("time mot loc candidate regex compiles")
+    })
+}
+
+fn time_mot_loc_marker_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)TIME\.\.\.MOT\.\.\.LOC").expect("time mot loc marker regex compiles")
     })
 }
 
@@ -137,7 +162,7 @@ fn parse_time_mot_loc_capture(
     captures: &regex::Captures<'_>,
     raw: &str,
     reference_time: DateTime<Utc>,
-) -> Result<TimeMotLocEntry, ProductParseIssue> {
+) -> Result<(TimeMotLocEntry, Vec<ProductParseIssue>), ProductParseIssue> {
     let time_token = captures
         .get(1)
         .map(|value| value.as_str())
@@ -178,15 +203,31 @@ fn parse_time_mot_loc_capture(
         .ok_or_else(|| invalid_format_issue(raw))?;
 
     let raw_coord_tokens: Vec<&str> = coords_str.split_whitespace().collect();
-    let coord_tokens = normalize_coordinate_tokens(&raw_coord_tokens).ok_or_else(|| {
-        ProductParseIssue::new(
+    let (mut coord_tokens, mut issues) = normalize_coordinate_tokens(&raw_coord_tokens)
+        .ok_or_else(|| {
+            ProductParseIssue::new(
+                "time_mot_loc_parse",
+                "invalid_time_mot_loc_coordinate_format",
+                format!("could not normalize TIME...MOT...LOC coordinates from line: `{raw}`"),
+                Some(raw.to_string()),
+            )
+        })?;
+    if coord_tokens.len() % 2 != 0 {
+        let dropped = coord_tokens
+            .pop()
+            .expect("odd coordinate count has trailing token");
+        // Some source products lose the final coordinate half through wrapping or
+        // transmission damage. Preserve the complete pairs and surface the loss.
+        issues.push(ProductParseIssue::new(
             "time_mot_loc_parse",
-            "invalid_time_mot_loc_coordinate_format",
-            format!("could not normalize TIME...MOT...LOC coordinates from line: `{raw}`"),
+            "time_mot_loc_truncated_dangling_coordinate",
+            format!(
+                "dropped dangling TIME...MOT...LOC coordinate token `{dropped}` after source formatting loss"
+            ),
             Some(raw.to_string()),
-        )
-    })?;
-    if coord_tokens.len() < 2 || !coord_tokens.len().is_multiple_of(2) {
+        ));
+    }
+    if coord_tokens.len() < 2 {
         return Err(ProductParseIssue::new(
             "time_mot_loc_parse",
             "invalid_time_mot_loc_coordinate_count",
@@ -227,13 +268,16 @@ fn parse_time_mot_loc_capture(
         format!("LINESTRING({pairs})")
     };
 
-    Ok(TimeMotLocEntry {
-        time_utc,
-        direction_degrees,
-        speed_kt,
-        points,
-        wkt,
-    })
+    Ok((
+        TimeMotLocEntry {
+            time_utc,
+            direction_degrees,
+            speed_kt,
+            points,
+            wkt,
+        },
+        issues,
+    ))
 }
 
 fn parse_time_token(token: &str, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
@@ -246,16 +290,19 @@ fn parse_time_token(token: &str, reference_time: DateTime<Utc>) -> Option<DateTi
     resolve_clock_time_nearest(reference_time, hour, minute)
 }
 
-fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<Vec<String>> {
+fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<ProductParseIssue>)> {
     let mut normalized = Vec::new();
+    let issues = Vec::new();
     let mut index = 0;
 
     while index < tokens.len() {
+        // Wrapped source lines sometimes split a single coordinate across
+        // whitespace boundaries, e.g. `088` + `53` instead of `08853`.
         let token = consume_coordinate_token(tokens, &mut index)?;
         normalized.push(token);
     }
 
-    Some(normalized)
+    Some((normalized, issues))
 }
 
 fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
@@ -283,6 +330,27 @@ fn invalid_format_issue(raw: &str) -> ProductParseIssue {
         format!("could not parse TIME...MOT...LOC line: `{raw}`"),
         Some(raw.to_string()),
     )
+}
+
+fn find_non_line_aligned_marker_issues(text: &str) -> Vec<ProductParseIssue> {
+    let mut issues = Vec::new();
+
+    for line in text.lines() {
+        if let Some(position) = line.to_ascii_uppercase().find("TIME...MOT...LOC")
+            && position > 0
+        {
+            // Some upstream text products run the marker into prior content instead of
+            // starting a new line. Warn and keep parsing from the normalized text.
+            issues.push(ProductParseIssue::new(
+                "time_mot_loc_parse",
+                "time_mot_loc_poorly_formatted",
+                "TIME...MOT...LOC marker was not line-aligned in the source text",
+                Some(line.to_string()),
+            ));
+        }
+    }
+
+    issues
 }
 
 fn parse_coordinate(text: &str, is_lat: bool) -> Option<f64> {
@@ -444,6 +512,38 @@ mod tests {
         assert_eq!(
             entries[0].time_utc.to_rfc3339(),
             "2026-03-06T23:59:00+00:00"
+        );
+    }
+
+    #[test]
+    fn parse_time_mot_loc_reports_dangling_coordinate_repair() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853 3225";
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 1);
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "time_mot_loc_truncated_dangling_coordinate")
+        );
+    }
+
+    #[test]
+    fn parse_time_mot_loc_reports_non_line_aligned_marker() {
+        let text = "PRELUDE TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
+        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc);
+        let (_, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time);
+
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "time_mot_loc_poorly_formatted")
         );
     }
 }

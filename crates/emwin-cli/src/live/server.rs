@@ -481,6 +481,10 @@ Body
         );
         assert_eq!(file.metadata.product.pil.as_deref(), Some("TAF"));
         assert!(file.metadata.product.issues.is_empty());
+        let product_json =
+            serde_json::to_value(&file.metadata.product).expect("product should serialize");
+        assert!(product_json.get("flags").is_none());
+        assert!(product_json["office"].get("office_name").is_none());
     }
 
     #[tokio::test]

@@ -329,6 +329,36 @@ WINDTHREAT...OBSERVED
 MAXWINDGUST...60 MPH
 "#
             .as_slice()
+        } else if filename.eq_ignore_ascii_case("SVRPOLY.TXT") {
+            br#"000
+WUUS53 KOAX 051200
+SVROAX
+
+URGENT - IMMEDIATE BROADCAST REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Omaha/Valley NE
+1200 PM CST Wed Mar 5 2025
+
+NEC001>003-051300-
+/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/
+
+LAT...LON 4143 9613 4145 9610 4140 9608 4138 9612
+"#
+            .as_slice()
+        } else if filename.eq_ignore_ascii_case("SVRALC.TXT") {
+            br#"000
+WUUS54 KBMX 051200
+SVRBMX
+
+URGENT - IMMEDIATE BROADCAST REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Birmingham AL
+1200 PM CST Wed Mar 5 2025
+
+ALC001-051300-
+/O.NEW.KBMX.SV.W.0001.250305T1200Z-250305T1800Z/
+"#
+            .as_slice()
         } else if filename.eq_ignore_ascii_case("FFWOAXNE.TXT") {
             br#"000
 WUUS53 KOAX 051200
@@ -344,6 +374,20 @@ NEC001>003-051300-
 
 LAT...LON 4143 9613 4145 9610 4140 9608 4138 9612
 TIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613 4140 9608
+"#
+            .as_slice()
+        } else if filename.eq_ignore_ascii_case("FFWCHFA2.TXT") {
+            br#"000
+WGUS53 PAFG 051200
+FFWAFG
+
+Flash Flood Warning
+National Weather Service Fairbanks AK
+1200 PM AKST Wed Mar 5 2025
+
+AKC090-051300-
+/O.NEW.PAFG.FF.W.0001.250305T1200Z-250305T1800Z/
+/CHFA2.3.ER.250305T1200Z.250305T1800Z.250306T0000Z.NO/
 "#
             .as_slice()
         } else {
@@ -401,11 +445,19 @@ TIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613 4140 9608
             hvtec_cause: None,
             hvtec_record: None,
             wind_hail_kind: None,
+            lat: None,
+            lon: None,
+            distance_miles: None,
             min_wind_mph: None,
             min_hail_inches: None,
             min_size: None,
             max_size: None,
         }
+    }
+
+    fn event_filter(query: EventsQuery) -> crate::live::server::types::EventFilter {
+        crate::live::server::types::EventFilter::try_from_query(query)
+            .expect("query should compile")
     }
 
     #[test]
@@ -459,7 +511,7 @@ TIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613 4140 9608
         )
         .await;
 
-        assert!(matches!(result, Err(StatusCode::TOO_MANY_REQUESTS)));
+        assert!(matches!(result, Err((StatusCode::TOO_MANY_REQUESTS, _))));
     }
 
     #[tokio::test]
@@ -569,7 +621,8 @@ Body
             .expect("body should read");
         let body_text = String::from_utf8(body.to_vec()).expect("body should be utf8 json");
         assert!(
-            body_text.contains("\"/events?event=file_complete&county=IAC001&vtec_phenomena=TO\"")
+            body_text
+                .contains("\"/events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=5\"")
         );
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
@@ -791,7 +844,157 @@ Body
         )
         .await;
 
-        assert!(matches!(result, Err(StatusCode::BAD_REQUEST)));
+        assert!(matches!(result, Err((StatusCode::BAD_REQUEST, _))));
+    }
+
+    #[test]
+    fn events_filter_matches_polygon_containment_without_point_distance() {
+        let event = file_complete_event("SVRPOLY.TXT");
+        let filter = event_filter(EventsQuery {
+            lat: Some(41.43),
+            lon: Some(-96.13),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_time_mot_loc_points_within_default_radius() {
+        let event = file_complete_event("SVRWIND.TXT");
+        let filter = event_filter(EventsQuery {
+            lat: Some(41.43),
+            lon: Some(-96.13),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_ugc_representative_points_within_radius() {
+        let event = file_complete_event("SVRALC.TXT");
+        let filter = event_filter(EventsQuery {
+            lat: Some(32.5349),
+            lon: Some(-86.6428),
+            distance_miles: Some(1.0),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_matches_hvtec_gauge_points_within_radius() {
+        let event = file_complete_event("FFWCHFA2.TXT");
+        let filter = event_filter(EventsQuery {
+            lat: Some(64.8458),
+            lon: Some(-147.7011),
+            distance_miles: Some(1.0),
+            ..empty_events_query()
+        });
+
+        assert!(event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_rejects_products_without_spatial_data() {
+        let event = file_complete_event("TAFPDKGA.TXT");
+        let filter = event_filter(EventsQuery {
+            lat: Some(41.42),
+            lon: Some(-96.17),
+            ..empty_events_query()
+        });
+
+        assert!(!event_matches_filter(&filter, &event));
+    }
+
+    #[test]
+    fn events_filter_does_not_match_non_file_events_with_location_constraints() {
+        let telemetry = EventKind::Telemetry(TelemetryPayload::Unavailable);
+        let filter = event_filter(EventsQuery {
+            event: Some("telemetry".to_string()),
+            lat: Some(41.42),
+            lon: Some(-96.17),
+            ..empty_events_query()
+        });
+
+        assert!(!event_matches_filter(&filter, &telemetry));
+    }
+
+    #[tokio::test]
+    async fn events_handler_rejects_lat_without_lon() {
+        let state = test_state(1);
+
+        let result = crate::live::server::server_http::events_handler(
+            State(state),
+            ConnectInfo("127.0.0.1:4002".parse().expect("valid socket addr")),
+            HeaderMap::new(),
+            Query(EventsQuery {
+                lat: Some(41.42),
+                ..empty_events_query()
+            }),
+        )
+        .await;
+
+        assert_eq!(
+            result.err(),
+            Some((
+                StatusCode::BAD_REQUEST,
+                "lat and lon must be provided together".to_string(),
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn events_handler_rejects_invalid_latitude() {
+        let state = test_state(1);
+
+        let result = crate::live::server::server_http::events_handler(
+            State(state),
+            ConnectInfo("127.0.0.1:4003".parse().expect("valid socket addr")),
+            HeaderMap::new(),
+            Query(EventsQuery {
+                lat: Some(95.0),
+                lon: Some(-96.17),
+                ..empty_events_query()
+            }),
+        )
+        .await;
+
+        assert_eq!(
+            result.err(),
+            Some((
+                StatusCode::BAD_REQUEST,
+                "lat must be a finite value between -90 and 90".to_string(),
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn events_handler_rejects_non_positive_distance() {
+        let state = test_state(1);
+
+        let result = crate::live::server::server_http::events_handler(
+            State(state),
+            ConnectInfo("127.0.0.1:4004".parse().expect("valid socket addr")),
+            HeaderMap::new(),
+            Query(EventsQuery {
+                lat: Some(41.42),
+                lon: Some(-96.17),
+                distance_miles: Some(0.0),
+                ..empty_events_query()
+            }),
+        )
+        .await;
+
+        assert_eq!(
+            result.err(),
+            Some((
+                StatusCode::BAD_REQUEST,
+                "distance_miles must be a finite value greater than 0".to_string(),
+            ))
+        );
     }
 
     #[test]

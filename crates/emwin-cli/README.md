@@ -54,6 +54,17 @@ cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --
 cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@example.com --password your-pass --idle-timeout-secs 30
 ```
 
+## Server filter examples
+
+When running `server`, `/events` supports parsed-location filters:
+
+- `/events?event=file_complete&lat=41.42&lon=-96.17`
+- `/events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=15`
+
+`lat` and `lon` must be provided together. `distance_miles` is optional and defaults to `5.0`.
+Matches use parsed `LAT...LON` polygons for containment and parsed `TIME...MOT...LOC`, `UGC`,
+and `HVTEC` coordinates for radius checks.
+
 ## Text product parsing
 
 The CLI leverages `emwin-parser` to parse WMO/AFOS formatted text products:

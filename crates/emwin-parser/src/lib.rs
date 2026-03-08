@@ -37,6 +37,7 @@ mod body;
 mod data;
 mod dcp;
 mod fd;
+mod geo;
 mod header;
 mod issue;
 mod metar;
@@ -65,6 +66,9 @@ pub use data::{
 };
 pub use dcp::DcpBulletin;
 pub use fd::{FdBulletin, FdForecast, FdLevelForecast};
+pub use geo::{
+    GeoBounds, GeoPoint, bounds_contains, distance_miles, point_in_polygon, polygon_bounds,
+};
 pub use header::{
     BbbKind, ParserError, TextProductEnrichment, TextProductHeader, WmoHeader, enrich_header,
     parse_text_product,

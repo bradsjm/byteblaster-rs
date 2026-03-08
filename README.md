@@ -105,7 +105,7 @@ Useful server flags:
 
 Server endpoints:
 
-- `GET /events?event=file_complete&pil=TAF&cccc=KBOX` - SSE event stream with optional live filters over event, file, product, and header metadata
+- `GET /events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=5` - SSE event stream with optional live filters over event, file, product, header, and parsed location metadata
 - `GET /files` - retained completed-file payloads using the same shape as `file_complete` events
 - `GET /files/*filename` - retained file download (URL-encoded path segment)
 - `GET /health` - server health summary
@@ -123,6 +123,7 @@ Server endpoints:
 - `vtec_phenomena`, `vtec_significance`, `vtec_action`, `vtec_office`, `etn` - VTEC filters using canonical codes such as `TO`, `W`, `NEW`, `KDMX`, and `123`
 - `hvtec_nwslid`, `hvtec_severity`, `hvtec_cause`, `hvtec_record` - HVTEC filters using values such as `MSRM1`, `major`, `excessive_rainfall`, and `no_record`
 - `wind_hail_kind`, `min_wind_mph`, `min_hail_inches` - severe-tag filters using kinds such as `max_wind_gust`, `hail_threat`, `legacy_hail`
+- `lat`, `lon`, `distance_miles` - parsed location filters; `lat`/`lon` are required together, `distance_miles` defaults to `5.0`, products match if the point falls inside any parsed `LAT...LON` polygon or within range of any parsed `TIME...MOT...LOC`, `UGC`, or `HVTEC` point
 - `min_size`, `max_size` - completed file size bounds in bytes
 
 Examples:
@@ -137,6 +138,8 @@ Examples:
 - `GET /events?event=file_complete&has_hvtec=true&hvtec_cause=excessive_rainfall`
 - `GET /events?event=file_complete&has_wind_hail=true&min_wind_mph=50&min_hail_inches=1.00`
 - `GET /events?event=file_complete&state=NE&vtec_office=KOAX&vtec_action=NEW`
+- `GET /events?event=file_complete&lat=41.42&lon=-96.17`
+- `GET /events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=15`
 
 Optional live-mode endpoint/persistence overrides:
 

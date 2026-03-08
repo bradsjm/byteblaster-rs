@@ -2,8 +2,9 @@ use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::{RetainedFiles, file_download_url, wildcard_match};
 use emwin_parser::{
-    BbbKind, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, ProductBody, ProductEnrichment,
-    ProductEnrichmentSource, ProductParseIssue, UgcSection, VtecCode, WindHailEntry, WindHailKind,
+    BbbKind, GeoPoint, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, ProductBody,
+    ProductEnrichment, ProductEnrichmentSource, ProductParseIssue, UgcSection, VtecCode,
+    WindHailEntry, WindHailKind, bounds_contains, point_in_polygon,
 };
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
@@ -111,15 +112,23 @@ impl EventKind {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct EventFilter {
     pub(crate) event_names: Option<BTreeSet<String>>,
     pub(crate) file: FileEventFilter,
 }
 
+impl Eq for EventFilter {}
+
 impl EventFilter {
+    #[cfg(test)]
     pub(crate) fn from_query(query: EventsQuery) -> Self {
-        Self {
+        Self::try_from_query(query).expect("query should compile")
+    }
+
+    pub(crate) fn try_from_query(query: EventsQuery) -> Result<Self, EventFilterQueryError> {
+        let location = LocationFilter::try_from_query(&query)?;
+        Ok(Self {
             event_names: csv_values(query.event.as_deref(), normalize_lower),
             file: FileEventFilter {
                 filename_pattern: query.filename,
@@ -176,6 +185,7 @@ impl EventFilter {
                     min_wind_mph: query.min_wind_mph,
                     min_hail_inches: query.min_hail_inches,
                 },
+                location,
                 presence: BodyPresenceFilter {
                     has_vtec: parse_optional_bool(query.has_vtec.as_deref()),
                     has_ugc: parse_optional_bool(query.has_ugc.as_deref()),
@@ -183,7 +193,7 @@ impl EventFilter {
                     has_time_mot_loc: parse_optional_bool(query.has_time_mot_loc.as_deref()),
                 },
             },
-        }
+        })
     }
 
     pub(crate) fn matches(&self, event: &EventKind) -> bool {
@@ -205,7 +215,7 @@ impl EventFilter {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct FileEventFilter {
     pub(crate) filename_pattern: Option<String>,
     pub(crate) size: SizeRange,
@@ -216,8 +226,11 @@ pub(crate) struct FileEventFilter {
     pub(crate) vtec: VtecFilter,
     pub(crate) hvtec: HvtecFilter,
     pub(crate) wind_hail: WindHailFilter,
+    pub(crate) location: LocationFilter,
     pub(crate) presence: BodyPresenceFilter,
 }
+
+impl Eq for FileEventFilter {}
 
 impl FileEventFilter {
     fn has_constraints(&self) -> bool {
@@ -230,6 +243,7 @@ impl FileEventFilter {
             || self.vtec.has_constraints()
             || self.hvtec.has_constraints()
             || self.wind_hail.has_constraints()
+            || self.location.has_constraints()
             || self.presence.has_constraints()
     }
 
@@ -256,6 +270,10 @@ impl FileEventFilter {
             return false;
         }
 
+        if !self.location.matches(metadata.product.body.as_ref()) {
+            return false;
+        }
+
         if !self.presence.matches(metadata.product.body.as_ref()) {
             return false;
         }
@@ -273,6 +291,111 @@ impl FileEventFilter {
         }
 
         self.wind_hail.matches(metadata.product.body.as_ref())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct LocationFilter {
+    pub(crate) center: Option<GeoPoint>,
+    pub(crate) distance_miles: Option<f64>,
+}
+
+impl Eq for LocationFilter {}
+
+impl LocationFilter {
+    const DEFAULT_DISTANCE_MILES: f64 = 5.0;
+
+    fn try_from_query(query: &EventsQuery) -> Result<Self, EventFilterQueryError> {
+        let lat = query.lat;
+        let lon = query.lon;
+
+        if lat.is_some() != lon.is_some() {
+            return Err(EventFilterQueryError::new(
+                "lat and lon must be provided together",
+            ));
+        }
+
+        let center = match (lat, lon) {
+            (Some(lat), Some(lon)) => {
+                if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+                    return Err(EventFilterQueryError::new(
+                        "lat must be a finite value between -90 and 90",
+                    ));
+                }
+                if !lon.is_finite() || !(-180.0..=180.0).contains(&lon) {
+                    return Err(EventFilterQueryError::new(
+                        "lon must be a finite value between -180 and 180",
+                    ));
+                }
+                Some(GeoPoint { lat, lon })
+            }
+            _ => None,
+        };
+
+        let distance_miles = match query.distance_miles {
+            Some(distance_miles) => {
+                if center.is_none() {
+                    return Err(EventFilterQueryError::new(
+                        "distance_miles requires both lat and lon",
+                    ));
+                }
+                if !distance_miles.is_finite() || distance_miles <= 0.0 {
+                    return Err(EventFilterQueryError::new(
+                        "distance_miles must be a finite value greater than 0",
+                    ));
+                }
+                Some(distance_miles)
+            }
+            None if center.is_some() => Some(Self::DEFAULT_DISTANCE_MILES),
+            None => None,
+        };
+
+        Ok(Self {
+            center,
+            distance_miles,
+        })
+    }
+
+    fn has_constraints(&self) -> bool {
+        self.center.is_some()
+    }
+
+    fn matches(&self, body: Option<&ProductBody>) -> bool {
+        let Some(center) = self.center else {
+            return true;
+        };
+        let Some(body) = body else {
+            return false;
+        };
+
+        if body.iter_polygons().any(|polygon| {
+            polygon
+                .bounds
+                .is_some_and(|bounds| bounds_contains(bounds, center))
+                && point_in_polygon(center, polygon.points)
+        }) {
+            return true;
+        }
+
+        let Some(distance_miles) = self.distance_miles else {
+            return false;
+        };
+
+        body.iter_location_points()
+            .any(|point| emwin_parser::distance_miles(center, point) <= distance_miles)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct EventFilterQueryError {
+    pub(crate) message: String,
+}
+
+impl EventFilterQueryError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
     }
 }
 
@@ -960,6 +1083,9 @@ pub(crate) struct EventsQuery {
     pub(crate) hvtec_cause: Option<String>,
     pub(crate) hvtec_record: Option<String>,
     pub(crate) wind_hail_kind: Option<String>,
+    pub(crate) lat: Option<f64>,
+    pub(crate) lon: Option<f64>,
+    pub(crate) distance_miles: Option<f64>,
     pub(crate) min_wind_mph: Option<f64>,
     pub(crate) min_hail_inches: Option<f64>,
     pub(crate) min_size: Option<usize>,

@@ -40,8 +40,8 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             },
             EndpointDoc {
                 method: "GET",
-                path: "/events?event=file_complete&county=IAC001&vtec_phenomena=TO",
-                description: "SSE stream with optional structured live filters over event, file, product, header, geography, and VTEC metadata",
+                path: "/events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=5",
+                description: "SSE stream with optional structured live filters over event, file, product, header, geography, VTEC, and location metadata",
             },
             EndpointDoc {
                 method: "GET",
@@ -72,7 +72,7 @@ pub(super) async fn events_handler(
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Query(query): Query<EventsQuery>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)> {
     if state
         .connected_clients
         .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
@@ -84,7 +84,10 @@ pub(super) async fn events_handler(
             state.quiet,
             &format!("rejecting client; limit reached peer={peer}"),
         );
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "client limit reached".to_string(),
+        ));
     }
 
     super::log_info(state.quiet, &format!("sse client connected peer={peer}"));
@@ -101,9 +104,13 @@ pub(super) async fn events_handler(
         .zip(query.max_size)
         .is_some_and(|(min, max)| min > max)
     {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "min_size must be less than or equal to max_size".to_string(),
+        ));
     }
-    let filter = EventFilter::from_query(query);
+    let filter =
+        EventFilter::try_from_query(query).map_err(|err| (StatusCode::BAD_REQUEST, err.message))?;
 
     let stream = futures::stream::unfold(
         StreamState {

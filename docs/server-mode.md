@@ -43,7 +43,7 @@ Response shape:
   "service": "emwin-cli server",
   "endpoints": [
     {"method":"GET","path":"/","description":"..."},
-    {"method":"GET","path":"/events?filter=*.TXT","description":"..."}
+    {"method":"GET","path":"/events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=5","description":"..."}
   ]
 }
 ```
@@ -56,15 +56,23 @@ Fields:
   - `path` (string): route path
   - `description` (string): short route description
 
-## `GET /events?filter=<pattern>`
+## `GET /events`
 
 Server-Sent Events stream.
 
-Query params:
+Selected query params:
 
-- `filter` (optional string): wildcard match (`*`, case-insensitive) against filename.
-  - Applies to filename-bearing events (`data_block`, `file_complete`)
-  - Non-filename events still pass through (`connected`, `telemetry`, etc.)
+- `event` (optional string): comma-delimited event names.
+- `filename` (optional string): wildcard match (`*`, case-insensitive) against completed-file filenames.
+- `lat` and `lon` (optional numbers): parsed location query point. Must be supplied together.
+- `distance_miles` (optional number): point-radius distance in miles. Defaults to `5.0` when `lat`/`lon` are provided.
+
+Location matching rules:
+
+- products match when the query point falls inside any parsed `LAT...LON` polygon
+- otherwise products match when any parsed `TIME...MOT...LOC`, `UGC`, or `HVTEC` point falls within `distance_miles`
+- products without parsed spatial data do not match location filters
+- non-file events only match by `event=...`
 
 SSE framing:
 

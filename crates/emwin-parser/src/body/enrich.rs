@@ -4,10 +4,10 @@
 
 use crate::data::ProductMetadataFlags;
 use crate::{
-    HvtecCode, LatLonPolygon, ProductParseIssue, TimeMotLocEntry, UgcSection, VtecCode,
-    WindHailEntry, parse_hvtec_codes_with_issues, parse_latlon_polygons_with_issues,
+    GeoBounds, GeoPoint, HvtecCode, LatLonPolygon, ProductParseIssue, TimeMotLocEntry, UgcSection,
+    VtecCode, WindHailEntry, parse_hvtec_codes_with_issues, parse_latlon_polygons_with_issues,
     parse_time_mot_loc_entries_with_issues, parse_ugc_sections_with_issues,
-    parse_vtec_codes_with_issues, parse_wind_hail_entries_with_issues,
+    parse_vtec_codes_with_issues, parse_wind_hail_entries_with_issues, polygon_bounds,
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -34,6 +34,55 @@ pub struct ProductBody {
     /// Parsed wind/hail tags
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wind_hail: Option<Vec<WindHailEntry>>,
+}
+
+impl ProductBody {
+    pub fn iter_location_points(&self) -> impl Iterator<Item = GeoPoint> + '_ {
+        let time_mot_loc = self.time_mot_loc.iter().flat_map(|entries| {
+            entries
+                .iter()
+                .flat_map(|entry| entry.points.iter().map(|&(lat, lon)| GeoPoint { lat, lon }))
+        });
+        let ugc = self.ugc.iter().flat_map(|sections| {
+            sections.iter().flat_map(|section| {
+                section
+                    .counties
+                    .values()
+                    .chain(section.zones.values())
+                    .flat_map(|areas| areas.iter())
+                    .filter_map(|area| {
+                        area.lat
+                            .zip(area.lon)
+                            .map(|(lat, lon)| GeoPoint { lat, lon })
+                    })
+            })
+        });
+        let hvtec = self.hvtec.iter().flat_map(|codes| {
+            codes.iter().filter_map(|code| {
+                code.location.map(|location| GeoPoint {
+                    lat: location.latitude,
+                    lon: location.longitude,
+                })
+            })
+        });
+
+        time_mot_loc.chain(ugc).chain(hvtec)
+    }
+
+    pub fn iter_polygons(&self) -> impl Iterator<Item = ParsedPolygon<'_>> + '_ {
+        self.latlon.iter().flat_map(|polygons| {
+            polygons.iter().map(|polygon| ParsedPolygon {
+                points: &polygon.points,
+                bounds: polygon_bounds(&polygon.points),
+            })
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ParsedPolygon<'a> {
+    pub points: &'a [(f64, f64)],
+    pub bounds: Option<GeoBounds>,
 }
 
 /// Enrich text body by parsing elements based on metadata flags.
@@ -218,6 +267,7 @@ fn collect_duplicate_ugc_codes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{GeoBounds, GeoPoint};
 
     #[test]
     fn enrich_body_with_all_flags() {
@@ -274,6 +324,121 @@ MAXWINDGUST...60 MPH
         assert_eq!(body.wind_hail.as_ref().unwrap().len(), 4);
 
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn product_body_iter_location_points_collects_all_supported_sources() {
+        let body = ProductBody {
+            ugc: Some(vec![UgcSection {
+                counties: std::collections::BTreeMap::from([(
+                    "NE".to_string(),
+                    vec![crate::UgcArea {
+                        id: 1,
+                        name: Some("County"),
+                        lat: Some(41.3),
+                        lon: Some(-96.1),
+                    }],
+                )]),
+                zones: std::collections::BTreeMap::from([(
+                    "NE".to_string(),
+                    vec![crate::UgcArea {
+                        id: 2,
+                        name: Some("Zone"),
+                        lat: Some(41.4),
+                        lon: Some(-96.2),
+                    }],
+                )]),
+                fire_zones: std::collections::BTreeMap::new(),
+                marine_zones: std::collections::BTreeMap::new(),
+                expires: Utc::now(),
+            }]),
+            hvtec: Some(vec![crate::HvtecCode {
+                nwslid: "MSRM1".to_string(),
+                location: Some(crate::NwslidEntry {
+                    nwslid: "MSRM1",
+                    state_code: "NE",
+                    stream_name: "Stream",
+                    proximity: "at",
+                    place_name: "Place",
+                    latitude: 41.5,
+                    longitude: -96.3,
+                }),
+                severity: crate::HvtecSeverity::Major,
+                cause: crate::HvtecCause::ExcessiveRainfall,
+                begin: None,
+                crest: None,
+                end: None,
+                record: crate::HvtecRecord::NoRecord,
+            }]),
+            time_mot_loc: Some(vec![TimeMotLocEntry {
+                time_utc: Utc::now(),
+                direction_degrees: 300,
+                speed_kt: 25,
+                points: vec![(41.6, -96.4), (41.7, -96.5)],
+                wkt: "LINESTRING(-96.4000 41.6000,-96.5000 41.7000)".to_string(),
+            }]),
+            ..ProductBody::default()
+        };
+
+        let points = body.iter_location_points().collect::<Vec<_>>();
+
+        assert_eq!(
+            points,
+            vec![
+                GeoPoint {
+                    lat: 41.6,
+                    lon: -96.4,
+                },
+                GeoPoint {
+                    lat: 41.7,
+                    lon: -96.5,
+                },
+                GeoPoint {
+                    lat: 41.3,
+                    lon: -96.1,
+                },
+                GeoPoint {
+                    lat: 41.4,
+                    lon: -96.2,
+                },
+                GeoPoint {
+                    lat: 41.5,
+                    lon: -96.3,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn product_body_iter_polygons_yields_bounds_and_points() {
+        let body = ProductBody {
+            latlon: Some(vec![LatLonPolygon {
+                points: vec![
+                    (41.0, -97.0),
+                    (42.0, -97.0),
+                    (42.0, -95.0),
+                    (41.0, -95.0),
+                    (41.0, -97.0),
+                ],
+                wkt: "POLYGON((-97.0000 41.0000,-97.0000 42.0000,-95.0000 42.0000,-95.0000 41.0000,-97.0000 41.0000))"
+                    .to_string(),
+            }]),
+            ..ProductBody::default()
+        };
+
+        let polygons = body.iter_polygons().collect::<Vec<_>>();
+
+        assert_eq!(polygons.len(), 1);
+        assert_eq!(polygons[0].points.len(), 5);
+        assert_eq!(
+            polygons[0].bounds,
+            Some(GeoBounds {
+                min_lat: 41.0,
+                max_lat: 42.0,
+                min_lon: -97.0,
+                max_lon: -95.0,
+            })
+        );
     }
 
     #[test]

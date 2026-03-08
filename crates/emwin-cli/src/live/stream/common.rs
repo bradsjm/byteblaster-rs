@@ -4,9 +4,9 @@
 //! used by the stream command for consistent output formatting.
 
 use crate::cmd::event_output::text_preview;
+use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::file_pipeline::CompletedFileRecord;
 use crate::live::shared::unix_seconds;
-use emwin_parser::enrich_product;
 use emwin_protocol::ingest::{IngestWarning, ProductOrigin, ReceivedProduct};
 use tracing::{info, warn};
 
@@ -21,6 +21,7 @@ pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
     let metadata = &completed.metadata;
     info!(
         path = %completed.path,
+        metadata_path = %completed.metadata_path,
         filename = %metadata.filename,
         timestamp_utc = metadata.timestamp_utc,
         product_source = ?metadata.product.source,
@@ -32,22 +33,25 @@ pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
     );
 }
 
-pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: usize) {
-    let meta = enrich_product(&product.filename, &product.data);
+pub(super) fn log_product_event(
+    product: &ReceivedProduct,
+    metadata: &CompletedFileMetadata,
+    text_preview_chars: usize,
+) {
     let preview = text_preview(&product.filename, &product.data, text_preview_chars);
     match &product.origin {
         ProductOrigin::Qbt => {
-            if let Some(title) = meta.title {
+            if let Some(title) = metadata.product.title.as_ref() {
                 info!(
                     event = "product",
                     source = "qbt",
                     filename = %product.filename,
                     bytes = product.data.len(),
                     timestamp_utc = unix_seconds(product.source_timestamp_utc),
-                    product_source = ?meta.source,
+                    product_source = ?metadata.product.source,
                     product_title = title,
-                    product_pil = meta.pil.as_deref(),
-                    product_issue_code = meta.issues.first().map(|value| value.code),
+                    product_pil = metadata.product.pil.as_deref(),
+                    product_issue_code = metadata.product.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -58,9 +62,9 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     filename = %product.filename,
                     bytes = product.data.len(),
                     timestamp_utc = unix_seconds(product.source_timestamp_utc),
-                    product_source = ?meta.source,
-                    product_pil = meta.pil.as_deref(),
-                    product_issue_code = meta.issues.first().map(|value| value.code),
+                    product_source = ?metadata.product.source,
+                    product_pil = metadata.product.pil.as_deref(),
+                    product_issue_code = metadata.product.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -71,7 +75,7 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
             subject,
             delay_stamp_utc,
         } => {
-            if let Some(title) = meta.title {
+            if let Some(title) = metadata.product.title.as_ref() {
                 info!(
                     event = "product",
                     source = "wxwire",
@@ -81,10 +85,10 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     message_id = %message_id,
                     subject = %subject,
                     delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
-                    product_source = ?meta.source,
+                    product_source = ?metadata.product.source,
                     product_title = title,
-                    product_pil = meta.pil.as_deref(),
-                    product_issue_code = meta.issues.first().map(|value| value.code),
+                    product_pil = metadata.product.pil.as_deref(),
+                    product_issue_code = metadata.product.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );
@@ -98,9 +102,9 @@ pub(super) fn log_product_event(product: &ReceivedProduct, text_preview_chars: u
                     message_id = %message_id,
                     subject = %subject,
                     delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
-                    product_source = ?meta.source,
-                    product_pil = meta.pil.as_deref(),
-                    product_issue_code = meta.issues.first().map(|value| value.code),
+                    product_source = ?metadata.product.source,
+                    product_pil = metadata.product.pil.as_deref(),
+                    product_issue_code = metadata.product.issues.first().map(|value| value.code),
                     preview = preview.as_deref(),
                     "ingest event"
                 );

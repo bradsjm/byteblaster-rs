@@ -28,6 +28,8 @@ struct LiveOptions {
     servers: Vec<String>,
     /// Path to persisted server list.
     server_list_path: Option<String>,
+    /// Product/file metadata filter compiled from --filter flags.
+    file_filter: Option<crate::live::filter::FileEventFilter>,
     /// Maximum number of events to process.
     max_events: usize,
     /// Idle timeout before disconnecting (in seconds).
@@ -52,25 +54,28 @@ enum Commands {
         #[arg(long)]
         output_dir: Option<String>,
         /// Account username for live mode authentication.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_USERNAME")]
         username: Option<String>,
         /// Password for receivers that require one (for example wxwire).
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_PASSWORD")]
         password: Option<String>,
         /// Receiver backend to use in live mode.
-        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        #[arg(long, value_enum, env = "EMWIN_RECEIVER", default_value_t = ReceiverKind::Qbt)]
         receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
-        #[arg(long = "server", value_delimiter = ',')]
+        #[arg(long = "server", env = "EMWIN_SERVER", value_delimiter = ',')]
         servers: Vec<String>,
         /// Path to persisted server list file.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_SERVER_LIST_PATH")]
         server_list_path: Option<String>,
+        /// Repeatable file metadata filters using server /events field names.
+        #[arg(long = "filter")]
+        filters: Vec<String>,
         /// Maximum number of events to process.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_MAX_EVENTS")]
         max_events: Option<usize>,
         /// Idle timeout in seconds.
-        #[arg(long, default_value_t = 90)]
+        #[arg(long, env = "EMWIN_IDLE_TIMEOUT_SECS", default_value_t = 90)]
         idle_timeout_secs: u64,
     },
     /// Download and assemble files from a live server.
@@ -78,64 +83,67 @@ enum Commands {
         /// Output directory for downloaded files.
         output_dir: String,
         /// Account username for live mode authentication.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_USERNAME")]
         username: Option<String>,
         /// Password for receivers that require one (for example wxwire).
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_PASSWORD")]
         password: Option<String>,
         /// Receiver backend to use in live mode.
-        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        #[arg(long, value_enum, env = "EMWIN_RECEIVER", default_value_t = ReceiverKind::Qbt)]
         receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
-        #[arg(long = "server", value_delimiter = ',')]
+        #[arg(long = "server", env = "EMWIN_SERVER", value_delimiter = ',')]
         servers: Vec<String>,
         /// Path to persisted server list file.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_SERVER_LIST_PATH")]
         server_list_path: Option<String>,
+        /// Repeatable file metadata filters using server /events field names.
+        #[arg(long = "filter")]
+        filters: Vec<String>,
         /// Maximum number of events to process.
-        #[arg(long, default_value_t = 200)]
+        #[arg(long, env = "EMWIN_MAX_EVENTS", default_value_t = 200)]
         max_events: usize,
         /// Idle timeout in seconds.
-        #[arg(long, default_value_t = 90)]
+        #[arg(long, env = "EMWIN_IDLE_TIMEOUT_SECS", default_value_t = 90)]
         idle_timeout_secs: u64,
     },
     /// Run HTTP server with SSE endpoints.
     Server {
         /// Account username for authentication.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_USERNAME")]
         username: String,
         /// Password for receivers that require one (for example wxwire).
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_PASSWORD")]
         password: Option<String>,
         /// Receiver backend to use.
-        #[arg(long, value_enum, default_value_t = ReceiverKind::Qbt)]
+        #[arg(long, value_enum, env = "EMWIN_RECEIVER", default_value_t = ReceiverKind::Qbt)]
         receiver: ReceiverKind,
         /// Custom server endpoints (comma-separated or multiple).
-        #[arg(long = "server", value_delimiter = ',')]
+        #[arg(long = "server", env = "EMWIN_SERVER", value_delimiter = ',')]
         servers: Vec<String>,
         /// Path to persisted server list file.
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_SERVER_LIST_PATH")]
         server_list_path: Option<String>,
         /// Bind address for the HTTP server.
-        #[arg(long, default_value = "127.0.0.1:8080")]
+        #[arg(long, env = "EMWIN_BIND", default_value = "127.0.0.1:8080")]
         bind: String,
         /// CORS origin header (use "*" for any).
-        #[arg(long)]
+        #[arg(long, env = "EMWIN_CORS_ORIGIN")]
         cors_origin: Option<String>,
         /// Maximum concurrent SSE clients.
-        #[arg(long, default_value_t = 100)]
+        #[arg(long, env = "EMWIN_MAX_CLIENTS", default_value_t = 100)]
         max_clients: usize,
         /// Stats logging interval in seconds (0 to disable).
-        #[arg(long, default_value_t = 30)]
+        #[arg(long, env = "EMWIN_STATS_INTERVAL_SECS", default_value_t = 30)]
         stats_interval_secs: u64,
         /// File retention time in seconds.
-        #[arg(long, default_value_t = 300)]
+        #[arg(long, env = "EMWIN_FILE_RETENTION_SECS", default_value_t = 300)]
         file_retention_secs: u64,
         /// Maximum number of retained files.
-        #[arg(long, default_value_t = 1000)]
+        #[arg(long, env = "EMWIN_MAX_RETAINED_FILES", default_value_t = 1000)]
         max_retained_files: usize,
         /// Suppress non-error output.
-        #[arg(long, default_value_t = false)]
+        #[arg(long, env = "EMWIN_QUIET", default_value_t = false)]
         quiet: bool,
     },
     /// Run low-latency EMWIN passthrough relay.
@@ -151,7 +159,7 @@ enum Commands {
 #[command(about = "EMWIN console client")]
 struct Cli {
     /// Maximum characters for text preview.
-    #[arg(long, default_value_t = 80)]
+    #[arg(long, env = "EMWIN_TEXT_PREVIEW_CHARS", default_value_t = 80)]
     text_preview_chars: usize,
     /// Subcommand to execute.
     #[command(subcommand)]
@@ -160,6 +168,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> crate::error::CliResult<()> {
+    let _ = dotenvy::dotenv();
     let cli = Cli::parse();
     init_logging();
     let text_preview_chars = cli.text_preview_chars;
@@ -172,6 +181,7 @@ async fn main() -> crate::error::CliResult<()> {
             receiver,
             servers,
             server_list_path,
+            filters,
             max_events,
             idle_timeout_secs,
         } => {
@@ -181,6 +191,7 @@ async fn main() -> crate::error::CliResult<()> {
                 password,
                 servers,
                 server_list_path,
+                file_filter: crate::live::filter::FileEventFilter::from_cli_filters(&filters)?,
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
             };
@@ -193,6 +204,7 @@ async fn main() -> crate::error::CliResult<()> {
             receiver,
             servers,
             server_list_path,
+            filters,
             max_events,
             idle_timeout_secs,
         } => {
@@ -202,6 +214,7 @@ async fn main() -> crate::error::CliResult<()> {
                 password,
                 servers,
                 server_list_path,
+                file_filter: crate::live::filter::FileEventFilter::from_cli_filters(&filters)?,
                 max_events,
                 idle_timeout_secs,
             };

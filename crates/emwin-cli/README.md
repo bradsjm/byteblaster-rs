@@ -30,17 +30,53 @@ For `stream` and `download`:
 - `--password <PASSWORD>` (required when `--receiver wxwire`)
 - `--server <host:port>` (optional, repeatable or comma-delimited)
 - `--server-list-path <PATH>` (optional persisted server list path)
+- `--filter <key=value>` (optional, repeatable; reuses `server /events` file filter keys such as `has_issues=true` or `issue_code=invalid_wmo_header`)
 - `--max-events <N>` (optional for `stream`; default `200` for `download`)
 - `--idle-timeout-secs <SECONDS>` (default `90`)
 
 Additional `stream` option:
 
-- `--output-dir <PATH>` (optional; writes each completed file assembled from streamed blocks)
+- `--output-dir <PATH>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
+
+Additional `download` behavior:
+
+- each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
+- sidecar names replace the original extension, for example `AFDBOX.TXT` -> `AFDBOX.JSON`
 
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
 When `--server` is provided for QBT live mode, the CLI now pins that explicit server set across
 `stream`, `download`, and `server` instead of later replacing it with server-list updates.
+
+## Environment variables and `.env`
+
+The CLI loads `.env` from the current working directory before parsing arguments.
+Precedence is:
+
+- CLI args
+- process environment
+- `.env`
+- built-in defaults
+
+Supported environment variables include:
+
+- `EMWIN_TEXT_PREVIEW_CHARS`
+- `EMWIN_RECEIVER`
+- `EMWIN_USERNAME`
+- `EMWIN_PASSWORD`
+- `EMWIN_SERVER`
+- `EMWIN_SERVER_LIST_PATH`
+- `EMWIN_MAX_EVENTS`
+- `EMWIN_IDLE_TIMEOUT_SECS`
+- `EMWIN_BIND`
+- `EMWIN_CORS_ORIGIN`
+- `EMWIN_MAX_CLIENTS`
+- `EMWIN_STATS_INTERVAL_SECS`
+- `EMWIN_FILE_RETENTION_SECS`
+- `EMWIN_MAX_RETAINED_FILES`
+- `EMWIN_QUIET`
+
+Filters are intentionally not configurable through environment variables.
 
 ## Examples
 
@@ -49,7 +85,9 @@ Live mode:
 ```bash
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
+cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
 cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- download ./out --username you@example.com --filter issue_code=invalid_wmo_header
 cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password your-pass --max-events 100
 cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@example.com --password your-pass --idle-timeout-secs 30
 ```

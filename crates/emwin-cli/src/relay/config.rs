@@ -32,29 +32,29 @@ use std::time::Duration;
 
 #[derive(Debug, Clone, Args)]
 pub struct RelayArgs {
-    #[arg(long)]
+    #[arg(long, env = "EMWIN_USERNAME")]
     pub username: String,
-    #[arg(long = "server", value_delimiter = ',')]
+    #[arg(long = "server", env = "EMWIN_SERVER", value_delimiter = ',')]
     pub servers: Vec<String>,
-    #[arg(long, default_value = "0.0.0.0:2211")]
+    #[arg(long, env = "EMWIN_BIND", default_value = "0.0.0.0:2211")]
     pub bind: String,
-    #[arg(long, default_value_t = 100)]
+    #[arg(long, env = "EMWIN_MAX_CLIENTS", default_value_t = 100)]
     pub max_clients: usize,
-    #[arg(long, default_value_t = 720)]
+    #[arg(long, env = "EMWIN_AUTH_TIMEOUT_SECS", default_value_t = 720)]
     pub auth_timeout_secs: u64,
-    #[arg(long, default_value_t = 65_536)]
+    #[arg(long, env = "EMWIN_CLIENT_BUFFER_BYTES", default_value_t = 65_536)]
     pub client_buffer_bytes: usize,
-    #[arg(long, default_value = "127.0.0.1:9090")]
+    #[arg(long, env = "EMWIN_METRICS_BIND", default_value = "127.0.0.1:9090")]
     pub metrics_bind: String,
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, env = "EMWIN_RECONNECT_DELAY_SECS", default_value_t = 5)]
     pub reconnect_delay_secs: u64,
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, env = "EMWIN_CONNECT_TIMEOUT_SECS", default_value_t = 5)]
     pub connect_timeout_secs: u64,
-    #[arg(long, default_value_t = 60)]
+    #[arg(long, env = "EMWIN_QUALITY_WINDOW_SECS", default_value_t = 60)]
     pub quality_window_secs: usize,
-    #[arg(long, default_value_t = 0.95)]
+    #[arg(long, env = "EMWIN_QUALITY_PAUSE_THRESHOLD", default_value_t = 0.95)]
     pub quality_pause_threshold: f64,
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, env = "EMWIN_METRICS_LOG_INTERVAL_SECS", default_value_t = 30)]
     pub metrics_log_interval_secs: u64,
 }
 

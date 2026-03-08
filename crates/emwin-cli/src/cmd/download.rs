@@ -3,7 +3,7 @@
 //! This module provides functionality to download and assemble files from
 //! live EMWIN servers.
 
-use crate::live::file_pipeline::persist_completed_file;
+use crate::live::file_pipeline::{build_completed_file_metadata, persist_completed_record};
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};
 use emwin_protocol::ingest::IngestEvent;
 use futures::StreamExt;
@@ -37,6 +37,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
     std::fs::create_dir_all(output_dir)?;
     let output_dir_path = PathBuf::from(output_dir);
     let mut written_files = Vec::new();
+    let mut written_metadata_files = Vec::new();
     let mut file_events = Vec::new();
     let mut ingest = LiveIngest::build(LiveIngestRequest {
         live: &live,
@@ -60,13 +61,26 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
         match item {
             Ok(IngestEvent::Product(product)) => {
                 seen += 1;
-                let completed = persist_completed_file(
+                let metadata = build_completed_file_metadata(
+                    &product.filename,
+                    crate::live::shared::unix_seconds(product.source_timestamp_utc),
+                    &product.data,
+                );
+                if live
+                    .file_filter
+                    .as_ref()
+                    .is_some_and(|filter| !filter.matches_metadata(&metadata))
+                {
+                    continue;
+                }
+                let completed = persist_completed_record(
                     output_dir_path.as_path(),
                     &product.filename,
                     &product.data,
-                    product.source_timestamp_utc,
+                    metadata,
                 )?;
                 written_files.push(completed.path);
+                written_metadata_files.push(completed.metadata_path);
                 file_events.push(completed.metadata);
             }
             Ok(IngestEvent::Telemetry(_)) | Ok(IngestEvent::Warning(_)) => {
@@ -92,6 +106,7 @@ async fn run_live_mode(output_dir: &str, live: crate::LiveOptions) -> crate::err
             "receiver": format!("{receiver:?}").to_ascii_lowercase(),
             "output_dir":output_dir,
             "written_files": written_files,
+            "written_metadata_files": written_metadata_files,
             "file_events": file_events,
         }))?
     );

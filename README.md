@@ -71,7 +71,9 @@ Live stream/download mode:
 ```bash
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
+cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
 cargo run -p emwin-cli -- download ./out --username you@example.com --idle-timeout-secs 30
+cargo run -p emwin-cli -- download ./out --username you@example.com --filter issue_code=invalid_wmo_header
 cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
 cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@example.com --password 'secret'
 ```
@@ -79,7 +81,9 @@ cargo run -p emwin-cli -- download ./out --receiver wxwire --username you@exampl
 Optional stream file writing:
 
 - `stream --output-dir <PATH>` writes each completed assembled file while still emitting stream events.
+- `stream --filter <key=value>` filters product/file events using the same keys as `server /events`, for example `has_issues=true` or `issue_code=invalid_wmo_header`.
 - Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
+- `download` writes both the payload file and a sibling `.JSON` metadata sidecar for each persisted product.
 
 CLI logging format:
 
@@ -145,6 +149,13 @@ Optional live-mode endpoint/persistence overrides:
 
 - `--server host:port` (repeatable or comma-delimited)
 - `--server-list-path ./servers.json`
+
+Environment and `.env` support:
+
+- `.env` from the current working directory is loaded before CLI parsing.
+- CLI args override process env; process env overrides `.env`.
+- Useful variables include `EMWIN_RECEIVER`, `EMWIN_USERNAME`, `EMWIN_PASSWORD`, `EMWIN_SERVER`, `EMWIN_SERVER_LIST_PATH`, `EMWIN_MAX_EVENTS`, `EMWIN_IDLE_TIMEOUT_SECS`, `EMWIN_BIND`, `EMWIN_CORS_ORIGIN`, `EMWIN_MAX_CLIENTS`, `EMWIN_STATS_INTERVAL_SECS`, `EMWIN_FILE_RETENTION_SECS`, `EMWIN_MAX_RETAINED_FILES`, `EMWIN_QUIET`, and `EMWIN_TEXT_PREVIEW_CHARS`.
+- Filters are CLI-only and are not loaded from environment variables.
 
 Relay mode (raw TCP passthrough + metrics):
 

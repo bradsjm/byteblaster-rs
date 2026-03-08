@@ -13,6 +13,7 @@
 
 mod common;
 
+use crate::live::file_pipeline::{build_completed_file_metadata, persist_completed_record};
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};
 use common::{LiveStats, log_completed_file, log_ingest_warning, log_product_event};
 use emwin_protocol::ingest::{IngestEvent, IngestTelemetry};
@@ -57,13 +58,25 @@ pub async fn run(
             Ok(IngestEvent::Product(product)) => {
                 seen += 1;
                 stats.products_total = stats.products_total.saturating_add(1);
-                log_product_event(&product, text_preview_chars);
+                let metadata = build_completed_file_metadata(
+                    &product.filename,
+                    crate::live::shared::unix_seconds(product.source_timestamp_utc),
+                    &product.data,
+                );
+                if live
+                    .file_filter
+                    .as_ref()
+                    .is_some_and(|filter| !filter.matches_metadata(&metadata))
+                {
+                    continue;
+                }
+                log_product_event(&product, &metadata, text_preview_chars);
                 if let Some(output_dir) = output_dir_path.as_deref() {
-                    let completed = crate::live::file_pipeline::persist_completed_file(
+                    let completed = persist_completed_record(
                         output_dir,
                         &product.filename,
                         &product.data,
-                        product.source_timestamp_utc,
+                        metadata,
                     )?;
                     log_completed_file(&completed);
                     written_files.push(completed.path);

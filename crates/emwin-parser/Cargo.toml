@@ -9,7 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+bstr.workspace = true
 chrono.workspace = true
+memchr.workspace = true
 regex.workspace = true
 serde.workspace = true
 thiserror.workspace = true

@@ -1,29 +1,190 @@
 # emwin-parser
 
-WMO/AFOS text product parsing library for weather and aviation meteorological products.
+Parser and enrichment library for EMWIN weather products, WMO/AFOS text bulletins, and related structured weather metadata.
 
-## Overview
+## What This Crate Does
 
-This crate provides parsing, enrichment, and lookup capabilities for WMO (World Meteorological Organization) and AFOS (Automation of Field Operations and Services) formatted text products commonly used in meteorological broadcasting systems.
+`emwin-parser` handles two related jobs:
 
-## Features
+1. Parse WMO/AFOS text headers and enrich them with catalog metadata.
+2. Classify whole products and, when supported, decode them into structured bulletin families or parsed body features.
 
-- **WMO header parsing**: Extracts TTAAII, CCCC, DDHHMM, and optional BBB indicators
-- **AFOS PIL extraction**: Parses the Product Identifier Line (PIL) with robust error handling
-- **Text conditioning**: Handles SOH/ETX control characters, null bytes, missing LDM sequences
-- **Structured bulletin enrichment**: Detects and decodes FD winds aloft, PIREPs, SIGMETs, METAR collectives, TAF bulletins, and Wallops DCP telemetry bulletins
-- **PIL lookup**: Built-in product type descriptions for common meteorological products
-- **UGC geography lookup**: Built-in county and zone name catalogs keyed by canonical UGC codes
-- **Header enrichment**: Classifies BBB indicators (Amendment, Correction, Delayed Repeat)
-- **Zero-copy parsing**: Efficient byte-based parsing with minimal allocations
+The crate is intentionally split between a small public API and an internal staged pipeline.
+
+## Scope
+
+The crate currently supports:
+
+- WMO header parsing
+- AFOS PIL parsing
+- Header enrichment from the generated PIL catalog
+- Generic body enrichment for products that carry:
+  - UGC
+  - VTEC
+  - HVTEC
+  - `LAT...LON`
+  - `TIME...MOT...LOC`
+  - wind/hail tags
+- Structured specialized parsing for:
+  - FD winds and temperatures aloft bulletins
+  - PIREP bulletins
+  - SIGMET bulletins
+  - METAR collectives
+  - TAF bulletins
+  - GOES DCP telemetry bulletins
+- Filename-based classification for supported non-text products
+- WMO-only fallback handling for valid bulletins that do not carry AFOS lines
+
+## Architecture
+
+### High-Level Flow
+
+The public `enrich_product()` entrypoint is a thin facade over an internal parsing pipeline:
+
+```text
+raw bytes + filename
+        |
+        v
++------------------+
+| Normalization    |
+| - container kind |
+| - text detection |
+| - single buffer  |
++------------------+
+        |
+        v
++------------------+
+| Envelope Build   |
+| - condition text |
+| - parse AFOS/WMO |
+| - body range     |
++------------------+
+        |
+        v
++------------------+
+| Classification   |
+| - strategy order |
+| - parsed         |
+|   candidates     |
++------------------+
+        |
+        v
++------------------+
+| Assembly         |
+| - ProductEnrich. |
+| - issues/output  |
++------------------+
+```
+
+### Internal Module Layout
+
+```text
+crates/emwin-parser/src
+|
++-- header/
+|   +-- parser.rs    # WMO/AFOS parsing and conditioning
+|   +-- enrich.rs    # PIL/BBB metadata enrichment
+|
++-- body/
+|   +-- enrich.rs    # generic parsed body assembly
+|   +-- ugc.rs
+|   +-- vtec.rs
+|   +-- hvtec.rs
+|   +-- latlon.rs
+|   +-- time_mot_loc.rs
+|   +-- wind_hail.rs
+|
++-- pipeline/
+|   +-- normalize.rs # single-buffer input normalization
+|   +-- envelope.rs  # parseable envelope construction
+|   +-- classify.rs  # ordered strategy registry
+|   +-- candidate.rs # parsed intermediate candidates
+|   +-- assemble.rs  # ProductEnrichment conversion
+|
++-- fd.rs
++-- pirep.rs
++-- sigmet.rs
++-- metar.rs
++-- taf.rs
++-- dcp.rs
++-- data/
+    +-- generated_*  # compiled lookup tables
+```
+
+### Ownership Model
+
+The internal parser path is optimized around a single normalized backing buffer per text payload.
+
+```text
+incoming bytes
+    |
+    v
+[ normalized owned Vec<u8> ]
+    |            |
+    |            +--> text range
+    |
+    +--> conditioned text
+             |
+             +--> header refs
+             +--> body range
+             +--> strategy input
+```
+
+That design cuts the highest-value shared-path allocation costs without exposing borrowed lifetime-heavy types in the public API. Public result types such as `TextProductHeader`, `WmoHeader`, and `ProductEnrichment` remain owned and stable.
+
+## Product Routing Model
+
+Classification is ordered and explicit.
+
+### AFOS-backed text products
+
+```text
+Text AFOS envelope
+    |
+    +--> FD strategy
+    +--> PIREP strategy
+    +--> SIGMET strategy
+    +--> generic text fallback
+```
+
+### WMO-only text bulletins
+
+```text
+WMO-only envelope
+    |
+    +--> FD
+    +--> METAR
+    +--> TAF
+    +--> DCP
+    +--> SIGMET
+    +--> unsupported AIRMET
+    +--> unsupported surface observation
+    +--> unsupported Canadian text
+    +--> unsupported valid WMO fallback
+```
+
+The classifier produces parsed candidates, not just product kinds. Assembly then converts those candidates into the public `ProductEnrichment` shape without reparsing.
+
+## Public API
+
+The core entrypoints are:
+
+- `parse_text_product(bytes) -> Result<TextProductHeader, ParserError>`
+- `enrich_header(&TextProductHeader) -> TextProductEnrichment`
+- `enrich_product(filename, bytes) -> ProductEnrichment`
+- body parsers such as:
+  - `parse_ugc_sections`
+  - `parse_vtec_codes`
+  - `parse_hvtec_codes`
+  - `parse_latlon_polygons`
+  - `parse_time_mot_loc_entries`
+  - `parse_wind_hail_entries`
 
 ## Installation
 
-Add this crate to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-emwin-parser = { git = "https://github.com/bradsjm/emwin-rs", tag = "v0.2.0", package = "emwin-parser" }
+emwin-parser = { git = "https://github.com/bradsjm/emwin-rs", tag = "v0.3.0", package = "emwin-parser" }
 ```
 
 For local development:
@@ -35,252 +196,169 @@ emwin-parser = { path = "../emwin-rs/crates/emwin-parser" }
 
 ## Usage
 
-### Basic Header Parsing
-
-Parse a WMO/AFOS text product header:
+### Parse a Text Product Header
 
 ```rust
-use emwin_parser::{parse_text_product, TextProductHeader};
+use emwin_parser::{TextProductHeader, parse_text_product};
 
 let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
 let header: TextProductHeader = parse_text_product(raw_text)?;
 
-println!("AFOS PIL: {}", header.afos);      // AFDBOX
-println!("Station: {}", header.cccc);      // KBOX
-println!("Time: {}", header.ddhhmm);       // 022101
-println!("Type: {}", header.ttaaii);       // FXUS61
-println!("Correction: {:?}", header.bbb);  // None
+assert_eq!(header.ttaaii, "FXUS61");
+assert_eq!(header.cccc, "KBOX");
+assert_eq!(header.ddhhmm, "022101");
+assert_eq!(header.afos, "AFDBOX");
+# Ok::<(), emwin_parser::ParserError>(())
 ```
 
-### Header Enrichment
-
-Add semantic information to parsed headers:
+### Enrich a Header
 
 ```rust
-use emwin_parser::{parse_text_product, enrich_header};
+use emwin_parser::{enrich_header, parse_text_product};
 
-let header = parse_text_product(raw_text)?;
+let header = parse_text_product(b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n")?;
 let enriched = enrich_header(&header);
 
-if let Some(pil_desc) = enriched.pil_description {
-    println!("Product type: {}", pil_desc);  // "Area Forecast Discussion"
-}
-
-if let Some(bbb_kind) = enriched.bbb_kind {
-    println!("This is a {:?}", bbb_kind);  // Amendment, Correction, etc.
-}
+assert_eq!(enriched.pil_nnn, Some("TAF"));
+assert_eq!(enriched.pil_description, Some("Terminal Aerodrome Forecast"));
+# Ok::<(), emwin_parser::ParserError>(())
 ```
 
-### Product Enrichment
-
-`enrich_product()` routes supported bulletins into structured families when the
-body shape is deterministic enough to parse safely.
-
-Current structured families include:
-
-- FD winds and temperatures aloft bulletins
-- PIREP bulletins
-- SIGMET bulletins
-- METAR collectives
-- TAF bulletins
-- GOES DCP telemetry bulletins
-
-### PIL Lookup
-
-Look up product type descriptions by PIL prefix:
+### Enrich a Whole Product
 
 ```rust
-use emwin_parser::pil_description;
+use emwin_parser::{ProductEnrichmentSource, enrich_product};
 
-assert_eq!(pil_description("AFD"), Some("Area Forecast Discussion"));
-assert_eq!(pil_description("SVR"), Some("Severe Thunderstorm Warning"));
-assert_eq!(pil_description("TOR"), Some("Tornado Warning"));
-assert_eq!(pil_description("ZZZ"), None);  // Unknown product type
+let enrichment = enrich_product(
+    "SAGL31.TXT",
+    b"000 \nSAGL31 BGGH 070200\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n",
+);
+
+assert_eq!(enrichment.source, ProductEnrichmentSource::WmoMetarBulletin);
+assert_eq!(enrichment.family, Some("metar_collective"));
+assert!(enrichment.metar.is_some());
 ```
 
-### Text Conditioning
-
-The parser handles various text encoding issues automatically:
+### Parse Generic Body Features
 
 ```rust
-// SOH/ETX control characters are stripped
+use emwin_parser::parse_vtec_codes;
+
+let vtec = parse_vtec_codes("/O.NEW.KOAX.TO.W.0021.250601T2300Z-250602T0000Z/\n");
+assert_eq!(vtec.len(), 1);
+```
+
+## Output Shape
+
+`enrich_product()` returns a single `ProductEnrichment` value that can carry:
+
+- source classification
+- product family/title
+- AFOS header or WMO-only header
+- office metadata
+- generic parsed body content
+- one specialized parsed bulletin payload
+- zero or more parse issues
+
+Conceptually:
+
+```text
+ProductEnrichment
+|
++-- source
++-- family/title
++-- container
++-- pil / wmo_prefix / office
++-- header | wmo_header
++-- bbb_kind
++-- body
++-- metar | taf | dcp | fd | pirep | sigmet
++-- issues[]
+```
+
+The current public shape is intentionally stable even though the internal pipeline is more structured than the flat result object suggests.
+
+## Text Conditioning Behavior
+
+Header parsing and product enrichment both account for common EMWIN text artifacts:
+
+- strips `\0`
+- strips `\r`
+- strips SOH/ETX framing
+- inserts a synthetic LDM line when missing
+- accepts 4-character `TTAAII` and normalizes it to 6 characters by appending `00`
+
+Example cases:
+
+```rust
+use emwin_parser::parse_text_product;
+
 let with_controls = b"\x01123\n000 \nFXUS61 KBOX 022101\nAFDBOX\nbody\x03";
-let header = parse_text_product(with_controls)?;
-
-// Null bytes are removed
 let with_nulls = b"000 \nFXUS61 KBOX 022101\nAFD\0BOX\nbody";
-let header = parse_text_product(with_nulls)?;
-
-// Missing LDM sequence is auto-inserted
 let missing_ldm = b"FXUS61 KBOX 022101\nAFDBOX\nbody\n";
-let header = parse_text_product(missing_ldm)?;
+
+assert_eq!(parse_text_product(with_controls)?.afos, "AFDBOX");
+assert_eq!(parse_text_product(with_nulls)?.afos, "AFDBOX");
+assert_eq!(parse_text_product(missing_ldm)?.afos, "AFDBOX");
+# Ok::<(), emwin_parser::ParserError>(())
 ```
 
-## API Reference
+## Metadata Catalogs
 
-### `parse_text_product`
+The crate ships generated lookup tables for:
 
-Parses a WMO/AFOS text product header from raw bytes.
+- PIL catalog entries
+- WMO office metadata
+- UGC county and zone metadata
+- NWSLID metadata
 
-```rust
-pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError>
-```
+Relevant helpers include:
 
-**Returns**: `TextProductHeader` containing:
-- `ttaaii`: WMO product type indicator (6 chars, normalized from 4 to "00")
-- `cccc`: 4-letter ICAO station code
-- `ddhhmm`: Day and time (UTC)
-- `bbb`: Optional BBB indicator (CORrection, AMEndment, RR, etc.)
-- `afos`: Product Identifier Line (6 chars)
+- `pil_description`
+- `pil_catalog_entry`
+- `wmo_prefix_for_pil`
+- `wmo_office_entry`
+- `ugc_county_entry`
+- `ugc_zone_entry`
+- `nwslid_entry`
 
-**Errors**:
-- `EmptyInput`: Text is empty after conditioning
-- `MissingWmoLine`: No WMO header line found
-- `InvalidWmoHeader`: WMO header format is invalid
-- `MissingAfosLine`: No AFOS line found
-- `MissingAfos`: Cannot parse AFOS PIL from line
-
-### `enrich_header`
-
-Enriches a parsed header with semantic information.
-
-```rust
-pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_>
-```
-
-**Returns**: `TextProductEnrichment` containing:
-- `pil_nnn`: First 3 characters of AFOS PIL
-- `pil_description`: Human-readable product type description (if known)
-- `flags`: Product capability flags from the PIL catalog (if known)
-- `bbb_kind`: Classified BBB indicator (Amendment, Correction, DelayedRepeat, Other)
-
-### `pil_description`
-
-Looks up a product type description by PIL prefix.
-
-```rust
-pub fn pil_description(nnn: &str) -> Option<&'static str>
-```
-
-**Returns**: Description string if the PIL prefix is known, `None` otherwise.
-
-### UGC Lookup
-
-Look up county and zone metadata by canonical UGC code:
-
-```rust
-use emwin_parser::{ugc_county_entry, ugc_zone_entry};
-
-assert_eq!(ugc_county_entry("ALC001").map(|entry| entry.name), Some("Autauga"));
-assert_eq!(
-    ugc_zone_entry("AKZ317").map(|entry| entry.name),
-    Some("City and Borough of Yakutat")
-);
-```
-
-Parsed UGC sections now emit compact enriched area objects:
-
-```json
-{
-  "counties": {
-    "AL": [
-      { "id": 1, "name": "Autauga", "lat": 32.5349, "lon": -86.6428 },
-      { "id": 3, "name": "Baldwin", "lat": 30.7273, "lon": -87.7169 },
-      { "id": 5, "name": "Barbour", "lat": 31.8696, "lon": -85.3932 }
-    ]
-  }
-}
-```
-
-### WMO Office Lookup
-
-Look up WMO office metadata by 3-letter office code or 4-letter `CCCC`:
-
-```rust
-use emwin_parser::wmo_office_entry;
-
-assert_eq!(
-    wmo_office_entry("LWX").map(|entry| entry.office_name),
-    Some("WFO Baltimore/Washington")
-);
-assert_eq!(
-    wmo_office_entry("KLWX").map(|entry| entry.city),
-    Some("Baltimore/Washington")
-);
-```
+These generated tables are also what drive generic body parsing flags and parts of header enrichment.
 
 ## Error Handling
 
-All parsing operations return `Result` types with typed errors:
+Header parsing uses typed `ParserError` values:
 
-```rust
-use emwin_parser::{parse_text_product, ParserError};
+- `EmptyInput`
+- `MissingWmoLine`
+- `InvalidWmoHeader`
+- `MissingAfosLine`
+- `MissingAfos`
 
-match parse_text_product(raw_bytes) {
-    Ok(header) => println!("Parsed: {}", header.afos),
-    Err(ParserError::InvalidWmoHeader { line }) => {
-        eprintln!("Invalid WMO header: {}", line);
-    }
-    Err(ParserError::MissingAfos { line }) => {
-        eprintln!("Cannot parse AFOS from: {}", line);
-    }
-    Err(e) => eprintln!("Parse error: {}", e),
-}
-```
+Whole-product parsing reports issues through `ProductEnrichment.issues`.
 
-## PIL Metadata
+That separation is deliberate:
 
-The built-in PIL lookup table includes:
+- `parse_text_product()` is a strict parser API
+- `enrich_product()` is a resilient enrichment API
 
-- `PIL_ENTRY_COUNT`: Number of product types in the lookup table
-- `PIL_GENERATED_AT_UTC`: Timestamp when the PIL table was generated
-- `pil_catalog_entry()`: Full metadata including `wmo_prefix`, `title`, `ugc`, `vtec`, `cz`, `latlong`, `time_mot_loc`, `wind_hail`, and `hvtec`
-- `enrich_header()`: Surfaces those catalog flags for parser decisions and header enrichment
+## Current Limitations
 
-The built-in UGC lookup tables include:
+- The public `ProductEnrichment` result model is still a flat compatibility shape.
+- Only selected specialized bulletin families are parsed structurally.
+- Some valid WMO bulletin families are recognized but intentionally reported as unsupported.
+- Internal performance work is focused on the shared normalization/header/classification path; not every specialized parser has been rewritten around borrowed parsing yet.
 
-- `UGC_COUNTY_ENTRY_COUNT` and `UGC_ZONE_ENTRY_COUNT`: Number of generated county and zone records
-- `UGC_GENERATED_AT_UTC`: Timestamp when the UGC tables were generated
-- `UGC_COUNTY_SOURCE_PATH` and `UGC_ZONE_SOURCE_PATH`: Source JSON files for the generated tables
-- `ugc_county_entry()` and `ugc_zone_entry()`: Full metadata including `code`, `name`, `latitude`, and `longitude`
+## Validation
 
-The built-in WMO office lookup table includes:
-
-- `WMO_OFFICE_ENTRY_COUNT`: Number of generated office records
-- `WMO_OFFICE_GENERATED_AT_UTC`: Timestamp when the office table was generated
-- `WMO_OFFICE_SOURCE_PATH`: Source JSON file for the generated table
-- `wmo_office_entry()`: Full metadata including `code`, `office_name`, `city`, and `state`
-  Serialized product output includes `code`, `city`, and `state`; `office_name` remains available from the lookup API but is omitted from serialized payloads.
-
-## Supported Product Types
-
-The PIL lookup includes common meteorological products:
-
-- **AFD**: Area Forecast Discussion
-- **FFW**: Flash Flood Warning
-- **SVR**: Severe Thunderstorm Warning
-- **TOR**: Tornado Warning
-- **RWT**: Tornado Watch
-- **WSW**: Winter Storm Warning
-- **FTM**: Terminal Aerodrome Forecast (TAF)
-- And hundreds more...
-
-## Testing
-
-Run tests:
+From the repository root:
 
 ```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test -p emwin-parser
 ```
 
-Run specific test:
+## Related Crates
 
-```bash
-cargo test -p emwin-parser wmo_header_variations_parse
-```
-
-## Integration
-
-This crate is used by `emwin-cli` for parsing weather products received via QBT or Weather Wire protocols.
-
-See `emwin-cli/src/cmd/file_pipeline.rs` for usage examples in a real-world application.
+- [`emwin-protocol`](../emwin-protocol/README.md): ingest, transport, and receiver runtime
+- [`emwin-cli`](../emwin-cli/README.md): CLI and server surfaces built on top of parser and protocol crates

@@ -21,8 +21,8 @@ use super::candidate::{
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
-type TextStrategy = fn(&TextClassificationContext) -> Option<ClassificationCandidate>;
-type WmoStrategy = fn(&WmoClassificationContext) -> Option<ClassificationCandidate>;
+type TextStrategy = for<'a> fn(&TextClassificationContext<'a>) -> Option<ClassificationCandidate>;
+type WmoStrategy = for<'a> fn(&WmoClassificationContext<'a>) -> Option<ClassificationCandidate>;
 
 const TEXT_STRATEGIES: &[TextStrategy] =
     &[classify_text_fd, classify_text_pirep, classify_text_sigmet];
@@ -39,15 +39,15 @@ const WMO_STRATEGIES: &[WmoStrategy] = &[
     classify_wmo_unknown_valid,
 ];
 
-/// Owned context shared across AFOS text-product strategies.
+/// Borrowed context shared across AFOS text-product strategies.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct TextClassificationContext {
+struct TextClassificationContext<'a> {
     /// Original filename used for filename-sensitive parsing rules.
-    filename: String,
+    filename: &'a str,
     /// Parsed AFOS text product header.
-    header: TextProductHeader,
+    header: &'a TextProductHeader,
     /// Conditioned body text after header removal.
-    body_text: String,
+    body_text: &'a str,
     /// Three-character PIL prefix when present.
     pil: Option<String>,
     /// Human-readable title from the PIL catalog.
@@ -60,15 +60,15 @@ struct TextClassificationContext {
     reference_time: Option<DateTime<Utc>>,
 }
 
-/// Owned context shared across WMO-only fallback strategies.
+/// Borrowed context shared across WMO-only fallback strategies.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct WmoClassificationContext {
+struct WmoClassificationContext<'a> {
     /// Original filename used by routing-sensitive parsers.
-    filename: String,
+    filename: &'a str,
     /// Parsed WMO header without AFOS state.
-    header: WmoHeader,
+    header: &'a WmoHeader,
     /// Conditioned body text after header removal.
-    body_text: String,
+    body_text: &'a str,
 }
 
 /// Classifies an envelope into a fully parsed internal candidate.
@@ -95,15 +95,18 @@ pub(crate) fn classify(envelope: &ParsedEnvelope) -> ClassificationCandidate {
 }
 
 fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate {
-    let Some(header) = envelope.header.clone() else {
+    if envelope.text_bytes().is_none() {
+        return ClassificationCandidate::Unknown;
+    }
+    let Some(header) = envelope.header.as_ref() else {
         return ClassificationCandidate::Unknown;
     };
-    let Some(body_text) = envelope.body_text.clone() else {
+    let Some(body_text) = envelope.body_text() else {
         return ClassificationCandidate::Unknown;
     };
-    let header_enrichment = enrich_header(&header);
+    let header_enrichment = enrich_header(header);
     let context = TextClassificationContext {
-        filename: envelope.filename.clone(),
+        filename: envelope.filename(),
         pil: header_enrichment.pil_nnn.map(str::to_string),
         title: header_enrichment.pil_description,
         flags: header_enrichment.flags,
@@ -120,8 +123,8 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
     }
 
     ClassificationCandidate::TextGeneric(TextGenericCandidate {
-        header: context.header,
-        body_text: context.body_text,
+        header: context.header.clone(),
+        body_text: context.body_text.to_string(),
         pil: context.pil,
         title: context.title,
         flags: context.flags,
@@ -131,14 +134,17 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
 }
 
 fn classify_wmo_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate {
-    let Some(header) = envelope.wmo_header.clone() else {
+    if envelope.text_bytes().is_none() {
+        return ClassificationCandidate::Unknown;
+    }
+    let Some(header) = envelope.wmo_header.as_ref() else {
         return ClassificationCandidate::Unknown;
     };
-    let Some(body_text) = envelope.body_text.clone() else {
+    let Some(body_text) = envelope.body_text() else {
         return ClassificationCandidate::Unknown;
     };
     let context = WmoClassificationContext {
-        filename: envelope.filename.clone(),
+        filename: envelope.filename(),
         header,
         body_text,
     };
@@ -247,13 +253,13 @@ fn starts_with_icao_sigmet_line(line: &str) -> bool {
     origin.len() == 4 && origin.chars().all(|ch| ch.is_ascii_uppercase()) && sigmet == "SIGMET"
 }
 
-fn classify_text_fd(context: &TextClassificationContext) -> Option<ClassificationCandidate> {
+fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
     let reference_time = context.reference_time?;
-    if !looks_like_fd_text_product(&context.header.afos, &context.body_text) {
+    if !looks_like_fd_text_product(&context.header.afos, context.body_text) {
         return None;
     }
     let bulletin = parse_fd_bulletin(
-        &context.body_text,
+        context.body_text,
         Some(context.header.afos.as_str()),
         reference_time,
     )?;
@@ -270,11 +276,11 @@ fn classify_text_fd(context: &TextClassificationContext) -> Option<Classificatio
     }))
 }
 
-fn classify_text_pirep(context: &TextClassificationContext) -> Option<ClassificationCandidate> {
-    if !looks_like_pirep_text_product(&context.header.afos, &context.body_text) {
+fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_pirep_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_pirep_bulletin(&context.body_text)?;
+    let bulletin = parse_pirep_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Pirep(PirepCandidate {
         header: context.header.clone(),
@@ -284,11 +290,13 @@ fn classify_text_pirep(context: &TextClassificationContext) -> Option<Classifica
     }))
 }
 
-fn classify_text_sigmet(context: &TextClassificationContext) -> Option<ClassificationCandidate> {
-    if !looks_like_sigmet_text_product(&context.header.afos, &context.body_text) {
+fn classify_text_sigmet(
+    context: &TextClassificationContext<'_>,
+) -> Option<ClassificationCandidate> {
+    if !looks_like_sigmet_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_sigmet_bulletin(&context.body_text)?;
+    let bulletin = parse_sigmet_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
         source: ProductEnrichmentSource::TextSigmetBulletin,
@@ -300,14 +308,14 @@ fn classify_text_sigmet(context: &TextClassificationContext) -> Option<Classific
     }))
 }
 
-fn classify_wmo_fd(context: &WmoClassificationContext) -> Option<ClassificationCandidate> {
+fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
     let reference_time = context.header.timestamp(Utc::now())?;
-    if !looks_like_fd_wmo_bulletin(&context.filename, &context.body_text) {
+    if !looks_like_fd_wmo_bulletin(context.filename, context.body_text) {
         return None;
     }
     let bulletin = parse_fd_bulletin(
-        &context.body_text,
-        Some(filename_stem(&context.filename)),
+        context.body_text,
+        Some(filename_stem(context.filename)),
         reference_time,
     )?;
 
@@ -323,8 +331,8 @@ fn classify_wmo_fd(context: &WmoClassificationContext) -> Option<ClassificationC
     }))
 }
 
-fn classify_wmo_metar(context: &WmoClassificationContext) -> Option<ClassificationCandidate> {
-    let (bulletin, issues) = parse_metar_bulletin(&context.body_text)?;
+fn classify_wmo_metar(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    let (bulletin, issues) = parse_metar_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Metar(MetarCandidate {
         header: context.header.clone(),
@@ -333,8 +341,8 @@ fn classify_wmo_metar(context: &WmoClassificationContext) -> Option<Classificati
     }))
 }
 
-fn classify_wmo_taf(context: &WmoClassificationContext) -> Option<ClassificationCandidate> {
-    let bulletin = parse_taf_bulletin(&context.body_text)?;
+fn classify_wmo_taf(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    let bulletin = parse_taf_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Taf(TafCandidate {
         header: context.header.clone(),
@@ -342,8 +350,8 @@ fn classify_wmo_taf(context: &WmoClassificationContext) -> Option<Classification
     }))
 }
 
-fn classify_wmo_dcp(context: &WmoClassificationContext) -> Option<ClassificationCandidate> {
-    let bulletin = parse_dcp_bulletin(&context.filename, &context.header, &context.body_text)?;
+fn classify_wmo_dcp(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    let bulletin = parse_dcp_bulletin(context.filename, context.header, context.body_text)?;
 
     Some(ClassificationCandidate::Dcp(DcpCandidate {
         header: context.header.clone(),
@@ -351,11 +359,11 @@ fn classify_wmo_dcp(context: &WmoClassificationContext) -> Option<Classification
     }))
 }
 
-fn classify_wmo_sigmet(context: &WmoClassificationContext) -> Option<ClassificationCandidate> {
-    if !looks_like_sigmet_wmo_bulletin(&context.body_text) {
+fn classify_wmo_sigmet(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_sigmet_wmo_bulletin(context.body_text) {
         return None;
     }
-    let bulletin = parse_sigmet_bulletin(&context.body_text)?;
+    let bulletin = parse_sigmet_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
         source: ProductEnrichmentSource::WmoSigmetBulletin,
@@ -368,55 +376,55 @@ fn classify_wmo_sigmet(context: &WmoClassificationContext) -> Option<Classificat
 }
 
 fn classify_wmo_airmet_unsupported(
-    context: &WmoClassificationContext,
+    context: &WmoClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
-    looks_like_airmet_wmo_bulletin(&context.body_text).then(|| {
+    looks_like_airmet_wmo_bulletin(context.body_text).then(|| {
         ClassificationCandidate::UnsupportedWmo(UnsupportedWmoCandidate {
             header: context.header.clone(),
             code: "unsupported_airmet_bulletin",
             message:
                 "recognized valid WMO AIRMET bulletin, but textual AIRMET parsing is not implemented",
-            line: first_nonempty_line(&context.body_text).map(str::to_string),
+            line: first_nonempty_line(context.body_text).map(str::to_string),
         })
     })
 }
 
 fn classify_wmo_surface_observation_unsupported(
-    context: &WmoClassificationContext,
+    context: &WmoClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
-    looks_like_surface_observation_bulletin(&context.body_text).then(|| {
+    looks_like_surface_observation_bulletin(context.body_text).then(|| {
         ClassificationCandidate::UnsupportedWmo(UnsupportedWmoCandidate {
             header: context.header.clone(),
             code: "unsupported_surface_observation_bulletin",
             message:
                 "recognized valid WMO surface observation bulletin, but parsing is not implemented",
-            line: first_nonempty_line(&context.body_text).map(str::to_string),
+            line: first_nonempty_line(context.body_text).map(str::to_string),
         })
     })
 }
 
 fn classify_wmo_canadian_text_unsupported(
-    context: &WmoClassificationContext,
+    context: &WmoClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
-    looks_like_canadian_text_bulletin(&context.header, &context.body_text).then(|| {
+    looks_like_canadian_text_bulletin(context.header, context.body_text).then(|| {
         ClassificationCandidate::UnsupportedWmo(UnsupportedWmoCandidate {
             header: context.header.clone(),
             code: "unsupported_canadian_text_bulletin",
             message: "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
-            line: first_nonempty_line(&context.body_text).map(str::to_string),
+            line: first_nonempty_line(context.body_text).map(str::to_string),
         })
     })
 }
 
 fn classify_wmo_unknown_valid(
-    context: &WmoClassificationContext,
+    context: &WmoClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
     Some(ClassificationCandidate::UnsupportedWmo(
         UnsupportedWmoCandidate {
             header: context.header.clone(),
             code: "unsupported_wmo_bulletin",
             message: "recognized valid WMO bulletin without AFOS line, but no parser is available",
-            line: first_nonempty_line(&context.body_text).map(str::to_string),
+            line: first_nonempty_line(context.body_text).map(str::to_string),
         },
     ))
 }

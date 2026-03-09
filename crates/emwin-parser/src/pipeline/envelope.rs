@@ -4,9 +4,14 @@
 //! classifier and assembler can reason about without repeating header parsing in
 //! the orchestrator.
 
+use std::ops::Range;
+
 use crate::ParserError;
 use crate::data::{NonTextProductMeta, classify_non_text_product};
-use crate::header::{parse_text_product_conditioned, parse_wmo_bulletin_conditioned};
+use crate::header::{
+    ParsedTextProductRef, ParsedWmoBulletinRef, condition_text_bytes,
+    parse_text_product_conditioned_ref, parse_wmo_bulletin_conditioned_ref,
+};
 use crate::{TextProductHeader, WmoHeader};
 
 use super::NormalizedInput;
@@ -26,23 +31,21 @@ pub(crate) enum EnvelopeKind {
 
 /// Internal parse envelope passed between pipeline stages.
 ///
-/// The envelope preserves enough owned state to reconstruct the existing public
-/// `ProductEnrichment` output without forcing the top-level orchestrator to
-/// re-run header parsing.
+/// The envelope owns the normalized backing buffer and stores body ranges into
+/// that buffer instead of rebuilding body strings. Headers remain owned in this
+/// phase so the phase-2 candidate model can stay unchanged.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ParsedEnvelope {
-    /// Original filename of the payload.
-    pub(crate) filename: String,
-    /// Container kind determined during normalization.
-    pub(crate) container: &'static str,
+    /// Normalized input buffer carried through the pipeline.
+    pub(crate) normalized: NormalizedInput,
     /// High-level shape chosen by the envelope builder.
     pub(crate) kind: EnvelopeKind,
     /// Parsed AFOS-aware header for text products.
     pub(crate) header: Option<TextProductHeader>,
     /// Parsed WMO-only header for fallback bulletin handling.
     pub(crate) wmo_header: Option<WmoHeader>,
-    /// Body text extracted after conditioning and header removal.
-    pub(crate) body_text: Option<String>,
+    /// Range into the normalized backing buffer for body text.
+    pub(crate) body_range: Option<Range<usize>>,
     /// Stored parse failure used to preserve legacy issue reporting.
     pub(crate) parse_error: Option<ParserError>,
     /// Filename-derived metadata for non-text products.
@@ -59,29 +62,33 @@ impl ParsedEnvelope {
     /// 4. Non-text filename classification runs for non-text products only.
     /// 5. Anything else remains unknown, optionally retaining the text parse
     ///    error so assembly can emit the same issue shape as before.
-    pub(crate) fn build(normalized: NormalizedInput) -> Self {
-        let NormalizedInput {
-            filename,
-            container,
-            bytes,
-            text: _text,
-            is_text_product,
-        } = normalized;
-
-        if container == "zip" && is_text_product {
-            return Self::unknown(filename, container, None);
+    pub(crate) fn build(mut normalized: NormalizedInput) -> Self {
+        if normalized.container == "zip" && normalized.is_text_product {
+            return Self::unknown(normalized, None);
         }
 
-        if is_text_product {
-            match parse_text_product_conditioned(&bytes) {
+        if normalized.is_text_product {
+            let Some(text_bytes) = normalized.text_bytes() else {
+                return Self::unknown(normalized, None);
+            };
+            let preferred_bytes = normalized.text_str().map_or(text_bytes, str::as_bytes);
+            let conditioned = match condition_text_bytes(preferred_bytes) {
+                Ok(conditioned) => conditioned,
+                Err(error) => return Self::unknown(normalized, Some(error)),
+            };
+
+            match parse_text_product_conditioned_ref(&conditioned) {
                 Ok(parsed) => {
+                    let header = parsed.header.to_owned();
+                    let body_range = body_range(&conditioned, parsed);
+                    normalized.bytes = conditioned.into_bytes();
+                    normalized.text_range = Some(0..normalized.bytes.len());
                     return Self {
-                        filename,
-                        container,
+                        normalized,
                         kind: EnvelopeKind::TextAfos,
-                        header: Some(parsed.header),
+                        header: Some(header),
                         wmo_header: None,
-                        body_text: Some(parsed.body_text),
+                        body_range,
                         parse_error: None,
                         non_text_meta: None,
                     };
@@ -92,55 +99,98 @@ impl ParsedEnvelope {
                         ParserError::MissingAfosLine | ParserError::MissingAfos { .. }
                     );
 
-                    if afos_missing && let Ok(parsed_wmo) = parse_wmo_bulletin_conditioned(&bytes) {
+                    if afos_missing
+                        && let Ok(parsed_wmo) = parse_wmo_bulletin_conditioned_ref(&conditioned)
+                    {
+                        let wmo_header = parsed_wmo.header.to_owned();
+                        let body_range = body_range(&conditioned, parsed_wmo);
+                        normalized.bytes = conditioned.into_bytes();
+                        normalized.text_range = Some(0..normalized.bytes.len());
                         return Self {
-                            filename,
-                            container,
+                            normalized,
                             kind: EnvelopeKind::TextWmoOnly,
                             header: None,
-                            wmo_header: Some(parsed_wmo.header),
-                            body_text: Some(parsed_wmo.body_text),
+                            wmo_header: Some(wmo_header),
+                            body_range,
                             parse_error: Some(error),
                             non_text_meta: None,
                         };
                     }
 
-                    return Self::unknown(filename, container, Some(error));
+                    return Self::unknown(normalized, Some(error));
                 }
             }
         }
 
-        if let Some(non_text_meta) = classify_non_text_product(&filename) {
+        if let Some(non_text_meta) = classify_non_text_product(&normalized.filename) {
             return Self {
-                filename,
-                container,
+                normalized,
                 kind: EnvelopeKind::NonText,
                 header: None,
                 wmo_header: None,
-                body_text: None,
+                body_range: None,
                 parse_error: None,
                 non_text_meta: Some(non_text_meta),
             };
         }
 
-        Self::unknown(filename, container, None)
+        Self::unknown(normalized, None)
     }
 
-    fn unknown(
-        filename: String,
-        container: &'static str,
-        parse_error: Option<ParserError>,
-    ) -> Self {
+    /// Returns the normalized filename.
+    pub(crate) fn filename(&self) -> &str {
+        &self.normalized.filename
+    }
+
+    /// Returns the conditioned text bytes, if the envelope carries text.
+    pub(crate) fn text_bytes(&self) -> Option<&[u8]> {
+        self.normalized.text_bytes()
+    }
+
+    /// Returns the conditioned body text as a borrowed slice of the normalized buffer.
+    pub(crate) fn body_text(&self) -> Option<&str> {
+        let range = self.body_range.as_ref()?;
+        let bytes = self.normalized.bytes.get(range.clone())?;
+        std::str::from_utf8(bytes).ok()
+    }
+
+    fn unknown(normalized: NormalizedInput, parse_error: Option<ParserError>) -> Self {
         Self {
-            filename,
-            container,
+            normalized,
             kind: EnvelopeKind::Unknown,
             header: None,
             wmo_header: None,
-            body_text: None,
+            body_range: None,
             parse_error,
             non_text_meta: None,
         }
+    }
+}
+
+/// Computes the body slice range within the conditioned backing buffer.
+fn body_range<T>(conditioned: &str, parsed: T) -> Option<Range<usize>>
+where
+    T: BorrowedBodyText,
+{
+    let body = parsed.body_text();
+    let start = body.as_ptr() as usize - conditioned.as_ptr() as usize;
+    let end = start + body.len();
+    (end <= conditioned.len()).then_some(start..end)
+}
+
+trait BorrowedBodyText {
+    fn body_text(&self) -> &str;
+}
+
+impl BorrowedBodyText for ParsedTextProductRef<'_> {
+    fn body_text(&self) -> &str {
+        self.body_text
+    }
+}
+
+impl BorrowedBodyText for ParsedWmoBulletinRef<'_> {
+    fn body_text(&self) -> &str {
+        self.body_text
     }
 }
 
@@ -163,7 +213,7 @@ mod tests {
             envelope.header.as_ref().map(|header| header.afos.as_str()),
             Some("TAFPDK")
         );
-        assert_eq!(envelope.body_text.as_deref(), Some("Body"));
+        assert_eq!(envelope.body_text(), Some("Body\n"));
         assert!(envelope.parse_error.is_none());
     }
 
@@ -200,6 +250,7 @@ mod tests {
             envelope.parse_error,
             Some(ParserError::InvalidWmoHeader { .. })
         ));
+        assert!(envelope.body_range.is_none());
     }
 
     #[test]
@@ -220,7 +271,21 @@ mod tests {
         let envelope = ParsedEnvelope::build(normalized);
 
         assert_eq!(envelope.kind, EnvelopeKind::Unknown);
-        assert_eq!(envelope.container, "zip");
+        assert_eq!(envelope.normalized.container, "zip");
         assert!(envelope.parse_error.is_none());
+    }
+
+    #[test]
+    fn wmo_only_envelope_tracks_body_range() {
+        let normalized = NormalizedInput::from_input(
+            "SAGL31.TXT",
+            b"000 \nSAGL31 BGGH 070200\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n",
+        );
+        let envelope = ParsedEnvelope::build(normalized);
+
+        assert_eq!(
+            envelope.body_text(),
+            Some("METAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n")
+        );
     }
 }

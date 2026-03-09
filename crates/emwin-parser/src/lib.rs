@@ -41,6 +41,7 @@ mod geo;
 mod header;
 mod issue;
 mod metar;
+mod pipeline;
 mod pirep;
 mod product;
 mod sigmet;

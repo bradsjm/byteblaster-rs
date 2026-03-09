@@ -118,7 +118,7 @@ impl TextProductHeader {
 }
 
 /// Errors that can occur during text product parsing.
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum ParserError {
     #[error("text payload is empty after conditioning")]
     EmptyInput,

@@ -1,26 +1,12 @@
 //! Minimal FD winds/temps aloft bulletin parsing.
 //!
-//! FD (Forecast Winds and Temperatures Aloft) bulletins contain forecast data
-//! for wind direction, wind speed, and temperature at standard pressure altitudes.
-//! These forecasts are used for flight planning and aviation weather analysis.
-//!
-//! ## FD Bulletin Format
-//!
-//! - Header lines: "DATA BASED ON DDHHMMZ" and "VALID DDHHMMZ"
-//! - Level line: "FT alt1 alt2 alt3 ..." (altitudes in hundreds of feet)
-//! - Data lines: "STATION dirspd dirspd ..." where dirspd encodes wind and temp
-//!
-//! ## Wind/Temperature Encoding
-//!
-//! - 4-digit codes: `DDSS` -> direction (DD*10), speed (SS) in knots
-//! - 6-digit codes: `DDSSXX` -> direction, speed, temperature in Celsius
-//! - Special code 9900 indicates calm winds (0° direction, 0 kt speed)
-//! - Direction >= 500 indicates speed > 100 knots (subtract 500 from direction, add 100 to speed)
+//! FD parsing is inherently line-structured, so this implementation keeps the
+//! parser line-oriented instead of re-normalizing the whole bulletin into one
+//! large string. That removes the old regex scan for header timestamps and
+//! makes the required sections explicit.
 
 use chrono::{DateTime, Utc};
-use regex::Regex;
 use serde::Serialize;
-use std::sync::OnceLock;
 
 use crate::time::resolve_day_time_nearest;
 
@@ -31,7 +17,7 @@ pub struct FdBulletin {
     pub based_on_time: String,
     /// Validity timestamp (DDHHMMZ format)
     pub valid_time: String,
-    /// Altitude levels in hundreds of feet (e.g., [30, 60, 90] for 3000, 6000, 9000 ft)
+    /// Altitude levels in feet
     pub levels: Vec<u32>,
     /// Forecast entries by station
     pub forecasts: Vec<FdForecast>,
@@ -49,7 +35,7 @@ pub struct FdForecast {
 /// Forecast values at a specific altitude.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FdLevelForecast {
-    /// Altitude in hundreds of feet
+    /// Altitude in feet
     pub altitude_hundreds_ft: u32,
     /// Wind direction in degrees (0-360)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,58 +48,28 @@ pub struct FdLevelForecast {
     pub temperature_c: Option<i16>,
 }
 
+struct FdHeaderParts<'a> {
+    based_on_time: &'a str,
+    valid_time: &'a str,
+    level_index: usize,
+}
+
 /// Parses an FD bulletin from text content.
-///
-/// Extracts the data timestamps, altitude levels, and station forecasts.
-/// Validates that timestamps are within 5 days of the reference time.
-///
-/// # Arguments
-///
-/// * `text` - Raw FD bulletin text
-/// * `routing_code` - Optional routing code for station prefix inference (e.g., "FD1US1")
-/// * `reference_time` - Reference UTC time for timestamp validation
-///
-/// # Returns
-///
-/// `Some(FdBulletin)` if parsing succeeds, `None` if validation fails
 pub(crate) fn parse_fd_bulletin(
     text: &str,
     routing_code: Option<&str>,
     reference_time: DateTime<Utc>,
 ) -> Option<FdBulletin> {
-    let lines = normalized_lines(text);
-    let normalized = lines.join("\n");
-    let based_on_time = based_on_re()
-        .captures(&normalized)?
-        .name("time")?
-        .as_str()
-        .to_string();
-    let valid_time = valid_re()
-        .captures(&normalized)?
-        .name("time")?
-        .as_str()
-        .to_string();
-    let _ = parse_ddhhmmz(reference_time, &based_on_time)?;
-    let _ = parse_ddhhmmz(reference_time, &valid_time)?;
-
-    let level_line = lines.iter().find(|line| line.starts_with("FT "))?;
-    let levels = parse_levels(level_line)?;
+    let lines = iter_nonempty_fd_lines(text).collect::<Vec<_>>();
+    let header = parse_fd_header(&lines, reference_time)?;
+    let levels = parse_levels(lines[header.level_index])?;
     if levels.is_empty() {
         return None;
     }
 
     let mut forecasts = Vec::new();
-    let mut seen_level_row = false;
-
-    for line in &lines {
-        if line.starts_with("FT ") {
-            seen_level_row = true;
-            continue;
-        }
-        if !seen_level_row || line.len() < 4 {
-            continue;
-        }
-        let Some(forecast) = parse_forecast_line(line, &levels, routing_code) else {
+    for line in &lines[header.level_index + 1..] {
+        let Some(forecast) = parse_fd_station_line(line, &levels, routing_code) else {
             continue;
         };
         if !forecast.groups.is_empty() {
@@ -126,14 +82,53 @@ pub(crate) fn parse_fd_bulletin(
     }
 
     Some(FdBulletin {
-        based_on_time,
-        valid_time,
+        based_on_time: header.based_on_time.to_string(),
+        valid_time: header.valid_time.to_string(),
         levels,
         forecasts,
     })
 }
 
-/// Parses DDHHMMZ timestamp and validates it is within 5 days of reference.
+/// Iterates over non-empty FD lines after stripping control characters.
+fn iter_nonempty_fd_lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines().map(str::trim).filter(|line| !line.is_empty())
+}
+
+/// Extracts the required FD header fields and the `FT` level row location.
+fn parse_fd_header<'a>(
+    lines: &'a [&'a str],
+    reference_time: DateTime<Utc>,
+) -> Option<FdHeaderParts<'a>> {
+    let mut based_on_time = None;
+    let mut valid_time = None;
+    let mut level_index = None;
+
+    for (index, line) in lines.iter().enumerate() {
+        if let Some(time) = line.strip_prefix("DATA BASED ON ") {
+            let time = time.split_whitespace().next()?;
+            let _ = parse_ddhhmmz(reference_time, time)?;
+            based_on_time = Some(time);
+            continue;
+        }
+        if let Some(time) = line.strip_prefix("VALID ") {
+            let time = time.split_whitespace().next()?;
+            let _ = parse_ddhhmmz(reference_time, time)?;
+            valid_time = Some(time);
+            continue;
+        }
+        if line.starts_with("FT ") {
+            level_index = Some(index);
+            break;
+        }
+    }
+
+    Some(FdHeaderParts {
+        based_on_time: based_on_time?,
+        valid_time: valid_time?,
+        level_index: level_index?,
+    })
+}
+
 fn parse_ddhhmmz(reference_time: DateTime<Utc>, value: &str) -> Option<DateTime<Utc>> {
     if value.len() != 7 || !value.ends_with('Z') {
         return None;
@@ -150,34 +145,23 @@ fn parse_ddhhmmz(reference_time: DateTime<Utc>, value: &str) -> Option<DateTime<
         .then_some(resolved)
 }
 
-/// Parses the FT line to extract altitude levels.
-///
-/// Input: "FT 3000 6000 9000 12000" -> [30, 60, 90, 120]
 fn parse_levels(line: &str) -> Option<Vec<u32>> {
-    let levels = line
-        .split_whitespace()
-        .skip(1)
-        .map(|token| token.parse().ok())
-        .collect::<Option<Vec<u32>>>()?;
-    Some(levels)
+    let mut tokens = line.split_whitespace();
+    (tokens.next()? == "FT").then_some(())?;
+    tokens
+        .map(|token| token.parse::<u32>().ok())
+        .collect::<Option<Vec<u32>>>()
 }
 
 /// Parses a single station forecast line.
-///
-/// Extracts the station identifier and decodes wind/temperature groups
-/// for each altitude level.
-fn parse_forecast_line(
+fn parse_fd_station_line(
     line: &str,
     levels: &[u32],
     routing_code: Option<&str>,
 ) -> Option<FdForecast> {
-    let tokens = line.split_whitespace().collect::<Vec<_>>();
-    if tokens.len() < 2 {
-        return None;
-    }
-
-    let station = normalize_station(tokens[0], routing_code);
-    let encoded = tokens.iter().skip(1).copied().collect::<Vec<_>>();
+    let mut tokens = line.split_whitespace();
+    let station = normalize_station(tokens.next()?, routing_code);
+    let encoded = tokens.collect::<Vec<_>>();
     let take_count = encoded.len().min(levels.len());
     if take_count == 0 {
         return None;
@@ -198,28 +182,6 @@ fn parse_forecast_line(
     Some(FdForecast { station, groups })
 }
 
-/// Normalizes text by stripping control characters and empty lines.
-fn normalized_lines(text: &str) -> Vec<String> {
-    text.lines()
-        .map(strip_control_chars)
-        .map(|line| line.trim_end().to_string())
-        .filter(|line| !line.trim().is_empty())
-        .collect()
-}
-
-/// Removes non-whitespace control characters from a line.
-fn strip_control_chars(line: &str) -> String {
-    line.chars()
-        .filter(|ch| !ch.is_ascii_control() || ch.is_ascii_whitespace())
-        .collect()
-}
-
-/// Normalizes a station identifier to ICAO format.
-///
-/// 3-letter codes get a country prefix based on routing code:
-/// - US -> K prefix (e.g., "BOS" -> "KBOS")
-/// - CN -> C prefix
-/// - Other -> P prefix
 fn normalize_station(raw: &str, routing_code: Option<&str>) -> String {
     if raw.len() >= 4 {
         return raw.to_string();
@@ -238,21 +200,12 @@ fn normalize_station(raw: &str, routing_code: Option<&str>) -> String {
     format!("{prefix}{raw}")
 }
 
-/// Decoded wind/temperature data from an FD group.
 struct DecodedGroup {
     wind_direction_degrees: Option<u16>,
     wind_speed_kt: Option<u16>,
     temperature_c: Option<i16>,
 }
 
-/// Decodes a wind/temperature group from FD format.
-///
-/// Format variations:
-/// - 4 digits (DDSS): direction (degrees/10), speed (knots)
-/// - 6 digits (DDSSXX): direction, speed, temperature (Celsius)
-/// - 7 digits (DDSS+XX or DDSS-XX): direction, speed, signed temperature
-/// - 9900: calm (0°, 0 kt)
-/// - Direction >= 500: subtract 500, add 100 to speed
 fn decode_group(text: &str) -> Option<DecodedGroup> {
     if !matches!(text.len(), 4 | 6 | 7)
         || !text
@@ -290,22 +243,6 @@ fn decode_group(text: &str) -> Option<DecodedGroup> {
         wind_direction_degrees: Some(wind_direction),
         wind_speed_kt: Some(wind_speed),
         temperature_c: temperature,
-    })
-}
-
-/// Regex for "DATA BASED ON" timestamp extraction.
-fn based_on_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?m)^DATA BASED ON (?P<time>\d{6}Z)\s*$").expect("fd based-on regex compiles")
-    })
-}
-
-/// Regex for "VALID" timestamp extraction.
-fn valid_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?m)^VALID (?P<time>\d{6}Z)\b").expect("fd valid regex compiles")
     })
 }
 
@@ -363,6 +300,38 @@ mod tests {
                 Some("FD1US1"),
                 chrono::Utc
                     .with_ymd_and_hms(2023, 2, 19, 1, 59, 0)
+                    .single()
+                    .expect("valid time"),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn ignores_extra_blank_lines() {
+        let text =
+            "\nDATA BASED ON 090000Z\n\nVALID 090600Z FOR USE 0200-0900Z.\n\nFT 3000\n\nBFF 1424\n";
+        assert!(
+            parse_fd_bulletin(
+                text,
+                Some("FD1US1"),
+                chrono::Utc
+                    .with_ymd_and_hms(2023, 3, 9, 1, 59, 0)
+                    .single()
+                    .expect("valid time"),
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn rejects_missing_header_fields() {
+        assert!(
+            parse_fd_bulletin(
+                "VALID 090600Z\nFT 3000\nBFF 1424\n",
+                Some("FD1US1"),
+                chrono::Utc
+                    .with_ymd_and_hms(2023, 3, 9, 1, 59, 0)
                     .single()
                     .expect("valid time"),
             )

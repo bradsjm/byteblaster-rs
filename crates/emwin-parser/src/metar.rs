@@ -1,13 +1,12 @@
 //! Minimal METAR bulletin parsing for WMO collectives without AFOS PIL lines.
 //!
-//! METAR (Meteorological Aerodrome Report) bulletins contain collective reports
-//! of current weather observations from multiple stations. This module parses
-//! WMO-formatted METAR collectives when the standard AFOS PIL is not available.
+//! The parser keeps the existing owned `MetarBulletin` output but replaces the
+//! regex-based core parse with explicit token handling. This removes repeated
+//! whitespace join/split churn from the collective path while preserving the
+//! same issue behavior for invalid report-like segments.
 
 use crate::ProductParseIssue;
-use regex::Regex;
 use serde::Serialize;
-use std::sync::OnceLock;
 
 /// Type of METAR report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -46,38 +45,44 @@ impl MetarBulletin {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ParsedMetarRef<'a> {
+    kind: MetarReportKind,
+    station: &'a str,
+    observation_time: &'a str,
+}
+
+impl ParsedMetarRef<'_> {
+    fn into_owned(self, raw: String) -> MetarReport {
+        MetarReport {
+            kind: self.kind,
+            station: self.station.to_string(),
+            observation_time: self.observation_time.to_string(),
+            raw,
+        }
+    }
+}
+
 /// Parses a METAR bulletin from text content.
-///
-/// Splits the bulletin on `=` characters and attempts to parse each segment
-/// as a METAR or SPECI report. Reports invalid segments as issues.
-///
-/// # Arguments
-///
-/// * `text` - Raw bulletin text containing one or more METAR reports
-///
-/// # Returns
-///
-/// `Some((MetarBulletin, Vec<ProductParseIssue>))` if at least one report was parsed,
-/// `None` if no valid reports were found
 pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<ProductParseIssue>)> {
-    let content = normalize_token(text);
+    let content = normalize_metar_segment(text);
     let mut reports = Vec::new();
     let mut issues = Vec::new();
 
-    for token in content.split('=') {
-        let token = normalize_token(token);
-        if token.is_empty() {
+    for segment in content.split('=') {
+        let normalized = normalize_metar_segment(segment);
+        if normalized.is_empty() {
             continue;
         }
 
-        match parse_metar_report(&token) {
-            Some(report) => reports.push(report),
-            None if token.contains("METAR") || token.contains("SPECI") => {
+        match parse_metar_report_ref(&normalized) {
+            Some(parsed) => reports.push(parsed.into_owned(normalized.clone())),
+            None if normalized.contains("METAR") || normalized.contains("SPECI") => {
                 issues.push(ProductParseIssue::new(
                     "metar_parse",
                     "invalid_metar_report",
                     "could not parse METAR/SPECI report from bulletin token",
-                    Some(token),
+                    Some(normalized),
                 ));
             }
             None => {}
@@ -87,42 +92,67 @@ pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<Pro
     (!reports.is_empty()).then_some((MetarBulletin { reports }, issues))
 }
 
-/// Normalizes whitespace in a token by collapsing multiple spaces.
-fn normalize_token(token: &str) -> String {
-    token.split_whitespace().collect::<Vec<_>>().join(" ")
+/// Normalizes whitespace in a segment by compacting ASCII separators in one pass.
+fn normalize_metar_segment(segment: &str) -> String {
+    let mut normalized = String::with_capacity(segment.len());
+    let mut pending_space = false;
+
+    for ch in segment.chars() {
+        if ch.is_ascii_whitespace() {
+            pending_space = true;
+            continue;
+        }
+
+        if pending_space && !normalized.is_empty() {
+            normalized.push(' ');
+        }
+        pending_space = false;
+        normalized.push(ch);
+    }
+
+    normalized
 }
 
-/// Parses an individual METAR report from a normalized token.
-///
-/// Extracts the report kind, station identifier, and observation time
-/// using regex matching.
-fn parse_metar_report(token: &str) -> Option<MetarReport> {
-    let captures = metar_re().captures(token)?;
-    let kind = match captures.name("kind")?.as_str() {
+/// Parses a normalized METAR/SPECI segment into borrowed header fields.
+fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef<'_>> {
+    let tokens = segment.split(' ').collect::<Vec<_>>();
+    let start = tokens
+        .iter()
+        .position(|token| matches!(*token, "METAR" | "SPECI"))?;
+    let mut tokens = tokens[start..].iter().copied();
+    let kind = match tokens.next()? {
         "METAR" => MetarReportKind::Metar,
         "SPECI" => MetarReportKind::Speci,
         _ => return None,
     };
 
-    Some(MetarReport {
+    let maybe_station = tokens.next()?;
+    let station = if maybe_station == "COR" {
+        tokens.next()?
+    } else {
+        maybe_station
+    };
+    let observation_time = tokens.next()?;
+
+    if !is_metar_station(station) || !is_observation_time(observation_time) {
+        return None;
+    }
+
+    Some(ParsedMetarRef {
         kind,
-        station: captures.name("station")?.as_str().to_string(),
-        observation_time: captures.name("time")?.as_str().to_string(),
-        raw: token.to_string(),
+        station,
+        observation_time,
     })
 }
 
-/// Returns the compiled METAR regex pattern.
-///
-/// Pattern matches: METAR/SPECI + station (4 chars starting with letter) + time (6 digits + Z)
-fn metar_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)\b(?P<kind>METAR|SPECI)\s+(?:COR\s+)?(?P<station>[A-Z][A-Z0-9]{3})\s+(?P<time>\d{6}Z)\b",
-        )
-        .expect("metar regex compiles")
-    })
+fn is_metar_station(token: &str) -> bool {
+    token.len() == 4
+        && token.starts_with(|ch: char| ch.is_ascii_uppercase())
+        && token.chars().all(|ch| ch.is_ascii_alphanumeric())
+}
+
+fn is_observation_time(token: &str) -> bool {
+    token.len() == 7 && token.ends_with('Z') && token[..6].chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -143,7 +173,19 @@ mod tests {
     }
 
     #[test]
-    fn ignores_non_metar_body() {
+    fn parses_multiple_reports_in_bulletin() {
+        let text = "METAR BGKK 070220Z AUTO VRB02KT 9999= SPECI KDSM 070254Z 33007KT 10SM CLR=";
+        let (bulletin, issues) =
+            parse_metar_bulletin(text).expect("expected multiple METAR reports");
+
+        assert!(issues.is_empty());
+        assert_eq!(bulletin.report_count(), 2);
+        assert_eq!(bulletin.reports[1].kind, MetarReportKind::Speci);
+        assert_eq!(bulletin.reports[1].station, "KDSM");
+    }
+
+    #[test]
+    fn rejects_non_metar_body() {
         let text = "000 \nFXUS61 KBOX 022101\nAREA FORECAST DISCUSSION\n";
         assert!(parse_metar_bulletin(text).is_none());
     }
@@ -168,5 +210,23 @@ mod tests {
         assert_eq!(bulletin.report_count(), 1);
         assert_eq!(bulletin.reports[0].station, "KDSM");
         assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn invalid_metar_token_emits_issue() {
+        let text = "METAR BAD 070254Z=METAR KDSM 070254Z AUTO CLR=";
+        let (_, issues) = parse_metar_bulletin(text)
+            .expect("expected issue-bearing bulletin with one valid report");
+
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_metar_report");
+    }
+
+    #[test]
+    fn raw_report_uses_compacted_whitespace() {
+        let text = "METAR   BGKK   070220Z   AUTO   VRB02KT=";
+        let (bulletin, _) = parse_metar_bulletin(text).expect("expected METAR bulletin");
+
+        assert_eq!(bulletin.reports[0].raw, "METAR BGKK 070220Z AUTO VRB02KT");
     }
 }

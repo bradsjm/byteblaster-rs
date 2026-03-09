@@ -1,17 +1,16 @@
 //! Minimal SIGMET bulletin parsing.
 //!
-//! SIGMET (Significant Meteorological Information) bulletins contain critical
-//! weather hazard information for aviation. This module parses both convective
-//! SIGMETs (thunderstorms) and oceanic SIGMETs (international waters).
-//!
-//! ## SIGMET Types
-//!
-//! - **Convective SIGMETs**: Issued for thunderstorms, hail, and severe turbulence
-//! - **Oceanic SIGMETs**: Issued for international airspace (e.g., KZAK for Oakland FIR)
+//! This parser keeps the current public `SigmetBulletin` output while replacing
+//! the section split and header parse path with explicit, lower-allocation
+//! steps. Convective sections stay line-oriented, while oceanic headers use a
+//! small `winnow` parser for the fixed `<CCCC> SIGMET ... VALID ...` prelude.
 
-use regex::Regex;
+use std::borrow::Cow;
+
 use serde::Serialize;
-use std::sync::OnceLock;
+use winnow::Parser;
+use winnow::error::ContextError;
+use winnow::token::take_while;
 
 /// SIGMET bulletin containing multiple SIGMET sections.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -51,55 +50,71 @@ pub struct SigmetSection {
     pub raw: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedSigmetSectionRef<'a> {
+    series: Option<Cow<'a, str>>,
+    identifier: Option<Cow<'a, str>>,
+    hazard: Option<&'static str>,
+    valid_from: Option<Cow<'a, str>>,
+    valid_to: Option<Cow<'a, str>>,
+    origin: Option<Cow<'a, str>>,
+    states_raw: Option<Cow<'a, str>>,
+    fixes_raw: Option<Cow<'a, str>>,
+}
+
+impl ParsedSigmetSectionRef<'_> {
+    fn into_owned(self, raw: String) -> SigmetSection {
+        SigmetSection {
+            series: self.series.map(Cow::into_owned),
+            identifier: self.identifier.map(Cow::into_owned),
+            hazard: self.hazard.map(str::to_string),
+            valid_from: self.valid_from.map(Cow::into_owned),
+            valid_to: self.valid_to.map(Cow::into_owned),
+            origin: self.origin.map(Cow::into_owned),
+            states_raw: self.states_raw.map(Cow::into_owned),
+            fixes_raw: self.fixes_raw.map(Cow::into_owned),
+            raw,
+        }
+    }
+}
+
 /// Parses a SIGMET bulletin from text content.
-///
-/// Splits the bulletin into sections and parses each as either convective
-/// or oceanic format. Cancellation sections are filtered out.
-///
-/// # Arguments
-///
-/// * `text` - Raw SIGMET bulletin text
-///
-/// # Returns
-///
-/// `Some(SigmetBulletin)` if at least one valid section was parsed,
-/// `None` if no valid sections were found
 pub(crate) fn parse_sigmet_bulletin(text: &str) -> Option<SigmetBulletin> {
-    let sections = split_sections(text);
+    let sections = split_sigmet_sections(text);
     if sections.is_empty() {
         return None;
     }
 
     let mut parsed = Vec::new();
+    let mut saw_cancellation = false;
     for raw in sections {
-        if cancellation_re().is_match(&raw) {
+        if is_cancellation_section(&raw) {
+            saw_cancellation = true;
             continue;
         }
 
-        if let Some(section) =
-            parse_convective_section(&raw).or_else(|| parse_oceanic_section(&raw))
+        if let Some(section) = parse_convective_section_ref(&raw)
+            .or_else(|| parse_oceanic_section_ref(&raw))
+            .map(|section| section.into_owned(raw.clone()))
         {
             parsed.push(section);
         }
     }
 
+    if parsed.is_empty() && !saw_cancellation {
+        return None;
+    }
+
     Some(SigmetBulletin { sections: parsed })
 }
 
-/// Splits SIGMET text into individual sections.
-///
-/// Sections are separated by blank lines or new SIGMET headers.
-/// Stops at OUTLOOK sections.
-fn split_sections(text: &str) -> Vec<String> {
-    let lines = text
-        .lines()
-        .map(strip_control_chars)
-        .map(|line| line.trim_end().to_string())
-        .collect::<Vec<_>>();
+/// Splits SIGMET text into individual sections in a single pass over the lines.
+fn split_sigmet_sections(text: &str) -> Vec<String> {
     let mut sections = Vec::new();
-    let mut current = Vec::new();
+    let mut current = String::new();
 
-    for line in lines {
+    for raw_line in text.lines() {
+        let line = strip_control_chars(raw_line);
         let trimmed = line.trim();
         if trimmed.is_empty() {
             push_section(&mut sections, &mut current);
@@ -115,14 +130,16 @@ fn split_sections(text: &str) -> Vec<String> {
         if starts_new_section(trimmed) && !current.is_empty() {
             push_section(&mut sections, &mut current);
         }
-        current.push(trimmed.to_string());
+        if !current.is_empty() {
+            current.push('\n');
+        }
+        current.push_str(trimmed);
     }
 
     push_section(&mut sections, &mut current);
     sections
 }
 
-/// Checks if a line starts a new SIGMET section.
 fn starts_new_section(line: &str) -> bool {
     line.starts_with("CONVECTIVE SIGMET ")
         || line.starts_with("KZAK SIGMET ")
@@ -141,143 +158,175 @@ fn starts_with_icao_sigmet(line: &str) -> bool {
     origin.len() == 4 && origin.chars().all(|ch| ch.is_ascii_uppercase()) && sigmet == "SIGMET"
 }
 
-/// Pushes accumulated lines as a section if non-empty.
-fn push_section(sections: &mut Vec<String>, current: &mut Vec<String>) {
+fn push_section(sections: &mut Vec<String>, current: &mut String) {
     if current.is_empty() {
         return;
     }
-    sections.push(current.join("\n"));
-    current.clear();
+    sections.push(std::mem::take(current));
 }
 
-/// Parses a convective SIGMET section.
-///
-/// Format: `CONVECTIVE SIGMET <id>\nVALID UNTIL <time>\n<states>\nFROM <fixes>`
-fn parse_convective_section(raw: &str) -> Option<SigmetSection> {
-    let lines = raw.lines().collect::<Vec<_>>();
-    let first = *lines.first()?;
-    let captures = convective_header_re().captures(first)?;
-    let valid_to = lines.iter().find_map(|line| {
-        valid_until_re()
-            .captures(line)
-            .and_then(|caps| caps.name("time").map(|v| v.as_str().to_string()))
-    });
-    let states_raw = lines
-        .iter()
-        .skip(1)
-        .take_while(|line| !line.starts_with("FROM "))
-        .filter(|line| !line.starts_with("VALID UNTIL "))
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let fixes_raw = lines
-        .iter()
-        .find_map(|line| line.strip_prefix("FROM ").map(str::trim))
-        .map(str::to_string);
-    let hazard = lines
-        .iter()
-        .find(|line| line.contains(" TS"))
-        .and_then(|line| hazard_from_descriptor(line));
+/// Parses a convective SIGMET section from line-oriented text.
+fn parse_convective_section_ref(raw: &str) -> Option<ParsedSigmetSectionRef<'_>> {
+    let mut lines = raw.lines();
+    let first = lines.next()?;
+    let identifier = first.strip_prefix("CONVECTIVE SIGMET ")?;
+    if identifier.is_empty() || identifier.contains(' ') {
+        return None;
+    }
 
-    Some(SigmetSection {
-        series: Some("convective".to_string()),
-        identifier: captures
-            .name("identifier")
-            .map(|value| value.as_str().to_string()),
+    let mut valid_to = None;
+    let mut states_buffer = String::new();
+    let mut fixes_raw = None;
+    let mut hazard = hazard_from_descriptor(first);
+
+    for line in lines {
+        if let Some(time) = line.strip_prefix("VALID UNTIL ") {
+            if time.len() == 5
+                && time.ends_with('Z')
+                && time[..4].chars().all(|ch| ch.is_ascii_digit())
+            {
+                valid_to = Some(time);
+            }
+            continue;
+        }
+        if let Some(fixes) = line.strip_prefix("FROM ") {
+            fixes_raw = Some(Cow::Borrowed(fixes.trim()));
+            if hazard.is_none() {
+                hazard = hazard_from_descriptor(line);
+            }
+            continue;
+        }
+        if hazard.is_none() {
+            hazard = hazard_from_descriptor(line);
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !states_buffer.is_empty() {
+            states_buffer.push(' ');
+        }
+        states_buffer.push_str(trimmed);
+    }
+
+    Some(ParsedSigmetSectionRef {
+        series: Some(Cow::Borrowed("convective")),
+        identifier: Some(Cow::Borrowed(identifier)),
         hazard,
         valid_from: None,
-        valid_to,
+        valid_to: valid_to.map(Cow::Borrowed),
         origin: None,
-        states_raw: (!states_raw.is_empty()).then_some(states_raw),
+        states_raw: (!states_buffer.is_empty()).then_some(Cow::Owned(states_buffer)),
         fixes_raw,
-        raw: raw.to_string(),
     })
 }
 
-/// Parses an oceanic SIGMET section.
-///
-/// Format: `<origin> SIGMET <series> <id> VALID <from>/<to> <text>`
-fn parse_oceanic_section(raw: &str) -> Option<SigmetSection> {
-    let compact = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    let captures = oceanic_header_re().captures(&compact)?;
+/// Parses an oceanic or international SIGMET section from compacted text.
+fn parse_oceanic_section_ref(raw: &str) -> Option<ParsedSigmetSectionRef<'_>> {
+    let compact = compact_section(raw);
+    let mut input = compact.as_str();
+
+    let origin = take_while::<_, _, ContextError>(4..=4, |ch: char| ch.is_ascii_uppercase())
+        .parse_next(&mut input)
+        .ok()?;
+    if let Some(rest) = input.strip_prefix(" SIGMET ") {
+        input = rest;
+    } else {
+        return None;
+    }
+
+    let first = next_token(&mut input)?;
+    let second = next_token(&mut input)?;
+    let (series, identifier) = if second == "VALID" {
+        (None, first)
+    } else {
+        let third = next_token(&mut input)?;
+        if third != "VALID" {
+            return None;
+        }
+        (Some(first), second)
+    };
+
+    let validity = next_token(&mut input)?;
+    let (valid_from, valid_to) = validity.split_once('/')?;
+    if !is_ddhhmm(valid_from) || !is_ddhhmm(valid_to) {
+        return None;
+    }
+
     let hazard = compact.split('.').next().and_then(hazard_from_descriptor);
     let fixes_raw = compact
         .split(" FIR ")
         .nth(1)
         .map(str::trim)
-        .map(|rest| rest.trim_end_matches('.').to_string());
+        .map(|rest| rest.trim_end_matches('.'))
+        .filter(|rest| !rest.is_empty())
+        .map(|rest| Cow::Owned(rest.to_string()));
 
-    Some(SigmetSection {
-        series: captures
-            .name("series")
-            .map(|value| value.as_str().to_string()),
-        identifier: captures
-            .name("identifier")
-            .map(|value| value.as_str().to_string()),
+    Some(ParsedSigmetSectionRef {
+        series: series.map(|value| Cow::Owned(value.to_string())),
+        identifier: Some(Cow::Owned(identifier.to_string())),
         hazard,
-        valid_from: captures
-            .name("valid_from")
-            .map(|value| value.as_str().to_string()),
-        valid_to: captures
-            .name("valid_to")
-            .map(|value| value.as_str().to_string()),
-        origin: captures
-            .name("origin")
-            .map(|value| value.as_str().to_string()),
+        valid_from: Some(Cow::Owned(valid_from.to_string())),
+        valid_to: Some(Cow::Owned(valid_to.to_string())),
+        origin: Some(Cow::Owned(origin.to_string())),
         states_raw: None,
         fixes_raw,
-        raw: raw.to_string(),
     })
 }
 
-/// Removes non-whitespace control characters from a line.
+fn compact_section(raw: &str) -> String {
+    let mut compact = String::with_capacity(raw.len());
+    let mut pending_space = false;
+
+    for ch in raw.chars() {
+        if ch.is_ascii_whitespace() {
+            pending_space = true;
+            continue;
+        }
+
+        if pending_space && !compact.is_empty() {
+            compact.push(' ');
+        }
+        pending_space = false;
+        compact.push(ch);
+    }
+
+    compact
+}
+
+fn next_token<'a>(input: &mut &'a str) -> Option<&'a str> {
+    if input.is_empty() {
+        return None;
+    }
+    if let Some((token, rest)) = input.split_once(' ') {
+        *input = rest;
+        Some(token)
+    } else {
+        let token = *input;
+        *input = "";
+        Some(token)
+    }
+}
+
 fn strip_control_chars(line: &str) -> String {
     line.chars()
         .filter(|ch| !ch.is_ascii_control() || ch.is_ascii_whitespace())
         .collect()
 }
 
-/// Extracts hazard type from a line containing thunderstorm descriptors.
-fn hazard_from_descriptor(line: &str) -> Option<String> {
+fn hazard_from_descriptor(line: &str) -> Option<&'static str> {
     let upper = line.to_ascii_uppercase();
     ["SEV EMBD TS", "EMBD TS", "SEV TS", "TS"]
         .iter()
-        .find_map(|needle| upper.contains(needle).then(|| (*needle).to_string()))
+        .find_map(|needle| upper.contains(needle).then_some(*needle))
 }
 
-/// Regex for convective SIGMET header line.
-fn convective_header_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^CONVECTIVE SIGMET (?P<identifier>[0-9A-Z]+)\s*$")
-            .expect("sigmet convective header regex compiles")
-    })
+fn is_cancellation_section(raw: &str) -> bool {
+    raw.to_ascii_uppercase().contains("CANCEL SIGMET")
 }
 
-/// Regex for VALID UNTIL time extraction.
-fn valid_until_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^VALID UNTIL (?P<time>\d{4}Z)\s*$").expect("sigmet valid-until regex compiles")
-    })
-}
-
-/// Regex for oceanic SIGMET header parsing.
-fn oceanic_header_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"^(?P<origin>[A-Z]{4}) SIGMET (?:(?P<series>[A-Z]+)\s+)?(?P<identifier>[0-9A-Z]+) VALID (?P<valid_from>\d{6})/(?P<valid_to>\d{6}) ",
-        )
-        .expect("sigmet oceanic header regex compiles")
-    })
-}
-
-/// Regex to detect SIGMET cancellations.
-fn cancellation_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\bCANCEL SIGMET\b").expect("sigmet cancel regex compiles"))
+fn is_ddhhmm(token: &str) -> bool {
+    token.len() == 6 && token.chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -309,16 +358,9 @@ mod tests {
     }
 
     #[test]
-    fn cancellation_yields_empty_sections() {
-        let text = "KZAK SIGMET PAPA 3 VALID 162358/162355 PHFO-OAKLAND OCEANIC FIR\nCANCEL SIGMET PAPA 2 VALID 161955/162355. TS HAVE DIMINISHED.\n";
-        let bulletin = parse_sigmet_bulletin(text).expect("bulletin should still parse");
-        assert!(bulletin.sections.is_empty());
-    }
-
-    #[test]
-    fn parses_international_sigmet_bulletin() {
-        let text = "WAAF SIGMET 05 VALID 090100/090700 WAAA-\nWAAF UJUNG PANDANG FIR VA ERUPTION MT IBU PSN N0129 E12738 VA CLD OBS AT 0040Z WI N0129 E12737 - N0131 E12738 - N0129 E12751 - N0117 E12744 - N0129 E12737 SFC/FL070 MOV SE 10KT NC=\n";
-        let bulletin = parse_sigmet_bulletin(text).expect("expected international SIGMET parsing");
+    fn parses_icao_origin_sigmet_sections() {
+        let text = "WAAF SIGMET 05 VALID 090100/090700 WAAA-\nWAAF UJUNG PANDANG FIR VA ERUPTION MT IBU=\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("icao-origin sigmet should parse");
 
         assert_eq!(bulletin.sections.len(), 1);
         assert_eq!(bulletin.sections[0].origin.as_deref(), Some("WAAF"));
@@ -326,12 +368,40 @@ mod tests {
     }
 
     #[test]
-    fn parses_philippines_sigmet_bulletin() {
-        let text = "RPHI SIGMET 1 VALID 090034/090634 RPLL-\nRPHI MANILA FIR VA ERUPTION MT MAYON PSN N1315 E12341 VA CLD OBS AT 0000Z=\n";
-        let bulletin = parse_sigmet_bulletin(text).expect("expected Philippines SIGMET parsing");
+    fn cancellation_yields_empty_sections() {
+        let text = "KZAK SIGMET PAPA 3 VALID 162358/162355 PHFO-OAKLAND OCEANIC FIR\nCANCEL SIGMET PAPA 2 VALID 161955/162355. TS HAVE DIMINISHED.\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("bulletin should still parse");
+        assert!(bulletin.sections.is_empty());
+    }
+
+    #[test]
+    fn outlook_terminates_section_collection() {
+        let text = "CONVECTIVE SIGMET 54E\nVALID UNTIL 1355Z\nPA VA\nFROM 10NW EWC-40NNE HNN\nOUTLOOK VALID 151355-151755\nIGNORED\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("sigmet bulletin should parse");
 
         assert_eq!(bulletin.sections.len(), 1);
-        assert_eq!(bulletin.sections[0].origin.as_deref(), Some("RPHI"));
-        assert_eq!(bulletin.sections[0].identifier.as_deref(), Some("1"));
+        assert!(!bulletin.sections[0].raw.contains("OUTLOOK"));
+    }
+
+    #[test]
+    fn parses_multiple_sections() {
+        let text = "CONVECTIVE SIGMET 54E\nVALID UNTIL 1355Z\nPA VA\nFROM 10NW EWC-40NNE HNN\n\nKZAK SIGMET SIERRA 2 VALID 211100/211500 PHFO-\nOAKLAND OCEANIC FIR EMBD TS WI N12E156.\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("expected multiple sections");
+
+        assert_eq!(bulletin.sections.len(), 2);
+    }
+
+    #[test]
+    fn invalid_sections_are_rejected() {
+        assert!(parse_sigmet_bulletin("NOT A SIGMET").is_none());
+    }
+
+    #[test]
+    fn control_characters_do_not_break_parse() {
+        let text = "KZAK SIGMET SIERRA 2 VALID 211100/211500 PHFO-\nOAKLAND OCEANIC FIR EMBD TS WI N12E156.\u{3}\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("control-char sigmet should parse");
+
+        assert_eq!(bulletin.sections.len(), 1);
+        assert_eq!(bulletin.sections[0].origin.as_deref(), Some("KZAK"));
     }
 }

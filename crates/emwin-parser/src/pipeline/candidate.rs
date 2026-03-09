@@ -1,0 +1,154 @@
+//! Parsed candidate types produced by pipeline classification.
+//!
+//! Each candidate owns the parsed artifacts needed to build the public
+//! `ProductEnrichment` result. Owning the artifacts avoids the old
+//! probe-then-reparse flow, keeps classification and assembly in sync, and
+//! removes `expect(...)`-based invariants from the dispatch path.
+
+use chrono::{DateTime, Utc};
+
+use crate::data::{NonTextProductMeta, ProductMetadataFlags};
+use crate::{
+    BbbKind, DcpBulletin, FdBulletin, MetarBulletin, ParserError, PirepBulletin,
+    ProductEnrichmentSource, ProductParseIssue, SigmetBulletin, TafBulletin, TextProductHeader,
+    WmoHeader,
+};
+
+/// Internal classification result passed from strategy dispatch into assembly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ClassificationCandidate {
+    /// Generic AFOS text product that should continue into body enrichment.
+    TextGeneric(TextGenericCandidate),
+    /// Parsed FD bulletin candidate.
+    Fd(FdCandidate),
+    /// Parsed PIREP bulletin candidate.
+    Pirep(PirepCandidate),
+    /// Parsed SIGMET bulletin candidate.
+    Sigmet(SigmetCandidate),
+    /// Parsed METAR bulletin candidate.
+    Metar(MetarCandidate),
+    /// Parsed TAF bulletin candidate.
+    Taf(TafCandidate),
+    /// Parsed DCP bulletin candidate.
+    Dcp(DcpCandidate),
+    /// Filename-classified non-text product candidate.
+    NonText(NonTextProductMeta),
+    /// Recognized WMO bulletin that is intentionally unsupported.
+    UnsupportedWmo(UnsupportedWmoCandidate),
+    /// Text parse failure that preserves the legacy issue shape.
+    TextParseFailure(ParserError),
+    /// Payload with no richer classification available.
+    Unknown,
+}
+
+/// Generic AFOS text product candidate used for body enrichment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TextGenericCandidate {
+    /// Parsed text product header.
+    pub(crate) header: TextProductHeader,
+    /// Conditioned body text after header removal.
+    pub(crate) body_text: String,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// Human-readable catalog title.
+    pub(crate) title: Option<&'static str>,
+    /// Catalog-driven body extraction flags.
+    pub(crate) flags: Option<ProductMetadataFlags>,
+    /// Classified BBB meaning when present.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Timestamp resolved from the WMO header for time-aware body parsing.
+    pub(crate) reference_time: Option<DateTime<Utc>>,
+}
+
+/// Parsed FD bulletin candidate from either AFOS or WMO-only flows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FdCandidate {
+    /// Output source associated with this candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// Product family emitted for the candidate.
+    pub(crate) family: &'static str,
+    /// Human-readable title emitted for the candidate.
+    pub(crate) title: &'static str,
+    /// Text header when the bulletin came from AFOS parsing.
+    pub(crate) header: Option<TextProductHeader>,
+    /// WMO-only header when the bulletin came from fallback parsing.
+    pub(crate) wmo_header: Option<WmoHeader>,
+    /// Three-character PIL prefix when the AFOS path provided one.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for AFOS-derived candidates.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Parsed FD bulletin payload.
+    pub(crate) bulletin: FdBulletin,
+}
+
+/// Parsed PIREP bulletin candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PirepCandidate {
+    /// AFOS text header for the bulletin.
+    pub(crate) header: TextProductHeader,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for the text header.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Parsed PIREP bulletin payload.
+    pub(crate) bulletin: PirepBulletin,
+}
+
+/// Parsed SIGMET bulletin candidate from text or WMO-only paths.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SigmetCandidate {
+    /// Output source associated with the candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// AFOS text header when present.
+    pub(crate) header: Option<TextProductHeader>,
+    /// WMO-only header when present.
+    pub(crate) wmo_header: Option<WmoHeader>,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for AFOS-derived candidates.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Parsed SIGMET bulletin payload.
+    pub(crate) bulletin: SigmetBulletin,
+}
+
+/// Parsed METAR bulletin candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MetarCandidate {
+    /// WMO-only header that identified the bulletin.
+    pub(crate) header: WmoHeader,
+    /// Parsed METAR bulletin payload.
+    pub(crate) bulletin: MetarBulletin,
+    /// Non-fatal parse issues emitted during METAR parsing.
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+/// Parsed TAF bulletin candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TafCandidate {
+    /// WMO-only header that identified the bulletin.
+    pub(crate) header: WmoHeader,
+    /// Parsed TAF bulletin payload.
+    pub(crate) bulletin: TafBulletin,
+}
+
+/// Parsed DCP bulletin candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DcpCandidate {
+    /// WMO-only header that identified the bulletin.
+    pub(crate) header: WmoHeader,
+    /// Parsed DCP bulletin payload.
+    pub(crate) bulletin: DcpBulletin,
+}
+
+/// Unsupported-but-recognized WMO bulletin candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnsupportedWmoCandidate {
+    /// WMO header preserved for output.
+    pub(crate) header: WmoHeader,
+    /// Stable machine-readable issue code.
+    pub(crate) code: &'static str,
+    /// Stable human-readable issue message.
+    pub(crate) message: &'static str,
+    /// Optional representative line from the source text.
+    pub(crate) line: Option<String>,
+}

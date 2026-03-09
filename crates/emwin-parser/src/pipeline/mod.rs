@@ -6,11 +6,13 @@
 //! independently.
 
 mod assemble;
+mod candidate;
 mod classify;
 mod envelope;
 mod normalize;
 
 pub(crate) use assemble::assemble_product_enrichment;
+pub(crate) use candidate::ClassificationCandidate;
 pub(crate) use classify::classify;
 pub(crate) use envelope::{EnvelopeKind, ParsedEnvelope};
 pub(crate) use normalize::NormalizedInput;

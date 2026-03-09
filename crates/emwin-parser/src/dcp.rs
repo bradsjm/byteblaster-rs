@@ -149,16 +149,16 @@ fn extract_platform_id(line: &str) -> Option<String> {
 fn has_inline_telemetry(line: &str, platform_id: &str) -> bool {
     let remainder = line.strip_prefix(platform_id).unwrap_or(line).trim();
     !remainder.is_empty()
-        && remainder.chars().all(|ch| {
-            ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || "@%`^+-.".contains(ch)
-        })
+        && remainder
+            .chars()
+            .all(|ch| ch.is_ascii_graphic() || ch.is_ascii_whitespace())
         && remainder.chars().any(|ch| !ch.is_ascii_digit())
 }
 
 /// Validates a line appears to contain telemetry data (alphanumeric + basic symbols).
 fn looks_like_telemetry_line(line: &str) -> bool {
     line.chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || ".+-".contains(ch))
+        .all(|ch| ch.is_ascii_graphic() || ch.is_ascii_whitespace())
 }
 
 #[cfg(test)]
@@ -227,6 +227,63 @@ mod tests {
         .expect("expected MISDCP inline telemetry bulletin parsing to succeed");
 
         assert_eq!(bulletin.platform_id.as_deref(), Some("2211F77E 066032650"));
+        assert_eq!(bulletin.lines.len(), 1);
+    }
+
+    #[test]
+    fn parses_single_line_misa_with_tilde_and_backslash_noise() {
+        let text = "CE1107B6 068005524`BCT@Go@Gq@Gq@Gr@Gr@Gr@Gs@Gr@Gs@Gr@Gu@Gt~]w~\\T~^F~bF~d@~eS~gq~jl~l]~mo~sA~wyf 39+0NN  25E\n";
+        let bulletin = parse_dcp_bulletin(
+            "MISA50US.TXT",
+            &WmoHeader {
+                ttaaii: "SXPA50".to_string(),
+                cccc: "KWAL".to_string(),
+                ddhhmm: "090055".to_string(),
+                bbb: None,
+            },
+            text,
+        )
+        .expect("expected MISA bulletin parsing to succeed");
+
+        assert_eq!(bulletin.platform_id.as_deref(), Some("CE1107B6 068005524"));
+        assert_eq!(bulletin.lines.len(), 1);
+    }
+
+    #[test]
+    fn parses_single_line_misdcp_with_underscores_and_question_marks() {
+        let text = "50423782 068003840bB1H_??_??_??_??_??_??_??_??@@@@@r@TaJ 47+0NN 175E\n";
+        let bulletin = parse_dcp_bulletin(
+            "MISDCPHN.TXT",
+            &WmoHeader {
+                ttaaii: "SXHN40".to_string(),
+                cccc: "KWAL".to_string(),
+                ddhhmm: "090038".to_string(),
+                bbb: None,
+            },
+            text,
+        )
+        .expect("expected MISDCPHN bulletin parsing to succeed");
+
+        assert_eq!(bulletin.platform_id.as_deref(), Some("50423782 068003840"));
+        assert_eq!(bulletin.lines.len(), 1);
+    }
+
+    #[test]
+    fn parses_single_line_misdcp_with_quoted_inline_values() {
+        let text = "9650D70A 068005040\"A18.34B17.92C18.73D82.73E80.63F84.66G9.70H0.00I10.92J355.59K0.00L824.64M824.67N824.67O11.50P21.30Q0.11R-10.01S2360.16T0.00U1.20 38-0NN 397E\n";
+        let bulletin = parse_dcp_bulletin(
+            "MISDCPMG.TXT",
+            &WmoHeader {
+                ttaaii: "SXMG40".to_string(),
+                cccc: "KWAL".to_string(),
+                ddhhmm: "090050".to_string(),
+                bbb: None,
+            },
+            text,
+        )
+        .expect("expected MISDCPMG bulletin parsing to succeed");
+
+        assert_eq!(bulletin.platform_id.as_deref(), Some("9650D70A 068005040"));
         assert_eq!(bulletin.lines.len(), 1);
     }
 }

@@ -79,11 +79,37 @@ fn taf_body(text: &str) -> Option<String> {
 /// Some bulletins have "TAF TAF" which should be normalized to "TAF".
 fn normalize_taf_prefix(raw: &str) -> String {
     let normalized = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    if let Some(rest) = normalized.strip_prefix("TAF TAF ") {
-        format!("TAF {rest}")
+    let tokens = normalized.split_whitespace().collect::<Vec<_>>();
+    if let Some((prefix_len, prefix)) = duplicate_taf_prefix(&tokens) {
+        let remainder = tokens[prefix_len..].join(" ");
+        if remainder.is_empty() {
+            prefix.to_string()
+        } else {
+            format!("{prefix} {remainder}")
+        }
     } else {
         normalized
     }
+}
+
+fn duplicate_taf_prefix<'a>(tokens: &[&'a str]) -> Option<(usize, &'a str)> {
+    if tokens.len() >= 2 && tokens[0] == "TAF" && tokens[1] == "TAF" {
+        return Some((2, "TAF"));
+    }
+    if tokens.len() >= 4 && tokens[0] == "TAF" && tokens[2] == "TAF" && tokens[1] == tokens[3] {
+        return match tokens[1] {
+            "AMD" => Some((4, "TAF AMD")),
+            "COR" => Some((4, "TAF COR")),
+            _ => None,
+        };
+    }
+    if tokens.len() >= 3 && tokens[0] == "TAF" && tokens[1] == "AMD" && tokens[2] == "TAF" {
+        return Some((3, "TAF AMD"));
+    }
+    if tokens.len() >= 3 && tokens[0] == "TAF" && tokens[1] == "COR" && tokens[2] == "TAF" {
+        return Some((3, "TAF COR"));
+    }
+    None
 }
 
 /// Returns the compiled TAF parsing regex.
@@ -134,5 +160,29 @@ mod tests {
     fn ignores_non_taf_body() {
         let text = "000 \nSAGL31 BGGH 070200\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n";
         assert!(parse_taf_bulletin(text).is_none());
+    }
+
+    #[test]
+    fn parses_duplicated_amended_taf_prefix() {
+        let text = "TAF AMD\nTAF AMD MMAS 090101Z 0901/0918 23008KT P6SM SCT100 BKN200\n";
+        let taf = parse_taf_bulletin(text).expect("expected duplicated TAF AMD parsing to succeed");
+
+        assert_eq!(taf.station, "MMAS");
+        assert_eq!(taf.issue_time, "090101Z");
+        assert_eq!(taf.valid_from.as_deref(), Some("0901"));
+        assert_eq!(taf.valid_to.as_deref(), Some("0918"));
+        assert!(taf.amendment);
+        assert!(!taf.correction);
+    }
+
+    #[test]
+    fn parses_duplicated_corrected_taf_prefix() {
+        let text = "TAF COR\nTAF COR KBOS 090520Z 0906/1012 28012KT P6SM FEW250\n";
+        let taf = parse_taf_bulletin(text).expect("expected duplicated TAF COR parsing to succeed");
+
+        assert_eq!(taf.station, "KBOS");
+        assert_eq!(taf.issue_time, "090520Z");
+        assert!(taf.correction);
+        assert!(!taf.amendment);
     }
 }

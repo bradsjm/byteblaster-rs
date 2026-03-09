@@ -961,9 +961,11 @@ fn product_source_name(value: ProductEnrichmentSource) -> &'static str {
         ProductEnrichmentSource::WmoFdBulletin => "wmo_fd_bulletin",
         ProductEnrichmentSource::TextPirepBulletin => "text_pirep_bulletin",
         ProductEnrichmentSource::TextSigmetBulletin => "text_sigmet_bulletin",
+        ProductEnrichmentSource::WmoSigmetBulletin => "wmo_sigmet_bulletin",
         ProductEnrichmentSource::WmoMetarBulletin => "wmo_metar_bulletin",
         ProductEnrichmentSource::WmoTafBulletin => "wmo_taf_bulletin",
         ProductEnrichmentSource::WmoDcpBulletin => "wmo_dcp_bulletin",
+        ProductEnrichmentSource::WmoUnsupportedBulletin => "wmo_unsupported_bulletin",
         ProductEnrichmentSource::FilenameNonText => "filename_non_text",
         ProductEnrichmentSource::Unknown => "unknown",
     }

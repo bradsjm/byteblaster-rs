@@ -127,6 +127,18 @@ fn starts_new_section(line: &str) -> bool {
     line.starts_with("CONVECTIVE SIGMET ")
         || line.starts_with("KZAK SIGMET ")
         || line.starts_with("SIGMET ")
+        || starts_with_icao_sigmet(line)
+}
+
+fn starts_with_icao_sigmet(line: &str) -> bool {
+    let mut parts = line.split_whitespace();
+    let Some(origin) = parts.next() else {
+        return false;
+    };
+    let Some(sigmet) = parts.next() else {
+        return false;
+    };
+    origin.len() == 4 && origin.chars().all(|ch| ch.is_ascii_uppercase()) && sigmet == "SIGMET"
 }
 
 /// Pushes accumulated lines as a section if non-empty.
@@ -256,7 +268,7 @@ fn oceanic_header_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"^(?P<origin>[A-Z]{4}) SIGMET (?P<series>[A-Z]+) (?P<identifier>\d+) VALID (?P<valid_from>\d{6})/(?P<valid_to>\d{6}) ",
+            r"^(?P<origin>[A-Z]{4}) SIGMET (?:(?P<series>[A-Z]+)\s+)?(?P<identifier>[0-9A-Z]+) VALID (?P<valid_from>\d{6})/(?P<valid_to>\d{6}) ",
         )
         .expect("sigmet oceanic header regex compiles")
     })
@@ -301,5 +313,25 @@ mod tests {
         let text = "KZAK SIGMET PAPA 3 VALID 162358/162355 PHFO-OAKLAND OCEANIC FIR\nCANCEL SIGMET PAPA 2 VALID 161955/162355. TS HAVE DIMINISHED.\n";
         let bulletin = parse_sigmet_bulletin(text).expect("bulletin should still parse");
         assert!(bulletin.sections.is_empty());
+    }
+
+    #[test]
+    fn parses_international_sigmet_bulletin() {
+        let text = "WAAF SIGMET 05 VALID 090100/090700 WAAA-\nWAAF UJUNG PANDANG FIR VA ERUPTION MT IBU PSN N0129 E12738 VA CLD OBS AT 0040Z WI N0129 E12737 - N0131 E12738 - N0129 E12751 - N0117 E12744 - N0129 E12737 SFC/FL070 MOV SE 10KT NC=\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("expected international SIGMET parsing");
+
+        assert_eq!(bulletin.sections.len(), 1);
+        assert_eq!(bulletin.sections[0].origin.as_deref(), Some("WAAF"));
+        assert_eq!(bulletin.sections[0].identifier.as_deref(), Some("05"));
+    }
+
+    #[test]
+    fn parses_philippines_sigmet_bulletin() {
+        let text = "RPHI SIGMET 1 VALID 090034/090634 RPLL-\nRPHI MANILA FIR VA ERUPTION MT MAYON PSN N1315 E12341 VA CLD OBS AT 0000Z=\n";
+        let bulletin = parse_sigmet_bulletin(text).expect("expected Philippines SIGMET parsing");
+
+        assert_eq!(bulletin.sections.len(), 1);
+        assert_eq!(bulletin.sections[0].origin.as_deref(), Some("RPHI"));
+        assert_eq!(bulletin.sections[0].identifier.as_deref(), Some("1"));
     }
 }

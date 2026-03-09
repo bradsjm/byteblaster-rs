@@ -119,7 +119,7 @@ fn metar_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?i)\b(?P<kind>METAR|SPECI)\s+(?P<station>[A-Z][A-Z0-9]{3})\s+(?P<time>\d{6}Z)\b",
+            r"(?i)\b(?P<kind>METAR|SPECI)\s+(?:COR\s+)?(?P<station>[A-Z][A-Z0-9]{3})\s+(?P<time>\d{6}Z)\b",
         )
         .expect("metar regex compiles")
     })
@@ -146,5 +146,27 @@ mod tests {
     fn ignores_non_metar_body() {
         let text = "000 \nFXUS61 KBOX 022101\nAREA FORECAST DISCUSSION\n";
         assert!(parse_metar_bulletin(text).is_none());
+    }
+
+    #[test]
+    fn parses_corrected_metar_report() {
+        let text = "METAR COR UGKO 090030Z 24007KT 9999 SCT030 BKN061 03/01 Q1029 NOSIG=";
+        let (bulletin, issues) =
+            parse_metar_bulletin(text).expect("expected corrected METAR report");
+
+        assert_eq!(bulletin.report_count(), 1);
+        assert_eq!(bulletin.reports[0].station, "UGKO");
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn parses_corrected_speci_report() {
+        let text = "SPECI COR KDSM 070254Z 33007KT 10SM CLR M09/M14 A3017=";
+        let (bulletin, issues) =
+            parse_metar_bulletin(text).expect("expected corrected SPECI report");
+
+        assert_eq!(bulletin.report_count(), 1);
+        assert_eq!(bulletin.reports[0].station, "KDSM");
+        assert!(issues.is_empty());
     }
 }

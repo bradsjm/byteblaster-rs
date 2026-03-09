@@ -51,9 +51,11 @@ pub enum ProductEnrichmentSource {
     WmoFdBulletin,
     TextPirepBulletin,
     TextSigmetBulletin,
+    WmoSigmetBulletin,
     WmoMetarBulletin,
     WmoTafBulletin,
     WmoDcpBulletin,
+    WmoUnsupportedBulletin,
     FilenameNonText,
     Unknown,
 }
@@ -327,117 +329,13 @@ fn enrich_text_product_fallback(
     bytes: &[u8],
     error: ParserError,
 ) -> ProductEnrichment {
-    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
-        (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some(reference_time) = parsed_wmo.header.timestamp(Utc::now())
-        && let Some(fd) = looks_like_fd_wmo_bulletin(filename, &parsed_wmo.body_text)
-            .then(|| {
-                parse_fd_bulletin(
-                    &parsed_wmo.body_text,
-                    Some(filename_stem(filename)),
-                    reference_time,
-                )
-            })
-            .flatten()
-    {
-        return ProductEnrichment {
-            source: ProductEnrichmentSource::WmoFdBulletin,
-            family: Some("fd_bulletin"),
-            title: Some("Winds and temperatures aloft"),
-            container: container_from_filename(filename),
-            pil: None,
-            wmo_prefix: None,
-            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
-            header: None,
-            wmo_header: Some(parsed_wmo.header),
-            bbb_kind: None,
-            body: None,
-            metar: None,
-            taf: None,
-            dcp: None,
-            fd: Some(fd),
-            pirep: None,
-            sigmet: None,
-            issues: Vec::new(),
-        };
-    }
+    let afos_missing = matches!(
+        error,
+        ParserError::MissingAfosLine | ParserError::MissingAfos { .. }
+    );
 
-    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
-        (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some((metar, issues)) = parse_metar_bulletin(&parsed_wmo.body_text)
-    {
-        return ProductEnrichment {
-            source: ProductEnrichmentSource::WmoMetarBulletin,
-            family: Some("metar_collective"),
-            title: Some("METAR bulletin"),
-            container: container_from_filename(filename),
-            pil: None,
-            wmo_prefix: None,
-            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
-            header: None,
-            wmo_header: Some(parsed_wmo.header),
-            bbb_kind: None,
-            body: None,
-            metar: Some(metar),
-            taf: None,
-            dcp: None,
-            fd: None,
-            pirep: None,
-            sigmet: None,
-            issues,
-        };
-    }
-
-    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
-        (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some(taf) = parse_taf_bulletin(&parsed_wmo.body_text)
-    {
-        return ProductEnrichment {
-            source: ProductEnrichmentSource::WmoTafBulletin,
-            family: Some("taf_bulletin"),
-            title: Some("Terminal Aerodrome Forecast"),
-            container: container_from_filename(filename),
-            pil: None,
-            wmo_prefix: None,
-            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
-            header: None,
-            wmo_header: Some(parsed_wmo.header),
-            bbb_kind: None,
-            body: None,
-            metar: None,
-            taf: Some(taf),
-            dcp: None,
-            fd: None,
-            pirep: None,
-            sigmet: None,
-            issues: Vec::new(),
-        };
-    }
-
-    if let (ParserError::MissingAfosLine | ParserError::MissingAfos { .. }, Ok(parsed_wmo)) =
-        (&error, parse_wmo_bulletin_conditioned(bytes))
-        && let Some(dcp) = parse_dcp_bulletin(filename, &parsed_wmo.header, &parsed_wmo.body_text)
-    {
-        return ProductEnrichment {
-            source: ProductEnrichmentSource::WmoDcpBulletin,
-            family: Some("dcp_telemetry_bulletin"),
-            title: Some("GOES DCP telemetry bulletin"),
-            container: container_from_filename(filename),
-            pil: None,
-            wmo_prefix: None,
-            office: wmo_office_entry(&parsed_wmo.header.cccc).copied(),
-            header: None,
-            wmo_header: Some(parsed_wmo.header),
-            bbb_kind: None,
-            body: None,
-            metar: None,
-            taf: None,
-            dcp: Some(dcp),
-            fd: None,
-            pirep: None,
-            sigmet: None,
-            issues: Vec::new(),
-        };
+    if afos_missing && let Ok(parsed_wmo) = parse_wmo_bulletin_conditioned(bytes) {
+        return enrich_wmo_only_bulletin(filename, parsed_wmo.header, &parsed_wmo.body_text);
     }
 
     ProductEnrichment {
@@ -517,6 +415,250 @@ fn looks_like_fd_wmo_bulletin(filename: &str, body_text: &str) -> bool {
             .any(|line| line.trim_start().starts_with("FT "))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WmoOnlyKind {
+    Fd,
+    Metar,
+    Taf,
+    Dcp,
+    Sigmet,
+    Airmet,
+    CanadianText,
+    SurfaceObservation,
+    UnknownValidWmo,
+}
+
+fn enrich_wmo_only_bulletin(
+    filename: &str,
+    header: WmoHeader,
+    body_text: &str,
+) -> ProductEnrichment {
+    match classify_wmo_only_bulletin(filename, &header, body_text) {
+        WmoOnlyKind::Fd => {
+            let fd = header
+                .timestamp(Utc::now())
+                .and_then(|reference_time| {
+                    parse_fd_bulletin(body_text, Some(filename_stem(filename)), reference_time)
+                })
+                .expect("wmo fd classification must yield parsable bulletin");
+
+            ProductEnrichment {
+                source: ProductEnrichmentSource::WmoFdBulletin,
+                family: Some("fd_bulletin"),
+                title: Some("Winds and temperatures aloft"),
+                container: container_from_filename(filename),
+                pil: None,
+                wmo_prefix: None,
+                office: wmo_office_entry(&header.cccc).copied(),
+                header: None,
+                wmo_header: Some(header),
+                bbb_kind: None,
+                body: None,
+                metar: None,
+                taf: None,
+                dcp: None,
+                fd: Some(fd),
+                pirep: None,
+                sigmet: None,
+                issues: Vec::new(),
+            }
+        }
+        WmoOnlyKind::Metar => {
+            let (metar, issues) = parse_metar_bulletin(body_text)
+                .expect("wmo metar classification must yield parsable bulletin");
+
+            ProductEnrichment {
+                source: ProductEnrichmentSource::WmoMetarBulletin,
+                family: Some("metar_collective"),
+                title: Some("METAR bulletin"),
+                container: container_from_filename(filename),
+                pil: None,
+                wmo_prefix: None,
+                office: wmo_office_entry(&header.cccc).copied(),
+                header: None,
+                wmo_header: Some(header),
+                bbb_kind: None,
+                body: None,
+                metar: Some(metar),
+                taf: None,
+                dcp: None,
+                fd: None,
+                pirep: None,
+                sigmet: None,
+                issues,
+            }
+        }
+        WmoOnlyKind::Taf => {
+            let taf = parse_taf_bulletin(body_text)
+                .expect("wmo taf classification must yield parsable bulletin");
+
+            ProductEnrichment {
+                source: ProductEnrichmentSource::WmoTafBulletin,
+                family: Some("taf_bulletin"),
+                title: Some("Terminal Aerodrome Forecast"),
+                container: container_from_filename(filename),
+                pil: None,
+                wmo_prefix: None,
+                office: wmo_office_entry(&header.cccc).copied(),
+                header: None,
+                wmo_header: Some(header),
+                bbb_kind: None,
+                body: None,
+                metar: None,
+                taf: Some(taf),
+                dcp: None,
+                fd: None,
+                pirep: None,
+                sigmet: None,
+                issues: Vec::new(),
+            }
+        }
+        WmoOnlyKind::Dcp => {
+            let dcp = parse_dcp_bulletin(filename, &header, body_text)
+                .expect("wmo dcp classification must yield parsable bulletin");
+
+            ProductEnrichment {
+                source: ProductEnrichmentSource::WmoDcpBulletin,
+                family: Some("dcp_telemetry_bulletin"),
+                title: Some("GOES DCP telemetry bulletin"),
+                container: container_from_filename(filename),
+                pil: None,
+                wmo_prefix: None,
+                office: wmo_office_entry(&header.cccc).copied(),
+                header: None,
+                wmo_header: Some(header),
+                bbb_kind: None,
+                body: None,
+                metar: None,
+                taf: None,
+                dcp: Some(dcp),
+                fd: None,
+                pirep: None,
+                sigmet: None,
+                issues: Vec::new(),
+            }
+        }
+        WmoOnlyKind::Sigmet => {
+            let sigmet = parse_sigmet_bulletin(body_text)
+                .expect("wmo sigmet classification must yield parsable bulletin");
+
+            ProductEnrichment {
+                source: ProductEnrichmentSource::WmoSigmetBulletin,
+                family: Some("sigmet_bulletin"),
+                title: Some("SIGMET bulletin"),
+                container: container_from_filename(filename),
+                pil: None,
+                wmo_prefix: None,
+                office: wmo_office_entry(&header.cccc).copied(),
+                header: None,
+                wmo_header: Some(header),
+                bbb_kind: None,
+                body: None,
+                metar: None,
+                taf: None,
+                dcp: None,
+                fd: None,
+                pirep: None,
+                sigmet: Some(sigmet),
+                issues: Vec::new(),
+            }
+        }
+        WmoOnlyKind::Airmet => unsupported_wmo_bulletin(
+            filename,
+            header,
+            "unsupported_airmet_bulletin",
+            "recognized valid WMO AIRMET bulletin, but textual AIRMET parsing is not implemented",
+            first_nonempty_line(body_text).map(str::to_string),
+        ),
+        WmoOnlyKind::CanadianText => unsupported_wmo_bulletin(
+            filename,
+            header,
+            "unsupported_canadian_text_bulletin",
+            "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+            first_nonempty_line(body_text).map(str::to_string),
+        ),
+        WmoOnlyKind::SurfaceObservation => unsupported_wmo_bulletin(
+            filename,
+            header,
+            "unsupported_surface_observation_bulletin",
+            "recognized valid WMO surface observation bulletin, but parsing is not implemented",
+            first_nonempty_line(body_text).map(str::to_string),
+        ),
+        WmoOnlyKind::UnknownValidWmo => unsupported_wmo_bulletin(
+            filename,
+            header,
+            "unsupported_wmo_bulletin",
+            "recognized valid WMO bulletin without AFOS line, but no parser is available",
+            first_nonempty_line(body_text).map(str::to_string),
+        ),
+    }
+}
+
+fn classify_wmo_only_bulletin(filename: &str, header: &WmoHeader, body_text: &str) -> WmoOnlyKind {
+    if let Some(reference_time) = header.timestamp(Utc::now())
+        && looks_like_fd_wmo_bulletin(filename, body_text)
+        && parse_fd_bulletin(body_text, Some(filename_stem(filename)), reference_time).is_some()
+    {
+        return WmoOnlyKind::Fd;
+    }
+    if parse_metar_bulletin(body_text).is_some() {
+        return WmoOnlyKind::Metar;
+    }
+    if parse_taf_bulletin(body_text).is_some() {
+        return WmoOnlyKind::Taf;
+    }
+    if parse_dcp_bulletin(filename, header, body_text).is_some() {
+        return WmoOnlyKind::Dcp;
+    }
+    if looks_like_sigmet_wmo_bulletin(body_text) && parse_sigmet_bulletin(body_text).is_some() {
+        return WmoOnlyKind::Sigmet;
+    }
+    if looks_like_airmet_wmo_bulletin(body_text) {
+        return WmoOnlyKind::Airmet;
+    }
+    if looks_like_surface_observation_bulletin(body_text) {
+        return WmoOnlyKind::SurfaceObservation;
+    }
+    if looks_like_canadian_text_bulletin(header, body_text) {
+        return WmoOnlyKind::CanadianText;
+    }
+    WmoOnlyKind::UnknownValidWmo
+}
+
+fn unsupported_wmo_bulletin(
+    filename: &str,
+    header: WmoHeader,
+    code: &'static str,
+    message: &'static str,
+    line: Option<String>,
+) -> ProductEnrichment {
+    ProductEnrichment {
+        source: ProductEnrichmentSource::WmoUnsupportedBulletin,
+        family: Some("unsupported_wmo_bulletin"),
+        title: None,
+        container: container_from_filename(filename),
+        pil: None,
+        wmo_prefix: None,
+        office: wmo_office_entry(&header.cccc).copied(),
+        header: None,
+        wmo_header: Some(header),
+        bbb_kind: None,
+        body: None,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        issues: vec![ProductParseIssue::new(
+            "wmo_bulletin_parse",
+            code,
+            message,
+            line,
+        )],
+    }
+}
+
 /// Detects if a text product appears to be a PIREP bulletin.
 ///
 /// Checks AFOS code pattern (PIR, PRCUS, PIREP) or body content markers
@@ -540,6 +682,43 @@ fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
         || body_text.trim_start().starts_with("CONVECTIVE SIGMET ")
         || body_text.trim_start().starts_with("KZAK SIGMET ")
         || body_text.trim_start().starts_with("SIGMET ")
+}
+
+fn looks_like_sigmet_wmo_bulletin(body_text: &str) -> bool {
+    let Some(first_line) = first_nonempty_line(body_text) else {
+        return false;
+    };
+    first_line.starts_with("SIGMET ")
+        || starts_with_icao_sigmet_line(first_line)
+        || (first_line.contains(" SIGMET ") && first_line.contains(" VALID "))
+}
+
+fn starts_with_icao_sigmet_line(line: &str) -> bool {
+    let mut parts = line.split_whitespace();
+    let Some(origin) = parts.next() else {
+        return false;
+    };
+    let Some(sigmet) = parts.next() else {
+        return false;
+    };
+    origin.len() == 4 && origin.chars().all(|ch| ch.is_ascii_uppercase()) && sigmet == "SIGMET"
+}
+
+fn looks_like_airmet_wmo_bulletin(body_text: &str) -> bool {
+    first_nonempty_line(body_text)
+        .is_some_and(|line| line.contains(" AIRMET ") && line.contains(" VALID "))
+}
+
+fn looks_like_canadian_text_bulletin(header: &WmoHeader, body_text: &str) -> bool {
+    header.cccc.starts_with("CW") || body_text.contains("ENVIRONMENT CANADA")
+}
+
+fn looks_like_surface_observation_bulletin(body_text: &str) -> bool {
+    first_nonempty_line(body_text).is_some_and(|line| line.starts_with("NPL SA "))
+}
+
+fn first_nonempty_line(text: &str) -> Option<&str> {
+    text.lines().map(str::trim).find(|line| !line.is_empty())
 }
 
 /// Creates an enrichment for an unknown product type.
@@ -851,6 +1030,149 @@ mod tests {
             Some(1)
         );
         assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn international_sigmet_bulletins_use_wmo_fallback_without_afos() {
+        let enrichment = enrich_product(
+            "WVID21.TXT",
+            b"WVID21 WAAA 090100\nWAAF SIGMET 05 VALID 090100/090700 WAAA-\nWAAF UJUNG PANDANG  FIR VA ERUPTION MT IBU PSN N0129 E12738 VA CLD\nOBS AT 0040Z WI N0129 E12737 - N0131 E12738 - N0129 E12751 - N0117\nE12744 - N0129 E12737 SFC/FL070 MOV SE 10KT NC=\n",
+        );
+
+        assert_eq!(
+            enrichment.source,
+            ProductEnrichmentSource::WmoSigmetBulletin
+        );
+        assert_eq!(enrichment.family, Some("sigmet_bulletin"));
+        assert_eq!(
+            enrichment.sigmet.as_ref().map(|value| value.sections.len()),
+            Some(1)
+        );
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn corrected_metar_bulletins_use_wmo_fallback_without_afos() {
+        let enrichment = enrich_product(
+            "SAGG31.TXT",
+            b"SAGG31 UGTB 090030 CCA\nMETAR COR UGKO 090030Z 24007KT 9999 SCT030 BKN061 03/01 Q1029 NOSIG=\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoMetarBulletin);
+        assert_eq!(enrichment.family, Some("metar_collective"));
+        assert_eq!(
+            enrichment.metar.as_ref().map(MetarBulletin::report_count),
+            Some(1)
+        );
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn duplicated_amended_taf_bulletins_use_wmo_fallback_without_afos() {
+        let enrichment = enrich_product(
+            "FTMX41.TXT",
+            b"FTMX41 KWBC 090103 AAA\nTAF AMD\nTAF AMD MMAS 090101Z 0901/0918 23008KT P6SM SCT100 BKN200\n     FM091200 04005KT P6SM SCT200=\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.family, Some("taf_bulletin"));
+        assert_eq!(
+            enrichment.taf.as_ref().map(|value| value.station.as_str()),
+            Some("MMAS")
+        );
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn wallops_telemetry_variants_with_symbol_noise_use_wmo_dcp_fallback() {
+        for (filename, bytes, platform_id) in [
+            (
+                "MISA50US.TXT",
+                b"SXPA50 KWAL 090055\nCE1107B6 068005524`BCT@Go@Gq@Gq@Gr@Gr@Gr@Gs@Gr@Gs@Gr@Gu@Gt~]w~\\T~^F~bF~d@~eS~gq~jl~l]~mo~sA~wyf 39+0NN  25E\n".as_slice(),
+                "CE1107B6 068005524",
+            ),
+            (
+                "MISDCPHN.TXT",
+                b"SXHN40 KWAL 090038\n50423782 068003840bB1H_??_??_??_??_??_??_??_??@@@@@r@TaJ 47+0NN 175E\n".as_slice(),
+                "50423782 068003840",
+            ),
+            (
+                "MISDCPMG.TXT",
+                b"SXMG40 KWAL 090050\n9650D70A 068005040\"A18.34B17.92C18.73D82.73E80.63F84.66G9.70H0.00I10.92J355.59K0.00L824.64M824.67N824.67O11.50P21.30Q0.11R-10.01S2360.16T0.00U1.20 38-0NN 397E\n".as_slice(),
+                "9650D70A 068005040",
+            ),
+            (
+                "MISDCPSV.TXT",
+                b"SXMS50 KWAL 090100\n3B0190E2 068010020`@aW@ac@]C@aP@\\z@N\\B_G@Dn@]A@A_@FZ@\\~@@@@@@@TiFtd@aY@ae@\\g@aV@\\n@N_B_G@C{@\\h@AQ@Ek@\\i@@@@@@@TmFtd@a[@ai@\\Z@aW@\\\\@N\\B_F@DX@]W@AD@Ez@\\_@@@@@@@TsFtd@a\\@aj@\\L@aW@\\O@NYB_E@C^@]C@AO@Dz@\\U@@@@@B@TxFtd 38+0NN 145E\n".as_slice(),
+                "3B0190E2 068010020",
+            ),
+        ] {
+            let enrichment = enrich_product(filename, bytes);
+            assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+            assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
+            assert_eq!(
+                enrichment
+                    .dcp
+                    .as_ref()
+                    .and_then(|bulletin| bulletin.platform_id.as_deref()),
+                Some(platform_id)
+            );
+            assert!(enrichment.issues.is_empty());
+        }
+    }
+
+    #[test]
+    fn unsupported_airmet_bulletins_use_wmo_unsupported_source() {
+        let enrichment = enrich_product(
+            "WAAB31.TXT",
+            b"WAAB31 LATI 090038\nLAAA AIRMET 1 VALID 090100/090500 LATI-\nLAAA TIRANA FIR MOD ICE FCST S OF N4110 FL070/120 STNR NC=\n",
+        );
+
+        assert_eq!(
+            enrichment.source,
+            ProductEnrichmentSource::WmoUnsupportedBulletin
+        );
+        assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
+        assert_eq!(enrichment.issues[0].code, "unsupported_airmet_bulletin");
+        assert!(enrichment.wmo_header.is_some());
+    }
+
+    #[test]
+    fn unsupported_canadian_bulletins_use_wmo_unsupported_source() {
+        let enrichment = enrich_product(
+            "FPCN11.TXT",
+            b"FPCN11 CWWG 090059 AAD\nUPDATED FORECASTS FOR SOUTHERN MANITOBA ISSUED BY ENVIRONMENT CANADA\nAT 7:57 P.M. CDT SUNDAY 8 MARCH 2026 FOR TONIGHT MONDAY AND MONDAY\nNIGHT.\n",
+        );
+
+        assert_eq!(
+            enrichment.source,
+            ProductEnrichmentSource::WmoUnsupportedBulletin
+        );
+        assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
+        assert_eq!(
+            enrichment.issues[0].code,
+            "unsupported_canadian_text_bulletin"
+        );
+        assert!(enrichment.wmo_header.is_some());
+    }
+
+    #[test]
+    fn unsupported_surface_observation_bulletins_use_wmo_unsupported_source() {
+        let enrichment = enrich_product(
+            "SAHOURLY.TXT",
+            b"SACN74 CWAO 090000 RRC\n\nNPL SA 0000 AUTO8 M M M 990/-36/-39/2703/M/     7003 61MM=\n",
+        );
+
+        assert_eq!(
+            enrichment.source,
+            ProductEnrichmentSource::WmoUnsupportedBulletin
+        );
+        assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
+        assert_eq!(
+            enrichment.issues[0].code,
+            "unsupported_surface_observation_bulletin"
+        );
+        assert!(enrichment.wmo_header.is_some());
     }
 
     #[test]

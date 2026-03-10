@@ -1,4 +1,4 @@
-use crate::{TextProductHeader, pil_catalog_entry};
+use crate::{TextProductHeader, text_product_catalog_entry};
 use serde::Serialize;
 
 /// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
@@ -20,6 +20,9 @@ pub enum BbbKind {
 /// Enriched information about a parsed text product header.
 ///
 /// Provides semantic metadata derived from the raw header fields.
+///
+/// Header enrichment exposes PIL-derived identity. The richer text-product
+/// catalog drives routing and generic body policy later in the pipeline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductEnrichment<'a> {
     /// First 3 characters of the AFOS PIL (product type code)
@@ -62,7 +65,7 @@ pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     } else {
         None
     };
-    let catalog_entry = pil_nnn.and_then(pil_catalog_entry);
+    let catalog_entry = pil_nnn.and_then(text_product_catalog_entry);
     let pil_description = catalog_entry.map(|entry| entry.title);
     let bbb_kind = header.bbb.as_deref().map(classify_bbb);
 

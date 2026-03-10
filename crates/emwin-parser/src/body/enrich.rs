@@ -91,8 +91,9 @@ pub struct ParsedPolygon<'a> {
 ///
 /// The execution order is fixed because downstream issue ordering and parse
 /// semantics depend on it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BodyExtractorId {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BodyExtractorId {
     Vtec,
     Ugc,
     Hvtec,
@@ -165,7 +166,7 @@ pub(crate) fn body_extraction_plan(extractors: &'static [BodyExtractorId]) -> Bo
     }
 }
 
-/// Enriches text body content by deriving the extraction plan from a PIL.
+/// Enriches text body content by deriving the extraction plan from the text-product catalog.
 ///
 /// Unknown PIL values intentionally produce no body content and no issues.
 pub fn enrich_body(
@@ -173,7 +174,9 @@ pub fn enrich_body(
     pil: &str,
     reference_time: Option<DateTime<Utc>>,
 ) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
-    let Some(plan) = crate::data::body_extraction_plan_for_pil(pil) else {
+    let Some(plan) = crate::data::text_product_catalog_entry(pil)
+        .and_then(crate::data::body_extraction_plan_for_entry)
+    else {
         return (None, Vec::new());
     };
     let outcome = enrich_body_from_plan(text, &plan, reference_time);
@@ -489,7 +492,8 @@ MAXWINDGUST...60 MPH
     #[test]
     fn enrich_body_wrapper_matches_plan_based_engine() {
         let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/";
-        let plan = crate::data::body_extraction_plan_for_pil("SVR")
+        let plan = crate::data::text_product_catalog_entry("SVR")
+            .and_then(crate::data::body_extraction_plan_for_entry)
             .expect("SVR should have body extraction plan");
 
         let wrapper = enrich_body(text, "SVR", Some(Utc::now()));

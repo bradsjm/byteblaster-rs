@@ -49,20 +49,21 @@ mod taf;
 mod time;
 
 pub use body::{
-    HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody, TimeMotLocEntry,
-    UgcArea, UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind, enrich_body,
-    parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
+    BodyExtractorId, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody,
+    TimeMotLocEntry, UgcArea, UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind,
+    enrich_body, parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
     parse_latlon_polygons_with_issues, parse_time_mot_loc_entries,
     parse_time_mot_loc_entries_with_issues, parse_ugc_sections, parse_ugc_sections_with_issues,
     parse_vtec_codes, parse_vtec_codes_with_issues, parse_wind_hail_entries,
     parse_wind_hail_entries_with_issues,
 };
 pub use data::{
-    NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, PIL_ENTRY_COUNT,
-    PIL_GENERATED_AT_UTC, PilCatalogEntry, UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH,
-    UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH, UgcLocationEntry,
-    WMO_OFFICE_ENTRY_COUNT, WMO_OFFICE_GENERATED_AT_UTC, WMO_OFFICE_SOURCE_PATH, WmoOfficeEntry,
-    nwslid_entry, pil_catalog_entry, pil_description, ugc_county_entry, ugc_zone_entry,
+    NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, TEXT_PRODUCT_ENTRY_COUNT,
+    TEXT_PRODUCT_GENERATED_AT_UTC, TextProductBodyBehavior, TextProductCatalogEntry,
+    TextProductRouting, UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC,
+    UGC_ZONE_ENTRY_COUNT, UGC_ZONE_SOURCE_PATH, UgcLocationEntry, WMO_OFFICE_ENTRY_COUNT,
+    WMO_OFFICE_GENERATED_AT_UTC, WMO_OFFICE_SOURCE_PATH, WmoOfficeEntry, nwslid_entry,
+    pil_description, text_product_catalog_entry, ugc_county_entry, ugc_zone_entry,
     wmo_office_entry, wmo_prefix_for_pil,
 };
 pub use dcp::DcpBulletin;

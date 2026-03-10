@@ -17,7 +17,7 @@ The crate currently supports:
 
 - WMO header parsing
 - AFOS PIL parsing
-- Header enrichment from the generated PIL catalog
+- Header enrichment from the generated text-product catalog
 - Generic body enrichment for products that carry:
   - UGC
   - VTEC
@@ -70,11 +70,10 @@ raw bytes + filename
         |
         v
 +------------------+
-| Body Plan        |
-| - capability     |
-|   metadata       |
-| - extractor      |
-|   registry       |
+| Catalog Policy   |
+| - routing        |
+| - body behavior  |
+| - extractors     |
 | - QC rules       |
 +------------------+
         |
@@ -144,40 +143,38 @@ That design cuts the highest-value shared-path allocation costs without exposing
 
 ### Generic Body Enrichment
 
-Header enrichment now exposes only semantic header data. Generic body parsing
-is driven by extractor plans derived directly from the generated PIL catalog:
+Header enrichment now exposes only semantic header data. The richer
+text-product catalog drives both AFOS routing and generic body policy:
 
 ```text
-PIL catalog entry
-    |
-    +--> title / WMO prefix
-    |
-    +--> ordered extractor list
-              |
-              v
-      +----------------------+
-      | BodyExtractionPlan   |
-      | - ordered extractors |
-      | - QC rules           |
-      +----------------------+
-              |
-              v
-      +----------------------+
-      | enrich_body_from_plan|
-      | - VTEC               |
-      | - UGC                |
-      | - HVTEC              |
-      | - LAT...LON          |
-      | - TIME...MOT...LOC   |
-      | - wind/hail          |
-      +----------------------+
-              |
-              v
-      ProductBody + issues
+AFOS header
+   |
+   +--> PIL
+          |
+          v
++-----------------------------+
+| TextProductCatalogEntry     |
+| - title                     |
+| - wmo_prefix                |
+| - routing                   |
+| - body_behavior             |
+| - extractors                |
++-----------------------------+
+      |                 |
+      |                 +--> BodyExtractionPlan?
+      |
+      +--> text strategy registry
+                |
+                +--> Generic candidate
+                +--> FD candidate
+                +--> PIREP candidate
+                +--> SIGMET candidate
 ```
 
-That keeps extractor order and issue semantics stable while making the generic
-body path extensible without editing one large boolean matrix.
+If `body_behavior` is `catalog`, the ordered extractor list becomes a
+`BodyExtractionPlan` and feeds generic `ProductBody` parsing. If it is `never`,
+the candidate remains bodyless. That keeps extractor order and issue semantics
+stable while making coexistence policy-driven instead of hardcoded.
 
 ## Product Routing Model
 
@@ -188,11 +185,24 @@ Classification is ordered and explicit.
 ```text
 Text AFOS envelope
     |
-    +--> FD strategy
-    +--> PIREP strategy
-    +--> SIGMET strategy
+    +--> catalog metadata lookup
+    |      |
+    |      +--> routing = fd     -> FD strategy guard
+    |      +--> routing = pirep  -> PIREP strategy guard
+    |      +--> routing = sigmet -> SIGMET strategy guard
+    |      +--> routing = generic
+    |
     +--> generic text fallback
 ```
+
+Current repo truth is encoded directly in the catalog:
+
+- `FD*`, `PIR`, and `SIG` route to specialized parsers and use `body_behavior = never`
+- generic warning products such as `SVR`, `TOR`, and `FFW` route as `generic`
+  and use `body_behavior = catalog`
+
+The coexistence mechanism is active in the pipeline, but current specialized
+AFOS families remain specialized-only because that is what the catalog says.
 
 ### WMO-only text bulletins
 
@@ -354,7 +364,7 @@ assert_eq!(parse_text_product(missing_ldm)?.afos, "AFDBOX");
 
 The crate ships generated lookup tables for:
 
-- PIL catalog entries
+- text-product catalog entries
 - WMO office metadata
 - UGC county and zone metadata
 - NWSLID metadata
@@ -362,7 +372,7 @@ The crate ships generated lookup tables for:
 Relevant helpers include:
 
 - `pil_description`
-- `pil_catalog_entry`
+- `text_product_catalog_entry`
 - `wmo_prefix_for_pil`
 - `wmo_office_entry`
 - `ugc_county_entry`

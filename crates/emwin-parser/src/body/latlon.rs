@@ -42,7 +42,7 @@ pub fn parse_latlon_polygons_with_issues(
     for candidate in find_latlon_candidates(text) {
         let (polygon, parse_issues) = parse_latlon_candidate(&candidate);
         if let Some(polygon) = polygon {
-                polygons.push(polygon);
+            polygons.push(polygon);
         }
         issues.extend(parse_issues);
     }
@@ -113,8 +113,8 @@ fn collect_latlon_candidate(
         }
     }
 
-        (Some(raw), consumed)
-    }
+    (Some(raw), consumed)
+}
 
 fn marker_has_coordinates(raw: &str) -> bool {
     let mut tokens = raw.split_whitespace();
@@ -129,7 +129,9 @@ fn marker_has_coordinates(raw: &str) -> bool {
     )
 }
 
-fn parse_latlon_candidate(candidate: &LatLonCandidate<'_>) -> (Option<LatLonPolygon>, Vec<ProductParseIssue>) {
+fn parse_latlon_candidate(
+    candidate: &LatLonCandidate<'_>,
+) -> (Option<LatLonPolygon>, Vec<ProductParseIssue>) {
     let raw = candidate.raw.trim();
     let mut tokens = raw.split_whitespace();
     let Some(marker) = tokens.next() else {
@@ -141,12 +143,15 @@ fn parse_latlon_candidate(candidate: &LatLonCandidate<'_>) -> (Option<LatLonPoly
 
     let raw_coords: Vec<&str> = tokens.collect();
     let Some((coords, mut issues)) = normalize_coordinate_tokens(&raw_coords) else {
-        return (None, vec![ProductParseIssue::new(
-            "latlon_parse",
-            "invalid_latlon_coordinate_format",
-            format!("could not normalize LAT...LON coordinates from block: `{raw}`"),
-            Some(raw.to_string()),
-        )]);
+        return (
+            None,
+            vec![ProductParseIssue::new(
+                "latlon_parse",
+                "invalid_latlon_coordinate_format",
+                format!("could not normalize LAT...LON coordinates from block: `{raw}`"),
+                Some(raw.to_string()),
+            )],
+        );
     };
 
     let points = match parse_points(&coords, raw) {

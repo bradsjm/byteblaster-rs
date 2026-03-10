@@ -1,7 +1,7 @@
 //! Product metadata lookup, hydrologic location lookup, and non-text filename classification.
 
 mod generated_nwslid;
-mod generated_pil;
+mod generated_text_products;
 mod generated_ugc;
 mod generated_wmo_office;
 mod graphics;
@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use crate::body::{BodyExtractionPlan, BodyExtractorId, body_extraction_plan};
 
 pub use generated_nwslid::{NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC};
-pub use generated_pil::{PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC};
+pub use generated_text_products::{TEXT_PRODUCT_ENTRY_COUNT, TEXT_PRODUCT_GENERATED_AT_UTC};
 pub use generated_ugc::{
     UGC_COUNTY_ENTRY_COUNT, UGC_COUNTY_SOURCE_PATH, UGC_GENERATED_AT_UTC, UGC_ZONE_ENTRY_COUNT,
     UGC_ZONE_SOURCE_PATH,
@@ -20,13 +20,37 @@ pub use generated_wmo_office::{
     WMO_OFFICE_ENTRY_COUNT, WMO_OFFICE_GENERATED_AT_UTC, WMO_OFFICE_SOURCE_PATH,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PilCatalogEntry {
+/// Routing policy for AFOS text products in the generated catalog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TextProductRouting {
+    Generic,
+    Fd,
+    Pirep,
+    Sigmet,
+}
+
+/// Generic body extraction policy for an AFOS text product.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TextProductBodyBehavior {
+    Never,
+    Catalog,
+}
+
+/// Metadata for a known AFOS text product catalog entry.
+///
+/// The catalog now drives both classification routing and generic body policy,
+/// not just human-readable display metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct TextProductCatalogEntry {
     pub pil: &'static str,
     pub wmo_prefix: &'static str,
     pub title: &'static str,
+    pub routing: TextProductRouting,
+    pub body_behavior: TextProductBodyBehavior,
     /// Ordered generic body extractors derived from the product catalog.
-    pub(crate) extractors: &'static [BodyExtractorId],
+    pub extractors: &'static [BodyExtractorId],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
@@ -85,7 +109,7 @@ pub(crate) struct NonTextProductMeta {
 /// assert_eq!(pil_description("XYZ"), None);
 /// ```
 pub fn pil_description(nnn: &str) -> Option<&'static str> {
-    pil_catalog_entry(nnn).map(|entry| entry.title)
+    text_product_catalog_entry(nnn).map(|entry| entry.title)
 }
 
 /// Looks up a National Weather Service Location Identifier (NWSLI) entry.
@@ -221,9 +245,9 @@ pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
         .map(|index| &generated_wmo_office::WMO_OFFICE_CATALOG[index])
 }
 
-/// Looks up a PIL (Product Identifier Line) catalog entry.
+/// Looks up a text-product catalog entry by PIL (Product Identifier Line).
 ///
-/// Returns the full catalog entry including product type description.
+/// Returns the full catalog entry including routing and generic body policy.
 ///
 /// # Arguments
 ///
@@ -231,24 +255,24 @@ pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
 ///
 /// # Returns
 ///
-/// The matching [`PilCatalogEntry`] if found, `None` otherwise
+/// The matching [`TextProductCatalogEntry`] if found, `None` otherwise
 ///
 /// # Example
 ///
 /// ```
-/// use emwin_parser::pil_catalog_entry;
+/// use emwin_parser::text_product_catalog_entry;
 ///
-/// if let Some(entry) = pil_catalog_entry("FFW") {
+/// if let Some(entry) = text_product_catalog_entry("FFW") {
 ///     assert_eq!(entry.title, "Flash Flood Warning");
 ///     assert_eq!(entry.wmo_prefix, "WG");
 /// }
 /// ```
-pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
+pub fn text_product_catalog_entry(nnn: &str) -> Option<&'static TextProductCatalogEntry> {
     let key = normalize_pil(nnn)?;
-    generated_pil::PIL_CATALOG
+    generated_text_products::TEXT_PRODUCT_CATALOG
         .binary_search_by_key(&key.as_str(), |entry| entry.pil)
         .ok()
-        .map(|index| &generated_pil::PIL_CATALOG[index])
+        .map(|index| &generated_text_products::TEXT_PRODUCT_CATALOG[index])
 }
 
 /// Returns the WMO TTAAII prefix associated with a PIL product type.
@@ -273,12 +297,17 @@ pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
 /// assert_eq!(wmo_prefix_for_pil("TOR"), Some("WF"));
 /// ```
 pub fn wmo_prefix_for_pil(nnn: &str) -> Option<&'static str> {
-    pil_catalog_entry(nnn).map(|entry| entry.wmo_prefix)
+    text_product_catalog_entry(nnn).map(|entry| entry.wmo_prefix)
 }
 
-/// Returns the internal body extraction plan for a known PIL, if one exists.
-pub(crate) fn body_extraction_plan_for_pil(nnn: &str) -> Option<BodyExtractionPlan> {
-    pil_catalog_entry(nnn).map(|entry| body_extraction_plan(entry.extractors))
+/// Returns the internal body extraction plan for a text-product catalog entry.
+pub(crate) fn body_extraction_plan_for_entry(
+    entry: &TextProductCatalogEntry,
+) -> Option<BodyExtractionPlan> {
+    match entry.body_behavior {
+        TextProductBodyBehavior::Never => None,
+        TextProductBodyBehavior::Catalog => Some(body_extraction_plan(entry.extractors)),
+    }
 }
 
 /// Classifies a non-text product filename into its product family and metadata.
@@ -395,8 +424,9 @@ pub(super) fn imgmod_re() -> &'static regex::Regex {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_non_text_product, nwslid_entry, pil_catalog_entry, pil_description,
-        ugc_county_entry, ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
+        TextProductBodyBehavior, TextProductRouting, classify_non_text_product, nwslid_entry,
+        pil_description, text_product_catalog_entry, ugc_county_entry, ugc_zone_entry,
+        wmo_office_entry, wmo_prefix_for_pil,
     };
     use crate::body::BodyExtractorId;
 
@@ -408,7 +438,7 @@ mod tests {
 
     #[test]
     fn lookup_rejects_invalid_pil_length() {
-        assert_eq!(pil_catalog_entry("TO"), None);
+        assert_eq!(text_product_catalog_entry("TO"), None);
         assert_eq!(pil_description("TOOO"), None);
     }
 
@@ -428,15 +458,25 @@ mod tests {
 
     #[test]
     fn generated_catalog_contains_known_entry() {
-        let entry = pil_catalog_entry("ZFP").expect("expected generated catalog entry");
+        let entry = text_product_catalog_entry("ZFP").expect("expected generated catalog entry");
         assert_eq!(entry.title, "Zone Forecast Product");
         assert_eq!(entry.wmo_prefix, "FP");
+        assert_eq!(entry.routing, TextProductRouting::Generic);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
         assert_eq!(entry.extractors, &[BodyExtractorId::Ugc]);
     }
 
     #[test]
+    fn text_product_catalog_entry_returns_routing_and_body_behavior() {
+        let entry =
+            text_product_catalog_entry("SVR").expect("expected severe thunderstorm warning entry");
+        assert_eq!(entry.routing, TextProductRouting::Generic);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
+    }
+
+    #[test]
     fn generated_catalog_exposes_ordered_extractors() {
-        let entry = pil_catalog_entry("FFW").expect("expected generated catalog entry");
+        let entry = text_product_catalog_entry("FFW").expect("expected generated catalog entry");
         assert_eq!(
             entry.extractors,
             &[
@@ -447,6 +487,38 @@ mod tests {
                 BodyExtractorId::TimeMotLoc,
             ]
         );
+    }
+
+    #[test]
+    fn generic_warning_entry_exposes_catalog_body_behavior() {
+        let entry =
+            text_product_catalog_entry("SVR").expect("expected severe thunderstorm warning entry");
+        assert_eq!(entry.routing, TextProductRouting::Generic);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
+    }
+
+    #[test]
+    fn fd_entry_exposes_specialized_routing_and_never_body_behavior() {
+        let entry = text_product_catalog_entry("FD1").expect("expected fd entry");
+        assert_eq!(entry.routing, TextProductRouting::Fd);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+        assert!(entry.extractors.is_empty());
+    }
+
+    #[test]
+    fn pirep_entry_exposes_specialized_routing_and_never_body_behavior() {
+        let entry = text_product_catalog_entry("PIR").expect("expected pirep entry");
+        assert_eq!(entry.routing, TextProductRouting::Pirep);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+        assert!(entry.extractors.is_empty());
+    }
+
+    #[test]
+    fn sigmet_entry_exposes_specialized_routing_and_never_body_behavior() {
+        let entry = text_product_catalog_entry("SIG").expect("expected sigmet entry");
+        assert_eq!(entry.routing, TextProductRouting::Sigmet);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+        assert!(entry.extractors.is_empty());
     }
 
     #[test]

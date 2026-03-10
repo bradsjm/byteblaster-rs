@@ -669,7 +669,8 @@ mod tests {
             title: Some("Terminal Aerodrome Forecast"),
             body_request: Some(BodyContributionRequest {
                 text: "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/".to_string(),
-                plan: crate::data::body_extraction_plan_for_pil("SVR")
+                plan: crate::data::text_product_catalog_entry("SVR")
+                    .and_then(crate::data::body_extraction_plan_for_entry)
                     .expect("SVR should have body extraction plan"),
                 reference_time: Some(Utc::now()),
             }),
@@ -728,5 +729,38 @@ mod tests {
 
         assert_eq!(enrichment.issues.len(), 1);
         assert_eq!(enrichment.issues[0].code, "missing_reference_time");
+    }
+
+    #[test]
+    fn specialized_candidate_with_body_request_assembles_both_artifact_and_body() {
+        let bulletin = parse_sigmet_bulletin(
+            "CONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
+        )
+        .expect("sigmet bulletin should parse");
+        let candidate = ClassificationCandidate::Sigmet(SigmetCandidate {
+            source: crate::ProductEnrichmentSource::TextSigmetBulletin,
+            header: Some(text_header("SIGABC")),
+            wmo_header: None,
+            pil: Some("SIG".to_string()),
+            bbb_kind: None,
+            body_request: Some(BodyContributionRequest {
+                text: "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/".to_string(),
+                plan: crate::body::body_extraction_plan(&[crate::body::BodyExtractorId::Vtec]),
+                reference_time: Some(Utc::now()),
+            }),
+            bulletin,
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "SIGABC.TXT", b"ignored");
+
+        assert!(enrichment.sigmet.is_some());
+        assert!(enrichment.body.is_some());
+        assert!(
+            enrichment
+                .body
+                .as_ref()
+                .and_then(|body| body.vtec.as_ref())
+                .is_some()
+        );
     }
 }

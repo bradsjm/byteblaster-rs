@@ -518,6 +518,30 @@ mod tests {
     }
 
     #[test]
+    fn current_specialized_afos_products_remain_bodyless() {
+        let fd = enrich_product(
+            "FD1US1.TXT",
+            b"000 \nFTUS80 KWBC 070000\nFD1US1\nDATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
+        );
+        assert!(fd.fd.is_some());
+        assert!(fd.body.is_none());
+
+        let pirep = enrich_product(
+            "PIRXXX.TXT",
+            b"000 \nUAUS01 KBOU 070000\nPIRBOU\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n",
+        );
+        assert!(pirep.pirep.is_some());
+        assert!(pirep.body.is_none());
+
+        let sigmet = enrich_product(
+            "SIGABC.TXT",
+            b"000 \nWSUS31 KKCI 070000\nSIGABC\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
+        );
+        assert!(sigmet.sigmet.is_some());
+        assert!(sigmet.body.is_none());
+    }
+
+    #[test]
     fn non_text_products_use_filename_classification() {
         let enrichment = enrich_product("RADUMSVY.GIF", b"ignored");
 

@@ -6,7 +6,10 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::data::body_extraction_plan_for_pil;
+use crate::data::{
+    TextProductCatalogEntry, TextProductRouting, body_extraction_plan_for_entry,
+    text_product_catalog_entry,
+};
 use crate::dcp::parse_dcp_bulletin;
 use crate::fd::parse_fd_bulletin;
 use crate::metar::parse_metar_bulletin;
@@ -48,6 +51,8 @@ struct TextClassificationContext<'a> {
     header: &'a TextProductHeader,
     /// Conditioned body text after header removal.
     body_text: &'a str,
+    /// Full text-product catalog metadata when the PIL is known.
+    metadata: Option<&'static TextProductCatalogEntry>,
     /// Three-character PIL prefix when present.
     pil: Option<String>,
     /// Human-readable title from the PIL catalog.
@@ -105,13 +110,15 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         return ClassificationCandidate::Unknown;
     };
     let header_enrichment = enrich_header(header);
+    let metadata = header_enrichment
+        .pil_nnn
+        .and_then(text_product_catalog_entry);
     let context = TextClassificationContext {
         filename: envelope.filename(),
         pil: header_enrichment.pil_nnn.map(str::to_string),
         title: header_enrichment.pil_description,
-        body_plan: header_enrichment
-            .pil_nnn
-            .and_then(body_extraction_plan_for_pil),
+        body_plan: metadata.and_then(body_extraction_plan_for_entry),
+        metadata,
         bbb_kind: header_enrichment.bbb_kind,
         reference_time: header.timestamp(Utc::now()),
         header,
@@ -128,11 +135,11 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         header: context.header.clone(),
         pil: context.pil,
         title: context.title,
-        body_request: context.body_plan.map(|plan| BodyContributionRequest {
-            text: context.body_text.to_string(),
-            plan,
-            reference_time: context.reference_time,
-        }),
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
         bbb_kind: context.bbb_kind,
         reference_time: context.reference_time,
     })
@@ -260,6 +267,9 @@ fn starts_with_icao_sigmet_line(line: &str) -> bool {
 
 fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
     let reference_time = context.reference_time?;
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Fd) {
+        return None;
+    }
     if !looks_like_fd_text_product(&context.header.afos, context.body_text) {
         return None;
     }
@@ -277,12 +287,19 @@ fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<Classific
         wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
-        body_request: None,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
         bulletin,
     }))
 }
 
 fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Pirep) {
+        return None;
+    }
     if !looks_like_pirep_text_product(&context.header.afos, context.body_text) {
         return None;
     }
@@ -292,7 +309,11 @@ fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<Classi
         header: context.header.clone(),
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
-        body_request: None,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
         bulletin,
     }))
 }
@@ -300,6 +321,9 @@ fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<Classi
 fn classify_text_sigmet(
     context: &TextClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Sigmet) {
+        return None;
+    }
     if !looks_like_sigmet_text_product(&context.header.afos, context.body_text) {
         return None;
     }
@@ -311,9 +335,25 @@ fn classify_text_sigmet(
         wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
-        body_request: None,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
         bulletin,
     }))
+}
+
+fn build_body_request(
+    body_plan: Option<crate::body::BodyExtractionPlan>,
+    body_text: &str,
+    reference_time: Option<DateTime<Utc>>,
+) -> Option<BodyContributionRequest> {
+    body_plan.map(|plan| BodyContributionRequest {
+        text: body_text.to_string(),
+        plan,
+        reference_time,
+    })
 }
 
 fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
@@ -441,9 +481,14 @@ fn classify_wmo_unknown_valid(
 
 #[cfg(test)]
 mod tests {
-    use super::classify;
-    use crate::pipeline::candidate::ClassificationCandidate;
+    use super::{TextClassificationContext, build_body_request, classify, classify_text_fd};
+    use crate::body::{BodyExtractorId, body_extraction_plan};
+    use crate::data::text_product_catalog_entry;
+    use crate::header::BbbKind;
+    use crate::pipeline::candidate::{ClassificationCandidate, FdCandidate};
     use crate::pipeline::{NormalizedInput, ParsedEnvelope};
+    use crate::{ProductEnrichmentSource, TextProductHeader};
+    use chrono::Utc;
 
     #[test]
     fn afos_fd_strategy_returns_fd_candidate() {
@@ -498,10 +543,10 @@ mod tests {
     }
 
     #[test]
-    fn text_generic_candidate_carries_body_request_when_catalog_plan_exists() {
+    fn text_generic_candidate_uses_catalog_body_behavior() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
-            "TAFPDKGA.TXT",
-            b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n",
+            "SVRDMX.TXT",
+            b"000 \nWUUS53 KDMX 022320\nSVRDMX\n/O.NEW.KDMX.SV.W.0001.250301T1200Z-250301T1300Z/\n",
         ));
 
         let ClassificationCandidate::TextGeneric(candidate) = classify(&envelope) else {
@@ -512,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn text_generic_candidate_omits_body_request_when_catalog_plan_is_absent() {
+    fn text_generic_candidate_omits_body_request_when_catalog_body_behavior_is_never() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "ZZZXXX.TXT",
             b"000 \nFXUS61 KBOX 022101\nZZZBOX\nBody\n",
@@ -526,10 +571,10 @@ mod tests {
     }
 
     #[test]
-    fn afos_strategy_precedence_prefers_pirep_over_sigmet() {
+    fn afos_strategy_precedence_prefers_pirep_when_catalog_routing_matches() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
-            "SIGABC.TXT",
-            b"000 \nWSUS31 KKCI 070000\nSIGABC\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
+            "PIRXXX.TXT",
+            b"000 \nUAUS01 KBOU 070000\nPIRBOU\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
         ));
 
         assert!(matches!(
@@ -553,7 +598,21 @@ mod tests {
     }
 
     #[test]
-    fn pirep_candidate_has_no_body_request_by_default() {
+    fn fd_candidate_body_request_follows_catalog_policy() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "FD1US1.TXT",
+            b"000 \nFTUS80 KWBC 070000\nFD1US1\nDATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
+        ));
+
+        let ClassificationCandidate::Fd(candidate) = classify(&envelope) else {
+            panic!("expected fd candidate");
+        };
+
+        assert!(candidate.body_request.is_none());
+    }
+
+    #[test]
+    fn pirep_candidate_body_request_follows_catalog_policy() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "PIRXXX.TXT",
             b"000 \nUAUS01 KBOU 070000\nPIRBOU\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n",
@@ -567,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn sigmet_candidate_has_no_body_request_by_default() {
+    fn sigmet_candidate_body_request_follows_catalog_policy() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "SIGABC.TXT",
             b"000 \nWSUS31 KKCI 070000\nSIGABC\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
@@ -578,6 +637,68 @@ mod tests {
         };
 
         assert!(candidate.body_request.is_none());
+    }
+
+    #[test]
+    fn specialized_strategy_requires_matching_catalog_routing() {
+        let metadata = text_product_catalog_entry("PIR").expect("expected catalog entry");
+        let header = TextProductHeader {
+            ttaaii: "FTUS80".to_string(),
+            cccc: "KWBC".to_string(),
+            ddhhmm: "070000".to_string(),
+            bbb: None,
+            afos: "FD1US1".to_string(),
+        };
+        let context = TextClassificationContext {
+            filename: "FD1US1.TXT",
+            header: &header,
+            body_text: "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
+            metadata: Some(metadata),
+            pil: Some("FD1".to_string()),
+            title: Some("Winds and Temperatures Aloft"),
+            body_plan: None,
+            bbb_kind: None,
+            reference_time: Some(Utc::now()),
+        };
+
+        assert!(classify_text_fd(&context).is_none());
+    }
+
+    #[test]
+    fn specialized_candidate_can_carry_body_request_when_metadata_enables_catalog_body_behavior() {
+        let request = build_body_request(
+            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/",
+            Some(Utc::now()),
+        );
+
+        let candidate = ClassificationCandidate::Fd(FdCandidate {
+            source: ProductEnrichmentSource::TextHeader,
+            family: "fd_bulletin",
+            title: "Winds and temperatures aloft",
+            header: Some(TextProductHeader {
+                ttaaii: "FTUS80".to_string(),
+                cccc: "KWBC".to_string(),
+                ddhhmm: "070000".to_string(),
+                bbb: None,
+                afos: "FD1US1".to_string(),
+            }),
+            wmo_header: None,
+            pil: Some("FD1".to_string()),
+            bbb_kind: Some(BbbKind::Amendment),
+            body_request: request,
+            bulletin: crate::fd::parse_fd_bulletin(
+                "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
+                Some("FD1US1"),
+                Utc::now(),
+            )
+            .expect("fd bulletin should parse"),
+        });
+
+        let ClassificationCandidate::Fd(candidate) = candidate else {
+            panic!("expected fd candidate");
+        };
+        assert!(candidate.body_request.is_some());
     }
 
     #[test]

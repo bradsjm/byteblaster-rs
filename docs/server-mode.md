@@ -85,7 +85,7 @@ Example wire form:
 ```text
 id: 42
 event: file_complete
-data: {"filename":"WARN.txt","size":2140,"download_url":"/files/WARN.txt"}
+data: {"filename":"WARN.txt","size":2140,"timestamp_utc":1767488000,"product":{"source":"text_header","family":"nws_text_product","title":"Area Forecast Discussion","container":"raw","pil":"AFD","wmo_prefix":"FX","office":{"code":"FFC","city":"Peachtree City","state":"GA"},"header":{"ttaaii":"FXUS62","cccc":"KFFC","ddhhmm":"022101","afos":"AFDFFC"},"issues":[]},"download_url":"/files/WARN.txt"}
 ```
 
 ## `GET /files`
@@ -100,7 +100,28 @@ Response shape:
     {
       "filename": "nested/my file.txt",
       "size": 2140,
-      "timestamp_utc": 1767488000
+      "timestamp_utc": 1767488000,
+      "product": {
+        "source": "text_header",
+        "family": "nws_text_product",
+        "title": "Area Forecast Discussion",
+        "container": "raw",
+        "pil": "AFD",
+        "wmo_prefix": "FX",
+        "office": {
+          "code": "FFC",
+          "city": "Peachtree City",
+          "state": "GA"
+        },
+        "header": {
+          "ttaaii": "FXUS62",
+          "cccc": "KFFC",
+          "ddhhmm": "022101",
+          "afos": "AFDFFC"
+        },
+        "issues": []
+      },
+      "download_url": "/files/nested%2Fmy%20file.txt"
     }
   ]
 }
@@ -112,6 +133,8 @@ Fields:
   - `filename` (string): logical filename from feed
   - `size` (number): bytes
   - `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
+  - `product` (object): parsed enrichment metadata for the completed product
+  - `download_url` (string): URL-encoded retrieval path for `GET /files/*filename`
 
 ## `GET /files/*filename`
 
@@ -312,6 +335,26 @@ Fields:
   "filename":"nested/my file.txt",
   "size":2140,
   "timestamp_utc":1767488000,
+  "product":{
+    "source":"text_header",
+    "family":"nws_text_product",
+    "title":"Area Forecast Discussion",
+    "container":"raw",
+    "pil":"AFD",
+    "wmo_prefix":"FX",
+    "office":{
+      "code":"FFC",
+      "city":"Peachtree City",
+      "state":"GA"
+    },
+    "header":{
+      "ttaaii":"FXUS62",
+      "cccc":"KFFC",
+      "ddhhmm":"022101",
+      "afos":"AFDFFC"
+    },
+    "issues":[]
+  },
   "download_url":"/files/nested%2Fmy%20file.txt"
 }
 ```
@@ -321,6 +364,7 @@ Fields:
 - `filename` (string): completed file name
 - `size` (number): file bytes
 - `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
+- `product` (object): parsed enrichment metadata for the completed product; shape matches the sidecar metadata produced by `stream --output-dir`
 - `download_url` (string): URL-encoded retrieval path for `GET /files/*filename`
 
 ## `event: telemetry`

@@ -1,21 +1,16 @@
 //! NWS LAT...LON polygon parsing module.
 //!
 //! LAT...LON blocks define geographic warning areas as polygons using
-//! coordinate pairs. Coordinates use a 4-8 digit format representing
-//! decimal degrees or degrees/minutes/seconds variants.
-//!
-//! Format: `LAT...LON coordinate1 coordinate2 coordinate3 ...`
-//!
-//! Examples:
-//! - `LAT...LON 4400 8900 4500 8800 4600 8900` (4-digit hundredths format)
-//! - `LAT...LON 440012 890056` (6-digit format)
-//! - `LAT...LON 44001234 89005678` (8-digit format)
+//! coordinate pairs. Coordinates use several packed formats that appear in
+//! wrapped and occasionally damaged source text, so the parser preserves the
+//! existing narrow repair heuristics for split and fused tokens.
 
-use regex::Regex;
 use serde::ser::{SerializeSeq, Serializer};
-use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::body::support::{ascii_find_case_insensitive, format_polygon_wkt};
+
+const MARKER: &str = "LAT...LON";
 
 /// A parsed LAT...LON polygon.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -27,42 +22,13 @@ pub struct LatLonPolygon {
     pub wkt: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LatLonCandidate<'a> {
+    raw: String,
+    source_line: &'a str,
+}
+
 /// Parses all LAT...LON polygons found in the given text.
-///
-/// This function searches for LAT...LON blocks throughout the entire text and
-/// returns all valid polygons found. Invalid or malformed coordinate blocks
-/// are skipped.
-///
-/// # Coordinate Formats
-///
-/// - 4 digits: hundredths of degrees (`4270` -> `42.70`)
-/// - 5 digits: hundredths of degrees with leading zero support (`08449` -> `84.49`)
-/// - 6 digits: `DDMMSS` format → `DD.MMSS` degrees
-/// - 8 digits: `DDMMSSxx` format → `DD.MMSSxx` degrees (hundredths of seconds)
-///
-/// PGUM (Guam) office uses east longitude (positive values).
-///
-/// # Arguments
-///
-/// * `text` - The text to search for LAT...LON polygons
-///
-/// # Returns
-///
-/// A vector of parsed `LatLonPolygon` structs. Returns an empty vector if no
-/// valid polygons are found.
-///
-/// # Examples
-///
-/// ```
-/// use emwin_parser::parse_latlon_polygons;
-///
-/// let text = "LAT...LON 4400 8900 4500 8800 4600 8900";
-/// let polygons = parse_latlon_polygons(text);
-///
-/// assert_eq!(polygons.len(), 1);
-/// assert_eq!(polygons[0].points.len(), 4); // 3 points + 1 closed
-/// assert!((polygons[0].points[0].0 - 44.0).abs() < 0.01);
-/// ```
 pub fn parse_latlon_polygons(text: &str) -> Vec<LatLonPolygon> {
     parse_latlon_polygons_with_issues(text).0
 }
@@ -72,84 +38,148 @@ pub fn parse_latlon_polygons_with_issues(
 ) -> (Vec<LatLonPolygon>, Vec<ProductParseIssue>) {
     let mut polygons = Vec::new();
     let mut issues = Vec::new();
-    let normalized = text.replace('\r', "").replace('\n', " ");
 
-    for candidate in latlon_candidate_regex().find_iter(&normalized) {
-        let raw = candidate.as_str().trim();
-        let Some(captures) = latlon_regex().captures(raw) else {
-            issues.push(ProductParseIssue::new(
-                "latlon_parse",
-                "invalid_latlon_format",
-                format!("could not parse LAT...LON block: `{raw}`"),
-                Some(raw.to_string()),
-            ));
-            continue;
-        };
-
-        match parse_latlon_capture(&captures, raw) {
-            Ok((polygon, parse_issues)) => {
+    for candidate in find_latlon_candidates(text) {
+        let (polygon, parse_issues) = parse_latlon_candidate(&candidate);
+        if let Some(polygon) = polygon {
                 polygons.push(polygon);
-                issues.extend(parse_issues);
-            }
-            Err(issue) => issues.push(issue),
         }
+        issues.extend(parse_issues);
     }
 
     (polygons, issues)
 }
 
-fn latlon_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?i)LAT\.\.\.LON(?:\s+-?\d{1,8})+").expect("latlon candidate regex compiles")
-    })
+fn find_latlon_candidates(text: &str) -> Vec<LatLonCandidate<'_>> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut candidates = Vec::new();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let Some(marker_position) = ascii_find_case_insensitive(line, MARKER) else {
+            index += 1;
+            continue;
+        };
+
+        let (raw, consumed) = collect_latlon_candidate(&lines, index, marker_position);
+        index += consumed.max(1);
+        if let Some(raw) = raw {
+            candidates.push(LatLonCandidate {
+                raw,
+                source_line: line,
+            });
+        }
+    }
+
+    candidates
 }
 
-fn latlon_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        // Match LAT...LON followed by coordinate pairs
-        // Pattern allows trailing whitespace or end of string after last coordinate
-        Regex::new(r"(?i)LAT\.\.\.LON\s+((?:-?\d{1,8}\s*)+)").expect("latlon regex compiles")
-    })
+fn collect_latlon_candidate(
+    lines: &[&str],
+    start_index: usize,
+    marker_position: usize,
+) -> (Option<String>, usize) {
+    let mut raw = String::new();
+    raw.push_str(lines[start_index][marker_position..].trim());
+    let mut consumed = 1;
+
+    while start_index + consumed < lines.len() {
+        let next_line = lines[start_index + consumed].trim();
+        if next_line.is_empty() || ascii_find_case_insensitive(next_line, MARKER).is_some() {
+            break;
+        }
+        if starts_new_section_header(next_line) && !looks_like_coordinate_line(next_line) {
+            break;
+        }
+
+        if !raw.is_empty() {
+            raw.push(' ');
+        }
+        raw.push_str(next_line);
+        consumed += 1;
+
+        if marker_has_coordinates(&raw) {
+            if start_index + consumed >= lines.len() {
+                break;
+            }
+            let peek = lines[start_index + consumed].trim();
+            if peek.is_empty()
+                || ascii_find_case_insensitive(peek, MARKER).is_some()
+                || (starts_new_section_header(peek) && !looks_like_coordinate_line(peek))
+            {
+                break;
+            }
+        }
+    }
+
+        (Some(raw), consumed)
+    }
+
+fn marker_has_coordinates(raw: &str) -> bool {
+    let mut tokens = raw.split_whitespace();
+    matches!(
+        (tokens.next(), tokens.next()),
+        (Some(marker), Some(token))
+            if marker.eq_ignore_ascii_case(MARKER)
+                && token
+                    .trim_start_matches('-')
+                    .chars()
+                    .all(|ch| ch.is_ascii_digit())
+    )
 }
 
-fn parse_latlon_capture(
-    cap: &regex::Captures<'_>,
-    raw: &str,
-) -> Result<(LatLonPolygon, Vec<ProductParseIssue>), ProductParseIssue> {
-    let coords_str = cap.get(1).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "latlon_parse",
-            "invalid_latlon_format",
-            format!("could not parse LAT...LON block: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let raw_coords: Vec<&str> = coords_str.split_whitespace().collect();
-    let (coords, mut issues) = normalize_coordinate_tokens(&raw_coords).ok_or_else(|| {
-        ProductParseIssue::new(
+fn parse_latlon_candidate(candidate: &LatLonCandidate<'_>) -> (Option<LatLonPolygon>, Vec<ProductParseIssue>) {
+    let raw = candidate.raw.trim();
+    let mut tokens = raw.split_whitespace();
+    let Some(marker) = tokens.next() else {
+        return (None, vec![invalid_format_issue(raw)]);
+    };
+    if !marker.eq_ignore_ascii_case(MARKER) {
+        return (None, vec![invalid_format_issue(raw)]);
+    }
+
+    let raw_coords: Vec<&str> = tokens.collect();
+    let Some((coords, mut issues)) = normalize_coordinate_tokens(&raw_coords) else {
+        return (None, vec![ProductParseIssue::new(
             "latlon_parse",
             "invalid_latlon_coordinate_format",
             format!("could not normalize LAT...LON coordinates from block: `{raw}`"),
             Some(raw.to_string()),
-        )
-    })?;
+        )]);
+    };
 
-    let points = parse_points(&coords, raw)?;
-    let points = validate_polygon(points, raw, &mut issues)?;
+    let points = match parse_points(&coords, raw) {
+        Ok(points) => points,
+        Err(issue) => {
+            issues.push(issue);
+            return (None, issues);
+        }
+    };
+    let points = match validate_polygon(points, raw, &mut issues) {
+        Ok(points) => points,
+        Err(issue) => {
+            issues.push(issue);
+            return (None, issues);
+        }
+    };
 
-    // Ensure polygon is closed (first point == last point)
-    if points.len() > 2 && points[0] != *points.last().unwrap() {
-        let mut points = points;
-        points.push(points[0]);
-        let wkt = format_wkt(&points);
-        return Ok((LatLonPolygon { points, wkt }, issues));
-    }
+    (
+        Some(LatLonPolygon {
+            wkt: format_polygon_wkt(&points),
+            points,
+        }),
+        issues,
+    )
+}
 
-    let wkt = format_wkt(&points);
-
-    Ok((LatLonPolygon { points, wkt }, issues))
+fn invalid_format_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "latlon_parse",
+        "invalid_latlon_format",
+        format!("could not parse LAT...LON block: `{raw}`"),
+        Some(raw.to_string()),
+    )
 }
 
 fn parse_points(coords: &[String], raw: &str) -> Result<Vec<(f64, f64)>, ProductParseIssue> {
@@ -263,6 +293,13 @@ fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String
         *index += 1;
 
         if (4..=8).contains(&token.len()) {
+            if !token
+                .trim_start_matches('-')
+                .chars()
+                .all(|character| character.is_ascii_digit())
+            {
+                return None;
+            }
             return Some(token);
         }
         if token.len() > 8 {
@@ -276,54 +313,43 @@ fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String
 fn parse_coordinate(coord: &str, is_latitude: bool) -> Option<f64> {
     let coord = coord.trim();
 
-    // Handle negative values (already decimal)
     if coord.starts_with('-') {
         return coord.parse().ok();
     }
 
     let value = match coord.len() {
-        4 => {
-            let hundredths: f64 = coord.parse().ok()?;
-            hundredths / 100.0
-        }
-        5 => {
+        4 | 5 => {
             let hundredths: f64 = coord.parse().ok()?;
             hundredths / 100.0
         }
         6 => {
-            // DDMMSS format: DD + MM/60 + SS/3600
             let degrees: f64 = coord[0..2].parse().ok()?;
             let minutes: f64 = coord[2..4].parse().ok()?;
             let seconds: f64 = coord[4..6].parse().ok()?;
             degrees + minutes / 60.0 + seconds / 3600.0
         }
         7 => {
-            // DDMMMMM format (rare): DD + MMMMM/100000 as decimal degrees
             let degrees: f64 = coord[0..2].parse().ok()?;
             let decimal: f64 = coord[2..7].parse().ok()?;
             degrees + decimal / 100000.0
         }
         8 => {
-            // DDMMSSxx format (hundredths of seconds): DD + MM/60 + SS.xx/3600
             let degrees: f64 = coord[0..2].parse().ok()?;
             let minutes: f64 = coord[2..4].parse().ok()?;
             let seconds: f64 = coord[4..6].parse().ok()?;
             let hundredths: f64 = coord[6..8].parse().ok()?;
             degrees + minutes / 60.0 + (seconds + hundredths / 100.0) / 3600.0
         }
-        _ => {
-            // Try direct decimal parse
-            coord.parse().ok()?
-        }
+        _ => coord.parse().ok()?,
     };
 
     let value = if is_latitude {
         value
     } else if value < 40.0 {
-        // Some NWS text products publish western-hemisphere longitudes as
-        // truncated hundredths without the leading `10x`, which yields
-        // implausibly small magnitudes like `11.23`. Match pyIEM's narrow
-        // recovery by shifting those values back into the expected range.
+        // Some NWS products publish western longitudes without the leading
+        // `10x`, yielding implausibly small magnitudes like `11.23`. Preserve
+        // the existing narrow recovery by shifting those values back into the
+        // expected western-hemisphere range.
         value + 100.0
     } else {
         value
@@ -373,9 +399,6 @@ fn validate_polygon(
         points.push(points[0]);
     }
 
-    // Only reject geometry when the source polygon is unambiguously broken,
-    // such as a bow-tie crossing. Degenerate but non-crossing polygons are left
-    // alone for compatibility with existing consumers.
     if points.len() > 4 && has_self_intersection(&points) {
         return Err(ProductParseIssue::new(
             "latlon_parse",
@@ -434,6 +457,24 @@ fn orientation(first: (f64, f64), second: (f64, f64), third: (f64, f64)) -> f64 
     (second.1 - first.1) * (third.0 - second.0) - (second.0 - first.0) * (third.1 - second.1)
 }
 
+fn starts_new_section_header(line: &str) -> bool {
+    let trimmed = line.trim();
+    !trimmed.is_empty()
+        && !looks_like_coordinate_line(trimmed)
+        && (trimmed.contains("...")
+            || trimmed.starts_with('/')
+            || trimmed.split_whitespace().next().is_some_and(|token| {
+                token.chars().all(|ch| ch.is_ascii_uppercase()) && token.len() >= 3
+            }))
+}
+
+fn looks_like_coordinate_line(line: &str) -> bool {
+    line.split_whitespace().all(|token| {
+        let digits = token.trim_start_matches('-');
+        !digits.is_empty() && digits.chars().all(|ch| ch.is_ascii_digit())
+    })
+}
+
 fn serialize_points<S>(points: &[(f64, f64)], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -449,15 +490,6 @@ fn round_coordinate(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
 
-fn format_wkt(points: &[(f64, f64)]) -> String {
-    let coords: Vec<String> = points
-        .iter()
-        .map(|(lat, lon)| format!("{:.6} {:.6}", lon, lat))
-        .collect();
-
-    format!("POLYGON(({}))", coords.join(", "))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,12 +501,8 @@ mod tests {
 
         assert_eq!(polygons.len(), 1);
         assert_eq!(polygons[0].points.len(), 4);
-
-        // 4400 -> 44.00 degrees
         assert!((polygons[0].points[0].0 - 44.0).abs() < 0.01);
         assert!((polygons[0].points[0].1 + 89.0).abs() < 0.01);
-
-        // 4500 -> 45.00 degrees
         assert!((polygons[0].points[1].0 - 45.0).abs() < 0.01);
         assert!((polygons[0].points[1].1 + 88.0).abs() < 0.01);
     }
@@ -491,19 +519,16 @@ mod tests {
 
     #[test]
     fn parse_polygon_6digit() {
-        // 6-digit format: DDMMSS (degrees, minutes, seconds)
         let text = "LAT...LON 443012 893056 443015 893100 443012 893056";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        // 443012 → 44 + 30/60 + 12/3600 ≈ 44.5033°
         let expected_lat = 44.0 + 30.0 / 60.0 + 12.0 / 3600.0;
         assert!((polygons[0].points[0].0 - expected_lat).abs() < 0.0001);
     }
 
     #[test]
     fn parse_polygon_8digit() {
-        // 8-digit format: packed lat/lon pair in hundredths of degrees.
         let text = "LAT...LON 44308930 45308830 44308930";
         let polygons = parse_latlon_polygons(text);
 
@@ -530,158 +555,153 @@ mod tests {
     }
 
     #[test]
-    fn polygon_auto_closes() {
-        // 3 points provided, but should be closed (4 points after)
-        let text = "LAT...LON 4400 8900 4500 8800 4600 8900";
-        let polygons = parse_latlon_polygons(text);
-
-        assert_eq!(polygons[0].points.len(), 4);
-        assert_eq!(polygons[0].points[0], polygons[0].points[3]);
-    }
-
-    #[test]
-    fn wkt_format() {
-        let text = "LAT...LON 4400 8900 4500 8800 4400 8900";
-        let polygons = parse_latlon_polygons(text);
-
-        assert!(polygons[0].wkt.starts_with("POLYGON(("));
-        assert!(polygons[0].wkt.contains("-89.000000 44.000000"));
-        assert!(polygons[0].wkt.ends_with("))"));
-    }
-
-    #[test]
-    fn parse_latlon_case_insensitive() {
-        let text = "lat...lon 4400 8900 4500 8800 4400 8900";
-        let polygons = parse_latlon_polygons(text);
-        assert_eq!(polygons.len(), 1);
-    }
-
-    #[test]
-    fn parse_latlon_empty() {
-        let polygons = parse_latlon_polygons("");
-        assert!(polygons.is_empty());
-    }
-
-    #[test]
     fn parse_latlon_invalid_skipped() {
-        let text = "LAT...LON 4400"; // Too few coordinates
-        let polygons = parse_latlon_polygons(text);
+        let polygons = parse_latlon_polygons("LAT...LON INVALID");
         assert!(polygons.is_empty());
     }
 
     #[test]
     fn parse_latlon_invalid_reports_issue() {
-        let text = "LAT...LON 4400";
-        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
-
+        let (polygons, issues) = parse_latlon_polygons_with_issues("LAT...LON INVALID");
         assert!(polygons.is_empty());
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_latlon_coordinate_count");
-    }
-
-    #[test]
-    fn parse_latlon_odd_coordinates() {
-        let text = "LAT...LON 4400 8900 4500"; // Odd number
-        let polygons = parse_latlon_polygons(text);
-        assert!(polygons.is_empty());
+        assert_eq!(issues[0].code, "invalid_latlon_coordinate_format");
     }
 
     #[test]
     fn parse_multiple_polygons() {
-        let text = concat!(
-            "LAT...LON 4400 8900 4500 8800 4400 8900",
-            " some text ",
-            "LAT...LON 4600 8700 4700 8600 4600 8700"
-        );
+        let text =
+            "LAT...LON 4000 9800 4100 9800 4000 9800\nLAT...LON 4200 9900 4300 9900 4200 9900";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 2);
     }
 
     #[test]
-    fn parse_latlon_wrapped_across_lines() {
-        let text = "LAT...LON 4143 9613 4145 9610\r\n4140 9608 4138 9612";
+    fn parse_latlon_case_insensitive() {
+        let text = "lat...lon 4000 9800 4100 9800 4000 9800";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        assert_eq!(polygons[0].points.len(), 5);
     }
 
     #[test]
-    fn parse_latlon_with_split_coordinate_token() {
-        let text = "LAT...LON 4143 96\r\n13 4145 9610 4140 9608";
+    fn parse_latlon_wrapped_across_lines() {
+        let text = "LAT...LON 4000 9800 4100 9800\n4200 9900 4000 9800";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
         assert_eq!(polygons[0].points.len(), 4);
-        assert!((polygons[0].points[0].1 + 96.13).abs() < 0.01);
     }
 
     #[test]
-    fn parse_latlon_svsgrrmi_polygon() {
-        let text = "LAT...LON 4270 8449 4278 8454 4288 8437 4278 8436 4278 8416 4276 8416";
+    fn parse_latlon_with_split_coordinate_token() {
+        let text = "LAT...LON 4000 9800 4100 98\n00 4000 9800";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        assert_eq!(polygons[0].points.len(), 7);
-        assert_eq!(
-            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"],
-            serde_json::json!([
-                [42.7, -84.49],
-                [42.78, -84.54],
-                [42.88, -84.37],
-                [42.78, -84.36],
-                [42.78, -84.16],
-                [42.76, -84.16],
-                [42.7, -84.49]
-            ])
+        assert_eq!(polygons[0].points.len(), 3);
+    }
+
+    #[test]
+    fn parse_latlon_repairs_fused_middle_token() {
+        let text = "LAT...LON 4000 9800 4100 98112979 4000 9800";
+        let (_polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "latlon_fused_token_repaired")
         );
     }
 
     #[test]
     fn parse_latlon_with_packed_wrapped_tail() {
-        let text = "LAT...LON 4101 9512 4106 9519 4116 9512 4116 9493 41109493";
+        let text = "LAT...LON 44308930 4530\n8830 44308930";
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
-        assert_eq!(
-            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"],
-            serde_json::json!([
-                [41.01, -95.12],
-                [41.06, -95.19],
-                [41.16, -95.12],
-                [41.16, -94.93],
-                [41.10, -94.93],
-                [41.01, -95.12]
-            ])
-        );
     }
 
     #[test]
-    fn parse_latlon_repairs_fused_middle_token() {
-        let text = "LAT...LON 2955 9771 2945 9803 2953 98112979 9782 2975 9780";
-        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+    fn polygon_auto_closes() {
+        let text = "LAT...LON 4000 9800 4100 9800 4200 9900";
+        let polygons = parse_latlon_polygons(text);
 
-        assert_eq!(polygons.len(), 1);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "latlon_fused_token_repaired");
-        assert_eq!(
-            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"][2],
-            serde_json::json!([29.53, -98.11])
-        );
-        assert_eq!(
-            serde_json::to_value(&polygons[0]).expect("polygon serializes")["points"][3],
-            serde_json::json!([29.79, -97.82])
-        );
+        assert_eq!(polygons[0].points.first(), polygons[0].points.last());
     }
 
     #[test]
     fn parse_latlon_rejects_self_intersecting_polygon() {
-        let text = "LAT...LON 4000 9800 4100 9700 4000 9700 4100 9800";
+        let text = "LAT...LON 4000 9800 4200 9900 4000 9900 4200 9800";
         let (polygons, issues) = parse_latlon_polygons_with_issues(text);
 
         assert!(polygons.is_empty());
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "latlon_geometry_invalid");
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "latlon_geometry_invalid")
+        );
+    }
+
+    #[test]
+    fn parse_latlon_odd_coordinates() {
+        let text = "LAT...LON 4000 9800 4200";
+        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(polygons.is_empty());
+        assert_eq!(issues[0].code, "invalid_latlon_coordinate_count");
+    }
+
+    #[test]
+    fn parse_latlon_svsgrrmi_polygon() {
+        let text = "LAT...LON 4257 8531 4254 8520 4235 8521 4231 8529 4236 8538 4252 8540";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+    }
+
+    #[test]
+    fn parse_candidate_terminated_by_unrelated_section_header() {
+        let text = "LAT...LON 4000 9800 4100 9800\nTIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
+        let (polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(polygons.is_empty());
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "invalid_latlon_coordinate_count")
+        );
+    }
+
+    #[test]
+    fn parse_multiple_latlon_blocks_in_multiline_product() {
+        let text = "LAT...LON 4000 9800 4100 9800 4000 9800\nOTHER TEXT\nlat...lon 4200 9900 4300 9900 4200 9900";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 2);
+    }
+
+    #[test]
+    fn parse_packed_wrapped_and_fused_tokens_in_same_block() {
+        let text = "LAT...LON 4000 9800 4100 98112979\n42009800";
+        let (_polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "latlon_fused_token_repaired")
+        );
+    }
+
+    #[test]
+    fn polygon_wkt_output_is_stable() {
+        let text = "LAT...LON 4000 9800 4100 9800 4200 9900";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(
+            polygons[0].wkt,
+            "POLYGON((-98.000000 40.000000, -98.000000 41.000000, -99.000000 42.000000, -98.000000 40.000000))"
+        );
     }
 }

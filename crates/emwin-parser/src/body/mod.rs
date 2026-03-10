@@ -6,6 +6,7 @@
 mod enrich;
 mod hvtec;
 mod latlon;
+mod support;
 mod time_mot_loc;
 mod ugc;
 mod vtec;

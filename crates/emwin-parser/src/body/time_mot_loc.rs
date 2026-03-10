@@ -1,27 +1,17 @@
 //! NWS TIME...MOT...LOC (Time Motion Location) parsing module.
 //!
 //! TIME...MOT...LOC lines provide storm movement and location information in
-//! severe weather products. They indicate when a storm was observed, its direction
-//! and speed of movement, and its geographic location.
-//!
-//! ## Format
-//!
-//! `TIME...MOT...LOC HHMMZ DDDdeg SSKT lat1 lon1 [lat2 lon2 ...]`
-//!
-//! Example: `TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853`
-//!
-//! - Time: HHMMZ format (UTC)
-//! - Direction: Movement direction in degrees (0-360)
-//! - Speed: Movement speed in knots
-//! - Coordinates: Latitude/longitude pairs in various formats
+//! severe weather products. They indicate when a storm was observed, its
+//! direction and speed of movement, and its geographic location.
 
 use chrono::{DateTime, Utc};
-use regex::Regex;
 use serde::ser::{SerializeSeq, Serializer};
-use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::body::support::{ascii_find_case_insensitive, format_linestring_wkt};
 use crate::time::resolve_clock_time_nearest;
+
+const MARKER: &str = "TIME...MOT...LOC";
 
 /// Parsed TIME...MOT...LOC entry containing storm movement and position data.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -39,34 +29,14 @@ pub struct TimeMotLocEntry {
     pub wkt: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TimeMotLocCandidate<'a> {
+    raw: String,
+    source_line: &'a str,
+    marker_was_embedded: bool,
+}
+
 /// Parses all TIME...MOT...LOC entries found in the given text.
-///
-/// This function searches for TIME...MOT...LOC lines throughout the text and
-/// returns all valid matches found. Invalid entries are skipped silently.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for TIME...MOT...LOC entries
-/// * `reference_time` - Reference UTC time for resolving HHMMZ timestamps
-///
-/// # Returns
-///
-/// A vector of parsed `TimeMotLocEntry` structs. Returns an empty vector if no
-/// valid entries are found.
-///
-/// # Examples
-///
-/// ```
-/// use chrono::Utc;
-/// use emwin_parser::parse_time_mot_loc_entries;
-///
-/// let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
-/// let entries = parse_time_mot_loc_entries(text, Utc::now());
-///
-/// assert_eq!(entries.len(), 1);
-/// assert_eq!(entries[0].direction_degrees, 238);
-/// assert_eq!(entries[0].speed_kt, 39);
-/// ```
 pub fn parse_time_mot_loc_entries(
     text: &str,
     reference_time: DateTime<Utc>,
@@ -75,42 +45,28 @@ pub fn parse_time_mot_loc_entries(
 }
 
 /// Parses TIME...MOT...LOC entries and returns any parsing issues encountered.
-///
-/// Similar to `parse_time_mot_loc_entries` but also returns a vector of issues
-/// for entries that failed to parse correctly.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for TIME...MOT...LOC entries
-/// * `reference_time` - Reference UTC time for resolving HHMMZ timestamps
-///
-/// # Returns
-///
-/// A tuple containing:
-/// - Vector of successfully parsed `TimeMotLocEntry` structs
-/// - Vector of `ProductParseIssue` for entries that failed to parse
 pub fn parse_time_mot_loc_entries_with_issues(
     text: &str,
     reference_time: DateTime<Utc>,
 ) -> (Vec<TimeMotLocEntry>, Vec<ProductParseIssue>) {
     let mut entries = Vec::new();
     let mut issues = Vec::new();
-    let normalized = text.replace('\r', "").replace('\n', " ");
-    let marker_count = time_mot_loc_marker_regex().find_iter(&normalized).count();
-    let candidate_count = time_mot_loc_candidate_regex()
-        .find_iter(&normalized)
-        .count();
+    let marker_count = count_markers(text);
+    let candidates = find_time_mot_loc_candidates(text);
 
-    issues.extend(find_non_line_aligned_marker_issues(text));
+    for candidate in &candidates {
+        if candidate.marker_was_embedded {
+            // Some upstream products run the marker into prior content instead
+            // of starting a new line. Warn and continue from the marker.
+            issues.push(ProductParseIssue::new(
+                "time_mot_loc_parse",
+                "time_mot_loc_poorly_formatted",
+                "TIME...MOT...LOC marker was not line-aligned in the source text",
+                Some(candidate.source_line.to_string()),
+            ));
+        }
 
-    for candidate in time_mot_loc_candidate_regex().find_iter(&normalized) {
-        let line = candidate.as_str().trim();
-        let Some(captures) = time_mot_loc_regex().captures(line) else {
-            issues.push(invalid_format_issue(line));
-            continue;
-        };
-
-        match parse_time_mot_loc_capture(&captures, line, reference_time) {
+        match parse_time_mot_loc_candidate(candidate, reference_time) {
             Ok((entry, parse_issues)) => {
                 entries.push(entry);
                 issues.extend(parse_issues);
@@ -119,7 +75,7 @@ pub fn parse_time_mot_loc_entries_with_issues(
         }
     }
 
-    if marker_count > candidate_count {
+    if marker_count > candidates.len() {
         issues.push(ProductParseIssue::new(
             "time_mot_loc_parse",
             "time_mot_loc_regex_failed_after_marker",
@@ -131,42 +87,129 @@ pub fn parse_time_mot_loc_entries_with_issues(
     (entries, issues)
 }
 
-fn time_mot_loc_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)TIME\.\.\.MOT\.\.\.LOC\s+[0-9]{4}Z\s+[0-9]{1,3}DEG\s+[0-9]{1,3}KT\s+(?:[0-9]{1,8}\s*)+",
-        )
-        .expect("time mot loc candidate regex compiles")
-    })
+fn count_markers(text: &str) -> usize {
+    text.lines()
+        .map(|line| {
+            let mut count = 0;
+            let mut search = line;
+            while let Some(position) = ascii_find_case_insensitive(search, MARKER) {
+                count += 1;
+                search = &search[position + MARKER.len()..];
+            }
+            count
+        })
+        .sum()
 }
 
-fn time_mot_loc_marker_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?i)TIME\.\.\.MOT\.\.\.LOC").expect("time mot loc marker regex compiles")
-    })
+fn find_time_mot_loc_candidates(text: &str) -> Vec<TimeMotLocCandidate<'_>> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut candidates = Vec::new();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let Some(marker_position) = ascii_find_case_insensitive(line, MARKER) else {
+            index += 1;
+            continue;
+        };
+
+        let candidate = collect_time_mot_loc_candidate(&lines, index, marker_position);
+        index += candidate.1.max(1);
+        if let Some(raw) = candidate.0 {
+            candidates.push(TimeMotLocCandidate {
+                raw,
+                source_line: line,
+                marker_was_embedded: marker_position > 0,
+            });
+        }
+    }
+
+    candidates
 }
 
-fn time_mot_loc_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)^TIME\.\.\.MOT\.\.\.LOC\s+([0-9]{4}Z)\s+([0-9]{1,3})DEG\s+([0-9]{1,3})KT\s+(.+?)\s*$",
-        )
-        .expect("time mot loc regex compiles")
-    })
+fn collect_time_mot_loc_candidate(
+    lines: &[&str],
+    start_index: usize,
+    marker_position: usize,
+) -> (Option<String>, usize) {
+    let mut raw = String::new();
+    raw.push_str(lines[start_index][marker_position..].trim());
+    let mut consumed = 1;
+
+    while start_index + consumed < lines.len() {
+        let next_line = lines[start_index + consumed].trim();
+        if next_line.is_empty() || ascii_find_case_insensitive(next_line, MARKER).is_some() {
+            break;
+        }
+        if starts_new_section_header(next_line) && !looks_like_coordinate_line(next_line) {
+            break;
+        }
+
+        if !raw.is_empty() {
+            raw.push(' ');
+        }
+        raw.push_str(next_line);
+        consumed += 1;
+
+        if candidate_has_parseable_prefix(&raw) && !has_odd_coordinate_tail(&raw) {
+            if start_index + consumed >= lines.len() {
+                break;
+            }
+            let peek = lines[start_index + consumed].trim();
+            if peek.is_empty()
+                || ascii_find_case_insensitive(peek, MARKER).is_some()
+                || (starts_new_section_header(peek) && !looks_like_coordinate_line(peek))
+            {
+                break;
+            }
+        }
+    }
+
+    if candidate_has_parseable_prefix(&raw) {
+        (Some(raw), consumed)
+    } else {
+        (None, consumed)
+    }
 }
 
-fn parse_time_mot_loc_capture(
-    captures: &regex::Captures<'_>,
-    raw: &str,
+fn candidate_has_parseable_prefix(raw: &str) -> bool {
+    let mut tokens = raw.split_whitespace();
+    match (
+        tokens.next(),
+        tokens.next(),
+        parse_degrees_token(&mut tokens),
+        parse_speed_token(&mut tokens),
+    ) {
+        (Some(marker), Some(time), Some(_), Some(_)) => {
+            marker.eq_ignore_ascii_case(MARKER) && parse_time_shape(time)
+        }
+        _ => false,
+    }
+}
+
+fn has_odd_coordinate_tail(raw: &str) -> bool {
+    let mut tokens = raw.split_whitespace();
+    let _ = tokens.next();
+    let _ = tokens.next();
+    let _ = parse_degrees_token(&mut tokens);
+    let _ = parse_speed_token(&mut tokens);
+    let coord_count = tokens.count();
+    coord_count > 0 && !coord_count.is_multiple_of(2)
+}
+
+fn parse_time_mot_loc_candidate(
+    candidate: &TimeMotLocCandidate<'_>,
     reference_time: DateTime<Utc>,
 ) -> Result<(TimeMotLocEntry, Vec<ProductParseIssue>), ProductParseIssue> {
-    let time_token = captures
-        .get(1)
-        .map(|value| value.as_str())
-        .ok_or_else(|| invalid_format_issue(raw))?;
+    let raw = candidate.raw.trim();
+    let mut tokens = raw.split_whitespace();
+
+    let marker = tokens.next().ok_or_else(|| invalid_format_issue(raw))?;
+    if !marker.eq_ignore_ascii_case(MARKER) {
+        return Err(invalid_format_issue(raw));
+    }
+
+    let time_token = tokens.next().ok_or_else(|| invalid_format_issue(raw))?;
     let time_utc = parse_time_token(time_token, reference_time).ok_or_else(|| {
         ProductParseIssue::new(
             "time_mot_loc_parse",
@@ -175,49 +218,20 @@ fn parse_time_mot_loc_capture(
             Some(raw.to_string()),
         )
     })?;
-    let direction_degrees = captures
-        .get(2)
-        .and_then(|value| value.as_str().parse().ok())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "time_mot_loc_parse",
-                "invalid_time_mot_loc_direction",
-                format!("could not parse TIME...MOT...LOC direction from line: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let speed_kt = captures
-        .get(3)
-        .and_then(|value| value.as_str().parse().ok())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "time_mot_loc_parse",
-                "invalid_time_mot_loc_speed",
-                format!("could not parse TIME...MOT...LOC speed from line: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let coords_str = captures
-        .get(4)
-        .map(|value| value.as_str())
-        .ok_or_else(|| invalid_format_issue(raw))?;
 
-    let raw_coord_tokens: Vec<&str> = coords_str.split_whitespace().collect();
-    let (mut coord_tokens, mut issues) = normalize_coordinate_tokens(&raw_coord_tokens)
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "time_mot_loc_parse",
-                "invalid_time_mot_loc_coordinate_format",
-                format!("could not normalize TIME...MOT...LOC coordinates from line: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
+    let direction_degrees =
+        parse_degrees_token(&mut tokens).ok_or_else(|| invalid_direction_issue(raw))?;
+    let speed_kt = parse_speed_token(&mut tokens).ok_or_else(|| invalid_speed_issue(raw))?;
+
+    let (mut coord_tokens, mut issues) =
+        consume_coordinate_tokens(tokens).ok_or_else(|| invalid_coordinate_format_issue(raw))?;
     if coord_tokens.len() % 2 != 0 {
         let dropped = coord_tokens
             .pop()
             .expect("odd coordinate count has trailing token");
-        // Some source products lose the final coordinate half through wrapping or
-        // transmission damage. Preserve the complete pairs and surface the loss.
+        // Some source products lose the final coordinate half through wrapping
+        // or transmission damage. Preserve the complete pairs and surface the
+        // loss instead of discarding the whole candidate.
         issues.push(ProductParseIssue::new(
             "time_mot_loc_parse",
             "time_mot_loc_truncated_dangling_coordinate",
@@ -257,37 +271,72 @@ fn parse_time_mot_loc_capture(
         points.push((lat, lon));
     }
 
-    let wkt = if points.len() == 1 {
-        format!("POINT({:.4} {:.4})", points[0].1, points[0].0)
-    } else {
-        let pairs = points
-            .iter()
-            .map(|(lat, lon)| format!("{lon:.4} {lat:.4}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("LINESTRING({pairs})")
-    };
-
     Ok((
         TimeMotLocEntry {
             time_utc,
             direction_degrees,
             speed_kt,
+            wkt: format_linestring_wkt(&points),
             points,
-            wkt,
         },
         issues,
     ))
 }
 
+fn parse_time_shape(token: &str) -> bool {
+    token.len() == 5 && token.ends_with('Z') && token[..4].chars().all(|ch| ch.is_ascii_digit())
+}
+
 fn parse_time_token(token: &str, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    if token.len() != 5 || !token.ends_with('Z') {
+    if !parse_time_shape(token) {
         return None;
     }
 
     let hour: u32 = token[0..2].parse().ok()?;
     let minute: u32 = token[2..4].parse().ok()?;
     resolve_clock_time_nearest(reference_time, hour, minute)
+}
+
+fn parse_degrees_token<'a, I>(tokens: &mut I) -> Option<u16>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let token = tokens.next()?;
+    if let Some(value) = token.strip_suffix("DEG") {
+        return value.parse().ok();
+    }
+    if token.chars().all(|ch| ch.is_ascii_digit()) {
+        let unit = tokens.next()?;
+        if unit.eq_ignore_ascii_case("DEG") {
+            return token.parse().ok();
+        }
+    }
+    None
+}
+
+fn parse_speed_token<'a, I>(tokens: &mut I) -> Option<u16>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let token = tokens.next()?;
+    if let Some(value) = token.strip_suffix("KT") {
+        return value.parse().ok();
+    }
+    if token.chars().all(|ch| ch.is_ascii_digit()) {
+        let unit = tokens.next()?;
+        if unit.eq_ignore_ascii_case("KT") {
+            return token.parse().ok();
+        }
+    }
+    None
+}
+
+fn consume_coordinate_tokens<'a, I>(tokens: I) -> Option<(Vec<String>, Vec<ProductParseIssue>)>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let raw_coord_tokens: Vec<&str> = tokens.collect();
+    normalize_coordinate_tokens(&raw_coord_tokens)
 }
 
 fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<ProductParseIssue>)> {
@@ -332,25 +381,47 @@ fn invalid_format_issue(raw: &str) -> ProductParseIssue {
     )
 }
 
-fn find_non_line_aligned_marker_issues(text: &str) -> Vec<ProductParseIssue> {
-    let mut issues = Vec::new();
+fn invalid_direction_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "time_mot_loc_parse",
+        "invalid_time_mot_loc_direction",
+        format!("could not parse TIME...MOT...LOC direction from line: `{raw}`"),
+        Some(raw.to_string()),
+    )
+}
 
-    for line in text.lines() {
-        if let Some(position) = line.to_ascii_uppercase().find("TIME...MOT...LOC")
-            && position > 0
-        {
-            // Some upstream text products run the marker into prior content instead of
-            // starting a new line. Warn and keep parsing from the normalized text.
-            issues.push(ProductParseIssue::new(
-                "time_mot_loc_parse",
-                "time_mot_loc_poorly_formatted",
-                "TIME...MOT...LOC marker was not line-aligned in the source text",
-                Some(line.to_string()),
-            ));
-        }
-    }
+fn invalid_speed_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "time_mot_loc_parse",
+        "invalid_time_mot_loc_speed",
+        format!("could not parse TIME...MOT...LOC speed from line: `{raw}`"),
+        Some(raw.to_string()),
+    )
+}
 
-    issues
+fn invalid_coordinate_format_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "time_mot_loc_parse",
+        "invalid_time_mot_loc_coordinate_format",
+        format!("could not normalize TIME...MOT...LOC coordinates from line: `{raw}`"),
+        Some(raw.to_string()),
+    )
+}
+
+fn starts_new_section_header(line: &str) -> bool {
+    let trimmed = line.trim();
+    !trimmed.is_empty()
+        && !looks_like_coordinate_line(trimmed)
+        && (trimmed.contains("...")
+            || trimmed.starts_with('/')
+            || trimmed.split_whitespace().next().is_some_and(|token| {
+                token.chars().all(|ch| ch.is_ascii_uppercase()) && token.len() >= 3
+            }))
+}
+
+fn looks_like_coordinate_line(line: &str) -> bool {
+    line.split_whitespace()
+        .all(|token| !token.is_empty() && token.chars().all(|ch| ch.is_ascii_digit()))
 }
 
 fn parse_coordinate(text: &str, is_lat: bool) -> Option<f64> {
@@ -419,13 +490,16 @@ fn round_coordinate(value: f64) -> f64 {
 mod tests {
     use super::*;
 
+    fn reference_time() -> DateTime<Utc> {
+        chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
+            .expect("reference time parses")
+            .with_timezone(&Utc)
+    }
+
     #[test]
     fn parse_time_mot_loc_point() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
-        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
-            .expect("reference time parses")
-            .with_timezone(&Utc);
-        let entries = parse_time_mot_loc_entries(text, reference_time);
+        let entries = parse_time_mot_loc_entries(text, reference_time());
 
         assert_eq!(entries.len(), 1);
         assert_eq!(
@@ -467,10 +541,7 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_wrapped_across_lines() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT\r\n3221 08853 3225 08849\n";
-        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
-            .expect("reference time parses")
-            .with_timezone(&Utc);
-        let entries = parse_time_mot_loc_entries(text, reference_time);
+        let entries = parse_time_mot_loc_entries(text, reference_time());
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
@@ -479,10 +550,7 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_with_split_coordinate_token() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 088\r\n53 3225 08849\n";
-        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
-            .expect("reference time parses")
-            .with_timezone(&Utc);
-        let entries = parse_time_mot_loc_entries(text, reference_time);
+        let entries = parse_time_mot_loc_entries(text, reference_time());
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
@@ -518,32 +586,76 @@ mod tests {
     #[test]
     fn parse_time_mot_loc_reports_dangling_coordinate_repair() {
         let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853 3225";
-        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
-            .expect("reference time parses")
-            .with_timezone(&Utc);
-        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time);
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time());
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 1);
-        assert!(
-            issues
-                .iter()
-                .any(|issue| issue.code == "time_mot_loc_truncated_dangling_coordinate")
-        );
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "time_mot_loc_truncated_dangling_coordinate");
     }
 
     #[test]
     fn parse_time_mot_loc_reports_non_line_aligned_marker() {
-        let text = "PRELUDE TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
-        let reference_time = chrono::DateTime::parse_from_rfc3339("2026-03-06T23:15:00Z")
-            .expect("reference time parses")
-            .with_timezone(&Utc);
-        let (_, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time);
+        let text = "BULLETIN TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853";
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time());
 
+        assert_eq!(entries.len(), 1);
         assert!(
             issues
                 .iter()
                 .any(|issue| issue.code == "time_mot_loc_poorly_formatted")
+        );
+    }
+
+    #[test]
+    fn parse_time_mot_loc_marker_with_mixed_case_parses() {
+        let text = "Time...Mot...Loc 2310Z 238DEG 39KT 3221 08853";
+        let entries = parse_time_mot_loc_entries(text, reference_time());
+
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn parse_time_mot_loc_with_trailing_unrelated_text_stops_cleanly() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 3221 08853\nHAILTHREAT...RADARINDICATED";
+        let entries = parse_time_mot_loc_entries(text, reference_time());
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 1);
+    }
+
+    #[test]
+    fn parse_time_mot_loc_coordinates_spanning_many_lines_parse() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT\n3221 08853\n3225 08849\n3230 08844\n";
+        let entries = parse_time_mot_loc_entries(text, reference_time());
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 3);
+    }
+
+    #[test]
+    fn parse_time_mot_loc_invalid_deg_token_reports_invalid_format() {
+        let text = "TIME...MOT...LOC 2310Z 238XYZ 39KT 3221 08853";
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time());
+
+        assert!(entries.is_empty());
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "time_mot_loc_regex_failed_after_marker")
+        );
+    }
+
+    #[test]
+    fn parse_time_mot_loc_invalid_kt_token_reports_invalid_format() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39MPH 3221 08853";
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time());
+
+        assert!(entries.is_empty());
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.code == "time_mot_loc_regex_failed_after_marker")
         );
     }
 }

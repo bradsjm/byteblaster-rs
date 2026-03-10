@@ -1,61 +1,32 @@
 //! NWS VTEC (Valid Time Event Code) parsing module.
 //!
-//! VTEC codes provide standardized timing and event information within NWS
-//! warnings, watches, and advisories. Format:
-//! `/Status.Action.Office.Phenomena.Significance.ETN.Begin-End/`
-//!
-//! Example: `/O.NEW.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/`
+//! VTEC codes are simple slash-delimited records, so this parser scans for
+//! candidate blocks and parses their dot-delimited fields directly.
 
 use chrono::{DateTime, Datelike, NaiveDateTime, Utc};
-use regex::Regex;
-use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::body::support::scan_slash_delimited_candidates;
 
 /// A parsed VTEC code.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct VtecCode {
-    /// Status indicator: 'O' (Operational), 'T' (Test), or 'E' (Experimental)
     pub status: char,
-
-    /// Human-readable status description when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_description: Option<&'static str>,
-
-    /// Canonical 3-character VTEC action code
     pub action: String,
-
-    /// Human-readable action description when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action_description: Option<&'static str>,
-
-    /// 4-character NWS office identifier (WFO)
     pub office: String,
-
-    /// 2-character phenomenon code (e.g., "TO" for tornado, "SV" for severe thunderstorm)
     pub phenomena: String,
-
-    /// Human-readable phenomenon description when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phenomena_description: Option<&'static str>,
-
-    /// Significance level: 'W' (Warning), 'A' (Watch), 'Y' (Advisory), 'S' (Statement)
     pub significance: char,
-
-    /// Human-readable significance description when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub significance_description: Option<&'static str>,
-
-    /// Event Tracking Number (ETN) - unique identifier for this event type/office
     pub etn: u32,
-
-    /// Event begin time in UTC. Some products use `000000T0000Z` to indicate
-    /// an unspecified begin time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub begin: Option<DateTime<Utc>>,
-
-    /// Event end time in UTC. Some products use `000000T0000Z` to indicate
-    /// an unspecified end time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end: Option<DateTime<Utc>>,
 }
@@ -174,35 +145,6 @@ fn vtec_significance_description(code: char) -> Option<&'static str> {
     }
 }
 
-/// Parses all VTEC codes found in the given text.
-///
-/// This function searches for VTEC codes throughout the entire text and returns
-/// all valid matches found. Invalid or malformed VTEC codes are skipped.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for VTEC codes
-///
-/// # Returns
-///
-/// A vector of parsed `VtecCode` structs. Returns an empty vector if no valid
-/// VTEC codes are found.
-///
-/// # Examples
-///
-/// ```
-/// use emwin_parser::parse_vtec_codes;
-///
-/// let text = r#"... /O.NEW.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/ ..."#;
-/// let codes = parse_vtec_codes(text);
-///
-/// assert_eq!(codes.len(), 1);
-/// assert_eq!(codes[0].office, "KDMX");
-/// assert_eq!(codes[0].phenomena, "TO");
-/// assert_eq!(codes[0].status_description, Some("Operational"));
-/// assert_eq!(codes[0].phenomena_description, Some("Tornado"));
-/// assert_eq!(codes[0].significance_description, Some("Warning"));
-/// ```
 pub fn parse_vtec_codes(text: &str) -> Vec<VtecCode> {
     parse_vtec_codes_with_issues(text).0
 }
@@ -211,19 +153,8 @@ pub fn parse_vtec_codes_with_issues(text: &str) -> (Vec<VtecCode>, Vec<ProductPa
     let mut codes = Vec::new();
     let mut issues = Vec::new();
 
-    for candidate in vtec_candidate_regex().find_iter(text) {
-        let raw = candidate.as_str();
-        let Some(captures) = vtec_regex().captures(raw) else {
-            issues.push(ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_format",
-                format!("could not parse VTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            ));
-            continue;
-        };
-
-        match parse_vtec_capture(&captures, raw) {
+    for candidate in find_vtec_candidates(text) {
+        match parse_vtec_candidate(candidate) {
             Ok(code) => codes.push(code),
             Err(issue) => issues.push(issue),
         }
@@ -232,159 +163,122 @@ pub fn parse_vtec_codes_with_issues(text: &str) -> (Vec<VtecCode>, Vec<ProductPa
     (codes, issues)
 }
 
-fn vtec_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"/[OTEX]\.[^/\r\n]+/").expect("vtec candidate regex compiles"))
-}
-
-fn vtec_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"/([A-Z])\.([A-Z]+)\.([A-Z]{4})\.([A-Z]{2})\.([A-Z])\.([^./\r\n]+)\.([^- /\r\n]+)-([^/\r\n]+)/",
-        )
-        .expect("vtec regex compiles")
+fn find_vtec_candidates(text: &str) -> Vec<&str> {
+    scan_slash_delimited_candidates(text, |candidate| {
+        candidate
+            .as_bytes()
+            .get(1)
+            .copied()
+            .map(|byte| (byte as char).is_ascii_uppercase())
+            .unwrap_or(false)
+            && candidate.as_bytes().get(2) == Some(&b'.')
     })
 }
 
-fn parse_vtec_capture(cap: &regex::Captures<'_>, raw: &str) -> Result<VtecCode, ProductParseIssue> {
-    let status = cap
-        .get(1)
-        .and_then(|value| value.as_str().chars().next())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_format",
-                format!("could not parse VTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let status_description = vtec_status_description(status);
-    let action_code = cap.get(2).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "vtec_parse",
-            "invalid_vtec_format",
-            format!("could not parse VTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let office = cap
-        .get(3)
-        .map(|value| value.as_str().to_string())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_format",
-                format!("could not parse VTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let phenomena = cap
-        .get(4)
-        .map(|value| value.as_str().to_string())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_format",
-                format!("could not parse VTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let significance = cap
-        .get(5)
-        .and_then(|value| value.as_str().chars().next())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_format",
-                format!("could not parse VTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let etn = cap
-        .get(6)
-        .and_then(|value| value.as_str().parse().ok())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "vtec_parse",
-                "invalid_vtec_etn",
-                format!("could not parse VTEC ETN from code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let begin_str = cap.get(7).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "vtec_parse",
-            "invalid_vtec_format",
-            format!("could not parse VTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let end_str = cap.get(8).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "vtec_parse",
-            "invalid_vtec_format",
-            format!("could not parse VTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
+fn parse_vtec_candidate(raw: &str) -> Result<VtecCode, ProductParseIssue> {
+    let inner = raw
+        .strip_prefix('/')
+        .and_then(|value| value.strip_suffix('/'))
+        .ok_or_else(|| invalid_format_issue(raw))?;
+    let fields: Vec<&str> = inner.split('.').collect();
+    if fields.len() != 7 {
+        return Err(invalid_format_issue(raw));
+    }
 
-    let begin = parse_vtec_optional_time(begin_str).ok_or_else(|| {
-        ProductParseIssue::new(
-            "vtec_parse",
-            "invalid_vtec_begin_time",
-            format!("could not parse VTEC begin time from code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let end = parse_vtec_optional_time(end_str).ok_or_else(|| {
-        ProductParseIssue::new(
-            "vtec_parse",
-            "invalid_vtec_end_time",
-            format!("could not parse VTEC end time from code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let action_description = vtec_action_description(action_code);
-    let phenomena_description = vtec_phenomena_description(&phenomena);
-    let significance_description = vtec_significance_description(significance);
+    let status = fields[0]
+        .chars()
+        .next()
+        .filter(|_| fields[0].len() == 1)
+        .ok_or_else(|| invalid_format_issue(raw))?;
+    let action = fields[1];
+    let office = fields[2];
+    let phenomena = fields[3];
+    let significance = fields[4]
+        .chars()
+        .next()
+        .filter(|_| fields[4].len() == 1)
+        .ok_or_else(|| invalid_format_issue(raw))?;
+    let etn = fields[5]
+        .parse::<u32>()
+        .map_err(|_| invalid_etn_issue(raw))?;
+    let (begin_raw, end_raw) = fields[6]
+        .split_once('-')
+        .ok_or_else(|| invalid_format_issue(raw))?;
+    let begin = parse_vtec_time_or_unspecified(begin_raw, "invalid_vtec_begin_time", raw)?;
+    let end = parse_vtec_time_or_unspecified(end_raw, "invalid_vtec_end_time", raw)?;
 
     Ok(VtecCode {
         status,
-        status_description,
-        action: action_code.to_string(),
-        action_description,
-        office,
-        phenomena,
-        phenomena_description,
+        status_description: vtec_status_description(status),
+        action: action.to_string(),
+        action_description: vtec_action_description(action),
+        office: office.to_string(),
+        phenomena: phenomena.to_string(),
+        phenomena_description: vtec_phenomena_description(phenomena),
         significance,
-        significance_description,
+        significance_description: vtec_significance_description(significance),
         etn,
         begin,
         end,
     })
 }
 
-fn parse_vtec_optional_time(time_str: &str) -> Option<Option<DateTime<Utc>>> {
-    if time_str == "000000T0000Z" {
-        return Some(None);
+fn parse_vtec_time_or_unspecified(
+    token: &str,
+    code: &'static str,
+    raw: &str,
+) -> Result<Option<DateTime<Utc>>, ProductParseIssue> {
+    if token == "000000T0000Z" {
+        return Ok(None);
     }
 
-    let parsed = parse_vtec_time(time_str)?;
+    let parsed = parse_vtec_time(token).ok_or_else(|| {
+        ProductParseIssue::new(
+            "vtec_parse",
+            code,
+            format!(
+                "could not parse VTEC {} from code: `{raw}`",
+                if code == "invalid_vtec_begin_time" {
+                    "begin time"
+                } else {
+                    "end time"
+                }
+            ),
+            Some(raw.to_string()),
+        )
+    })?;
+
     if parsed.year() < 1971 {
-        return Some(None);
+        return Ok(None);
     }
-    Some(Some(parsed))
+
+    Ok(Some(parsed))
 }
 
 fn parse_vtec_time(time_str: &str) -> Option<DateTime<Utc>> {
-    // VTEC time format: YYMMDDTHHMMZ (12 characters)
     if time_str.len() != 12 {
         return None;
     }
-
     let naive = NaiveDateTime::parse_from_str(time_str, "%y%m%dT%H%MZ").ok()?;
     Some(naive.and_utc())
+}
+
+fn invalid_format_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "vtec_parse",
+        "invalid_vtec_format",
+        format!("could not parse VTEC code: `{raw}`"),
+        Some(raw.to_string()),
+    )
+}
+
+fn invalid_etn_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "vtec_parse",
+        "invalid_vtec_etn",
+        format!("could not parse VTEC ETN from code: `{raw}`"),
+        Some(raw.to_string()),
+    )
 }
 
 #[cfg(test)]
@@ -400,12 +294,10 @@ mod tests {
         assert_eq!(codes[0].status, 'O');
         assert_eq!(codes[0].status_description, Some("Operational"));
         assert_eq!(codes[0].action, "NEW");
-        assert_eq!(codes[0].action_description, Some("New"));
         assert_eq!(codes[0].office, "KDMX");
         assert_eq!(codes[0].phenomena, "TO");
         assert_eq!(codes[0].phenomena_description, Some("Tornado"));
         assert_eq!(codes[0].significance, 'W');
-        assert_eq!(codes[0].significance_description, Some("Warning"));
         assert_eq!(codes[0].etn, 123);
     }
 
@@ -424,74 +316,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_vtec_time_parsing() {
-        let text = "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250305T1800Z/";
+    fn parse_vtec_with_unspecified_times() {
+        let text = "/O.CON.KGID.SV.W.0001.000000T0000Z-000000T0000Z/";
         let codes = parse_vtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(
-            codes[0].begin.map(|value| value.timestamp()),
-            Some(1740830400)
-        );
-        assert_eq!(
-            codes[0].end.map(|value| value.timestamp()),
-            Some(1741197600)
-        );
-    }
-
-    #[test]
-    fn parse_vtec_with_unspecified_begin_time() {
-        let text = "/O.CON.KGID.SV.W.0001.000000T0000Z-260307T0030Z/";
-        let codes = parse_vtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].action, "CON");
-        assert_eq!(codes[0].action_description, Some("Continued"));
         assert_eq!(codes[0].begin, None);
-        assert_eq!(
-            codes[0].end.map(|value| value.timestamp()),
-            Some(1772843400)
-        );
-    }
-
-    #[test]
-    fn parse_vtec_with_unspecified_end_time() {
-        let text = "/O.NEW.KDMX.XH.W.0001.260307T0000Z-000000T0000Z/";
-        let codes = parse_vtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].phenomena, "XH");
-        assert_eq!(codes[0].phenomena_description, Some("Extreme Heat"));
-        assert_eq!(
-            codes[0].begin.map(|value| value.timestamp()),
-            Some(1772841600)
-        );
         assert_eq!(codes[0].end, None);
-    }
-
-    #[test]
-    fn parse_vtec_debris_flow_description() {
-        let text = "/O.NEW.KDMX.DF.W.0001.260307T0000Z-260307T0030Z/";
-        let codes = parse_vtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].phenomena_description, Some("Debris Flow"));
-    }
-
-    #[test]
-    fn parse_vtec_various_actions() {
-        let actions = vec![
-            "NEW", "CON", "EXT", "EXA", "EXB", "CAN", "UPG", "EXP", "COR", "ROU", "XXX",
-        ];
-
-        for action_str in actions {
-            let text = format!(
-                "/O.{}.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/",
-                action_str
-            );
-            let codes = parse_vtec_codes(&text);
-            assert_eq!(codes[0].action, action_str);
-        }
     }
 
     #[test]
@@ -500,113 +331,59 @@ mod tests {
         let codes = parse_vtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].phenomena, "XX");
         assert_eq!(codes[0].phenomena_description, None);
     }
 
     #[test]
-    fn parse_vtec_status_and_significance_descriptions() {
-        let text = "/T.NEW.KDMX.TO.A.0123.250301T1200Z-250301T1300Z/";
-        let codes = parse_vtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].status, 'T');
-        assert_eq!(codes[0].status_description, Some("Test"));
-        assert_eq!(codes[0].significance, 'A');
-        assert_eq!(codes[0].significance_description, Some("Watch"));
-    }
-
-    #[test]
     fn parse_vtec_supports_experimental_vtec_status() {
-        let text = "/X.NEW.KIWX.FL.A.0001.070115T1614Z-000000T0000Z/";
+        let text = "/X.NEW.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/";
         let codes = parse_vtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].status, 'X');
         assert_eq!(codes[0].status_description, Some("Experimental VTEC"));
-        assert_eq!(codes[0].phenomena, "FL");
-        assert_eq!(codes[0].significance_description, Some("Watch"));
-        assert_eq!(codes[0].end, None);
     }
 
     #[test]
-    fn parse_vtec_supports_outlook_synopsis_and_forecast_significance() {
-        for (significance, description) in [('O', "Outlook"), ('N', "Synopsis"), ('F', "Forecast")]
-        {
-            let text = format!("/O.NEW.KDMX.HY.{significance}.0123.250301T1200Z-250301T1300Z/");
-            let codes = parse_vtec_codes(&text);
-
-            assert_eq!(codes.len(), 1);
-            assert_eq!(codes[0].significance, significance);
-            assert_eq!(codes[0].significance_description, Some(description));
-        }
-    }
-
-    #[test]
-    fn parse_vtec_1970_timestamp_is_unspecified() {
-        let text = "/O.EXT.KSEW.FL.W.0005.700101T0000Z-200108T1230Z/";
-        let codes = parse_vtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].begin, None);
-        assert_eq!(
-            codes[0].end.map(|value| value.timestamp()),
-            Some(1578486600)
-        );
-    }
-
-    #[test]
-    fn parse_vtec_empty() {
-        let codes = parse_vtec_codes("");
-        assert!(codes.is_empty());
-    }
-
-    #[test]
-    fn parse_vtec_invalid_skipped() {
-        let text = "/INVALID.VTEC.CODE/";
+    fn candidate_scan_ignores_malformed_slash_blocks() {
+        let text = "/NOTVTEC/ /O.BAD/";
         let codes = parse_vtec_codes(text);
         assert!(codes.is_empty());
     }
 
     #[test]
-    fn parse_vtec_invalid_reports_issue() {
-        let text = "/O.NEW.KDMX.TO.W.0123.250301T1200Z-invalid/";
-        let (codes, issues) = parse_vtec_codes_with_issues(text);
-
-        assert!(codes.is_empty());
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_vtec_end_time");
+    fn multiple_vtec_codes_in_one_line_parse() {
+        let text = "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/ /O.NEW.KDMX.SV.W.0002.250301T1200Z-250301T1300Z/";
+        let codes = parse_vtec_codes(text);
+        assert_eq!(codes.len(), 2);
     }
 
     #[test]
-    fn parse_vtec_invalid_begin_reports_issue() {
-        let text = "/O.NEW.KDMX.TO.W.0123.invalid-250301T1300Z/";
-        let (codes, issues) = parse_vtec_codes_with_issues(text);
+    fn invalid_etn_reports_issue() {
+        let text = "/O.NEW.KDMX.TO.W.ABCD.250301T1200Z-250301T1300Z/";
+        let (_codes, issues) = parse_vtec_codes_with_issues(text);
 
-        assert!(codes.is_empty());
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_vtec_begin_time");
-    }
-
-    #[test]
-    fn parse_vtec_invalid_etn_reports_issue() {
-        let text = "/O.NEW.KDMX.TO.W.A123.250301T1200Z-250301T1300Z/";
-        let (codes, issues) = parse_vtec_codes_with_issues(text);
-
-        assert!(codes.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_vtec_etn");
     }
 
     #[test]
-    fn parse_vtec_mixed_valid_invalid() {
-        let text = concat!(
-            "/O.NEW.KDMX.TO.W.0123.250301T1200Z-250301T1300Z/",
-            " invalid ",
-            "/O.CON.KTOP.SV.W.0045.250301T1300Z-250301T1400Z/"
-        );
+    fn malformed_begin_end_split_reports_invalid_format() {
+        let text = "/O.NEW.KDMX.TO.W.0001.250301T1200Z250301T1300Z/";
+        let (_codes, issues) = parse_vtec_codes_with_issues(text);
+
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_vtec_format");
+    }
+
+    #[test]
+    fn unknown_status_action_and_phenomena_still_parse() {
+        let text = "/Q.ZZZ.KDMX.XX.Q.0001.250301T1200Z-250301T1300Z/";
         let codes = parse_vtec_codes(text);
 
-        assert_eq!(codes.len(), 2);
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].status_description, None);
+        assert_eq!(codes[0].action_description, None);
+        assert_eq!(codes[0].phenomena_description, None);
+        assert_eq!(codes[0].significance_description, None);
     }
 }

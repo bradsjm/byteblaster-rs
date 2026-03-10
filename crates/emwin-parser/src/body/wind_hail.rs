@@ -1,19 +1,8 @@
 //! NWS WIND/HAIL tag parsing module.
 //!
-//! WIND/HAIL tags provide information about severe wind and hail threats
-//! in severe weather warnings. The module supports both legacy format tags
-//! (WIND... and HAIL...) and modern format tags (MAXHAILSIZE, MAXWINDGUST, etc.).
-//!
-//! ## Legacy Format
-//!
-//! `WIND...>60MPH HAIL...<1.00IN`
-//!
-//! ## Modern Format
-//!
-//! - `HAILTHREAT...RADARINDICATED`
-//! - `MAX HAIL SIZE...1.00 IN`
-//! - `WINDTHREAT...OBSERVED`
-//! - `MAX WIND GUST...60 MPH`
+//! This module supports both legacy combined `WIND... HAIL...` tags and modern
+//! line-oriented severe threat tags without relying on regex for the modern
+//! parsing path.
 
 use regex::Regex;
 use std::sync::OnceLock;
@@ -45,170 +34,100 @@ pub struct WindHailEntry {
 }
 
 /// Parses all wind and hail tags found in the given text.
-///
-/// This function searches for both legacy (WIND.../HAIL...) and modern
-/// (MAXHAILSIZE, MAXWINDGUST, etc.) wind/hail tags throughout the text.
-/// Invalid tags are skipped silently.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for wind/hail tags
-///
-/// # Returns
-///
-/// A vector of parsed `WindHailEntry` structs. Returns an empty vector if no
-/// valid tags are found.
-///
-/// # Examples
-///
-/// ```
-/// use emwin_parser::parse_wind_hail_entries;
-///
-/// let text = "WIND...>60MPH HAIL...<1.00IN";
-/// let entries = parse_wind_hail_entries(text);
-///
-/// assert_eq!(entries.len(), 2);
-/// assert_eq!(entries[0].kind, emwin_parser::WindHailKind::LegacyWind);
-/// ```
 pub fn parse_wind_hail_entries(text: &str) -> Vec<WindHailEntry> {
     parse_wind_hail_entries_with_issues(text).0
 }
 
 /// Parses wind and hail tags and returns any parsing issues encountered.
-///
-/// Similar to `parse_wind_hail_entries` but also returns a vector of issues
-/// for tags that failed to parse correctly.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for wind/hail tags
-///
-/// # Returns
-///
-/// A tuple containing:
-/// - Vector of successfully parsed `WindHailEntry` structs
-/// - Vector of `ProductParseIssue` for tags that failed to parse
 pub fn parse_wind_hail_entries_with_issues(
     text: &str,
 ) -> (Vec<WindHailEntry>, Vec<ProductParseIssue>) {
     let mut entries = Vec::new();
     let mut issues = Vec::new();
 
-    let flattened = text.replace('\n', " ");
-
-    for captures in legacy_wind_hail_regex().captures_iter(&flattened) {
-        let Some(raw) = captures.get(0).map(|value| value.as_str()) else {
-            continue;
-        };
-
-        match parse_legacy_wind_hail_capture(&captures, raw) {
-            Ok(mut parsed) => entries.append(&mut parsed),
-            Err(issue) => issues.push(issue),
-        }
-    }
+    let (mut legacy_entries, mut legacy_issues) = parse_legacy_wind_hail(text);
+    entries.append(&mut legacy_entries);
+    issues.append(&mut legacy_issues);
 
     for raw_line in text.lines() {
-        let line = raw_line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        if modern_wind_hail_candidate_regex().is_match(line) {
-            match parse_modern_wind_hail_line(line) {
-                Ok(Some(entry)) => entries.push(entry),
-                Ok(None) => {}
-                Err(issue) => issues.push(issue),
-            }
+        match parse_modern_wind_hail_line(raw_line.trim()) {
+            Ok(Some(entry)) => entries.push(entry),
+            Ok(None) => {}
+            Err(issue) => issues.push(issue),
         }
     }
 
     (entries, issues)
 }
 
-/// Regex for legacy WIND.../HAIL... format tags.
+/// The legacy pair is structurally stable and clearer to keep as one regex.
 fn legacy_wind_hail_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?i)WIND\.\.\.\s*([<>])?\s*([0-9]+)\s*(MPH|KTS)\s+HAIL\.\.\.\s*([<>])?\s*([0-9.]+)\s*IN",
+            r"(?is)WIND\.\.\.\s*([<>])?\s*([0-9]+)\s*(MPH|KTS)\s+HAIL\.\.\.\s*([<>])?\s*([0-9.]+)\s*IN",
         )
         .expect("legacy wind hail regex compiles")
     })
 }
 
-/// Regex to detect modern wind/hail tag lines.
-fn modern_wind_hail_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)^(HAIL(?:THREAT)?|MAX\s*HAIL\s*SIZE|MAXHAILSIZE|WIND(?:THREAT)?|MAX\s*WIND\s*GUST|MAXWINDGUST)\.\.\.",
-        )
-        .expect("modern wind hail candidate regex compiles")
-    })
+fn parse_legacy_wind_hail(text: &str) -> (Vec<WindHailEntry>, Vec<ProductParseIssue>) {
+    let mut entries = Vec::new();
+    let mut issues = Vec::new();
+
+    for captures in legacy_wind_hail_regex().captures_iter(text) {
+        let Some(raw) = captures.get(0).map(|value| value.as_str()) else {
+            continue;
+        };
+
+        let wind_value = captures
+            .get(2)
+            .and_then(|value| value.as_str().parse::<f64>().ok());
+        let wind_units = captures
+            .get(3)
+            .map(|value| value.as_str().to_ascii_uppercase());
+        let hail_value = captures
+            .get(5)
+            .and_then(|value| value.as_str().parse::<f64>().ok());
+
+        match (wind_value, wind_units, hail_value) {
+            (Some(wind_value), Some(wind_units), Some(hail_value)) => {
+                entries.push(WindHailEntry {
+                    kind: WindHailKind::LegacyWind,
+                    numeric_value: Some(wind_value),
+                    units: Some(wind_units),
+                    comparison: captures
+                        .get(1)
+                        .and_then(|value| value.as_str().chars().next()),
+                });
+                entries.push(WindHailEntry {
+                    kind: WindHailKind::LegacyHail,
+                    numeric_value: Some(hail_value),
+                    units: Some("IN".to_string()),
+                    comparison: captures
+                        .get(4)
+                        .and_then(|value| value.as_str().chars().next()),
+                });
+            }
+            _ => issues.push(invalid_wind_hail_issue(raw)),
+        }
+    }
+
+    (entries, issues)
 }
 
-/// Regex to extract modern tag label and value.
-fn modern_wind_hail_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?i)^([A-Z ]+?)\.\.\.\s*(.+?)\s*$").expect("modern wind hail regex compiles")
-    })
-}
-
-/// Parses a legacy WIND.../HAIL... tag capture.
-fn parse_legacy_wind_hail_capture(
-    captures: &regex::Captures<'_>,
-    raw: &str,
-) -> Result<Vec<WindHailEntry>, ProductParseIssue> {
-    let wind_value = captures
-        .get(2)
-        .and_then(|value| value.as_str().parse::<f64>().ok())
-        .ok_or_else(|| invalid_wind_hail_issue(raw))?;
-    let wind_units = captures
-        .get(3)
-        .map(|value| value.as_str().to_ascii_uppercase())
-        .ok_or_else(|| invalid_wind_hail_issue(raw))?;
-    let hail_value = captures
-        .get(5)
-        .and_then(|value| value.as_str().parse::<f64>().ok())
-        .ok_or_else(|| invalid_wind_hail_issue(raw))?;
-
-    Ok(vec![
-        WindHailEntry {
-            kind: WindHailKind::LegacyWind,
-            numeric_value: Some(wind_value),
-            units: Some(wind_units),
-            comparison: captures
-                .get(1)
-                .and_then(|value| value.as_str().chars().next()),
-        },
-        WindHailEntry {
-            kind: WindHailKind::LegacyHail,
-            numeric_value: Some(hail_value),
-            units: Some("IN".to_string()),
-            comparison: captures
-                .get(4)
-                .and_then(|value| value.as_str().chars().next()),
-        },
-    ])
-}
-
-/// Parses a modern wind/hail tag line.
-///
-/// Recognizes HAILTHREAT, WINDTHREAT, MAX HAIL SIZE, MAX WIND GUST tags.
+/// Parses one modern wind/hail line by splitting on the literal `...`.
 fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, ProductParseIssue> {
-    let Some(captures) = modern_wind_hail_regex().captures(line) else {
+    if line.is_empty() || !line.contains("...") {
+        return Ok(None);
+    }
+
+    let Some((label, value)) = line.split_once("...") else {
         return Err(invalid_wind_hail_issue(line));
     };
 
-    let label = captures
-        .get(1)
-        .map(|value| value.as_str().trim().to_ascii_uppercase().replace(' ', ""))
-        .ok_or_else(|| invalid_wind_hail_issue(line))?;
-    let value = captures
-        .get(2)
-        .map(|value| value.as_str().trim().to_string())
-        .ok_or_else(|| invalid_wind_hail_issue(line))?;
+    let label = normalize_modern_label(label);
+    let value = value.trim();
 
     let entry = match label.as_str() {
         "HAILTHREAT" => WindHailEntry {
@@ -223,16 +142,16 @@ fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, Prod
             units: None,
             comparison: None,
         },
-        "HAIL" | "MAXHAILSIZE" => parse_numeric_line(
+        "HAIL" | "MAXHAILSIZE" => parse_numeric_value(
+            value,
             WindHailKind::MaxHailSize,
-            &value,
             &["IN"],
             "invalid_wind_hail_hail_value",
             line,
         )?,
-        "WIND" | "MAXWINDGUST" => parse_numeric_line(
+        "WIND" | "MAXWINDGUST" => parse_numeric_value(
+            value,
             WindHailKind::MaxWindGust,
-            &value,
             &["MPH", "KTS"],
             "invalid_wind_hail_wind_value",
             line,
@@ -243,47 +162,43 @@ fn parse_modern_wind_hail_line(line: &str) -> Result<Option<WindHailEntry>, Prod
     Ok(Some(entry))
 }
 
-/// Parses a numeric value line with optional comparison operator.
-fn parse_numeric_line(
-    kind: WindHailKind,
+fn normalize_modern_label(label: &str) -> String {
+    label
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .map(|character| character.to_ascii_uppercase())
+        .collect()
+}
+
+fn parse_numeric_value(
     value: &str,
+    kind: WindHailKind,
     allowed_units: &[&str],
     error_code: &'static str,
     raw: &str,
 ) -> Result<WindHailEntry, ProductParseIssue> {
-    let captures = numeric_value_regex().captures(value).ok_or_else(|| {
-        ProductParseIssue::new(
-            "wind_hail_parse",
-            error_code,
-            format!("could not parse wind/hail value from line: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
+    let value = value.trim();
+    let (comparison, remainder) = match value.chars().next() {
+        Some('<') | Some('>') => (value.chars().next(), value[1..].trim()),
+        _ => (None, value),
+    };
 
-    let comparison = captures.get(1).and_then(|m| m.as_str().chars().next());
-    let numeric_value = captures
-        .get(2)
-        .and_then(|m| m.as_str().parse::<f64>().ok())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "wind_hail_parse",
-                error_code,
-                format!("could not parse wind/hail value from line: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
-    let units = captures
-        .get(3)
-        .map(|m| m.as_str().to_ascii_uppercase())
+    let mut parts = remainder.split_whitespace();
+    let numeric_str = parts
+        .next()
+        .ok_or_else(|| invalid_numeric_issue(error_code, raw))?;
+    let units = parts
+        .next()
+        .map(|units| units.to_ascii_uppercase())
         .filter(|units| allowed_units.iter().any(|allowed| units == allowed))
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "wind_hail_parse",
-                error_code,
-                format!("could not parse wind/hail units from line: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
+        .ok_or_else(|| invalid_numeric_issue(error_code, raw))?;
+    if parts.next().is_some() {
+        return Err(invalid_numeric_issue(error_code, raw));
+    }
+
+    let numeric_value = numeric_str
+        .parse::<f64>()
+        .map_err(|_| invalid_numeric_issue(error_code, raw))?;
 
     Ok(WindHailEntry {
         kind,
@@ -293,16 +208,15 @@ fn parse_numeric_line(
     })
 }
 
-/// Regex to parse numeric values with optional comparison and units.
-fn numeric_value_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?i)^([<>])?\s*([0-9]+(?:\.[0-9]+)?|\.[0-9]+)\s*([A-Z]+)\s*$")
-            .expect("numeric value regex compiles")
-    })
+fn invalid_numeric_issue(code: &'static str, raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "wind_hail_parse",
+        code,
+        format!("could not parse wind/hail value from line: `{raw}`"),
+        Some(raw.to_string()),
+    )
 }
 
-/// Creates a standardized parsing issue for wind/hail errors.
 fn invalid_wind_hail_issue(raw: &str) -> ProductParseIssue {
     ProductParseIssue::new(
         "wind_hail_parse",
@@ -360,5 +274,59 @@ mod tests {
         assert_eq!(entries[0].comparison, Some('<'));
         assert_eq!(entries[0].numeric_value, Some(0.75));
         assert_eq!(entries[0].units.as_deref(), Some("IN"));
+    }
+
+    #[test]
+    fn lowercase_modern_labels_parse() {
+        let text = "max wind gust...60 mph";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxWindGust);
+    }
+
+    #[test]
+    fn spaced_modern_labels_parse() {
+        let text = "MAX   HAIL  SIZE...1.50 IN";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxHailSize);
+        assert_eq!(entries[0].numeric_value, Some(1.5));
+    }
+
+    #[test]
+    fn legacy_embedded_in_longer_sentence_still_parses() {
+        let text = "EXPECT WIND...>60MPH HAIL...<1.00IN WITH THIS STORM";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 2);
+    }
+
+    #[test]
+    fn mixed_modern_and_legacy_tags_parse() {
+        let text = "WIND...>60MPH HAIL...<1.00IN\nMAX HAIL SIZE...1.25 IN";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 3);
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.kind == WindHailKind::LegacyWind)
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.kind == WindHailKind::MaxHailSize)
+        );
+    }
+
+    #[test]
+    fn invalid_units_keep_existing_issue_code() {
+        let text = "MAX WIND GUST...60 MPS";
+        let (_entries, issues) = parse_wind_hail_entries_with_issues(text);
+
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_wind_hail_wind_value");
     }
 }

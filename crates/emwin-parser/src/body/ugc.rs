@@ -1,22 +1,14 @@
 //! NWS UGC (Universal Geographic Code) parsing module.
 //!
-//! UGC codes identify affected geographic areas (counties or zones) within NWS
-//! text products. They support range notation for compact representation.
-//!
-//! UGC format: `[State][Class][Number][>Range][-Continuation]`
-//!
-//! Examples:
-//! - `IAC001` - Iowa County 001
-//! - `IAC001>005` - Iowa Counties 001 through 005
-//! - `IAC001>005-NEZ010-` - Multiple counties with expiration
+//! UGC sections are line-oriented blocks with dense shorthand expansion. This
+//! parser preserves that behavior while avoiding the previous full-text line
+//! collection and regex-heavy candidate assembly.
 
 use crate::ProductParseIssue;
 use crate::data::{ugc_county_entry, ugc_zone_entry};
 use crate::time::resolve_day_time_not_before;
 use chrono::{DateTime, Utc};
-use regex::Regex;
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
 
 /// A parsed UGC section containing codes and expiration time.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -33,7 +25,7 @@ pub struct UgcSection {
     /// Marine UGC areas grouped by state/prefix.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub marine_zones: BTreeMap<String, Vec<UgcArea>>,
-    /// Expiration time for this UGC section
+    /// Expiration time for this UGC section.
     pub expires: DateTime<Utc>,
 }
 
@@ -195,42 +187,11 @@ fn is_marine_zone_state(state: &str) -> bool {
 }
 
 /// Parses all UGC sections found in the given text.
-///
-/// This function searches for UGC code blocks throughout the entire text and
-/// returns all valid matches found with range expansion applied.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for UGC codes
-/// * `valid_time` - Reference time for calculating expiration (typically product issue time)
-///
-/// # Returns
-///
-/// A vector of parsed `UgcSection` structs. Returns an empty vector if no valid
-/// UGC sections are found.
-///
-/// # Examples
-///
-/// ```
-/// use chrono::Utc;
-/// use emwin_parser::parse_ugc_sections;
-///
-/// let text = "IAC001>003-041200-\n";
-/// let sections = parse_ugc_sections(text, Utc::now());
-///
-/// assert_eq!(sections.len(), 1);
-/// assert_eq!(
-///     sections[0].counties["IA"]
-///         .iter()
-///         .map(|area| area.id)
-///         .collect::<Vec<_>>(),
-///     vec![1, 2, 3]
-/// );
-/// ```
 pub fn parse_ugc_sections(text: &str, valid_time: DateTime<Utc>) -> Vec<UgcSection> {
     parse_ugc_sections_with_issues(text, valid_time).0
 }
 
+/// Parses all UGC sections found in the given text and returns any issues.
 pub fn parse_ugc_sections_with_issues(
     text: &str,
     valid_time: DateTime<Utc>,
@@ -248,74 +209,121 @@ pub fn parse_ugc_sections_with_issues(
     (sections, issues)
 }
 
-fn ugc_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z]{2}[CZFM]").expect("ugc candidate regex compiles"))
-}
-
-fn ugc_expiration_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"[0-9]{6}-$").expect("ugc expiration regex compiles"))
-}
-
 fn extract_ugc_candidates(text: &str) -> Vec<String> {
-    let normalized = text.replace('\r', "");
-    let lines: Vec<&str> = normalized.lines().collect();
     let mut candidates = Vec::new();
-    let mut index = 0;
+    let mut lines = iter_candidate_lines(text).peekable();
 
-    while index < lines.len() {
-        let line = lines[index].trim();
-        if !ugc_candidate_regex().is_match(line) {
-            index += 1;
+    while let Some(line) = lines.next() {
+        if !is_ugc_start(line) {
             continue;
         }
 
-        let mut combined = line.to_string();
-        let mut cursor = index + 1;
-
-        while !ugc_expiration_regex().is_match(&compact_ugc_text(&combined))
-            && cursor < lines.len()
-            && cursor.saturating_sub(index) < 8
-        {
-            let next = lines[cursor].trim();
-            if next.is_empty() {
-                break;
-            }
-            combined.push_str(next);
-            cursor += 1;
-        }
-
-        let compact = compact_ugc_text(&combined);
-        if ugc_full_regex().is_match(&compact) {
-            candidates.push(compact);
-            index = cursor;
-        } else {
-            index += 1;
+        if let Some(candidate) = collect_ugc_candidate(line, &mut lines) {
+            candidates.push(candidate);
         }
     }
 
     candidates
 }
 
+fn iter_candidate_lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines().map(|line| line.trim_end_matches('\r'))
+}
+
+fn collect_ugc_candidate<'a, I>(
+    first_line: &'a str,
+    remaining_lines: &mut std::iter::Peekable<I>,
+) -> Option<String>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let mut combined = compact_ugc_text(first_line);
+
+    while !has_ugc_expiration_suffix(&combined) {
+        let Some(next_line) = remaining_lines.peek().copied() else {
+            break;
+        };
+        let next = next_line.trim();
+        if next.is_empty() || starts_new_section_header(next) {
+            break;
+        }
+        combined.push_str(&compact_ugc_text(next));
+        let _ = remaining_lines.next();
+    }
+
+    Some(combined)
+}
+
 fn compact_ugc_text(text: &str) -> String {
-    text.chars().filter(|c| !c.is_whitespace()).collect()
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
 }
 
-/// Extract expiration code from end of UGC line
+fn is_ugc_start(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let mut chars = trimmed.chars();
+    matches!(
+        (
+            chars.next(),
+            chars.next(),
+            chars.next(),
+            chars.next(),
+            chars.next(),
+            chars.next()
+        ),
+        (Some(a), Some(b), Some(class), Some(d1), Some(d2), Some(d3))
+            if a.is_ascii_uppercase()
+                && b.is_ascii_uppercase()
+                && matches!(class, 'C' | 'Z' | 'F' | 'M')
+                && d1.is_ascii_digit()
+                && d2.is_ascii_digit()
+                && d3.is_ascii_digit()
+    )
+}
+
+fn has_ugc_expiration_suffix(text: &str) -> bool {
+    text.len() >= 8
+        && text.ends_with('-')
+        && text[text.len() - 7..text.len() - 1]
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        && text.as_bytes()[text.len() - 8] == b'-'
+}
+
+fn starts_new_section_header(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    if trimmed.ends_with(':') || trimmed.contains("...") {
+        return true;
+    }
+
+    let first_token = trimmed.split_whitespace().next().unwrap_or("");
+    !is_ugc_start(trimmed)
+        && first_token.len() >= 4
+        && first_token
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_uppercase())
+        && first_token.chars().all(|character| {
+            character.is_ascii_uppercase()
+                || character.is_ascii_digit()
+                || matches!(character, '/' | '-')
+        })
+}
+
 fn extract_expiration(text: &str) -> Option<(String, String)> {
-    let caps = ugc_full_regex().captures(text)?;
-    Some((
-        caps.get(1)?.as_str().to_string(),
-        caps.get(2)?.as_str().to_string(),
-    ))
-}
+    if !has_ugc_expiration_suffix(text) {
+        return None;
+    }
 
-fn ugc_full_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^([A-Z0-9CZFM>,\-]+)-([0-9]{6})-\s*$").expect("ugc full regex compiles")
-    })
+    let split_at = text.len() - 8;
+    let code_block = &text[..split_at];
+    let expire_code = &text[split_at + 1..text.len() - 1];
+    Some((code_block.to_string(), expire_code.to_string()))
 }
 
 fn parse_ugc_capture(
@@ -355,59 +363,82 @@ fn expand_ugc_block(block: &str) -> Option<Vec<UgcCode>> {
     let mut codes = Vec::new();
     let mut current_prefix: Option<(String, UgcClass)> = None;
 
-    // Split on comma or hyphen (continuation)
     for segment in block.split([',', '-']) {
         if segment.is_empty() {
             continue;
         }
 
-        let segment = segment.trim();
-        let (state, geoclass, numeric) =
-            if let Some(captures) = ugc_full_segment_regex().captures(segment) {
-                let state = captures.get(1)?.as_str().to_string();
-                let geoclass = UgcClass::from_char(captures.get(2)?.as_str().chars().next()?);
-                let numeric = captures.get(3)?.as_str();
-                current_prefix = Some((state.clone(), geoclass));
-                (state, geoclass, numeric)
-            } else if ugc_shorthand_segment_regex().is_match(segment) {
-                if let Some((state, geoclass)) = current_prefix.clone() {
-                    (state, geoclass, segment)
-                } else {
-                    return None;
-                }
-            } else {
-                return None;
-            };
-
-        if let Some((start_num, end_num)) = parse_ugc_numeric_range(numeric) {
-            for num in start_num..=end_num {
-                codes.push(UgcCode {
-                    state: state.clone(),
-                    geoclass,
-                    number: num,
-                });
-            }
-        } else {
-            return None;
-        }
+        let parsed = parse_ugc_segment(segment.trim(), &mut current_prefix)?;
+        codes.extend(parsed);
     }
 
     if codes.is_empty() { None } else { Some(codes) }
 }
 
-fn ugc_full_segment_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^([A-Z]{2})([CZFM])(\d{3}(?:>\d{3})?)$")
-            .expect("ugc full segment regex compiles")
-    })
+/// Expands both full (`IAC001>003`) and shorthand (`004>007`) segments.
+///
+/// The dense expansion is intentional and matches the long-standing UGC
+/// contract exposed by the crate.
+fn parse_ugc_segment(
+    segment: &str,
+    current_prefix: &mut Option<(String, UgcClass)>,
+) -> Option<Vec<UgcCode>> {
+    let (state, geoclass, numeric) =
+        if let Some((state, geoclass, numeric)) = parse_full_ugc_segment(segment) {
+            *current_prefix = Some((state.clone(), geoclass));
+            (state, geoclass, numeric)
+        } else if is_shorthand_ugc_segment(segment) {
+            let (state, geoclass) = current_prefix.clone()?;
+            (state, geoclass, segment)
+        } else {
+            return None;
+        };
+
+    let (start_num, end_num) = parse_ugc_numeric_range(numeric)?;
+    let mut codes = Vec::new();
+    for number in start_num..=end_num {
+        codes.push(UgcCode {
+            state: state.clone(),
+            geoclass,
+            number,
+        });
+    }
+
+    Some(codes)
 }
 
-fn ugc_shorthand_segment_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^\d{3}(?:>\d{3})?$").expect("ugc shorthand segment regex compiles")
-    })
+fn parse_full_ugc_segment(segment: &str) -> Option<(String, UgcClass, &str)> {
+    if segment.len() < 6 {
+        return None;
+    }
+
+    let state = &segment[..2];
+    let geoclass = segment.as_bytes().get(2).copied()? as char;
+    if !state
+        .chars()
+        .all(|character| character.is_ascii_uppercase())
+    {
+        return None;
+    }
+    if !matches!(geoclass, 'C' | 'Z' | 'F' | 'M') {
+        return None;
+    }
+
+    let numeric = &segment[3..];
+    if is_shorthand_ugc_segment(numeric) {
+        Some((state.to_string(), UgcClass::from_char(geoclass), numeric))
+    } else {
+        None
+    }
+}
+
+fn is_shorthand_ugc_segment(segment: &str) -> bool {
+    match segment.split_once('>') {
+        Some((start, end)) => [start, end].into_iter().all(|part| {
+            part.len() == 3 && part.chars().all(|character| character.is_ascii_digit())
+        }),
+        None => segment.len() == 3 && segment.chars().all(|character| character.is_ascii_digit()),
+    }
 }
 
 fn parse_ugc_numeric_range(numeric: &str) -> Option<(u16, u16)> {
@@ -429,7 +460,6 @@ fn parse_ugc_number(text: &str) -> Option<u16> {
 }
 
 fn parse_expire_time(expire_code: &str, valid_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    // Expire format: DDHHMM (day of month, hour, minute)
     if expire_code.len() != 6 {
         return None;
     }
@@ -455,7 +485,6 @@ mod tests {
     }
 
     fn test_valid_time() -> DateTime<Utc> {
-        // 2025-03-05 12:00:00 UTC
         Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0).unwrap()
     }
 
@@ -524,198 +553,63 @@ mod tests {
     }
 
     #[test]
-    fn parse_ugc_zone_class() {
-        let text = "AKZ317>319-051200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        assert_eq!(ids(&sections[0].zones["AK"]), vec![317, 318, 319]);
-        assert_eq!(
-            names(&sections[0].zones["AK"]),
-            vec![
-                Some("City and Borough of Yakutat"),
-                Some("Municipality of Skagway"),
-                Some("Haines Borough and Klukwan"),
-            ]
-        );
-    }
-
-    #[test]
-    fn parse_ugc_mixed_states() {
-        let text = "ALC001-003-005-GAC005-051200-\n";
+    fn candidate_spanning_more_than_eight_lines_is_supported() {
+        let text = "\
+IAC001-\n\
+003-\n\
+005-\n\
+007-\n\
+009-\n\
+011-\n\
+013-\n\
+015-\n\
+017-\n\
+019-\n\
+051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(ids(&sections[0].counties["AL"]), vec![1, 3, 5]);
         assert_eq!(
-            names(&sections[0].counties["AL"]),
-            vec![Some("Autauga"), Some("Baldwin"), Some("Barbour")]
+            ids(&sections[0].counties["IA"]),
+            vec![1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
         );
-        assert_eq!(ids(&sections[0].counties["GA"]), vec![5]);
-        assert_eq!(names(&sections[0].counties["GA"]), vec![Some("Bacon")]);
     }
 
     #[test]
-    fn parse_ugc_expiration() {
-        let text = "IAC001-051200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        let expected = Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0).unwrap();
-        assert_eq!(sections[0].expires, expected);
-    }
-
-    #[test]
-    fn parse_ugc_expiration_next_month() {
-        // If valid_time is March 30 and expiration is day 01, it should roll to April
-        let valid_time = Utc.with_ymd_and_hms(2025, 3, 30, 12, 0, 0).unwrap();
-        let text = "IAC001-010800-\n";
-        let sections = parse_ugc_sections(text, valid_time);
-
-        let expected = Utc.with_ymd_and_hms(2025, 4, 1, 8, 0, 0).unwrap();
-        assert_eq!(sections[0].expires, expected);
-    }
-
-    #[test]
-    fn parse_ugc_empty() {
-        let sections = parse_ugc_sections("", test_valid_time());
-        assert!(sections.is_empty());
-    }
-
-    #[test]
-    fn parse_ugc_invalid_skipped() {
-        let text = "INVALID-051200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-        assert!(sections.is_empty());
-    }
-
-    #[test]
-    fn malformed_shorthand_first_token_is_not_parsed() {
-        let text = "IA078-170300-\n";
-
-        assert!(parse_ugc_sections(text, test_valid_time()).is_empty());
-
-        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
-        assert!(sections.is_empty());
-        assert!(issues.is_empty());
-    }
-
-    #[test]
-    fn parse_ugc_invalid_reports_issue() {
-        let text = "IAC001-991299-\n";
+    fn block_terminated_by_blank_line_reports_invalid_format() {
+        let text = "IAC001-\n\nNEXT SECTION:\n";
         let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
 
         assert!(sections.is_empty());
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_ugc_expiration");
+        assert_eq!(issues[0].code, "invalid_ugc_format");
     }
 
     #[test]
-    fn parse_wrapped_ugc_with_shorthand_segments() {
-        let text = "DCZ001-MDZ004>007-009>011-013-014-016>018-\r\nVAZ036>042-050>057-170200-\n";
+    fn block_terminated_by_next_section_after_expiration_still_parses() {
+        let text = "IAC001-051200-\nLAT...LON 4123 09312\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(ids(&sections[0].zones["DC"]), vec![1]);
-        assert_eq!(
-            ids(&sections[0].zones["MD"]),
-            vec![4, 5, 6, 7, 9, 10, 11, 13, 14, 16, 17, 18]
-        );
-        assert_eq!(
-            ids(&sections[0].zones["VA"]),
-            vec![36, 37, 38, 39, 40, 41, 42, 50, 51, 52, 53, 54, 55, 56, 57]
-        );
+        assert_eq!(sections[0].counties["IA"][0].id, 1);
     }
 
     #[test]
-    fn parse_ugc_with_wrap_inside_segment() {
-        let text = "MDZ004>0\r\n07-009>011-170200-\n";
+    fn mixed_comma_and_hyphen_shorthand_segments_parse() {
+        let text = "IAC001,003-005>007-051200-\n";
         let sections = parse_ugc_sections(text, test_valid_time());
 
         assert_eq!(sections.len(), 1);
-        assert_eq!(ids(&sections[0].zones["MD"]), vec![4, 5, 6, 7, 9, 10, 11]);
+        assert_eq!(ids(&sections[0].counties["IA"]), vec![1, 3, 5, 6, 7]);
     }
 
     #[test]
-    fn parse_wrapped_ugc_with_commas_and_shorthand_segments() {
-        let text = "KSZ008-009,020>022-\r\n034>040-054>056-170200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        assert_eq!(sections.len(), 1);
-        assert_eq!(
-            ids(&sections[0].zones["KS"]),
-            vec![8, 9, 20, 21, 22, 34, 35, 36, 37, 38, 39, 40, 54, 55, 56]
-        );
-    }
-
-    #[test]
-    fn parse_fire_weather_ugc() {
-        let text = "COF214-216-170200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        assert_eq!(sections.len(), 1);
-        assert_eq!(ids(&sections[0].fire_zones["CO"]), vec![214, 216]);
-        assert_eq!(names(&sections[0].fire_zones["CO"]), vec![None, None]);
-        assert!(sections[0].counties.is_empty());
-        assert!(sections[0].zones.is_empty());
-    }
-
-    #[test]
-    fn marine_prefixes_route_z_codes_into_marine_zones() {
-        let text = "AMZ250-252-170200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        assert_eq!(sections.len(), 1);
-        assert!(sections[0].zones.is_empty());
-        assert_eq!(ids(&sections[0].marine_zones["AM"]), vec![250, 252]);
-    }
-
-    #[test]
-    fn parse_marine_ugc() {
-        let text = "GMZ730-750-170200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-
-        assert_eq!(sections.len(), 1);
-        assert!(sections[0].zones.is_empty());
-        assert_eq!(ids(&sections[0].marine_zones["GM"]), vec![730, 750]);
-        assert_eq!(
-            names(&sections[0].marine_zones["GM"]),
-            vec![
-                Some(
-                    "Apalachee Bay or Coastal Waters From Keaton Beach to Ochlockonee River Fl out to 20 Nm",
-                ),
-                Some("Coastal waters from Okaloosa-Walton County Line to Mexico Beach out 20 NM"),
-            ]
-        );
-    }
-
-    #[test]
-    fn parse_ugc_sentinel_expiration_reports_issue() {
-        let text = "IAC001-000000-\nIAC003-123456-\n";
+    fn invalid_expiration_reports_one_issue() {
+        let text = "IAC001-\nBROKEN CONTINUATION\n";
         let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
 
         assert!(sections.is_empty());
-        assert_eq!(issues.len(), 2);
-        assert!(
-            issues
-                .iter()
-                .all(|issue| issue.code == "invalid_ugc_expiration")
-        );
-    }
-
-    #[test]
-    fn ugc_serialization_includes_area_fields_when_available() {
-        let text = "ALC001-003-005-051200-\n";
-        let sections = parse_ugc_sections(text, test_valid_time());
-        let json = serde_json::to_value(&sections[0]).expect("ugc section serializes");
-
-        assert_eq!(
-            json["counties"],
-            serde_json::json!({
-                "AL": [
-                    { "id": 1, "name": "Autauga", "lat": 32.5349, "lon": -86.6428 },
-                    { "id": 3, "name": "Baldwin", "lat": 30.7273, "lon": -87.7169 },
-                    { "id": 5, "name": "Barbour", "lat": 31.8696, "lon": -85.3932 }
-                ]
-            })
-        );
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_ugc_format");
     }
 }

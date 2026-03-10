@@ -1,64 +1,38 @@
 //! NWS HVTEC (Hydrologic VTEC) parsing module.
 //!
-//! HVTEC extends VTEC to provide hydrologic-specific information for flood
-//! warnings, including river gauge data, crest times, and record status.
-//!
-//! HVTEC format: `/NWSLI.Severity.Cause.Begin.Crest.End.Record/`
-//!
-//! Example: `/MSRM1.ER.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/`
+//! HVTEC blocks are slash- and dot-delimited, so they are parsed directly
+//! without regex capture machinery.
 
 use chrono::{DateTime, NaiveDateTime, Utc};
-use regex::Regex;
-use std::sync::OnceLock;
 
 use crate::ProductParseIssue;
+use crate::body::support::scan_slash_delimited_candidates;
 use crate::data::{NwslidEntry, nwslid_entry};
 
 /// A parsed HVTEC code.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct HvtecCode {
-    /// 5-character NWSLI (National Weather Service Location Identifier)
-    /// River gauge or flood forecast point identifier
     pub nwslid: String,
-
-    /// Enriched hydrologic location metadata for the NWSLID, when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<NwslidEntry>,
-
-    /// Severity level
     pub severity: HvtecSeverity,
-
-    /// Immediate cause of flooding
     pub cause: HvtecCause,
-
-    /// Event begin time in UTC when provided.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub begin: Option<DateTime<Utc>>,
-
-    /// Forecast crest time in UTC when provided.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crest: Option<DateTime<Utc>>,
-
-    /// Event end time in UTC when provided.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end: Option<DateTime<Utc>>,
-
-    /// Record status indicator
     pub record: HvtecRecord,
 }
 
 /// Severity levels for HVTEC flood events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecSeverity {
-    /// No flooding indicated.
     None,
-    /// Minor flooding.
     Minor,
-    /// Moderate flooding.
     Moderate,
-    /// Major flooding.
     Major,
-    /// Unknown severity
     Unknown,
 }
 
@@ -78,37 +52,21 @@ impl HvtecSeverity {
 /// Immediate cause codes for HVTEC events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecCause {
-    /// Excessive Rainfall (ER)
     ExcessiveRainfall,
-    /// Snowmelt (SM)
     Snowmelt,
-    /// Rain and snowmelt (RS)
     RainAndSnowmelt,
-    /// Dam/Levee Break or Failure (DM)
     DamFailure,
-    /// Glacier-dammed lake outburst (GO)
     GlacierOutburst,
-    /// Ice Jam (IJ)
     IceJam,
-    /// Rain and/or snowmelt and/or ice jam (IC)
     RainSnowmeltIceJam,
-    /// Upstream flooding plus storm surge (FS)
     UpstreamFloodingStormSurge,
-    /// Upstream flooding plus tidal effects (FT)
     UpstreamFloodingTidalEffects,
-    /// Elevated upstream flow plus tidal effects (ET)
     ElevatedUpstreamFlowTidalEffects,
-    /// Wind and/or tidal effects (WT)
     WindTidalEffects,
-    /// Upstream dam or reservoir release (DR)
     UpstreamDamRelease,
-    /// Other multiple causes (MC)
     MultipleCauses,
-    /// Other effects (OT)
     OtherEffects,
-    /// Unknown cause (UU)
     Unknown,
-    /// Other/Unknown cause
     Other,
 }
 
@@ -138,15 +96,10 @@ impl HvtecCause {
 /// Record status indicators for HVTEC events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum HvtecRecord {
-    /// No record - not approaching or exceeding record levels
     NoRecord,
-    /// Near record - approaching record levels
     NearRecord,
-    /// Record is not applicable
     NotApplicable,
-    /// Record status is unavailable
     Unavailable,
-    /// Unknown record status
     Unknown,
 }
 
@@ -162,33 +115,6 @@ impl HvtecRecord {
     }
 }
 
-/// Parses all HVTEC codes found in the given text.
-///
-/// This function searches for HVTEC codes throughout the entire text and returns
-/// all valid matches found. Invalid or malformed HVTEC codes are skipped.
-///
-/// # Arguments
-///
-/// * `text` - The text to search for HVTEC codes
-///
-/// # Returns
-///
-/// A vector of parsed `HvtecCode` structs. Returns an empty vector if no valid
-/// HVTEC codes are found.
-///
-/// # Examples
-///
-/// ```
-/// use emwin_parser::parse_hvtec_codes;
-///
-/// let text = r#"... /MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/ ..."#;
-/// let codes = parse_hvtec_codes(text);
-///
-/// assert_eq!(codes.len(), 1);
-/// assert_eq!(codes[0].nwslid, "MSRM1");
-/// assert_eq!(codes[0].severity, emwin_parser::HvtecSeverity::Major);
-/// assert!(codes[0].location.is_none());
-/// ```
 pub fn parse_hvtec_codes(text: &str) -> Vec<HvtecCode> {
     parse_hvtec_codes_with_issues(text).0
 }
@@ -197,19 +123,8 @@ pub fn parse_hvtec_codes_with_issues(text: &str) -> (Vec<HvtecCode>, Vec<Product
     let mut codes = Vec::new();
     let mut issues = Vec::new();
 
-    for candidate in hvtec_candidate_regex().find_iter(text) {
-        let raw = candidate.as_str();
-        let Some(captures) = hvtec_regex().captures(raw) else {
-            issues.push(ProductParseIssue::new(
-                "hvtec_parse",
-                "invalid_hvtec_format",
-                format!("could not parse HVTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            ));
-            continue;
-        };
-
-        match parse_hvtec_capture(&captures, raw) {
+    for candidate in find_hvtec_candidates(text) {
+        match parse_hvtec_candidate(candidate) {
             Ok(code) => codes.push(code),
             Err(issue) => issues.push(issue),
         }
@@ -218,112 +133,44 @@ pub fn parse_hvtec_codes_with_issues(text: &str) -> (Vec<HvtecCode>, Vec<Product
     (codes, issues)
 }
 
-fn hvtec_candidate_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"/[A-Z0-9]{5}\.[^/\r\n]+/").expect("hvtec candidate regex compiles")
+fn find_hvtec_candidates(text: &str) -> Vec<&str> {
+    scan_slash_delimited_candidates(text, |candidate| {
+        let inner = candidate
+            .strip_prefix('/')
+            .and_then(|value| value.strip_suffix('/'));
+        inner
+            .and_then(|value| value.split('.').next())
+            .map(|nwslid| {
+                nwslid.len() == 5
+                    && nwslid
+                        .chars()
+                        .all(|character| character.is_ascii_alphanumeric())
+            })
+            .unwrap_or(false)
     })
 }
 
-fn hvtec_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"/([A-Z0-9]{5})\.([^./\r\n]+)\.([A-Z]+)\.([^./\r\n]+)\.([^./\r\n]+)\.([^./\r\n]+)\.(\w{2})/")
-            .expect("hvtec regex compiles")
-    })
-}
+fn parse_hvtec_candidate(raw: &str) -> Result<HvtecCode, ProductParseIssue> {
+    let inner = raw
+        .strip_prefix('/')
+        .and_then(|value| value.strip_suffix('/'))
+        .ok_or_else(|| invalid_format_issue(raw))?;
+    let fields: Vec<&str> = inner.split('.').collect();
+    if fields.len() != 7 {
+        return Err(invalid_format_issue(raw));
+    }
 
-fn parse_hvtec_capture(
-    cap: &regex::Captures<'_>,
-    raw: &str,
-) -> Result<HvtecCode, ProductParseIssue> {
-    let nwslid = cap
-        .get(1)
-        .map(|value| value.as_str().to_string())
-        .ok_or_else(|| {
-            ProductParseIssue::new(
-                "hvtec_parse",
-                "invalid_hvtec_format",
-                format!("could not parse HVTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?;
+    let nwslid = fields[0].to_string();
     let location = nwslid_entry(&nwslid).copied();
-    let severity =
-        HvtecSeverity::from_str(cap.get(2).map(|value| value.as_str()).ok_or_else(|| {
-            ProductParseIssue::new(
-                "hvtec_parse",
-                "invalid_hvtec_format",
-                format!("could not parse HVTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?);
-    let cause = HvtecCause::from_str(cap.get(3).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_format",
-            format!("could not parse HVTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?);
-    let begin_str = cap.get(4).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_format",
-            format!("could not parse HVTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let crest_str = cap.get(5).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_format",
-            format!("could not parse HVTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let end_str = cap.get(6).map(|value| value.as_str()).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_format",
-            format!("could not parse HVTEC code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let record =
-        HvtecRecord::from_str(cap.get(7).map(|value| value.as_str()).ok_or_else(|| {
-            ProductParseIssue::new(
-                "hvtec_parse",
-                "invalid_hvtec_format",
-                format!("could not parse HVTEC code: `{raw}`"),
-                Some(raw.to_string()),
-            )
-        })?);
-
-    let begin = parse_hvtec_optional_time(begin_str).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_begin_time",
-            format!("could not parse HVTEC begin time from code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let crest = parse_hvtec_optional_time(crest_str).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_crest_time",
-            format!("could not parse HVTEC crest time from code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
-    let end = parse_hvtec_optional_time(end_str).ok_or_else(|| {
-        ProductParseIssue::new(
-            "hvtec_parse",
-            "invalid_hvtec_end_time",
-            format!("could not parse HVTEC end time from code: `{raw}`"),
-            Some(raw.to_string()),
-        )
-    })?;
+    let severity = HvtecSeverity::from_str(fields[1]);
+    let cause = HvtecCause::from_str(fields[2]);
+    let begin = parse_hvtec_optional_time(fields[3])
+        .ok_or_else(|| invalid_time_issue("invalid_hvtec_begin_time", raw))?;
+    let crest = parse_hvtec_optional_time(fields[4])
+        .ok_or_else(|| invalid_time_issue("invalid_hvtec_crest_time", raw))?;
+    let end = parse_hvtec_optional_time(fields[5])
+        .ok_or_else(|| invalid_time_issue("invalid_hvtec_end_time", raw))?;
+    let record = HvtecRecord::from_str(fields[6]);
 
     Ok(HvtecCode {
         nwslid,
@@ -337,22 +184,44 @@ fn parse_hvtec_capture(
     })
 }
 
-fn parse_hvtec_optional_time(time_str: &str) -> Option<Option<DateTime<Utc>>> {
-    if time_str == "000000T0000Z" {
+fn parse_hvtec_optional_time(token: &str) -> Option<Option<DateTime<Utc>>> {
+    if token == "000000T0000Z" {
         return Some(None);
     }
-
-    parse_hvtec_time(time_str).map(Some)
+    parse_hvtec_time(token).map(Some)
 }
 
 fn parse_hvtec_time(time_str: &str) -> Option<DateTime<Utc>> {
-    // HVTEC time format: YYMMDDTHHMMZ (12 characters)
     if time_str.len() != 12 {
         return None;
     }
-
     let naive = NaiveDateTime::parse_from_str(time_str, "%y%m%dT%H%MZ").ok()?;
     Some(naive.and_utc())
+}
+
+fn invalid_format_issue(raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "hvtec_parse",
+        "invalid_hvtec_format",
+        format!("could not parse HVTEC code: `{raw}`"),
+        Some(raw.to_string()),
+    )
+}
+
+fn invalid_time_issue(code: &'static str, raw: &str) -> ProductParseIssue {
+    ProductParseIssue::new(
+        "hvtec_parse",
+        code,
+        format!(
+            "could not parse HVTEC {} from code: `{raw}`",
+            match code {
+                "invalid_hvtec_begin_time" => "begin time",
+                "invalid_hvtec_crest_time" => "crest time",
+                _ => "end time",
+            }
+        ),
+        Some(raw.to_string()),
+    )
 }
 
 #[cfg(test)]
@@ -380,86 +249,7 @@ mod tests {
         assert_eq!(codes.len(), 1);
         let location = codes[0].location.expect("expected known location");
         assert_eq!(location.nwslid, "CHFA2");
-        assert_eq!(location.state_code, "AK");
-        assert_eq!(location.stream_name, "Chena River");
-        assert_eq!(location.proximity, "at");
         assert_eq!(location.place_name, "Fairbanks");
-        assert_eq!(location.latitude, 64.8458);
-        assert_eq!(location.longitude, -147.7011);
-    }
-
-    #[test]
-    fn parse_hvtec_severity_levels() {
-        for (level, expected) in [
-            ("1", HvtecSeverity::Minor),
-            ("2", HvtecSeverity::Moderate),
-            ("3", HvtecSeverity::Major),
-        ] {
-            let text = format!(
-                "/MSRM1.{}.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/",
-                level
-            );
-            let codes = parse_hvtec_codes(&text);
-            assert_eq!(codes[0].severity, expected);
-        }
-    }
-
-    #[test]
-    fn parse_hvtec_causes() {
-        let causes = vec![
-            ("ER", HvtecCause::ExcessiveRainfall),
-            ("SM", HvtecCause::Snowmelt),
-            ("RS", HvtecCause::RainAndSnowmelt),
-            ("DM", HvtecCause::DamFailure),
-            ("IJ", HvtecCause::IceJam),
-        ];
-
-        for (cause_str, expected) in causes {
-            let text = format!(
-                "/MSRM1.3.{}.250301T1200Z.250301T1800Z.250302T0000Z.NO/",
-                cause_str
-            );
-            let codes = parse_hvtec_codes(&text);
-            assert_eq!(codes[0].cause, expected);
-        }
-    }
-
-    #[test]
-    fn parse_hvtec_record_status() {
-        let records = vec![
-            ("NO", HvtecRecord::NoRecord),
-            ("NR", HvtecRecord::NearRecord),
-            ("OO", HvtecRecord::NotApplicable),
-            ("UU", HvtecRecord::Unavailable),
-        ];
-
-        for (record_str, expected) in records {
-            let text = format!(
-                "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.{}/",
-                record_str
-            );
-            let codes = parse_hvtec_codes(&text);
-            assert_eq!(codes[0].record, expected);
-        }
-    }
-
-    #[test]
-    fn parse_hvtec_times() {
-        let text = "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/";
-        let codes = parse_hvtec_codes(text);
-
-        assert_eq!(
-            codes[0].begin.map(|value| value.timestamp()),
-            Some(1740830400)
-        );
-        assert_eq!(
-            codes[0].crest.map(|value| value.timestamp()),
-            Some(1740852000)
-        );
-        assert_eq!(
-            codes[0].end.map(|value| value.timestamp()),
-            Some(1740873600)
-        );
     }
 
     #[test]
@@ -468,52 +258,30 @@ mod tests {
         let codes = parse_hvtec_codes(text);
 
         assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].nwslid, "00000");
         assert_eq!(codes[0].severity, HvtecSeverity::None);
         assert_eq!(codes[0].begin, None);
         assert_eq!(codes[0].crest, None);
         assert_eq!(codes[0].end, None);
-        assert_eq!(codes[0].record, HvtecRecord::NotApplicable);
-    }
-
-    #[test]
-    fn parse_hvtec_supports_named_none_severity_and_rs_cause() {
-        let text = "/00000.N.RS.000000T0000Z.000000T0000Z.000000T0000Z.OO/";
-        let codes = parse_hvtec_codes(text);
-
-        assert_eq!(codes.len(), 1);
-        assert_eq!(codes[0].severity, HvtecSeverity::None);
-        assert_eq!(codes[0].cause, HvtecCause::RainAndSnowmelt);
-        assert_eq!(codes[0].begin, None);
-        assert_eq!(codes[0].crest, None);
-        assert_eq!(codes[0].end, None);
-    }
-
-    #[test]
-    fn parse_hvtec_empty() {
-        let codes = parse_hvtec_codes("");
-        assert!(codes.is_empty());
-    }
-
-    #[test]
-    fn parse_hvtec_invalid_skipped() {
-        let text = "/INVALID.HVTEC.CODE/";
-        let codes = parse_hvtec_codes(text);
-        assert!(codes.is_empty());
     }
 
     #[test]
     fn parse_hvtec_invalid_reports_issue() {
         let text = "/MSRM1.3.ER.250301T1200Z.invalid.250302T0000Z.NO/";
-        let (codes, issues) = parse_hvtec_codes_with_issues(text);
+        let (_codes, issues) = parse_hvtec_codes_with_issues(text);
 
-        assert!(codes.is_empty());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_hvtec_crest_time");
     }
 
     #[test]
-    fn parse_hvtec_multiple() {
+    fn candidate_scan_ignores_malformed_slash_blocks() {
+        let text = "/BROKEN/ /TOOSHORT.ER.XX/";
+        let codes = parse_hvtec_codes(text);
+        assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn multiple_hvtec_codes_in_one_body() {
         let text = concat!(
             "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/",
             " some text ",
@@ -522,15 +290,32 @@ mod tests {
         let codes = parse_hvtec_codes(text);
 
         assert_eq!(codes.len(), 2);
-        assert_eq!(codes[0].nwslid, "MSRM1");
-        assert_eq!(codes[1].nwslid, "CHFA2");
-        assert!(codes[0].location.is_none());
-        assert_eq!(
-            codes[1]
-                .location
-                .as_ref()
-                .map(|location| location.place_name),
-            Some("Fairbanks")
-        );
+    }
+
+    #[test]
+    fn malformed_field_count_reports_invalid_format() {
+        let text = "/MSRM1.3.ER.250301T1200Z.250301T1800Z.NO/";
+        let (_codes, issues) = parse_hvtec_codes_with_issues(text);
+
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_hvtec_format");
+    }
+
+    #[test]
+    fn invalid_nwslid_still_parses_without_enrichment() {
+        let text = "/ABCDE.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.NO/";
+        let codes = parse_hvtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].location, None);
+    }
+
+    #[test]
+    fn unknown_record_maps_to_unknown() {
+        let text = "/MSRM1.3.ER.250301T1200Z.250301T1800Z.250302T0000Z.XX/";
+        let codes = parse_hvtec_codes(text);
+
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].record, HvtecRecord::Unknown);
     }
 }

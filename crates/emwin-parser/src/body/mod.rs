@@ -11,6 +11,7 @@ mod ugc;
 mod vtec;
 mod wind_hail;
 
+pub(crate) use enrich::{BodyExtractionPlan, body_extraction_plan, enrich_body_from_plan};
 pub use enrich::{ProductBody, enrich_body};
 pub use hvtec::{
     HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, parse_hvtec_codes,

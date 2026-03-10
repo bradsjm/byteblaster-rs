@@ -70,6 +70,16 @@ raw bytes + filename
         |
         v
 +------------------+
+| Body Plan        |
+| - capability     |
+|   metadata       |
+| - extractor      |
+|   registry       |
+| - QC rules       |
++------------------+
+        |
+        v
++------------------+
 | Assembly         |
 | - ProductEnrich. |
 | - issues/output  |
@@ -86,7 +96,7 @@ crates/emwin-parser/src
 |   +-- enrich.rs    # PIL/BBB metadata enrichment
 |
 +-- body/
-|   +-- enrich.rs    # generic parsed body assembly
+|   +-- enrich.rs    # plan-driven generic body extraction and QC
 |   +-- ugc.rs
 |   +-- vtec.rs
 |   +-- hvtec.rs
@@ -131,6 +141,40 @@ incoming bytes
 ```
 
 That design cuts the highest-value shared-path allocation costs without exposing borrowed lifetime-heavy types in the public API. Public result types such as `TextProductHeader`, `WmoHeader`, and `ProductEnrichment` remain owned and stable.
+
+### Generic Body Enrichment
+
+Header metadata still exposes `ProductMetadataFlags`, but those flags are now
+treated as capability metadata only. Runtime body parsing goes through an
+internal extraction plan:
+
+```text
+ProductMetadataFlags
+        |
+        v
++----------------------+
+| BodyExtractionPlan   |
+| - ordered extractors |
+| - QC rules           |
++----------------------+
+        |
+        v
++----------------------+
+| enrich_body_from_plan|
+| - VTEC               |
+| - UGC                |
+| - HVTEC              |
+| - LAT...LON          |
+| - TIME...MOT...LOC   |
+| - wind/hail          |
++----------------------+
+        |
+        v
+ProductBody + issues
+```
+
+That keeps extractor order and issue semantics stable while making the generic
+body path extensible without editing one large `if flags.*` sequence.
 
 ## Product Routing Model
 

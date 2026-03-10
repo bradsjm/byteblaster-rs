@@ -6,14 +6,14 @@
 
 use crate::data::{NonTextProductMeta, container_from_filename, wmo_office_entry};
 use crate::{
-    ParserError, ProductEnrichment, ProductEnrichmentSource, ProductParseIssue, enrich_body,
-    wmo_prefix_for_pil,
+    ParserError, ProductEnrichment, ProductEnrichmentSource, ProductParseIssue, wmo_prefix_for_pil,
 };
+use crate::{ProductBody, body::enrich_body_from_plan};
 
 use super::ClassificationCandidate;
 use super::candidate::{
-    DcpCandidate, FdCandidate, MetarCandidate, PirepCandidate, SigmetCandidate, TafCandidate,
-    TextGenericCandidate, UnsupportedWmoCandidate,
+    BodyContributionRequest, DcpCandidate, FdCandidate, MetarCandidate, PirepCandidate,
+    SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
 };
 use super::normalize::detected_container;
 
@@ -54,18 +54,14 @@ fn assemble_from_text_generic(
 ) -> ProductEnrichment {
     let TextGenericCandidate {
         header,
-        body_text,
         pil,
         title,
-        flags,
+        flags: _flags,
+        body_request,
         bbb_kind,
-        reference_time,
+        reference_time: _reference_time,
     } = candidate;
-    let (body, issues) = if let Some(ref flags) = flags {
-        enrich_body(&body_text, flags, reference_time)
-    } else {
-        (None, Vec::new())
-    };
+    let (body, issues) = assemble_optional_body(body_request);
 
     ProductEnrichment {
         source: ProductEnrichmentSource::TextHeader,
@@ -99,8 +95,10 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
         wmo_header,
         pil,
         bbb_kind,
+        body_request,
         bulletin,
     } = candidate;
+    let (body, issues) = assemble_optional_body(body_request);
     let office = header
         .as_ref()
         .and_then(|header| wmo_office_entry(&header.cccc).copied())
@@ -121,14 +119,14 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
         header,
         wmo_header,
         bbb_kind,
-        body: None,
+        body,
         metar: None,
         taf: None,
         dcp: None,
         fd: Some(bulletin),
         pirep: None,
         sigmet: None,
-        issues: Vec::new(),
+        issues,
     }
 }
 
@@ -138,8 +136,10 @@ fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnri
         header,
         pil,
         bbb_kind,
+        body_request,
         bulletin,
     } = candidate;
+    let (body, issues) = assemble_optional_body(body_request);
 
     ProductEnrichment {
         source: ProductEnrichmentSource::TextPirepBulletin,
@@ -152,14 +152,14 @@ fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnri
         header: Some(header),
         wmo_header: None,
         bbb_kind,
-        body: None,
+        body,
         metar: None,
         taf: None,
         dcp: None,
         fd: None,
         pirep: Some(bulletin),
         sigmet: None,
-        issues: Vec::new(),
+        issues,
     }
 }
 
@@ -171,8 +171,10 @@ fn assemble_from_sigmet(candidate: SigmetCandidate, filename: &str) -> ProductEn
         wmo_header,
         pil,
         bbb_kind,
+        body_request,
         bulletin,
     } = candidate;
+    let (body, issues) = assemble_optional_body(body_request);
     let office = header
         .as_ref()
         .and_then(|header| wmo_office_entry(&header.cccc).copied())
@@ -193,14 +195,27 @@ fn assemble_from_sigmet(candidate: SigmetCandidate, filename: &str) -> ProductEn
         header,
         wmo_header,
         bbb_kind,
-        body: None,
+        body,
         metar: None,
         taf: None,
         dcp: None,
         fd: None,
         pirep: None,
         sigmet: Some(bulletin),
-        issues: Vec::new(),
+        issues,
+    }
+}
+
+fn assemble_optional_body(
+    request: Option<BodyContributionRequest>,
+) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
+    match request {
+        Some(request) => {
+            let outcome =
+                enrich_body_from_plan(&request.text, &request.plan, request.reference_time);
+            (outcome.body, outcome.issues)
+        }
+        None => (None, Vec::new()),
     }
 }
 
@@ -424,6 +439,7 @@ mod tests {
     use chrono::Utc;
 
     use crate::ParserError;
+    use crate::body::body_extraction_plan;
     use crate::dcp::parse_dcp_bulletin;
     use crate::fd::parse_fd_bulletin;
     use crate::metar::{MetarBulletin, parse_metar_bulletin};
@@ -433,8 +449,9 @@ mod tests {
 
     use super::assemble_product_enrichment;
     use crate::pipeline::candidate::{
-        ClassificationCandidate, DcpCandidate, FdCandidate, MetarCandidate, PirepCandidate,
-        SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
+        BodyContributionRequest, ClassificationCandidate, DcpCandidate, FdCandidate,
+        MetarCandidate, PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate,
+        UnsupportedWmoCandidate,
     };
 
     fn text_header(afos: &str) -> crate::TextProductHeader {
@@ -460,10 +477,10 @@ mod tests {
     fn assembles_text_generic_product_shape() {
         let candidate = ClassificationCandidate::TextGeneric(TextGenericCandidate {
             header: text_header("TAFPDK"),
-            body_text: "Body".to_string(),
             pil: Some("TAF".to_string()),
             title: Some("Terminal Aerodrome Forecast"),
             flags: None,
+            body_request: None,
             bbb_kind: None,
             reference_time: Some(Utc::now()),
         });
@@ -494,6 +511,7 @@ mod tests {
             wmo_header: None,
             pil: Some("FD1".to_string()),
             bbb_kind: None,
+            body_request: None,
             bulletin,
         });
 
@@ -511,6 +529,7 @@ mod tests {
             header: text_header("PIRBOU"),
             pil: Some("PIR".to_string()),
             bbb_kind: None,
+            body_request: None,
             bulletin,
         });
 
@@ -535,6 +554,7 @@ mod tests {
             wmo_header: None,
             pil: Some("SIG".to_string()),
             bbb_kind: None,
+            body_request: None,
             bulletin,
         });
 
@@ -642,5 +662,91 @@ mod tests {
         assert_eq!(enrichment.source, crate::ProductEnrichmentSource::Unknown);
         assert_eq!(enrichment.container, "raw");
         assert!(enrichment.family.is_none());
+    }
+
+    #[test]
+    fn text_generic_candidate_assembles_body_from_plan() {
+        let flags = crate::ProductMetadataFlags {
+            ugc: false,
+            vtec: true,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: false,
+            wind_hail: false,
+        };
+        let candidate = ClassificationCandidate::TextGeneric(TextGenericCandidate {
+            header: text_header("TAFPDK"),
+            pil: Some("TAF".to_string()),
+            title: Some("Terminal Aerodrome Forecast"),
+            flags: Some(flags),
+            body_request: Some(BodyContributionRequest {
+                text: "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/".to_string(),
+                plan: body_extraction_plan(&flags),
+                reference_time: Some(Utc::now()),
+            }),
+            bbb_kind: None,
+            reference_time: Some(Utc::now()),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "TAFPDKGA.TXT", b"ignored");
+
+        assert!(enrichment.body.is_some());
+        assert!(
+            enrichment
+                .body
+                .as_ref()
+                .and_then(|body| body.vtec.as_ref())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn specialized_candidates_without_body_request_remain_bodyless() {
+        let bulletin = parse_pirep_bulletin("DEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n")
+            .expect("pirep bulletin should parse");
+        let candidate = ClassificationCandidate::Pirep(PirepCandidate {
+            header: text_header("PIRBOU"),
+            pil: Some("PIR".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "PIRBOU.TXT", b"ignored");
+
+        assert!(enrichment.body.is_none());
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
+    fn body_request_issues_are_appended_to_text_generic_output() {
+        let flags = crate::ProductMetadataFlags {
+            ugc: false,
+            vtec: false,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: true,
+            wind_hail: false,
+        };
+        let candidate = ClassificationCandidate::TextGeneric(TextGenericCandidate {
+            header: text_header("ZZZBOX"),
+            pil: None,
+            title: None,
+            flags: Some(flags),
+            body_request: Some(BodyContributionRequest {
+                text: "plain text".to_string(),
+                plan: body_extraction_plan(&flags),
+                reference_time: None,
+            }),
+            bbb_kind: None,
+            reference_time: None,
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "ZZZBOX.TXT", b"ignored");
+
+        assert_eq!(enrichment.issues.len(), 1);
+        assert_eq!(enrichment.issues[0].code, "missing_reference_time");
     }
 }

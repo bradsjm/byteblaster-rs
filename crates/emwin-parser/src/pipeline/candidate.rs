@@ -7,6 +7,7 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::body::BodyExtractionPlan;
 use crate::data::{NonTextProductMeta, ProductMetadataFlags};
 use crate::{
     BbbKind, DcpBulletin, FdBulletin, MetarBulletin, ParserError, PirepBulletin,
@@ -41,19 +42,33 @@ pub(crate) enum ClassificationCandidate {
     Unknown,
 }
 
+/// Owned request to run generic body extraction for a candidate.
+///
+/// Candidates own the request instead of borrowing the original envelope so
+/// assembly can remain a simple conversion step without lifetime plumbing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BodyContributionRequest {
+    /// Conditioned body text to run through the generic extractor registry.
+    pub(crate) text: String,
+    /// Ordered extractor and QC configuration derived from header metadata.
+    pub(crate) plan: BodyExtractionPlan,
+    /// Reference time used by time-aware body parsers.
+    pub(crate) reference_time: Option<DateTime<Utc>>,
+}
+
 /// Generic AFOS text product candidate used for body enrichment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TextGenericCandidate {
     /// Parsed text product header.
     pub(crate) header: TextProductHeader,
-    /// Conditioned body text after header removal.
-    pub(crate) body_text: String,
     /// Three-character PIL prefix when present.
     pub(crate) pil: Option<String>,
     /// Human-readable catalog title.
     pub(crate) title: Option<&'static str>,
     /// Catalog-driven body extraction flags.
     pub(crate) flags: Option<ProductMetadataFlags>,
+    /// Optional generic body extraction request for this candidate.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Classified BBB meaning when present.
     pub(crate) bbb_kind: Option<BbbKind>,
     /// Timestamp resolved from the WMO header for time-aware body parsing.
@@ -77,6 +92,8 @@ pub(crate) struct FdCandidate {
     pub(crate) pil: Option<String>,
     /// BBB meaning for AFOS-derived candidates.
     pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed FD bulletin payload.
     pub(crate) bulletin: FdBulletin,
 }
@@ -90,6 +107,8 @@ pub(crate) struct PirepCandidate {
     pub(crate) pil: Option<String>,
     /// BBB meaning for the text header.
     pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed PIREP bulletin payload.
     pub(crate) bulletin: PirepBulletin,
 }
@@ -107,6 +126,8 @@ pub(crate) struct SigmetCandidate {
     pub(crate) pil: Option<String>,
     /// BBB meaning for AFOS-derived candidates.
     pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed SIGMET bulletin payload.
     pub(crate) bulletin: SigmetBulletin,
 }

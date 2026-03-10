@@ -6,6 +6,7 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::body::body_extraction_plan;
 use crate::data::ProductMetadataFlags;
 use crate::dcp::parse_dcp_bulletin;
 use crate::fd::parse_fd_bulletin;
@@ -16,8 +17,8 @@ use crate::taf::parse_taf_bulletin;
 use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enrich_header};
 
 use super::candidate::{
-    ClassificationCandidate, DcpCandidate, FdCandidate, MetarCandidate, PirepCandidate,
-    SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
+    BodyContributionRequest, ClassificationCandidate, DcpCandidate, FdCandidate, MetarCandidate,
+    PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
@@ -124,10 +125,14 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
 
     ClassificationCandidate::TextGeneric(TextGenericCandidate {
         header: context.header.clone(),
-        body_text: context.body_text.to_string(),
         pil: context.pil,
         title: context.title,
         flags: context.flags,
+        body_request: context.flags.map(|flags| BodyContributionRequest {
+            text: context.body_text.to_string(),
+            plan: body_extraction_plan(&flags),
+            reference_time: context.reference_time,
+        }),
         bbb_kind: context.bbb_kind,
         reference_time: context.reference_time,
     })
@@ -272,6 +277,7 @@ fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<Classific
         wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
+        body_request: None,
         bulletin,
     }))
 }
@@ -286,6 +292,7 @@ fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<Classi
         header: context.header.clone(),
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
+        body_request: None,
         bulletin,
     }))
 }
@@ -304,6 +311,7 @@ fn classify_text_sigmet(
         wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
+        body_request: None,
         bulletin,
     }))
 }
@@ -327,6 +335,7 @@ fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<Classificat
         wmo_header: Some(context.header.clone()),
         pil: None,
         bbb_kind: None,
+        body_request: None,
         bulletin,
     }))
 }
@@ -371,6 +380,7 @@ fn classify_wmo_sigmet(context: &WmoClassificationContext<'_>) -> Option<Classif
         wmo_header: Some(context.header.clone()),
         pil: None,
         bbb_kind: None,
+        body_request: None,
         bulletin,
     }))
 }
@@ -488,6 +498,36 @@ mod tests {
     }
 
     #[test]
+    fn text_generic_candidate_carries_body_request_when_flags_exist() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "TAFPDKGA.TXT",
+            b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n",
+        ));
+
+        let ClassificationCandidate::TextGeneric(candidate) = classify(&envelope) else {
+            panic!("expected generic text candidate");
+        };
+
+        assert!(candidate.flags.is_some());
+        assert!(candidate.body_request.is_some());
+    }
+
+    #[test]
+    fn text_generic_candidate_omits_body_request_when_flags_absent() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "ZZZXXX.TXT",
+            b"000 \nFXUS61 KBOX 022101\nZZZBOX\nBody\n",
+        ));
+
+        let ClassificationCandidate::TextGeneric(candidate) = classify(&envelope) else {
+            panic!("expected generic text candidate");
+        };
+
+        assert!(candidate.flags.is_none());
+        assert!(candidate.body_request.is_none());
+    }
+
+    #[test]
     fn afos_strategy_precedence_prefers_pirep_over_sigmet() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "SIGABC.TXT",
@@ -498,6 +538,48 @@ mod tests {
             classify(&envelope),
             ClassificationCandidate::Pirep(_)
         ));
+    }
+
+    #[test]
+    fn fd_candidate_has_no_body_request_by_default() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "FD1US1.TXT",
+            b"000 \nFTUS80 KWBC 070000\nFD1US1\nDATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
+        ));
+
+        let ClassificationCandidate::Fd(candidate) = classify(&envelope) else {
+            panic!("expected fd candidate");
+        };
+
+        assert!(candidate.body_request.is_none());
+    }
+
+    #[test]
+    fn pirep_candidate_has_no_body_request_by_default() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "PIRXXX.TXT",
+            b"000 \nUAUS01 KBOU 070000\nPIRBOU\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n",
+        ));
+
+        let ClassificationCandidate::Pirep(candidate) = classify(&envelope) else {
+            panic!("expected pirep candidate");
+        };
+
+        assert!(candidate.body_request.is_none());
+    }
+
+    #[test]
+    fn sigmet_candidate_has_no_body_request_by_default() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "SIGABC.TXT",
+            b"000 \nWSUS31 KKCI 070000\nSIGABC\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
+        ));
+
+        let ClassificationCandidate::Sigmet(candidate) = classify(&envelope) else {
+            panic!("expected sigmet candidate");
+        };
+
+        assert!(candidate.body_request.is_none());
     }
 
     #[test]

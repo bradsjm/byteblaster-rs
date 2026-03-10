@@ -1,6 +1,9 @@
 //! Body enrichment and parsing orchestration.
 //!
-//! This module coordinates parsing of body elements based on product metadata flags.
+//! Generic body parsing is driven by a data-derived extraction plan instead of
+//! branching directly on `ProductMetadataFlags`. The public flags remain
+//! capability metadata, while this module turns them into an ordered extractor
+//! list and QC rule set that can be reused by multiple pipeline candidates.
 
 use crate::data::ProductMetadataFlags;
 use crate::{
@@ -12,6 +15,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::BTreeSet;
+use std::sync::OnceLock;
 
 /// Container for all parsed body elements from a text product.
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
@@ -85,163 +89,304 @@ pub struct ParsedPolygon<'a> {
     pub bounds: Option<GeoBounds>,
 }
 
+/// Stable identifier for a generic body extractor.
+///
+/// The execution order is fixed because downstream issue ordering and parse
+/// semantics depend on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BodyExtractorId {
+    Vtec,
+    Ugc,
+    Hvtec,
+    LatLon,
+    TimeMotLoc,
+    WindHail,
+}
+
+/// Stable identifier for post-parse body QC checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BodyQcRuleId {
+    VtecMissingRequiredPolygon,
+    UgcDuplicateCode,
+}
+
+/// Ordered extractor and QC configuration derived from public capability flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BodyExtractionPlan {
+    pub(crate) extractors: &'static [BodyExtractorId],
+    pub(crate) qc_rules: &'static [BodyQcRuleId],
+}
+
+/// Shared context passed to plan-driven extractors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BodyExtractionContext<'a> {
+    pub(crate) text: &'a str,
+    pub(crate) reference_time: Option<DateTime<Utc>>,
+}
+
+/// Final result produced by the plan-driven extraction engine.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct BodyExtractionOutcome {
+    pub(crate) body: Option<ProductBody>,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+struct BodyExtractionState {
+    body: ProductBody,
+    issues: Vec<ProductParseIssue>,
+    has_content: bool,
+}
+
+const QC_NONE: &[BodyQcRuleId] = &[];
+const QC_VTEC_POLYGON: &[BodyQcRuleId] = &[BodyQcRuleId::VtecMissingRequiredPolygon];
+const QC_UGC_DUPLICATES: &[BodyQcRuleId] = &[BodyQcRuleId::UgcDuplicateCode];
+const QC_VTEC_POLYGON_AND_UGC: &[BodyQcRuleId] = &[
+    BodyQcRuleId::VtecMissingRequiredPolygon,
+    BodyQcRuleId::UgcDuplicateCode,
+];
+
+/// Derives the ordered extraction plan from public product capability metadata.
+pub(crate) fn body_extraction_plan(flags: &ProductMetadataFlags) -> BodyExtractionPlan {
+    let extractors = &extractor_plans()[body_extractor_mask(flags)];
+    let qc_rules = match (flags.vtec && flags.latlong, flags.ugc) {
+        (false, false) => QC_NONE,
+        (true, false) => QC_VTEC_POLYGON,
+        (false, true) => QC_UGC_DUPLICATES,
+        (true, true) => QC_VTEC_POLYGON_AND_UGC,
+    };
+
+    BodyExtractionPlan {
+        extractors,
+        qc_rules,
+    }
+}
+
 /// Enrich text body by parsing elements based on metadata flags.
 ///
-/// This function conditionally parses body elements based on the product's
-/// metadata flags. Each flag that is true will trigger parsing for that
-/// element type.
-///
-/// # Arguments
-///
-/// * `text` - The full text content of the product
-/// * `flags` - Metadata flags indicating which elements to parse
-/// * `reference_time` - Reference time for UGC expiration calculation
-///
-/// # Returns
-///
-/// A tuple containing:
-/// - Optional `ProductBody` with parsed content (None if no parser was attempted)
-/// - Vector of `ProductParseIssue` for any parsing issues
+/// This is the compatibility wrapper over the plan-driven extraction engine.
 pub fn enrich_body(
     text: &str,
     flags: &ProductMetadataFlags,
     reference_time: Option<DateTime<Utc>>,
 ) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
-    let mut body = ProductBody::default();
-    let mut issues = Vec::new();
-    let mut has_content = false;
-
-    if flags.vtec {
-        let (parsed, parse_issues) = parse_vtec_codes_with_issues(text);
-        if !parsed.is_empty() {
-            body.vtec = Some(parsed);
-            has_content = true;
-        }
-        issues.extend(parse_issues);
-    }
-
-    if flags.ugc {
-        match reference_time {
-            Some(reference_time) => {
-                let (parsed, parse_issues) = parse_ugc_sections_with_issues(text, reference_time);
-                if !parsed.is_empty() {
-                    body.ugc = Some(parsed);
-                    has_content = true;
-                }
-                issues.extend(parse_issues);
-            }
-            None => {
-                issues.push(ProductParseIssue::new(
-                    "ugc_parse",
-                    "missing_reference_time",
-                    "could not parse UGC sections because the header timestamp could not be resolved",
-                    None,
-                ));
-            }
-        }
-    }
-
-    if flags.hvtec {
-        let (parsed, parse_issues) = parse_hvtec_codes_with_issues(text);
-        if !parsed.is_empty() {
-            body.hvtec = Some(parsed);
-            has_content = true;
-        }
-        issues.extend(parse_issues);
-    }
-
-    if flags.latlong {
-        let (parsed, parse_issues) = parse_latlon_polygons_with_issues(text);
-        if !parsed.is_empty() {
-            body.latlon = Some(parsed);
-            has_content = true;
-        }
-        issues.extend(parse_issues);
-    }
-
-    if flags.time_mot_loc {
-        match reference_time {
-            Some(reference_time) => {
-                let (parsed, parse_issues) =
-                    parse_time_mot_loc_entries_with_issues(text, reference_time);
-                if !parsed.is_empty() {
-                    body.time_mot_loc = Some(parsed);
-                    has_content = true;
-                }
-                issues.extend(parse_issues);
-            }
-            None => {
-                issues.push(ProductParseIssue::new(
-                    "time_mot_loc_parse",
-                    "missing_reference_time",
-                    "could not parse TIME...MOT...LOC entries because the header timestamp could not be resolved",
-                    None,
-                ));
-            }
-        }
-    }
-
-    if flags.wind_hail {
-        let (parsed, parse_issues) = parse_wind_hail_entries_with_issues(text);
-        if !parsed.is_empty() {
-            body.wind_hail = Some(parsed);
-            has_content = true;
-        }
-        issues.extend(parse_issues);
-    }
-
-    issues.extend(validate_body_qc(&body, flags));
-
-    // Note: `cz` stands for county zones and is intentionally not parsed here.
-
-    (has_content.then_some(body), issues)
+    let plan = body_extraction_plan(flags);
+    let outcome = enrich_body_from_plan(text, &plan, reference_time);
+    (outcome.body, outcome.issues)
 }
 
-fn validate_body_qc(body: &ProductBody, flags: &ProductMetadataFlags) -> Vec<ProductParseIssue> {
-    let mut issues = Vec::new();
+/// Runs the plan-driven extraction engine over a body text payload.
+pub(crate) fn enrich_body_from_plan(
+    text: &str,
+    plan: &BodyExtractionPlan,
+    reference_time: Option<DateTime<Utc>>,
+) -> BodyExtractionOutcome {
+    let context = BodyExtractionContext {
+        text,
+        reference_time,
+    };
+    let mut state = BodyExtractionState::default();
 
-    if flags.vtec
-        && flags.latlong
-        && body
-            .vtec
-            .as_ref()
-            .is_some_and(|entries| !entries.is_empty())
-        && body.latlon.as_ref().is_none_or(Vec::is_empty)
-    {
-        // Warning products that advertise both VTEC and LAT...LON content can
-        // lose their polygon in dissemination. Surface that as QC instead of
-        // failing the rest of the body parse.
-        issues.push(ProductParseIssue::new(
-            "body_qc",
-            "vtec_missing_required_polygon",
-            "parsed VTEC content but did not recover a LAT...LON polygon from the source text",
-            None,
-        ));
+    for extractor in plan.extractors {
+        match extractor {
+            BodyExtractorId::Vtec => apply_vtec_extractor(&mut state, &context),
+            BodyExtractorId::Ugc => apply_ugc_extractor(&mut state, &context),
+            BodyExtractorId::Hvtec => apply_hvtec_extractor(&mut state, &context),
+            BodyExtractorId::LatLon => apply_latlon_extractor(&mut state, &context),
+            BodyExtractorId::TimeMotLoc => apply_time_mot_loc_extractor(&mut state, &context),
+            BodyExtractorId::WindHail => apply_wind_hail_extractor(&mut state, &context),
+        }
     }
 
-    if let Some(ugc_sections) = &body.ugc {
-        let mut duplicates = BTreeSet::new();
+    state.issues.extend(validate_body_qc(&state.body, plan));
 
-        for section in ugc_sections {
-            let mut seen = BTreeSet::new();
-            collect_duplicate_ugc_codes(&section.counties, 'C', &mut seen, &mut duplicates);
-            collect_duplicate_ugc_codes(&section.zones, 'Z', &mut seen, &mut duplicates);
-            collect_duplicate_ugc_codes(&section.fire_zones, 'F', &mut seen, &mut duplicates);
-            collect_duplicate_ugc_codes(&section.marine_zones, 'M', &mut seen, &mut duplicates);
+    BodyExtractionOutcome {
+        body: state.has_content.then_some(state.body),
+        issues: state.issues,
+    }
+}
+
+fn extractor_plans() -> &'static [Box<[BodyExtractorId]>; 64] {
+    static PLANS: OnceLock<[Box<[BodyExtractorId]>; 64]> = OnceLock::new();
+
+    PLANS.get_or_init(|| {
+        std::array::from_fn(|mask| {
+            let mut extractors = Vec::new();
+            if mask & 0b00_0001 != 0 {
+                extractors.push(BodyExtractorId::Vtec);
+            }
+            if mask & 0b00_0010 != 0 {
+                extractors.push(BodyExtractorId::Ugc);
+            }
+            if mask & 0b00_0100 != 0 {
+                extractors.push(BodyExtractorId::Hvtec);
+            }
+            if mask & 0b00_1000 != 0 {
+                extractors.push(BodyExtractorId::LatLon);
+            }
+            if mask & 0b01_0000 != 0 {
+                extractors.push(BodyExtractorId::TimeMotLoc);
+            }
+            if mask & 0b10_0000 != 0 {
+                extractors.push(BodyExtractorId::WindHail);
+            }
+            extractors.into_boxed_slice()
+        })
+    })
+}
+
+fn body_extractor_mask(flags: &ProductMetadataFlags) -> usize {
+    usize::from(flags.vtec)
+        | (usize::from(flags.ugc) << 1)
+        | (usize::from(flags.hvtec) << 2)
+        | (usize::from(flags.latlong) << 3)
+        | (usize::from(flags.time_mot_loc) << 4)
+        | (usize::from(flags.wind_hail) << 5)
+}
+
+fn apply_vtec_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
+    let (parsed, issues) = parse_vtec_codes_with_issues(context.text);
+    if !parsed.is_empty() {
+        state.body.vtec = Some(parsed);
+        state.has_content = true;
+    }
+    state.issues.extend(issues);
+}
+
+fn apply_ugc_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
+    match context.reference_time {
+        Some(reference_time) => {
+            let (parsed, issues) = parse_ugc_sections_with_issues(context.text, reference_time);
+            if !parsed.is_empty() {
+                state.body.ugc = Some(parsed);
+                state.has_content = true;
+            }
+            state.issues.extend(issues);
         }
+        None => state.issues.push(ProductParseIssue::new(
+            "ugc_parse",
+            "missing_reference_time",
+            "could not parse UGC sections because the header timestamp could not be resolved",
+            None,
+        )),
+    }
+}
 
-        if !duplicates.is_empty() {
-            // Some malformed products repeat UGCs across segments or within a
-            // single section. Keep the parsed geography, but mark the duplication.
-            issues.push(ProductParseIssue::new(
-                "body_qc",
-                "ugc_duplicate_code",
-                format!(
-                    "encountered duplicated UGC codes in parsed product body: {}",
-                    duplicates.into_iter().collect::<Vec<_>>().join(", ")
-                ),
-                None,
-            ));
+fn apply_hvtec_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
+    let (parsed, issues) = parse_hvtec_codes_with_issues(context.text);
+    if !parsed.is_empty() {
+        state.body.hvtec = Some(parsed);
+        state.has_content = true;
+    }
+    state.issues.extend(issues);
+}
+
+fn apply_latlon_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
+    let (parsed, issues) = parse_latlon_polygons_with_issues(context.text);
+    if !parsed.is_empty() {
+        state.body.latlon = Some(parsed);
+        state.has_content = true;
+    }
+    state.issues.extend(issues);
+}
+
+fn apply_time_mot_loc_extractor(
+    state: &mut BodyExtractionState,
+    context: &BodyExtractionContext<'_>,
+) {
+    match context.reference_time {
+        Some(reference_time) => {
+            let (parsed, issues) =
+                parse_time_mot_loc_entries_with_issues(context.text, reference_time);
+            if !parsed.is_empty() {
+                state.body.time_mot_loc = Some(parsed);
+                state.has_content = true;
+            }
+            state.issues.extend(issues);
+        }
+        None => state.issues.push(ProductParseIssue::new(
+            "time_mot_loc_parse",
+            "missing_reference_time",
+            "could not parse TIME...MOT...LOC entries because the header timestamp could not be resolved",
+            None,
+        )),
+    }
+}
+
+fn apply_wind_hail_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
+    let (parsed, issues) = parse_wind_hail_entries_with_issues(context.text);
+    if !parsed.is_empty() {
+        state.body.wind_hail = Some(parsed);
+        state.has_content = true;
+    }
+    state.issues.extend(issues);
+}
+
+fn validate_body_qc(body: &ProductBody, plan: &BodyExtractionPlan) -> Vec<ProductParseIssue> {
+    let mut issues = Vec::new();
+
+    for rule in plan.qc_rules {
+        match rule {
+            BodyQcRuleId::VtecMissingRequiredPolygon => {
+                if body
+                    .vtec
+                    .as_ref()
+                    .is_some_and(|entries| !entries.is_empty())
+                    && body.latlon.as_ref().is_none_or(Vec::is_empty)
+                {
+                    issues.push(ProductParseIssue::new(
+                        "body_qc",
+                        "vtec_missing_required_polygon",
+                        "parsed VTEC content but did not recover a LAT...LON polygon from the source text",
+                        None,
+                    ));
+                }
+            }
+            BodyQcRuleId::UgcDuplicateCode => {
+                if let Some(ugc_sections) = &body.ugc {
+                    let mut duplicates = BTreeSet::new();
+
+                    for section in ugc_sections {
+                        let mut seen = BTreeSet::new();
+                        collect_duplicate_ugc_codes(
+                            &section.counties,
+                            'C',
+                            &mut seen,
+                            &mut duplicates,
+                        );
+                        collect_duplicate_ugc_codes(
+                            &section.zones,
+                            'Z',
+                            &mut seen,
+                            &mut duplicates,
+                        );
+                        collect_duplicate_ugc_codes(
+                            &section.fire_zones,
+                            'F',
+                            &mut seen,
+                            &mut duplicates,
+                        );
+                        collect_duplicate_ugc_codes(
+                            &section.marine_zones,
+                            'M',
+                            &mut seen,
+                            &mut duplicates,
+                        );
+                    }
+
+                    if !duplicates.is_empty() {
+                        issues.push(ProductParseIssue::new(
+                            "body_qc",
+                            "ugc_duplicate_code",
+                            format!(
+                                "encountered duplicated UGC codes in parsed product body: {}",
+                                duplicates.into_iter().collect::<Vec<_>>().join(", ")
+                            ),
+                            None,
+                        ));
+                    }
+                }
+            }
         }
     }
 
@@ -269,6 +414,50 @@ mod tests {
     use super::*;
     use crate::{GeoBounds, GeoPoint};
 
+    fn full_flags() -> ProductMetadataFlags {
+        ProductMetadataFlags {
+            ugc: true,
+            vtec: true,
+            latlong: true,
+            hvtec: true,
+            cz: false,
+            time_mot_loc: true,
+            wind_hail: true,
+        }
+    }
+
+    #[test]
+    fn body_extraction_plan_maps_known_flag_sets_to_expected_extractors() {
+        let plan = body_extraction_plan(&full_flags());
+
+        assert_eq!(
+            plan.extractors,
+            &[
+                BodyExtractorId::Vtec,
+                BodyExtractorId::Ugc,
+                BodyExtractorId::Hvtec,
+                BodyExtractorId::LatLon,
+                BodyExtractorId::TimeMotLoc,
+                BodyExtractorId::WindHail,
+            ]
+        );
+    }
+
+    #[test]
+    fn body_extraction_plan_maps_qc_rules_for_vtec_latlon_products() {
+        let plan = body_extraction_plan(&ProductMetadataFlags {
+            ugc: false,
+            vtec: true,
+            latlong: true,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: false,
+            wind_hail: false,
+        });
+
+        assert_eq!(plan.qc_rules, &[BodyQcRuleId::VtecMissingRequiredPolygon]);
+    }
+
     #[test]
     fn enrich_body_with_all_flags() {
         let text = r#"
@@ -288,42 +477,93 @@ WINDTHREAT...OBSERVED
 MAXWINDGUST...60 MPH
 "#;
 
-        let flags = ProductMetadataFlags {
-            ugc: true,
-            vtec: true,
-            latlong: true,
-            hvtec: true,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: true,
-        };
-
         let reference_time = Some(Utc::now());
-        let (body, warnings) = enrich_body(text, &flags, reference_time);
+        let (body, warnings) = enrich_body(text, &full_flags(), reference_time);
 
         assert!(body.is_some());
         let body = body.unwrap();
 
         assert!(body.vtec.is_some());
-        assert_eq!(body.vtec.as_ref().unwrap().len(), 1);
-
+        assert_eq!(body.vtec.as_ref().expect("vtec parsed").len(), 1);
         assert!(body.ugc.is_some());
-        assert_eq!(body.ugc.as_ref().unwrap().len(), 1);
-
+        assert_eq!(body.ugc.as_ref().expect("ugc parsed").len(), 1);
         assert!(body.hvtec.is_some());
-        assert_eq!(body.hvtec.as_ref().unwrap().len(), 1);
-        assert!(body.hvtec.as_ref().unwrap()[0].location.is_none());
-
+        assert_eq!(body.hvtec.as_ref().expect("hvtec parsed").len(), 1);
+        assert!(
+            body.hvtec.as_ref().expect("hvtec parsed")[0]
+                .location
+                .is_none()
+        );
         assert!(body.latlon.is_some());
-        assert_eq!(body.latlon.as_ref().unwrap().len(), 1);
-
+        assert_eq!(body.latlon.as_ref().expect("latlon parsed").len(), 1);
         assert!(body.time_mot_loc.is_some());
-        assert_eq!(body.time_mot_loc.as_ref().unwrap().len(), 1);
-
+        assert_eq!(
+            body.time_mot_loc
+                .as_ref()
+                .expect("time mot loc parsed")
+                .len(),
+            1
+        );
         assert!(body.wind_hail.is_some());
-        assert_eq!(body.wind_hail.as_ref().unwrap().len(), 4);
-
+        assert_eq!(body.wind_hail.as_ref().expect("wind hail parsed").len(), 4);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn enrich_body_from_plan_preserves_current_extractor_order() {
+        let plan = body_extraction_plan(&ProductMetadataFlags {
+            ugc: true,
+            vtec: false,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: true,
+            wind_hail: false,
+        });
+        let outcome = enrich_body_from_plan("plain text", &plan, None);
+
+        assert_eq!(outcome.issues.len(), 2);
+        assert_eq!(outcome.issues[0].kind, "ugc_parse");
+        assert_eq!(outcome.issues[1].kind, "time_mot_loc_parse");
+    }
+
+    #[test]
+    fn enrich_body_wrapper_matches_plan_based_engine() {
+        let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/";
+        let flags = ProductMetadataFlags {
+            ugc: false,
+            vtec: true,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: false,
+            wind_hail: false,
+        };
+        let plan = body_extraction_plan(&flags);
+
+        let wrapper = enrich_body(text, &flags, Some(Utc::now()));
+        let outcome = enrich_body_from_plan(text, &plan, Some(Utc::now()));
+
+        assert_eq!(wrapper.0, outcome.body);
+        assert_eq!(wrapper.1, outcome.issues);
+    }
+
+    #[test]
+    fn ugc_and_time_mot_loc_emit_missing_reference_time_via_plan() {
+        let plan = body_extraction_plan(&ProductMetadataFlags {
+            ugc: true,
+            vtec: false,
+            latlong: false,
+            hvtec: false,
+            cz: false,
+            time_mot_loc: true,
+            wind_hail: false,
+        });
+        let outcome = enrich_body_from_plan("plain text", &plan, None);
+
+        assert_eq!(outcome.issues.len(), 2);
+        assert_eq!(outcome.issues[0].code, "missing_reference_time");
+        assert_eq!(outcome.issues[1].code, "missing_reference_time");
     }
 
     #[test]
@@ -465,28 +705,17 @@ MAXWINDGUST...60 MPH
     #[test]
     fn enrich_body_empty_result_when_no_matches() {
         let text = "Plain text with no codes";
-
-        let flags = ProductMetadataFlags {
-            ugc: true,
-            vtec: true,
-            latlong: true,
-            hvtec: true,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: true,
-        };
-
         let reference_time = Some(Utc::now());
-        let (body, warnings) = enrich_body(text, &flags, reference_time);
+        let (body, warnings) = enrich_body(text, &full_flags(), reference_time);
 
         assert!(body.is_none());
         assert!(warnings.is_empty());
     }
 
     #[test]
-    fn enrich_body_reports_missing_polygon_for_vtec_products() {
+    fn plan_driven_qc_emits_vtec_missing_required_polygon() {
         let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/\nTIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613";
-        let flags = ProductMetadataFlags {
+        let plan = body_extraction_plan(&ProductMetadataFlags {
             ugc: false,
             vtec: true,
             latlong: true,
@@ -494,20 +723,20 @@ MAXWINDGUST...60 MPH
             cz: false,
             time_mot_loc: true,
             wind_hail: false,
-        };
+        });
 
-        let (_, issues) = enrich_body(text, &flags, Some(Utc::now()));
+        let outcome = enrich_body_from_plan(text, &plan, Some(Utc::now()));
         assert!(
-            issues
+            outcome
+                .issues
                 .iter()
                 .any(|issue| issue.code == "vtec_missing_required_polygon")
         );
     }
 
     #[test]
-    fn enrich_body_reports_duplicate_ugc_codes() {
-        let text = "IAC001-IAC001-041200-\n";
-        let flags = ProductMetadataFlags {
+    fn plan_driven_qc_emits_ugc_duplicate_code() {
+        let plan = body_extraction_plan(&ProductMetadataFlags {
             ugc: true,
             vtec: false,
             latlong: false,
@@ -515,11 +744,12 @@ MAXWINDGUST...60 MPH
             cz: false,
             time_mot_loc: false,
             wind_hail: false,
-        };
+        });
+        let outcome = enrich_body_from_plan("IAC001-IAC001-041200-\n", &plan, Some(Utc::now()));
 
-        let (_, issues) = enrich_body(text, &flags, Some(Utc::now()));
         assert!(
-            issues
+            outcome
+                .issues
                 .iter()
                 .any(|issue| issue.code == "ugc_duplicate_code")
         );

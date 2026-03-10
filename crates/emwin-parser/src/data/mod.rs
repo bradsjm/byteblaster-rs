@@ -23,6 +23,7 @@ pub struct PilCatalogEntry {
     pub pil: &'static str,
     pub wmo_prefix: &'static str,
     pub title: &'static str,
+    /// Capability metadata consumed by the internal body extraction planner.
     pub ugc: bool,
     pub vtec: bool,
     pub cz: bool,
@@ -62,6 +63,7 @@ pub struct WmoOfficeEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct ProductMetadataFlags {
+    /// Capability metadata for the internal body extraction planner.
     pub ugc: bool,
     pub vtec: bool,
     pub cz: bool,

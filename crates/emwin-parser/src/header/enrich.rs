@@ -26,7 +26,10 @@ pub struct TextProductEnrichment<'a> {
     pub pil_nnn: Option<&'a str>,
     /// Human-readable product type description, if known
     pub pil_description: Option<&'static str>,
-    /// Product capability flags from the PIL catalog, if known
+    /// Product capability flags from the PIL catalog, if known.
+    ///
+    /// These flags describe available body features and feed the internal body
+    /// extraction planner. They are not the runtime execution flow themselves.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flags: Option<ProductMetadataFlags>,
     /// Classification of the BBB indicator, if present

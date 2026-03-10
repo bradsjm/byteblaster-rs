@@ -1,11 +1,10 @@
 //! Body enrichment and parsing orchestration.
 //!
 //! Generic body parsing is driven by a data-derived extraction plan instead of
-//! branching directly on `ProductMetadataFlags`. The public flags remain
-//! capability metadata, while this module turns them into an ordered extractor
-//! list and QC rule set that can be reused by multiple pipeline candidates.
+//! branching directly on per-product flag booleans. The catalog now stores
+//! ordered extractor lists, and this module turns those lists into reusable
+//! extraction plans with plan-driven QC.
 
-use crate::data::ProductMetadataFlags;
 use crate::{
     GeoBounds, GeoPoint, HvtecCode, LatLonPolygon, ProductParseIssue, TimeMotLocEntry, UgcSection,
     VtecCode, WindHailEntry, parse_hvtec_codes_with_issues, parse_latlon_polygons_with_issues,
@@ -15,7 +14,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::BTreeSet;
-use std::sync::OnceLock;
 
 /// Container for all parsed body elements from a text product.
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
@@ -110,7 +108,7 @@ pub(crate) enum BodyQcRuleId {
     UgcDuplicateCode,
 }
 
-/// Ordered extractor and QC configuration derived from public capability flags.
+/// Ordered extractor and QC configuration derived from catalog metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BodyExtractionPlan {
     pub(crate) extractors: &'static [BodyExtractorId],
@@ -146,10 +144,15 @@ const QC_VTEC_POLYGON_AND_UGC: &[BodyQcRuleId] = &[
     BodyQcRuleId::UgcDuplicateCode,
 ];
 
-/// Derives the ordered extraction plan from public product capability metadata.
-pub(crate) fn body_extraction_plan(flags: &ProductMetadataFlags) -> BodyExtractionPlan {
-    let extractors = &extractor_plans()[body_extractor_mask(flags)];
-    let qc_rules = match (flags.vtec && flags.latlong, flags.ugc) {
+/// Builds an extraction plan from an ordered extractor list.
+///
+/// The extractor order is preserved exactly because downstream issue ordering
+/// depends on it.
+pub(crate) fn body_extraction_plan(extractors: &'static [BodyExtractorId]) -> BodyExtractionPlan {
+    let has_vtec = extractors.contains(&BodyExtractorId::Vtec);
+    let has_ugc = extractors.contains(&BodyExtractorId::Ugc);
+    let has_latlon = extractors.contains(&BodyExtractorId::LatLon);
+    let qc_rules = match (has_vtec && has_latlon, has_ugc) {
         (false, false) => QC_NONE,
         (true, false) => QC_VTEC_POLYGON,
         (false, true) => QC_UGC_DUPLICATES,
@@ -162,15 +165,17 @@ pub(crate) fn body_extraction_plan(flags: &ProductMetadataFlags) -> BodyExtracti
     }
 }
 
-/// Enrich text body by parsing elements based on metadata flags.
+/// Enriches text body content by deriving the extraction plan from a PIL.
 ///
-/// This is the compatibility wrapper over the plan-driven extraction engine.
+/// Unknown PIL values intentionally produce no body content and no issues.
 pub fn enrich_body(
     text: &str,
-    flags: &ProductMetadataFlags,
+    pil: &str,
     reference_time: Option<DateTime<Utc>>,
 ) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
-    let plan = body_extraction_plan(flags);
+    let Some(plan) = crate::data::body_extraction_plan_for_pil(pil) else {
+        return (None, Vec::new());
+    };
     let outcome = enrich_body_from_plan(text, &plan, reference_time);
     (outcome.body, outcome.issues)
 }
@@ -204,44 +209,6 @@ pub(crate) fn enrich_body_from_plan(
         body: state.has_content.then_some(state.body),
         issues: state.issues,
     }
-}
-
-fn extractor_plans() -> &'static [Box<[BodyExtractorId]>; 64] {
-    static PLANS: OnceLock<[Box<[BodyExtractorId]>; 64]> = OnceLock::new();
-
-    PLANS.get_or_init(|| {
-        std::array::from_fn(|mask| {
-            let mut extractors = Vec::new();
-            if mask & 0b00_0001 != 0 {
-                extractors.push(BodyExtractorId::Vtec);
-            }
-            if mask & 0b00_0010 != 0 {
-                extractors.push(BodyExtractorId::Ugc);
-            }
-            if mask & 0b00_0100 != 0 {
-                extractors.push(BodyExtractorId::Hvtec);
-            }
-            if mask & 0b00_1000 != 0 {
-                extractors.push(BodyExtractorId::LatLon);
-            }
-            if mask & 0b01_0000 != 0 {
-                extractors.push(BodyExtractorId::TimeMotLoc);
-            }
-            if mask & 0b10_0000 != 0 {
-                extractors.push(BodyExtractorId::WindHail);
-            }
-            extractors.into_boxed_slice()
-        })
-    })
-}
-
-fn body_extractor_mask(flags: &ProductMetadataFlags) -> usize {
-    usize::from(flags.vtec)
-        | (usize::from(flags.ugc) << 1)
-        | (usize::from(flags.hvtec) << 2)
-        | (usize::from(flags.latlong) << 3)
-        | (usize::from(flags.time_mot_loc) << 4)
-        | (usize::from(flags.wind_hail) << 5)
 }
 
 fn apply_vtec_extractor(state: &mut BodyExtractionState, context: &BodyExtractionContext<'_>) {
@@ -414,21 +381,26 @@ mod tests {
     use super::*;
     use crate::{GeoBounds, GeoPoint};
 
-    fn full_flags() -> ProductMetadataFlags {
-        ProductMetadataFlags {
-            ugc: true,
-            vtec: true,
-            latlong: true,
-            hvtec: true,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: true,
-        }
-    }
+    const FULL_EXTRACTORS: &[BodyExtractorId] = &[
+        BodyExtractorId::Vtec,
+        BodyExtractorId::Ugc,
+        BodyExtractorId::Hvtec,
+        BodyExtractorId::LatLon,
+        BodyExtractorId::TimeMotLoc,
+        BodyExtractorId::WindHail,
+    ];
+    const UGC_AND_TIME_MOT_LOC_EXTRACTORS: &[BodyExtractorId] =
+        &[BodyExtractorId::Ugc, BodyExtractorId::TimeMotLoc];
+    const VTEC_LATLON_TIME_MOT_LOC_EXTRACTORS: &[BodyExtractorId] = &[
+        BodyExtractorId::Vtec,
+        BodyExtractorId::LatLon,
+        BodyExtractorId::TimeMotLoc,
+    ];
+    const UGC_ONLY_EXTRACTORS: &[BodyExtractorId] = &[BodyExtractorId::Ugc];
 
     #[test]
-    fn body_extraction_plan_maps_known_flag_sets_to_expected_extractors() {
-        let plan = body_extraction_plan(&full_flags());
+    fn body_extraction_plan_maps_known_extractor_sets_to_expected_extractors() {
+        let plan = body_extraction_plan(FULL_EXTRACTORS);
 
         assert_eq!(
             plan.extractors,
@@ -445,21 +417,13 @@ mod tests {
 
     #[test]
     fn body_extraction_plan_maps_qc_rules_for_vtec_latlon_products() {
-        let plan = body_extraction_plan(&ProductMetadataFlags {
-            ugc: false,
-            vtec: true,
-            latlong: true,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: false,
-            wind_hail: false,
-        });
+        let plan = body_extraction_plan(&[BodyExtractorId::Vtec, BodyExtractorId::LatLon]);
 
         assert_eq!(plan.qc_rules, &[BodyQcRuleId::VtecMissingRequiredPolygon]);
     }
 
     #[test]
-    fn enrich_body_with_all_flags() {
+    fn enrich_body_with_full_plan() {
         let text = r#"
 000
 WUUS53 KOAX 051200
@@ -478,7 +442,10 @@ MAXWINDGUST...60 MPH
 "#;
 
         let reference_time = Some(Utc::now());
-        let (body, warnings) = enrich_body(text, &full_flags(), reference_time);
+        let outcome =
+            enrich_body_from_plan(text, &body_extraction_plan(FULL_EXTRACTORS), reference_time);
+        let body = outcome.body;
+        let warnings = outcome.issues;
 
         assert!(body.is_some());
         let body = body.unwrap();
@@ -511,15 +478,7 @@ MAXWINDGUST...60 MPH
 
     #[test]
     fn enrich_body_from_plan_preserves_current_extractor_order() {
-        let plan = body_extraction_plan(&ProductMetadataFlags {
-            ugc: true,
-            vtec: false,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: false,
-        });
+        let plan = body_extraction_plan(UGC_AND_TIME_MOT_LOC_EXTRACTORS);
         let outcome = enrich_body_from_plan("plain text", &plan, None);
 
         assert_eq!(outcome.issues.len(), 2);
@@ -530,18 +489,10 @@ MAXWINDGUST...60 MPH
     #[test]
     fn enrich_body_wrapper_matches_plan_based_engine() {
         let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/";
-        let flags = ProductMetadataFlags {
-            ugc: false,
-            vtec: true,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: false,
-            wind_hail: false,
-        };
-        let plan = body_extraction_plan(&flags);
+        let plan = crate::data::body_extraction_plan_for_pil("SVR")
+            .expect("SVR should have body extraction plan");
 
-        let wrapper = enrich_body(text, &flags, Some(Utc::now()));
+        let wrapper = enrich_body(text, "SVR", Some(Utc::now()));
         let outcome = enrich_body_from_plan(text, &plan, Some(Utc::now()));
 
         assert_eq!(wrapper.0, outcome.body);
@@ -550,15 +501,7 @@ MAXWINDGUST...60 MPH
 
     #[test]
     fn ugc_and_time_mot_loc_emit_missing_reference_time_via_plan() {
-        let plan = body_extraction_plan(&ProductMetadataFlags {
-            ugc: true,
-            vtec: false,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: false,
-        });
+        let plan = body_extraction_plan(UGC_AND_TIME_MOT_LOC_EXTRACTORS);
         let outcome = enrich_body_from_plan("plain text", &plan, None);
 
         assert_eq!(outcome.issues.len(), 2);
@@ -682,21 +625,10 @@ MAXWINDGUST...60 MPH
     }
 
     #[test]
-    fn enrich_body_with_no_flags() {
+    fn enrich_body_with_unknown_pil_is_empty() {
         let text = "Some product text with VTEC /O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/";
-
-        let flags = ProductMetadataFlags {
-            ugc: false,
-            vtec: false,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: false,
-            wind_hail: false,
-        };
-
         let reference_time = Some(Utc::now());
-        let (body, warnings) = enrich_body(text, &flags, reference_time);
+        let (body, warnings) = enrich_body(text, "ZZZ", reference_time);
 
         assert!(body.is_none());
         assert!(warnings.is_empty());
@@ -706,7 +638,7 @@ MAXWINDGUST...60 MPH
     fn enrich_body_empty_result_when_no_matches() {
         let text = "Plain text with no codes";
         let reference_time = Some(Utc::now());
-        let (body, warnings) = enrich_body(text, &full_flags(), reference_time);
+        let (body, warnings) = enrich_body(text, "FFW", reference_time);
 
         assert!(body.is_none());
         assert!(warnings.is_empty());
@@ -715,15 +647,7 @@ MAXWINDGUST...60 MPH
     #[test]
     fn plan_driven_qc_emits_vtec_missing_required_polygon() {
         let text = "/O.NEW.KOAX.SV.W.0001.250305T1200Z-250305T1800Z/\nTIME...MOT...LOC 1200Z 300DEG 25KT 4143 9613";
-        let plan = body_extraction_plan(&ProductMetadataFlags {
-            ugc: false,
-            vtec: true,
-            latlong: true,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: false,
-        });
+        let plan = body_extraction_plan(VTEC_LATLON_TIME_MOT_LOC_EXTRACTORS);
 
         let outcome = enrich_body_from_plan(text, &plan, Some(Utc::now()));
         assert!(
@@ -736,15 +660,7 @@ MAXWINDGUST...60 MPH
 
     #[test]
     fn plan_driven_qc_emits_ugc_duplicate_code() {
-        let plan = body_extraction_plan(&ProductMetadataFlags {
-            ugc: true,
-            vtec: false,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: false,
-            wind_hail: false,
-        });
+        let plan = body_extraction_plan(UGC_ONLY_EXTRACTORS);
         let outcome = enrich_body_from_plan("IAC001-IAC001-041200-\n", &plan, Some(Utc::now()));
 
         assert!(

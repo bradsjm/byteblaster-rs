@@ -144,37 +144,40 @@ That design cuts the highest-value shared-path allocation costs without exposing
 
 ### Generic Body Enrichment
 
-Header metadata still exposes `ProductMetadataFlags`, but those flags are now
-treated as capability metadata only. Runtime body parsing goes through an
-internal extraction plan:
+Header enrichment now exposes only semantic header data. Generic body parsing
+is driven by extractor plans derived directly from the generated PIL catalog:
 
 ```text
-ProductMetadataFlags
-        |
-        v
-+----------------------+
-| BodyExtractionPlan   |
-| - ordered extractors |
-| - QC rules           |
-+----------------------+
-        |
-        v
-+----------------------+
-| enrich_body_from_plan|
-| - VTEC               |
-| - UGC                |
-| - HVTEC              |
-| - LAT...LON          |
-| - TIME...MOT...LOC   |
-| - wind/hail          |
-+----------------------+
-        |
-        v
-ProductBody + issues
+PIL catalog entry
+    |
+    +--> title / WMO prefix
+    |
+    +--> ordered extractor list
+              |
+              v
+      +----------------------+
+      | BodyExtractionPlan   |
+      | - ordered extractors |
+      | - QC rules           |
+      +----------------------+
+              |
+              v
+      +----------------------+
+      | enrich_body_from_plan|
+      | - VTEC               |
+      | - UGC                |
+      | - HVTEC              |
+      | - LAT...LON          |
+      | - TIME...MOT...LOC   |
+      | - wind/hail          |
+      +----------------------+
+              |
+              v
+      ProductBody + issues
 ```
 
 That keeps extractor order and issue semantics stable while making the generic
-body path extensible without editing one large `if flags.*` sequence.
+body path extensible without editing one large boolean matrix.
 
 ## Product Routing Model
 
@@ -366,7 +369,7 @@ Relevant helpers include:
 - `ugc_zone_entry`
 - `nwslid_entry`
 
-These generated tables are also what drive generic body parsing flags and parts of header enrichment.
+The generated PIL table also drives generic body extraction plans and header title lookup.
 
 ## Error Handling
 

@@ -6,8 +6,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::body::body_extraction_plan;
-use crate::data::ProductMetadataFlags;
+use crate::data::body_extraction_plan_for_pil;
 use crate::dcp::parse_dcp_bulletin;
 use crate::fd::parse_fd_bulletin;
 use crate::metar::parse_metar_bulletin;
@@ -53,8 +52,8 @@ struct TextClassificationContext<'a> {
     pil: Option<String>,
     /// Human-readable title from the PIL catalog.
     title: Option<&'static str>,
-    /// Generic body parsing flags from the PIL catalog.
-    flags: Option<ProductMetadataFlags>,
+    /// Generic body extraction plan derived from the PIL catalog.
+    body_plan: Option<crate::body::BodyExtractionPlan>,
     /// BBB meaning for amendment/correction markers.
     bbb_kind: Option<BbbKind>,
     /// Timestamp resolved from the WMO header.
@@ -110,7 +109,9 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         filename: envelope.filename(),
         pil: header_enrichment.pil_nnn.map(str::to_string),
         title: header_enrichment.pil_description,
-        flags: header_enrichment.flags,
+        body_plan: header_enrichment
+            .pil_nnn
+            .and_then(body_extraction_plan_for_pil),
         bbb_kind: header_enrichment.bbb_kind,
         reference_time: header.timestamp(Utc::now()),
         header,
@@ -127,10 +128,9 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         header: context.header.clone(),
         pil: context.pil,
         title: context.title,
-        flags: context.flags,
-        body_request: context.flags.map(|flags| BodyContributionRequest {
+        body_request: context.body_plan.map(|plan| BodyContributionRequest {
             text: context.body_text.to_string(),
-            plan: body_extraction_plan(&flags),
+            plan,
             reference_time: context.reference_time,
         }),
         bbb_kind: context.bbb_kind,
@@ -498,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn text_generic_candidate_carries_body_request_when_flags_exist() {
+    fn text_generic_candidate_carries_body_request_when_catalog_plan_exists() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "TAFPDKGA.TXT",
             b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n",
@@ -508,12 +508,11 @@ mod tests {
             panic!("expected generic text candidate");
         };
 
-        assert!(candidate.flags.is_some());
         assert!(candidate.body_request.is_some());
     }
 
     #[test]
-    fn text_generic_candidate_omits_body_request_when_flags_absent() {
+    fn text_generic_candidate_omits_body_request_when_catalog_plan_is_absent() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "ZZZXXX.TXT",
             b"000 \nFXUS61 KBOX 022101\nZZZBOX\nBody\n",
@@ -523,7 +522,6 @@ mod tests {
             panic!("expected generic text candidate");
         };
 
-        assert!(candidate.flags.is_none());
         assert!(candidate.body_request.is_none());
     }
 

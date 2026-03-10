@@ -8,6 +8,8 @@ mod graphics;
 
 use std::sync::OnceLock;
 
+use crate::body::{BodyExtractionPlan, BodyExtractorId, body_extraction_plan};
+
 pub use generated_nwslid::{NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC};
 pub use generated_pil::{PIL_ENTRY_COUNT, PIL_GENERATED_AT_UTC};
 pub use generated_ugc::{
@@ -23,14 +25,8 @@ pub struct PilCatalogEntry {
     pub pil: &'static str,
     pub wmo_prefix: &'static str,
     pub title: &'static str,
-    /// Capability metadata consumed by the internal body extraction planner.
-    pub ugc: bool,
-    pub vtec: bool,
-    pub cz: bool,
-    pub latlong: bool,
-    pub time_mot_loc: bool,
-    pub wind_hail: bool,
-    pub hvtec: bool,
+    /// Ordered generic body extractors derived from the product catalog.
+    pub(crate) extractors: &'static [BodyExtractorId],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
@@ -59,32 +55,6 @@ pub struct WmoOfficeEntry {
     pub office_name: &'static str,
     pub city: &'static str,
     pub state: &'static str,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub struct ProductMetadataFlags {
-    /// Capability metadata for the internal body extraction planner.
-    pub ugc: bool,
-    pub vtec: bool,
-    pub cz: bool,
-    pub latlong: bool,
-    pub time_mot_loc: bool,
-    pub wind_hail: bool,
-    pub hvtec: bool,
-}
-
-impl From<&PilCatalogEntry> for ProductMetadataFlags {
-    fn from(entry: &PilCatalogEntry) -> Self {
-        Self {
-            ugc: entry.ugc,
-            vtec: entry.vtec,
-            cz: entry.cz,
-            latlong: entry.latlong,
-            time_mot_loc: entry.time_mot_loc,
-            wind_hail: entry.wind_hail,
-            hvtec: entry.hvtec,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -253,8 +223,7 @@ pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
 
 /// Looks up a PIL (Product Identifier Line) catalog entry.
 ///
-/// Returns the full catalog entry including product type description and capability flags
-/// that indicate what types of data may be present in products with this PIL.
+/// Returns the full catalog entry including product type description.
 ///
 /// # Arguments
 ///
@@ -271,8 +240,7 @@ pub fn wmo_office_entry(code: &str) -> Option<&'static WmoOfficeEntry> {
 ///
 /// if let Some(entry) = pil_catalog_entry("FFW") {
 ///     assert_eq!(entry.title, "Flash Flood Warning");
-///     assert!(entry.vtec); // FFW products contain VTEC codes
-///     assert!(entry.ugc);  // FFW products contain UGC geography
+///     assert_eq!(entry.wmo_prefix, "WG");
 /// }
 /// ```
 pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
@@ -306,6 +274,11 @@ pub fn pil_catalog_entry(nnn: &str) -> Option<&'static PilCatalogEntry> {
 /// ```
 pub fn wmo_prefix_for_pil(nnn: &str) -> Option<&'static str> {
     pil_catalog_entry(nnn).map(|entry| entry.wmo_prefix)
+}
+
+/// Returns the internal body extraction plan for a known PIL, if one exists.
+pub(crate) fn body_extraction_plan_for_pil(nnn: &str) -> Option<BodyExtractionPlan> {
+    pil_catalog_entry(nnn).map(|entry| body_extraction_plan(entry.extractors))
 }
 
 /// Classifies a non-text product filename into its product family and metadata.
@@ -425,6 +398,7 @@ mod tests {
         classify_non_text_product, nwslid_entry, pil_catalog_entry, pil_description,
         ugc_county_entry, ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
     };
+    use crate::body::BodyExtractorId;
 
     #[test]
     fn description_lookup_is_case_insensitive() {
@@ -457,21 +431,22 @@ mod tests {
         let entry = pil_catalog_entry("ZFP").expect("expected generated catalog entry");
         assert_eq!(entry.title, "Zone Forecast Product");
         assert_eq!(entry.wmo_prefix, "FP");
-        assert!(entry.ugc);
-        assert!(!entry.vtec);
-        assert!(!entry.hvtec);
+        assert_eq!(entry.extractors, &[BodyExtractorId::Ugc]);
     }
 
     #[test]
-    fn generated_catalog_exposes_product_flags() {
+    fn generated_catalog_exposes_ordered_extractors() {
         let entry = pil_catalog_entry("FFW").expect("expected generated catalog entry");
-        assert!(entry.ugc);
-        assert!(entry.vtec);
-        assert!(!entry.cz);
-        assert!(entry.latlong);
-        assert!(entry.time_mot_loc);
-        assert!(!entry.wind_hail);
-        assert!(entry.hvtec);
+        assert_eq!(
+            entry.extractors,
+            &[
+                BodyExtractorId::Vtec,
+                BodyExtractorId::Ugc,
+                BodyExtractorId::Hvtec,
+                BodyExtractorId::LatLon,
+                BodyExtractorId::TimeMotLoc,
+            ]
+        );
     }
 
     #[test]

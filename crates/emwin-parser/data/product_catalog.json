@@ -1,5568 +1,2847 @@
 {
   "18A": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "18 Hour Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "24A": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "24 Hour Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "30L": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "Monthly Weather Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "3HR": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "3-hourly Space Weather Conditions and Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "5TC": {
-    "wmo_prefix": "AU",
+    "extractors": [],
     "title": "500 Millibar Type Correlation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AU"
   },
   "ABV": {
-    "wmo_prefix": "UF",
+    "extractors": [],
     "title": "Rawinsonde Data Above 100 Millibars",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UF"
   },
   "ADA": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Alarm/Alert Administrative Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "ADM": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Alert Administrative Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "ADR": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Administrative Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "ADV": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "Official Space Weather Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "ADW": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Administrative Message for NWWS",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "ADX": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "Administrative Alert Non-Receipt",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "AFD": {
-    "wmo_prefix": "FX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Area Forecast Discussion",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "AFM": {
-    "wmo_prefix": "FO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Area Forecast Matrices",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "AFP": {
-    "wmo_prefix": "FL",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Area Forecast Product",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FL"
   },
   "AGF": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Agricultural Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "AGO": {
-    "wmo_prefix": "SH",
+    "extractors": [],
     "title": "Agricultural Observations",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SH"
   },
   "ALM": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "Space Environment Alarm",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "ALT": {
-    "wmo_prefix": "WO",
+    "extractors": [],
     "title": "Space Weather Message Alert",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "APG": {
-    "wmo_prefix": "AE",
+    "extractors": [],
     "title": "Air Stagnation Guidance Narrative",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AE"
   },
   "AQA": {
-    "wmo_prefix": "AE",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Air Quality Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AE"
   },
   "AQI": {
-    "wmo_prefix": "AE",
+    "extractors": [],
     "title": "Air Quality Index Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AE"
   },
   "ARP": {
-    "wmo_prefix": "UA",
+    "extractors": [],
     "title": "AIREPS",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UA"
   },
   "ASA": {
-    "wmo_prefix": "AE",
+    "extractors": [],
     "title": "Air Stagnation Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AE"
   },
   "AVA": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Avalanche Watch",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "AVM": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Aviation Verification Matrix",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "AVW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Avalanche Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "AWG": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "National Attack Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "AWO": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Area Weather Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "AWS": {
-    "wmo_prefix": "AW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Area Weather Summary",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AW"
   },
   "AWU": {
-    "wmo_prefix": "FL",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Area Weather Update",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FL"
   },
   "AWW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Aviation Weather Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "BOY": {
-    "wmo_prefix": "SS",
+    "extractors": [],
     "title": "Buoy Reports",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SS"
   },
   "BRT": {
-    "wmo_prefix": "AX",
+    "extractors": [],
     "title": "Area Synopsis and Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AX"
   },
   "CAE": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Child Abduction Emergency",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "CAP": {
-    "wmo_prefix": "XO",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc",
+      "wind_hail"
+    ],
     "title": "Alert Messages in CAP XML",
-    "ugc": true,
-    "vtec": true,
-    "cz": true,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": true,
-    "hvtec": false
+    "wmo_prefix": "XO"
   },
   "CCF": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "Coded City Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "CDW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Civil Danger Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "CEM": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Civil Emergency Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "CF6": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Climate F-6 products",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "CFP": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Convective Forecast Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "CFW": {
-    "wmo_prefix": "WH",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Coastal/Lakeshore Hazard Messages",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WH"
   },
   "CGR": {
-    "wmo_prefix": "SX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Coast Guard Surface Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "CHG": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Computer Hurricane Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "CLA": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Climate Report Annual",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "CLI": {
-    "wmo_prefix": "CD",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Climate Report Daily",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CD"
   },
   "CLM": {
-    "wmo_prefix": "CX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Climate Report Monthly",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "CLS": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Climate Report Seasonal",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "CMM": {
-    "wmo_prefix": "CS",
+    "extractors": [],
     "title": "Coded Climatological Monthly Means",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CS"
   },
   "COD": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Coded Analysis and Forecasts",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "CSC": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "Canadian Selected Cities Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "CUR": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Current Space Weather Indices",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "CWA": {
-    "wmo_prefix": "WL",
+    "extractors": [],
     "title": "Center Weather Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WL"
   },
   "CWD": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Discussion for Coastal Waters Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "CWF": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Coastal Waters Forecast",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "CWS": {
-    "wmo_prefix": "WO",
+    "extractors": [],
     "title": "Center Weather Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "DAA": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "170 QPE One Hour Digital Accumulation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DAY": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Daily Space Weather Summary and Forcast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "DGT": {
-    "wmo_prefix": "AX",
+    "extractors": [],
     "title": "Drought Information",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AX"
   },
   "DHR": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Digital Hybrid Reflectivity",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DMO": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Practice/Demo Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "DOD": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "174 QPE-PPS One Hour Accumulation Difference",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DPA": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Hourly Digital Precipitation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DPR": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "176 QPE Instanteaneous Precipitation Rate",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DSA": {
-    "wmo_prefix": "AC",
+    "extractors": [],
     "title": "Unnumbered Depression",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "DSD": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "175 QPE-PPS Storm Total Accumulation Difference",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DSM": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Asos Daily Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "DSP": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Adigital Storm Total Precipitation Nexrad",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DST": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "ASOS Daily Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "DSW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Dust Storm Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "DU3": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "173 QPE User Selectable 3 Hour Accumulation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DU6": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "173 QPE User Selectable 24 Hour Accumulation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "DVL": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "134 Radar Digital Vertically Integrated Liquid",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "EAN": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Presidential Alert",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "EET": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "135 Radar Enhanced Echo Tops",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "EFP": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "3 TO 5 Day Extended Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "EOL": {
-    "wmo_prefix": "FE",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Average 6 TO 10 Day Weather Outlook",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "EON": {
-    "wmo_prefix": "FE",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Average 6 TO 10 Day Weather Outlook",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "EQI": {
-    "wmo_prefix": "SE",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Earthquake Information Bulletin",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SE"
   },
   "EQR": {
-    "wmo_prefix": "SE",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Earthquake Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SE"
   },
   "EQW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Earthquake Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "ESF": {
-    "wmo_prefix": "FG",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Flood Potential Outlook",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "ESG": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "Extended Streamflow Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "ESP": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "Extended Streamflow Prediction",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "ESS": {
-    "wmo_prefix": "FG",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Water Supply Outlook",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "EVI": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Evacuation Immediate",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "EWW": {
-    "wmo_prefix": "WF",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Extreme Wind Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WF"
   },
   "FA0": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Pacific)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA1": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Northeast U.S.)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA2": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Southeast U.S.)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA3": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (North Cent U.S.)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA4": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (South Cent U.S.)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA5": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (U.S. Rocky Mts.)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA6": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (U.S. West Coast)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA7": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Juneau)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA8": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Anchorage)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FA9": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area Forecast (Fairbanks)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FAK": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Alaskan Model Output Statistics Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FAN": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "AVN Based MOS Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "FAV": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Aviation Area forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "FBP": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "AK FOUS 24, 36, and 24 Boundary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FD0": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "24 Hr FD Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FD1": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "6 Hour Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FD2": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "12 Hour Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FD3": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "24 Hour Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FD8": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "24 Hour Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FD9": {
-    "wmo_prefix": "FB",
+    "extractors": [],
     "title": "6 Hour Winds Aloft Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FB"
   },
   "FDI": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Fire Danger Indices",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FFA": {
-    "wmo_prefix": "WG",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "hvtec"
+    ],
     "title": "Flash Flood Watch",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": true
+    "wmo_prefix": "WG"
   },
   "FFG": {
-    "wmo_prefix": "FO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Flash Flood Guidance",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FFH": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "Headwater Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FFS": {
-    "wmo_prefix": "WG",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "hvtec",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Flash Flood Statement",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": true
+    "wmo_prefix": "WG"
   },
   "FFW": {
-    "wmo_prefix": "WG",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "hvtec",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Flash Flood Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": true
+    "wmo_prefix": "WG"
   },
   "FLN": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "National Flood Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "FLS": {
-    "wmo_prefix": "WG",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "hvtec",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Flood Statement",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": true
+    "wmo_prefix": "WG"
   },
   "FLW": {
-    "wmo_prefix": "WG",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "hvtec",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Flood Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": true
+    "wmo_prefix": "WG"
   },
   "FMR": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "Forecast Medium Range Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "FOF": {
-    "wmo_prefix": "FD",
+    "extractors": [],
     "title": "Upper Wind Fallout Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FD"
   },
   "FOH": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "ETA FOUS Freezing and Relative Humidity",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FRH": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "FOUS Relative Humidity/Temperature Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FRW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Fire Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "FSH": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "National Marine Fisheries Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "FSS": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "Urban and Small Stream Flood Advisory (Obsolete)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "FTJ": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "FOUS Trajectory Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FTM": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "WSR-88D Radar Status Notification",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "FTP": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "FOUS Prog Max/Min Temp/Pop Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FWA": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Fire Weather Administrative Message",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "FWC": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "NGM Mos Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "FWD": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Fire Weather Outlook Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FWE": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "Extended Fire Weather Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "FWF": {
-    "wmo_prefix": "FN",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Routine Fire WX Forecasts",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FWL": {
-    "wmo_prefix": "FN",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Land Management Forecasts",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FWM": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Miscellaneous Fire Weather Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FWN": {
-    "wmo_prefix": "SH",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Fire Weather Notification",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SH"
   },
   "FWO": {
-    "wmo_prefix": "SH",
+    "extractors": [],
     "title": "Fire Weather Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SH"
   },
   "FWS": {
-    "wmo_prefix": "FN",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Suppression Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "FZL": {
-    "wmo_prefix": "UX",
+    "extractors": [],
     "title": "Freezing Level Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UX"
   },
   "GLF": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Great Lakes Forecast",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "GLO": {
-    "wmo_prefix": "FZ",
+    "extractors": [],
     "title": "Great Lakes Storm Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "GLS": {
-    "wmo_prefix": "WW",
+    "extractors": [],
     "title": "Great Lakes Storm Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "GSM": {
-    "wmo_prefix": "NX",
+    "extractors": [],
     "title": "General Status Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NX"
   },
   "HCM": {
-    "wmo_prefix": "NG",
+    "extractors": [],
     "title": "Hydrometeorlogical Coordination Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NG"
   },
   "HD1": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD2": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD3": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD4": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD5": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD6": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD7": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD8": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HD9": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC Derived QPF Data Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HDP": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "WSR-88D Hourly Digital Precipitation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "HHC": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "177 Hybrid Scan Hydrometeor Classification",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "HLS": {
-    "wmo_prefix": "WT",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Hurricane Local Statement",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "HMD": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Hydrometeorological Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "HML": {
-    "wmo_prefix": "FD",
+    "extractors": [],
     "title": "Hyrdo Obs/Forecasts XML",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FD"
   },
   "HMW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Hazardous Materials Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "HP1": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP2": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP3": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP4": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP5": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP6": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP7": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP8": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HP9": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "RFC QPF Verification Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "HRR": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Hourly Weather Roundup",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "HSF": {
-    "wmo_prefix": "FZ",
+    "extractors": [],
     "title": "High Seas Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "HWO": {
-    "wmo_prefix": "FL",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Hazardous Weather Outlook",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FL"
   },
   "HYD": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Rainfall Reports",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "HYM": {
-    "wmo_prefix": "CS",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Monthly Hydrometeorological Plain Language Product",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CS"
   },
   "HYW": {
-    "wmo_prefix": "CW",
+    "extractors": [],
     "title": "Weekly Hydrometeorological Plain Language Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CW"
   },
   "ICE": {
-    "wmo_prefix": "FZ",
+    "extractors": [],
     "title": "Ice Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "ICO": {
-    "wmo_prefix": "FZ",
+    "extractors": [],
     "title": "Ice Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "INI": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Administration",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "IOB": {
-    "wmo_prefix": "SV",
+    "extractors": [],
     "title": "Ice Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SV"
   },
   "IRM": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Interim Radar Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "KPA": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "Keep Alive Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "LAE": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Local Area Emergency",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "LAW": {
-    "wmo_prefix": "SM",
+    "extractors": [],
     "title": "Great Lakes Weather Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SM"
   },
   "LCO": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Local Cooperative Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "LEW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Law Enforcement Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "LFP": {
-    "wmo_prefix": "FL",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Local Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FL"
   },
   "LLS": {
-    "wmo_prefix": "UX",
+    "extractors": [],
     "title": "Low-Level Sounding",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UX"
   },
   "LSH": {
-    "wmo_prefix": "WH",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Lakeshore Warning or Statement",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WH"
   },
   "LSR": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "Local Storm Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "LTG": {
-    "wmo_prefix": "SF",
+    "extractors": [],
     "title": "Lightning Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SF"
   },
   "MAN": {
-    "wmo_prefix": "US",
+    "extractors": [],
     "title": "Rawinsonde Observation Mandatory Levels",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "US"
   },
   "MAP": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Mean Areal Precipitation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "MAV": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "GFS Based MOS Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "MAW": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "MOS Avaiation-based Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "MEF": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "AFOS Forecast Verification Matrix",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "MET": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "ETA Based MOS Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "MEX": {
-    "wmo_prefix": "FE",
+    "extractors": [],
     "title": "GFX Extended Based MOS Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FE"
   },
   "MIM": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Marine Interpretation Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "MIS": {
-    "wmo_prefix": "AX",
+    "extractors": [],
     "title": "Miscellaneous Local Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AX"
   },
   "MON": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "Test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "MRM": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Missing Radar Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "MRP": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Techniques Development Laboratory Marine",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "MSM": {
-    "wmo_prefix": "CS",
+    "extractors": [],
     "title": "ASOS Monthly Summary Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CS"
   },
   "MST": {
-    "wmo_prefix": "CS",
+    "extractors": [],
     "title": "ASOS Monthly Summary Message Test",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CS"
   },
   "MTR": {
-    "wmo_prefix": "SA",
+    "extractors": [
+      "ugc"
+    ],
     "title": "METAR Formatted Surface Weather Observation",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SA"
   },
   "MTT": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "METAR Test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "MWS": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc",
+      "wind_hail"
+    ],
     "title": "Marine Weather Statement",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": true,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "MWW": {
-    "wmo_prefix": "WH",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Marine Weather Message",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WH"
   },
   "N0C": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 0.4-0.8 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC  DS.161c0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0H": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 0.4-0.8 HYDROMETEOR CLASS .13NM RES ID 165/DHC DS.165h0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0K": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163  RADAR 0.4-0.8 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD  DS.163k0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0M": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166  RADAR 0.4-0.8 MELTING LAYER ID 166/ML  DS.166m0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0Q": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94   RADAR 0.4-0.8 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR Add No 20K 6-14/hr RPCCDS & SBN DS.p94r0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0R": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR .5 REFLECTIVITY .54NM RES 16 LEVELS ID 19/R",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0S": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR .5 STORM REL. VELOCITY .54NM RES 16 LVLS ID 56/SRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0U": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 0.4-0.8 VELOCITY .13NM RES 256 LEVELS ID 99/DV Add No 55K 6-14/hr RPCCDS & SBN DS.p99v0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0V": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR .5 VELOCITY .54NM RES 16 LEVELS ID 27/V",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0W": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR BASE RADIAL VELOCITY 25/V",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0X": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 0.4-0.8 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD DS.159x0",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N0Z": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR .5 REFLECTIVITY 1.1NM RES 16 LEVELS ID 20/R",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1C": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 1.2-1.6 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC  DS.161c1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1H": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 1.2-1.6 HYDROMETEOR CLASS .13NM RES ID 165/DHC DS.165h1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1K": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163 RADAR 1.2-1.6 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD DS.163k1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1M": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166 RADAR 1.2-1.6 MELTING LAYER ID 166/ML  DS.166m1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1P": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 1 HOUR PRECIPITATION ACCUMULATION 78/OHP",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1Q": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94 RADAR 1.2-1.6 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR Add No 12K 6-14/hr RPCCDS & SBN DS.p94r1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1R": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 1.5 REFLECTIVITY .54NM RES 16 LEVELS ID 19/R",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1S": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 1.5 STORM REL. VELOCITY .54NM RES 16 LVLS ID 56/SRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1U": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 1.2-1.6 VELOCITY .13NM RES 256 LEVELS ID 99/DV Add No 30K 6-14/hr RPCCDS & SBN DS.p99v1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1V": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 1.5 VELOCITY .54NM RES 16 LEVELS ID 27/V",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N1X": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 1.2-1.6 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD  DS.159x1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2C": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 2.1-2.6 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC DS.161c2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2H": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 2.1-2.6 HYDROMETEOR CLASS .13NM RES ID 165/DHC DS.165h2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2K": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163 RADAR 2.1-2.6 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD DS.163k2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2M": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166 RADAR 2.1-2.6 MELTING LAYER ID 166/ML  DS.166m2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2Q": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94 RADAR 2.1-2.6 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR Add No 11K  6-14/hr RPCCDS & SBN DS.p94r2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2R": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 2.4/2.5 REFLECTIVITY .54NM RES 16 LEVELS ID 19/R",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2S": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 2.4/2.5 STORM REL VLCTY .54NM RES 16 LVLS ID 56/SRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2U": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 2.1-2.6 VELOCITY .13NM RES 256 LEVELS ID 99/DV Add No 27K  6-14/hr RPCCDS & SBN DS.p99v2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2V": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 2.4/2.5 VELOCITY .54NM RES 16 LEVELS ID 27/V",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N2X": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 2.1-2.6 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD DS.159x2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3C": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 2.7-3.6 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC DS.161c3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3H": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 2.7-3.6 HYDROMETEOR CLASS .13NM RES ID 165/DHC DS.165h3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3K": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163 RADAR 2.7-3.6 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD DS.163k3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3M": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166 RADAR 2.7-3.6 MELTING LAYER ID 166/ML  DS.166m3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3P": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 3 HOUR PRECIPITATION ACCUMULATION 79/THP",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3Q": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94 RADAR 2.7-3.6 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR Add No 10K 6-14/hr RPCCDS & SBN  DS.p94r3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3R": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 3.4/3.5 REFLECTIVITY .54NM RES 16 LEVELS ID 19/R",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3S": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 3.4/3.5 STORM REL VLCTY .54NM RES 16 LVLS ID 56/SRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3U": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 2.7-3.6 VELOCITY .13NM RES 256 LEVELS ID 99/DV  Add No 23K 6-14/hr RPCCDS & SBN  DS.p99v3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3V": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR 3.4/3.5 VELOCITY .54NM RES 16 LEVELS ID 27/V",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N3X": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 2.7-3.6 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD  DS.159x3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "N6P": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "USER SELECTABLE PRECIPITATION 6 HOUR ACCUMULATION 31/USP",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAC": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 0.9-1.1 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC  DS.161ca",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAH": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 0.9-1.1 HYDROMETEOR CLASS .13NM RES ID 165/DHC        DS.165ha",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAK": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163 RADAR 0.9-1.1 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD DS.163ka",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAM": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166 RADAR 0.9-1.1 MELTING LAYER ID 166/ML  DS.166ma",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAQ": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94 RADAR 0.9-1.1 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR  Add  No   16K  6-14/hr  RPCCDS & SBN  DS.p94ra",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAU": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 0.9-1.1 VELOCITY .13NM RES 256 LEVELS ID 99/DV  Add  No   47K  6-14/hr  RPCCDS & SBN  DS.p99va",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NAX": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 0.9-1.1 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD  DS.159xa",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBC": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "161 RADAR 1.7-2.0 CORR CFFCNT .13NM RES 256 LEVELS ID 161/DCC  DS.161cb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBH": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "165 RADAR 1.7-2.0 HYDROMETEOR CLASS .13NM RES ID 165/DHC        DS.165hb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBK": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "163 RADAR 1.7-2.0 SPEC DIFF PHASE .13NM RES 256 LVLS ID 163/DKD DS.163kb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBM": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "166 RADAR 1.7-2.0 MELTING LAYER ID 166/ML  DS.166mb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBQ": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "94 RADAR 1.7-2.0 REFLECTIVITY .54NM RES 256 LEVELS ID 94/DR  Add  No   11K  6-14/hr  RPCCDS & SBN  DS.p94rb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBU": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "99 RADAR 1.7-2.0 VELOCITY .13NM RES 256 LEVELS ID 99/DV  Add  No   29K  6-14/hr  RPCCDS & SBN  DS.p99vb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NBX": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "159 RADAR 1.7-2.0 DIFF RFLCTVTY .13NM RES 256 LEVELS ID 159/DZD  DS.159xb",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NC1": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL (CFC) \u2013 SEGMENT 1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NC2": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL (CFC) \u2013 SEGMENT 2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NC3": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL (CFC) \u2013 SEGMENT 3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NC4": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL (CFC) \u2013 SEGMENT 4",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NC5": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL (CFC) \u2013 SEGMENT 5",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NCF": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "CLUTTER FILTER CONTROL",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NCO": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR COMPOSITE REFLECTIVITY 2.2NM RES 8 LEVELS ID 36/CR",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NCR": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR COMPOSITE REFLECTIVITY .54NM RES 16 LEVELS ID 37/CR",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NCZ": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR COMPOSITE REFLECTIVITY 2.2NM RES 16 LEVELS ID 38/CR",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NET": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR ECHO TOPS ID 41/ET",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NHI": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "HAIL INDEX 59/HI",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NHL": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR HIGH LAYER COMPOSITE REFLECTIVITY MAX ID 90/LRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NIC": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "National Information Center",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "NLA": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR LOW LAYER COMPOSITE REFLECTIVITY AP RMVD ID 67/ARP",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NLL": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR LOW LAYER COMPOSITE REFLECTIVITY MAX ID 65/LRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NME": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "MESOCYCLONE 60/M",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NML": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "RADAR MIDDLE LAYER COMPOSITE REFLECTIVITY MAX ID 66/LRM",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NMN": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Network Message Notification",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "NOW": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Short Term Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "NPT": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "National Periodic Test",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "NPW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Non-Precipitation Message",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "NSH": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Nearshore Marine Forecast / Surf Forecast",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "NSP": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Base Spectrum Width 32NM .13NM X 1 Deg",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NSS": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Storm Structure",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NST": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Storm Tracking Information",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NSW": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Base Spectrum Width 124NM .54NM X 1 Deg",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NTP": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Storm Total Precipitation Accumulation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NTV": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Tornado Vortex Signature",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NUP": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar User Select Precipitation Accumulation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NUW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Nuclear Power Plant Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "NVL": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Vertically Integrated Liquid",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NVW": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Velocity Azimuth Display Wind Profile",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NWP": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Severe Weather Probability",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "NWR": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "NOAA Weather radio Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "OAV": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Other Aviation Products",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "OCD": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Oceanographic Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "OEP": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Operational Evolution Plan",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "OFA": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Offshore Aviation Area Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "OFF": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Offshore Forecast",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "OHA": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "169 QPF One Hour Accumulation 16 Levels",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "OMR": {
-    "wmo_prefix": "SX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Other Marine Products",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "OPU": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Other Public Products",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "OSB": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Oceanographic Spectral Bulletin",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "OSO": {
-    "wmo_prefix": "SX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Other Surface Observations",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "OSW": {
-    "wmo_prefix": "AG",
+    "extractors": [],
     "title": "Ocean Surface Winds",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AG"
   },
   "OUA": {
-    "wmo_prefix": "UX",
+    "extractors": [],
     "title": "Other Upper Air Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UX"
   },
   "PAR": {
-    "wmo_prefix": "NO",
+    "extractors": [],
     "title": "Performance Accomplishment Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "PBF": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Prescribed Burn Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "PFM": {
-    "wmo_prefix": "FO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Point Forecast Matrices",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "PFW": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "Point Fire Weather Forecast Matrices",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "PIB": {
-    "wmo_prefix": "UP",
+    "extractors": [],
     "title": "Pibal Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UP"
   },
   "PIR": {
-    "wmo_prefix": "UA",
+    "extractors": [],
     "title": "Pilot Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UA"
   },
   "PLS": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Plain Language Ship Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "PMD": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Prognostic Meteorological Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "PNS": {
-    "wmo_prefix": "NO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Public Information Statement",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NO"
   },
   "POE": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Probabiilty of Exceed",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "PRB": {
-    "wmo_prefix": "FM",
+    "extractors": [],
     "title": "Days 3--7 Heat Index Forecast Tables",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FM"
   },
   "PRC": {
-    "wmo_prefix": "UA",
+    "extractors": [],
     "title": "State Pilot Report Collective",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UA"
   },
   "PSH": {
-    "wmo_prefix": "AC",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Post Storm Hurricane Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "PSM": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Pronostic Snow Melt",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "PTA": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "171 QPF Storm Total Accumulation 16 Levels",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "PVM": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Public Verification Matrix",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "PWO": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Public Severe Weather Alert",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "QCD": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "ASOS Daily Quality Control Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "QCH": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "ASOS Hourly Quality Control Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "QCM": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "ASOS Monthly Quality Control Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "QCW": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "ASOS Weekly Quality Control Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "QPF": {
-    "wmo_prefix": "FS",
+    "extractors": [],
     "title": "Quantitative Precipitation Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FS"
   },
   "QPS": {
-    "wmo_prefix": "FS",
+    "extractors": [],
     "title": "Quantitative Precipitation Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FS"
   },
   "RBG": {
-    "wmo_prefix": "PX",
+    "extractors": [],
     "title": "Red Book Graphic",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "PX"
   },
   "RCM": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "WSR-88D Radar Coded Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "RDF": {
-    "wmo_prefix": "FO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Revised Digital Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "RDG": {
-    "wmo_prefix": "FO",
+    "extractors": [],
     "title": "Revised Digital Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FO"
   },
   "REC": {
-    "wmo_prefix": "SX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Recreational Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "RER": {
-    "wmo_prefix": "SX",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Record Event Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "RFD": {
-    "wmo_prefix": "FN",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Rangeland Fire Danger Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "RFR": {
-    "wmo_prefix": "FR",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Route Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FR"
   },
   "RFW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Red Flag Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "RHW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Radiological Hazard Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "RMT": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Required Monthly Test",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "ROB": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "RR1": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 1",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR2": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 2",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR3": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 3",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR4": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 4",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR5": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 5",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR6": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "ASOS Shef Precip Criteria Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR7": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "ASOS Shef Hourly Routine Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR8": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 8",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RR9": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Hydrology Meteorology Data Report Part 9",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRA": {
-    "wmo_prefix": "SR",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Automated Hydrologic Observation STA Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRC": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "SCS Manual Snow Course Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRM": {
-    "wmo_prefix": "SR",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Miscellaneous Hydrologic Data",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRS": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Special Automated Hydromet Data Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRX": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "ASOS Shef Precipitation Criteria Test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RRY": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "ASOS Shef Hourly Routine Test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RSD": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Daily Snotel Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "RSL": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "WSR-88D Rpg System Status Logs",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "RSM": {
-    "wmo_prefix": "CS",
+    "extractors": [],
     "title": "Monthly Snotel Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CS"
   },
   "RTP": {
-    "wmo_prefix": "AS",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Max/Min Temperature and Precipitation Table",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AS"
   },
   "RVA": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "River Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RVD": {
-    "wmo_prefix": "FG",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Daily River Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "RVF": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "River Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "RVG": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Hydrologic Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "RVI": {
-    "wmo_prefix": "FI",
+    "extractors": [],
     "title": "River Ice Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FI"
   },
   "RVK": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Hydrologic Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "RVM": {
-    "wmo_prefix": "SR",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Miscellaneous River Product",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "RVR": {
-    "wmo_prefix": "FG",
+    "extractors": [],
     "title": "River Recreation Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "RVS": {
-    "wmo_prefix": "FG",
+    "extractors": [
+      "ugc"
+    ],
     "title": "River Statement",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FG"
   },
   "RWO": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Radar Superob",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "RWR": {
-    "wmo_prefix": "AS",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Weather Roundup",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AS"
   },
   "RWS": {
-    "wmo_prefix": "AW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Weather Summary",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AW"
   },
   "RWT": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Required Weekly Test",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "RZF": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "Regional Zone Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "SAA": {
-    "wmo_prefix": "XX",
+    "extractors": [],
     "title": "Space Environment Alert Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "XX"
   },
   "SAB": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Snow Avalanche Bulletin",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SAD": {
-    "wmo_prefix": "AW",
+    "extractors": [],
     "title": "Daily Surface Aviation Weather Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AW"
   },
   "SAF": {
-    "wmo_prefix": "FN",
+    "extractors": [],
     "title": "Speci Agri WX FCST/Advisory/Flying Farmer FCST Outlook",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "SAG": {
-    "wmo_prefix": "FW",
+    "extractors": [],
     "title": "Snow Avalanche Guidance",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FW"
   },
   "SAM": {
-    "wmo_prefix": "AW",
+    "extractors": [],
     "title": "Montly Surface Avaiation Weather Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AW"
   },
   "SAW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc",
+      "latlon"
+    ],
     "title": "Prelim Notice of Watch & Cancellation MSG",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SCC": {
-    "wmo_prefix": "AC",
+    "extractors": [],
     "title": "Storm Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "SCD": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Supplementary Climatological Data (ASOS)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "SCN": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Soil Climate Analysis Network Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "SCP": {
-    "wmo_prefix": "TC",
+    "extractors": [],
     "title": "Satellite Cloud Product",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "TC"
   },
   "SCS": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "Selected Cities Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "SCV": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Satellite Areal Extent of Snow Cover",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "SDO": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Supplementary Data Observations (ASOS)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "SDS": {
-    "wmo_prefix": "FU",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Special Dispersion Statement",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FU"
   },
   "SEL": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Severe Local Storm Watch and Watch Cancellation",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SES": {
-    "wmo_prefix": "XX",
+    "extractors": [],
     "title": "Space Enviornment Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "XX"
   },
   "SEV": {
-    "wmo_prefix": "WW",
+    "extractors": [],
     "title": "SPC Watch Point Information Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SFD": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "State Forecast Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "SFP": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "State Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "SFT": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Tabular State Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "SGL": {
-    "wmo_prefix": "UM",
+    "extractors": [],
     "title": "Rawinsonde Observation Significant Levels",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UM"
   },
   "SGW": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Plain Language Significant Weather Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "SHI": {
-    "wmo_prefix": "SI",
+    "extractors": [],
     "title": "SFC Ship report at Intermediate Synoptic Time",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SI"
   },
   "SHN": {
-    "wmo_prefix": "SN",
+    "extractors": [],
     "title": "Surface Ship Report at Non-Synoptic Time",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SN"
   },
   "SHP": {
-    "wmo_prefix": "SM",
+    "extractors": [],
     "title": "Surface Ship Report at Synoptic Time",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SM"
   },
   "SIG": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "International Sigmet/Convective Sigmet",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "SIM": {
-    "wmo_prefix": "AT",
+    "extractors": [],
     "title": "Satellite Interpretation Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AT"
   },
   "SLS": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Severe Local Storm Watch and Areal Outline",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SMA": {
-    "wmo_prefix": "WW",
+    "extractors": [],
     "title": "Marine Subtropical Storm Advistory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SMF": {
-    "wmo_prefix": "FN",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Smoke Management Weather Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FN"
   },
   "SMW": {
-    "wmo_prefix": "WH",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc",
+      "wind_hail"
+    ],
     "title": "Special Marine Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": true,
-    "hvtec": false
+    "wmo_prefix": "WH"
   },
   "SPD": {
-    "wmo_prefix": "SD",
+    "extractors": [],
     "title": "Supplemental Precipitation 82/SPD",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SD"
   },
   "SPE": {
-    "wmo_prefix": "TX",
+    "extractors": [
+      "ugc",
+      "latlon"
+    ],
     "title": "Satellite Precipitation Estimates",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "TX"
   },
   "SPF": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Storm Strike Probability Bulletin",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "SPS": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Special Weather Statement",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SPW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Shelter in Place Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "SQW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Snow Squall Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SRF": {
-    "wmo_prefix": "FZ",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Surf Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FZ"
   },
   "SSA": {
-    "wmo_prefix": "XX",
+    "extractors": [],
     "title": "Space Environment Summary Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "XX"
   },
   "SSI": {
-    "wmo_prefix": "SI",
+    "extractors": [],
     "title": "Intermediate Synoptic Hour Surface Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SI"
   },
   "SSM": {
-    "wmo_prefix": "SM",
+    "extractors": [],
     "title": "Main Synoptic Hour Surface Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SM"
   },
   "SSN": {
-    "wmo_prefix": "SN",
+    "extractors": [],
     "title": "Non Standard Synoptic Hour Surface Observation",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SN"
   },
   "STA": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "SPC Tornado and Severe Thunderstorm Reports",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "STD": {
-    "wmo_prefix": "AT",
+    "extractors": [],
     "title": "Satellite Tropical Disturbance Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AT"
   },
   "STO": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Road Condition Reports",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "STP": {
-    "wmo_prefix": "AS",
+    "extractors": [
+      "ugc"
+    ],
     "title": "State Max/Min Temperature and Precipitation Table",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AS"
   },
   "STQ": {
-    "wmo_prefix": "BM",
+    "extractors": [],
     "title": "Spot Forecast Request",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "BM"
   },
   "STW": {
-    "wmo_prefix": "WW",
+    "extractors": [],
     "title": "Canadian Storm Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SVR": {
-    "wmo_prefix": "WU",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc",
+      "wind_hail"
+    ],
     "title": "Severe Thunderstorm Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": true,
-    "hvtec": false
+    "wmo_prefix": "WU"
   },
   "SVS": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc",
+      "wind_hail"
+    ],
     "title": "Severe Weather Statement",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": true,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "SWD": {
-    "wmo_prefix": "XX",
+    "extractors": [],
     "title": "Space Environment Warning Advistory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "XX"
   },
   "SWE": {
-    "wmo_prefix": "SR",
+    "extractors": [],
     "title": "Estimated Snow Water Equivalent by Basin",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SR"
   },
   "SWO": {
-    "wmo_prefix": "AC",
+    "extractors": [
+      "ugc",
+      "latlon"
+    ],
     "title": "Severe Storm Outlook Narrative",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "SWS": {
-    "wmo_prefix": "AW",
+    "extractors": [],
     "title": "State Weather Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AW"
   },
   "SYN": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Hot-Air Balloon Forecast for Colorado",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "TAF": {
-    "wmo_prefix": "FT",
+    "extractors": [],
     "title": "Terminal Aerodrome Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FT"
   },
   "TAP": {
-    "wmo_prefix": "FA",
+    "extractors": [],
     "title": "Terminal Alerting Products",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FA"
   },
   "TAV": {
-    "wmo_prefix": "FP",
+    "extractors": [],
     "title": "Travelers Forecast Table",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "TCA": {
-    "wmo_prefix": "FK",
+    "extractors": [],
     "title": "Tropical Cyclone Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FK"
   },
   "TCD": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Tropical Cyclone Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TCE": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Tropical Cyclone Position Estimate",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TCM": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Marine/Aviation Tropical Cyclone Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TCP": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Public Tropical Cyclone Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TCS": {
-    "wmo_prefix": "TX",
+    "extractors": [],
     "title": "Satellite Tropical Cyclone Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "TX"
   },
   "TCU": {
-    "wmo_prefix": "WT",
+    "extractors": [],
     "title": "Tropical Cyclone Update",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TCV": {
-    "wmo_prefix": "WT",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Tropical Cyclone Watch/Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WT"
   },
   "TIB": {
-    "wmo_prefix": "WE",
+    "extractors": [],
     "title": "Tsunami Information Bulletin",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WE"
   },
   "TID": {
-    "wmo_prefix": "SO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Tide Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SO"
   },
   "TLS": {
-    "wmo_prefix": "WE",
+    "extractors": [],
     "title": "Tsunami Local Statement",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WE"
   },
   "TMA": {
-    "wmo_prefix": "SE",
+    "extractors": [],
     "title": "Tsunami Tide/Seismic Message Acknowledgment",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SE"
   },
   "TOE": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "911 Telephone Outage Emergency",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "TOR": {
-    "wmo_prefix": "WF",
+    "extractors": [
+      "vtec",
+      "ugc",
+      "latlon",
+      "time_mot_loc"
+    ],
     "title": "Tornado Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": true,
-    "time_mot_loc": true,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WF"
   },
   "TPT": {
-    "wmo_prefix": "SX",
+    "extractors": [],
     "title": "Temperature Precipitation Table",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SX"
   },
   "TSM": {
-    "wmo_prefix": "SE",
+    "extractors": [],
     "title": "Tsunami Tide/Seismic Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "SE"
   },
   "TST": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "Test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "TSU": {
-    "wmo_prefix": "WE",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Tsunami Watch/Warning",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WE"
   },
   "TVL": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Travelers Forecast",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   },
   "TWB": {
-    "wmo_prefix": "FR",
+    "extractors": [],
     "title": "Transcribed Weather Broadcast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FR"
   },
   "TWD": {
-    "wmo_prefix": "AC",
+    "extractors": [],
     "title": "Tropical Weather Discussion",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "TWO": {
-    "wmo_prefix": "AC",
+    "extractors": [],
     "title": "Tropical Weather Outlook and Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "TWS": {
-    "wmo_prefix": "AC",
+    "extractors": [],
     "title": "Tropical Weather Summary",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AC"
   },
   "UJX": {
-    "wmo_prefix": "UJ",
+    "extractors": [],
     "title": "JSC Upper Air Soundings",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "UJ"
   },
   "ULG": {
-    "wmo_prefix": "NX",
+    "extractors": [],
     "title": "Upper Air Site Performance and Logistics Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NX"
   },
   "UVI": {
-    "wmo_prefix": "AE",
+    "extractors": [],
     "title": "Ultraviolet Index",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AE"
   },
   "VAA": {
-    "wmo_prefix": "FV",
+    "extractors": [],
     "title": "Volcanic Activity Advisory",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FV"
   },
   "VER": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "Forecast Verification Statistics",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "VFT": {
-    "wmo_prefix": "NX",
+    "extractors": [],
     "title": "Terminal Aerodrome Forecast Verification",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NX"
   },
   "VGP": {
-    "wmo_prefix": "PX",
+    "extractors": [],
     "title": "Vector Graphic",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "PX"
   },
   "VOW": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Volcano Warning",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "WA0": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Pacific)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA1": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Northeast US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA2": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Southeast US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA3": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (North Central US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA4": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (South Central US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA5": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (US Rocky Mountains)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA6": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (US West Coast)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA7": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Juneau Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA8": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Anchorage Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WA9": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Fairbanks Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WAC": {
-    "wmo_prefix": "WA",
+    "extractors": [],
     "title": "Airmet (Caribbean)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WA"
   },
   "WAR": {
-    "wmo_prefix": "WO",
+    "extractors": [],
     "title": "Space Environment Warning",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "WAT": {
-    "wmo_prefix": "WO",
+    "extractors": [],
     "title": "Space Weather Message Watch",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "WCL": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "Watch Clearance Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "WCN": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Watch County Notification",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "WCR": {
-    "wmo_prefix": "AX",
+    "extractors": [],
     "title": "Weekly Weather and Crop Report",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "AX"
   },
   "WDA": {
-    "wmo_prefix": "CX",
+    "extractors": [],
     "title": "Weekly Data for Agriculture",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "CX"
   },
   "WEK": {
-    "wmo_prefix": "FX",
+    "extractors": [],
     "title": "27-day Space Weather Forecast",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FX"
   },
   "WOU": {
-    "wmo_prefix": "WO",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Watch Outline Update",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WO"
   },
   "WPD": {
-    "wmo_prefix": "IU",
+    "extractors": [],
     "title": "Wind Profiler Data",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "IU"
   },
   "WRK": {
-    "wmo_prefix": "NZ",
+    "extractors": [],
     "title": "Local Work File",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NZ"
   },
   "WS1": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (Northeast US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS2": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (Southeast US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS3": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (North Central US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS4": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (South central US)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS5": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (US Rocky Mountains)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS6": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (US West Coast)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS7": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (Juneau Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS8": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (Anchorage Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WS9": {
-    "wmo_prefix": "WS",
+    "extractors": [],
     "title": "Sigmet (Fairbanks Alaska)",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WS"
   },
   "WST": {
-    "wmo_prefix": "WC",
+    "extractors": [],
     "title": "Tropical Cyclone Sigmet",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WC"
   },
   "WSV": {
-    "wmo_prefix": "WV",
+    "extractors": [],
     "title": "Volcanic Activity Sigmet",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WV"
   },
   "WSW": {
-    "wmo_prefix": "WW",
+    "extractors": [
+      "vtec",
+      "ugc"
+    ],
     "title": "Winter Weather Message",
-    "ugc": true,
-    "vtec": true,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "WTS": {
-    "wmo_prefix": "NT",
+    "extractors": [],
     "title": "Warning test Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NT"
   },
   "WVM": {
-    "wmo_prefix": "NW",
+    "extractors": [],
     "title": "Warning Verification Message",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "WWA": {
-    "wmo_prefix": "NW",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Watch Status Report",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "NW"
   },
   "WWP": {
-    "wmo_prefix": "WW",
+    "extractors": [],
     "title": "Severe Thunderstorm Watch Probabilities",
-    "ugc": false,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "WW"
   },
   "ZFP": {
-    "wmo_prefix": "FP",
+    "extractors": [
+      "ugc"
+    ],
     "title": "Zone Forecast Product",
-    "ugc": true,
-    "vtec": false,
-    "cz": false,
-    "latlong": false,
-    "time_mot_loc": false,
-    "wind_hail": false,
-    "hvtec": false
+    "wmo_prefix": "FP"
   }
 }

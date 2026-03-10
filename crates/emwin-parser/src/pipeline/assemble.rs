@@ -56,7 +56,6 @@ fn assemble_from_text_generic(
         header,
         pil,
         title,
-        flags: _flags,
         body_request,
         bbb_kind,
         reference_time: _reference_time,
@@ -439,7 +438,6 @@ mod tests {
     use chrono::Utc;
 
     use crate::ParserError;
-    use crate::body::body_extraction_plan;
     use crate::dcp::parse_dcp_bulletin;
     use crate::fd::parse_fd_bulletin;
     use crate::metar::{MetarBulletin, parse_metar_bulletin};
@@ -479,7 +477,6 @@ mod tests {
             header: text_header("TAFPDK"),
             pil: Some("TAF".to_string()),
             title: Some("Terminal Aerodrome Forecast"),
-            flags: None,
             body_request: None,
             bbb_kind: None,
             reference_time: Some(Utc::now()),
@@ -666,23 +663,14 @@ mod tests {
 
     #[test]
     fn text_generic_candidate_assembles_body_from_plan() {
-        let flags = crate::ProductMetadataFlags {
-            ugc: false,
-            vtec: true,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: false,
-            wind_hail: false,
-        };
         let candidate = ClassificationCandidate::TextGeneric(TextGenericCandidate {
             header: text_header("TAFPDK"),
             pil: Some("TAF".to_string()),
             title: Some("Terminal Aerodrome Forecast"),
-            flags: Some(flags),
             body_request: Some(BodyContributionRequest {
                 text: "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/".to_string(),
-                plan: body_extraction_plan(&flags),
+                plan: crate::data::body_extraction_plan_for_pil("SVR")
+                    .expect("SVR should have body extraction plan"),
                 reference_time: Some(Utc::now()),
             }),
             bbb_kind: None,
@@ -721,23 +709,15 @@ mod tests {
 
     #[test]
     fn body_request_issues_are_appended_to_text_generic_output() {
-        let flags = crate::ProductMetadataFlags {
-            ugc: false,
-            vtec: false,
-            latlong: false,
-            hvtec: false,
-            cz: false,
-            time_mot_loc: true,
-            wind_hail: false,
-        };
         let candidate = ClassificationCandidate::TextGeneric(TextGenericCandidate {
             header: text_header("ZZZBOX"),
             pil: None,
             title: None,
-            flags: Some(flags),
             body_request: Some(BodyContributionRequest {
                 text: "plain text".to_string(),
-                plan: body_extraction_plan(&flags),
+                plan: crate::body::body_extraction_plan(&[
+                    crate::body::BodyExtractorId::TimeMotLoc,
+                ]),
                 reference_time: None,
             }),
             bbb_kind: None,

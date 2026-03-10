@@ -8,7 +8,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::body::BodyExtractionPlan;
-use crate::data::{NonTextProductMeta, ProductMetadataFlags};
+use crate::data::NonTextProductMeta;
 use crate::{
     BbbKind, DcpBulletin, FdBulletin, MetarBulletin, ParserError, PirepBulletin,
     ProductEnrichmentSource, ProductParseIssue, SigmetBulletin, TafBulletin, TextProductHeader,
@@ -65,8 +65,6 @@ pub(crate) struct TextGenericCandidate {
     pub(crate) pil: Option<String>,
     /// Human-readable catalog title.
     pub(crate) title: Option<&'static str>,
-    /// Catalog-driven body extraction flags.
-    pub(crate) flags: Option<ProductMetadataFlags>,
     /// Optional generic body extraction request for this candidate.
     pub(crate) body_request: Option<BodyContributionRequest>,
     /// Classified BBB meaning when present.

@@ -13,20 +13,46 @@ OUTPUT_PATH = REPO_ROOT / "crates/emwin-parser/src/data/generated_pil.rs"
 class CatalogEntry(TypedDict):
     wmo_prefix: str
     title: str
-    ugc: bool
-    vtec: bool
-    cz: bool
-    latlong: bool
-    time_mot_loc: bool
-    wind_hail: bool
-    hvtec: bool
+    extractors: list[str]
 
 
-def require_bool(entry: dict[str, object], pil: str, key: str) -> bool:
-    value = entry.get(key)
-    if not isinstance(value, bool):
-        raise SystemExit(f"catalog entry {pil} must define boolean field {key}")
-    return value
+EXTRACTOR_ORDER = [
+    "vtec",
+    "ugc",
+    "hvtec",
+    "latlon",
+    "time_mot_loc",
+    "wind_hail",
+]
+
+EXTRACTOR_VARIANTS = {
+    "vtec": "BodyExtractorId::Vtec",
+    "ugc": "BodyExtractorId::Ugc",
+    "hvtec": "BodyExtractorId::Hvtec",
+    "latlon": "BodyExtractorId::LatLon",
+    "time_mot_loc": "BodyExtractorId::TimeMotLoc",
+    "wind_hail": "BodyExtractorId::WindHail",
+}
+
+
+def require_extractors(entry: dict[str, object], pil: str) -> list[str]:
+    value = entry.get("extractors")
+    if not isinstance(value, list):
+        raise SystemExit(f"catalog entry {pil} must define extractor list")
+
+    normalized: list[str] = []
+    for raw in value:
+        if not isinstance(raw, str):
+            raise SystemExit(f"catalog entry {pil} extractor names must be strings")
+        name = raw.strip()
+        if name not in EXTRACTOR_VARIANTS:
+            raise SystemExit(f"catalog entry {pil} has unknown extractor {raw!r}")
+        normalized.append(name)
+
+    ordered = [name for name in EXTRACTOR_ORDER if name in normalized]
+    if len(ordered) != len(normalized):
+        raise SystemExit(f"catalog entry {pil} has duplicate extractors")
+    return ordered
 
 
 def load_catalog() -> list[tuple[str, CatalogEntry]]:
@@ -54,13 +80,7 @@ def load_catalog() -> list[tuple[str, CatalogEntry]]:
         normalized: CatalogEntry = {
             "wmo_prefix": wmo_prefix,
             "title": title,
-            "ugc": require_bool(entry, pil, "ugc"),
-            "vtec": require_bool(entry, pil, "vtec"),
-            "cz": require_bool(entry, pil, "cz"),
-            "latlong": require_bool(entry, pil, "latlong"),
-            "time_mot_loc": require_bool(entry, pil, "time_mot_loc"),
-            "wind_hail": require_bool(entry, pil, "wind_hail"),
-            "hvtec": require_bool(entry, pil, "hvtec"),
+            "extractors": require_extractors(entry, pil),
         }
 
         previous = entries.get(pil)
@@ -78,8 +98,11 @@ def rust_string(value: str) -> str:
     return f'"{escaped}"'
 
 
-def rust_bool(value: object) -> str:
-    return "true" if value else "false"
+def rust_extractors(values: list[str]) -> str:
+    if not values:
+        return "&[]"
+    variants = ", ".join(EXTRACTOR_VARIANTS[value] for value in values)
+    return f"&[{variants}]"
 
 
 def write_output(catalog: list[tuple[str, CatalogEntry]]) -> None:
@@ -96,6 +119,7 @@ def write_output(catalog: list[tuple[str, CatalogEntry]]) -> None:
         "// - crates/emwin-parser/data/product_catalog.json",
         "// Do not edit manually.",
         "",
+        "use crate::body::BodyExtractorId;",
         "use super::PilCatalogEntry;",
         "",
         f"pub const PIL_GENERATED_AT_UTC: &str = {rust_string(generated_at)};",
@@ -110,13 +134,7 @@ def write_output(catalog: list[tuple[str, CatalogEntry]]) -> None:
             f"pil: {rust_string(pil)}, "
             f"wmo_prefix: {rust_string(entry['wmo_prefix'])}, "
             f"title: {rust_string(entry['title'])}, "
-            f"ugc: {rust_bool(entry['ugc'])}, "
-            f"vtec: {rust_bool(entry['vtec'])}, "
-            f"cz: {rust_bool(entry['cz'])}, "
-            f"latlong: {rust_bool(entry['latlong'])}, "
-            f"time_mot_loc: {rust_bool(entry['time_mot_loc'])}, "
-            f"wind_hail: {rust_bool(entry['wind_hail'])}, "
-            f"hvtec: {rust_bool(entry['hvtec'])} }},"
+            f"extractors: {rust_extractors(entry['extractors'])} }},"
         )
 
     lines.extend(

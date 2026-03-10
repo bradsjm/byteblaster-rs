@@ -107,7 +107,7 @@ Useful server flags:
 Server endpoints:
 
 - `GET /events?event=file_complete&lat=41.42&lon=-96.17&distance_miles=5` - SSE event stream with optional live filters over event, file, product, header, and parsed location metadata
-- `GET /files` - retained completed-file payloads using the same shape as `file_complete` events
+- `GET /files` - retained completed-file payloads using the same shape as `file_complete` events, including parsed `product` metadata and `download_url`
 - `GET /files/*filename` - retained file download (URL-encoded path segment)
 - `GET /health` - server health summary
 - `GET /metrics` - JSON telemetry snapshot

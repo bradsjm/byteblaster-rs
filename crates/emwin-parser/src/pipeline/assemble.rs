@@ -699,18 +699,26 @@ mod tests {
     use chrono::Utc;
 
     use crate::ParserError;
-    use crate::dcp::parse_dcp_bulletin;
-    use crate::fd::parse_fd_bulletin;
-    use crate::metar::{MetarBulletin, parse_metar_bulletin};
-    use crate::pirep::parse_pirep_bulletin;
-    use crate::sigmet::parse_sigmet_bulletin;
-    use crate::taf::parse_taf_bulletin;
+    use crate::specialized::cf6::parse_cf6_bulletin;
+    use crate::specialized::cwa::parse_cwa_bulletin;
+    use crate::specialized::dcp::parse_dcp_bulletin;
+    use crate::specialized::dsm::parse_dsm_bulletin;
+    use crate::specialized::fd::parse_fd_bulletin;
+    use crate::specialized::hml::parse_hml_bulletin;
+    use crate::specialized::lsr::parse_lsr_bulletin;
+    use crate::specialized::metar::{MetarBulletin, parse_metar_bulletin};
+    use crate::specialized::mos::parse_mos_bulletin;
+    use crate::specialized::pirep::parse_pirep_bulletin;
+    use crate::specialized::sigmet::parse_sigmet_bulletin;
+    use crate::specialized::taf::parse_taf_bulletin;
+    use crate::specialized::wwp::parse_wwp_bulletin;
 
     use super::assemble_product_enrichment;
     use crate::pipeline::candidate::{
-        BodyContributionRequest, ClassificationCandidate, DcpCandidate, FdCandidate,
-        MetarCandidate, PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate,
-        UnsupportedWmoCandidate,
+        BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
+        DsmCandidate, FdCandidate, HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate,
+        PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate,
+        UnsupportedWmoCandidate, WwpCandidate,
     };
 
     fn text_header(afos: &str) -> crate::TextProductHeader {
@@ -821,6 +829,215 @@ mod tests {
 
         assert_eq!(enrichment.family, Some("sigmet_bulletin"));
         assert!(enrichment.sigmet.is_some());
+    }
+
+    #[test]
+    fn assembles_lsr_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100015-KBMX-NWUS54-LSRBMX.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let (bulletin, issues) = parse_lsr_bulletin(&text, Utc::now()).expect("lsr bulletin");
+        let candidate = ClassificationCandidate::Lsr(LsrCandidate {
+            header: text_header("LSRBMX"),
+            pil: Some("LSR".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues,
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "LSRBMX.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextLsrBulletin
+        );
+        assert_eq!(enrichment.family, Some("lsr_bulletin"));
+        assert!(enrichment.lsr.is_some());
+        assert!(enrichment.cwa.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_cwa_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100229-KZLC-FAUS22-CWAZLC.txt")
+                .lines()
+                .skip(2)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_cwa_bulletin(&text, Utc::now()).expect("cwa bulletin");
+        let candidate = ClassificationCandidate::Cwa(CwaCandidate {
+            header: None,
+            wmo_header: Some(wmo_header("FAUS22", "KZLC")),
+            pil: Some("CWA".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "CWAZLC.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextCwaBulletin
+        );
+        assert_eq!(enrichment.family, Some("cwa_bulletin"));
+        assert!(enrichment.header.is_none());
+        assert!(enrichment.wmo_header.is_some());
+        assert!(enrichment.cwa.is_some());
+        assert!(enrichment.wwp.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_wwp_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603102008-KWNS-WWUS40-WWP1.txt")
+                .lines()
+                .skip(4)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_wwp_bulletin(&text).expect("wwp bulletin");
+        let candidate = ClassificationCandidate::Wwp(WwpCandidate {
+            header: text_header("WWP1"),
+            pil: Some("WWP".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "WWP1.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextWwpBulletin
+        );
+        assert_eq!(enrichment.family, Some("wwp_bulletin"));
+        assert!(enrichment.wwp.is_some());
+        assert!(enrichment.cf6.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_cf6_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt");
+        let (bulletin, issues) = parse_cf6_bulletin(text).expect("cf6 bulletin");
+        let candidate = ClassificationCandidate::Cf6(Cf6Candidate {
+            header: text_header("CF6GSN"),
+            pil: Some("CF6".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues,
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "CF6GSN.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextCf6Bulletin
+        );
+        assert_eq!(enrichment.family, Some("cf6_bulletin"));
+        assert!(enrichment.cf6.is_some());
+        assert!(enrichment.dsm.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_dsm_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603110415-KABQ-CXUS45-DSMCQC.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_dsm_bulletin(&text, Utc::now()).expect("dsm bulletin");
+        let candidate = ClassificationCandidate::Dsm(DsmCandidate {
+            header: text_header("DSMCQC"),
+            pil: Some("DSM".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "DSMCQC.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextDsmBulletin
+        );
+        assert_eq!(enrichment.family, Some("dsm_bulletin"));
+        assert!(enrichment.dsm.is_some());
+        assert!(enrichment.hml.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_hml_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100002-KMTR-SRUS56-HMLMTR.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_hml_bulletin(&text).expect("hml bulletin");
+        let candidate = ClassificationCandidate::Hml(HmlCandidate {
+            header: text_header("HMLMTR"),
+            pil: Some("HML".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "HMLMTR.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextHmlBulletin
+        );
+        assert_eq!(enrichment.family, Some("hml_bulletin"));
+        assert!(enrichment.hml.is_some());
+        assert!(enrichment.mos.is_none());
+        assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_mos_candidate_shape() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100000-KWNO-FOUS46-METBCK.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("mos bulletin");
+        let candidate = ClassificationCandidate::Mos(MosCandidate {
+            header: text_header("METNC1"),
+            pil: Some("MET".to_string()),
+            bbb_kind: None,
+            body_request: None,
+            bulletin,
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "METNC1.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextMosBulletin
+        );
+        assert_eq!(enrichment.family, Some("mos_bulletin"));
+        assert!(enrichment.mos.is_some());
+        assert!(enrichment.lsr.is_none());
+        assert!(enrichment.body.is_none());
     }
 
     #[test]

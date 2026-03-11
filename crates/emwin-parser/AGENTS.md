@@ -331,6 +331,8 @@ Do not keep compatibility aliases for removed schema or API names.
 
 Every architecture-affecting parser change must add or update tests close to the changed layer.
 
+Integration tests should use real product bulletins as fixtures where possible, especially for classification and assembly changes from https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}
+
 ### Minimum expectations
 
 - unit tests for the parser or data model you changed

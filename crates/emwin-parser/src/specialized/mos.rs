@@ -243,9 +243,14 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn parses_standard_mos_fixture() {
-        let text = "KBCK   NAM MOS GUIDANCE    3/10/2026  0000 UTC\nDT /MAR  10            /MAR  11                /MAR  12          /\nHR   06 09 12 15 18 21 00 03\nTMP  41 38 36 41 41 42 41 36\nWND  04 06 08 09 08 09 08 08\n";
-        let bulletin = parse_mos_bulletin(text, Utc::now()).expect("mos bulletin");
+    fn parses_exact_standard_mos_fixture() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100000-KWNO-FOUS46-METBCK.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("mos bulletin");
         assert_eq!(bulletin.sections.len(), 1);
         assert_eq!(bulletin.sections[0].station, "KBCK");
         assert!(bulletin.sections[0].forecasts[0].values.contains_key("TMP"));
@@ -255,7 +260,7 @@ mod tests {
     #[test]
     fn parses_exact_ftp_fixture() {
         let text =
-            include_str!("../tests/fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt")
+            include_str!("../../tests/fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt")
                 .lines()
                 .skip(3)
                 .collect::<Vec<_>>()

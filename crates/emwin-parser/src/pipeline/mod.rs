@@ -2,7 +2,7 @@
 //!
 //! Phase 1 introduces explicit stages without changing the public API. The
 //! pipeline keeps the existing behavior but moves orchestration out of
-//! `product.rs` so later phases can refactor classification and parsing
+//! `enrichment.rs` so later phases can refactor classification and parsing
 //! independently.
 
 mod assemble;

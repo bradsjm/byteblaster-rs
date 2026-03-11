@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn parses_exact_cf6_fixture() {
         let text =
-            include_str!("../tests/fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt");
+            include_str!("../../tests/fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt");
         let (bulletin, issues) = parse_cf6_bulletin(text).expect("cf6 bulletin");
         assert_eq!(bulletin.station, "SAIPAN/ISLEY_(CGS) MP");
         assert_eq!(bulletin.rows.len(), 9);

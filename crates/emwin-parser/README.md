@@ -117,19 +117,20 @@ crates/emwin-parser/src
 |   +-- candidate.rs # parsed intermediate candidates
 |   +-- assemble.rs  # ProductEnrichment conversion
 |
-+-- fd.rs
-+-- pirep.rs
-+-- sigmet.rs
-+-- lsr.rs
-+-- cwa.rs
-+-- wwp.rs
-+-- cf6.rs
-+-- dsm.rs
-+-- hml.rs
-+-- mos.rs
-+-- metar.rs
-+-- taf.rs
-+-- dcp.rs
++-- specialized/
+|   +-- fd.rs
+|   +-- pirep.rs
+|   +-- sigmet.rs
+|   +-- lsr.rs
+|   +-- cwa.rs
+|   +-- wwp.rs
+|   +-- cf6.rs
+|   +-- dsm.rs
+|   +-- hml.rs
+|   +-- mos.rs
+|   +-- metar.rs
+|   +-- taf.rs
+|   +-- dcp.rs
 +-- data/
     +-- generated_*  # compiled lookup tables
 ```
@@ -428,6 +429,13 @@ That separation is deliberate:
 
 - `parse_text_product()` is a strict parser API
 - `enrich_product()` is a resilient enrichment API
+
+## Fixtures
+
+Archived exact bulletin fixtures under `tests/fixtures/specialized/` are pulled
+from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` and are
+used to ground parser and end-to-end enrichment regressions against real
+products.
 
 ## Current Limitations
 

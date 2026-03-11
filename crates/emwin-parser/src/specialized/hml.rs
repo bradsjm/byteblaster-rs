@@ -167,3 +167,22 @@ fn maybe_number(value: &str) -> Option<f64> {
         other => other.parse().ok(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_hml_bulletin;
+
+    #[test]
+    fn parses_exact_hml_fixture() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100002-KMTR-SRUS56-HMLMTR.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_hml_bulletin(&text).expect("hml bulletin");
+        assert!(bulletin.documents.len() > 1);
+        assert_eq!(bulletin.documents[0].station_id, "AAMC1");
+        assert!(bulletin.documents[0].observed.is_some());
+    }
+}

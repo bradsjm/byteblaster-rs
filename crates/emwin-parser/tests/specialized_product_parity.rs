@@ -102,6 +102,23 @@ fn exact_cf6_product_parses_specialized_bulletin() {
 }
 
 #[test]
+fn exact_dsm_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "202603110415-KABQ-CXUS45-DSMCQC.txt",
+        include_bytes!("fixtures/specialized/202603110415-KABQ-CXUS45-DSMCQC.txt"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextDsmBulletin);
+    assert_eq!(enrichment.family, Some("dsm_bulletin"));
+    assert!(enrichment.body.is_none());
+
+    let bulletin = enrichment.dsm.expect("expected DSM bulletin");
+    assert_eq!(bulletin.summaries.len(), 1);
+    assert_eq!(bulletin.summaries[0].station, "KCQC");
+    assert_eq!(bulletin.summaries[0].hourly_precip_inches.len(), 24);
+}
+
+#[test]
 fn exact_hml_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100002-KMTR-SRUS56-HMLMTR.txt",

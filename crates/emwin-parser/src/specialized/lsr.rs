@@ -223,9 +223,14 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn parses_lsr_fixture() {
-        let text = "Preliminary Local Storm Report\nNational Weather Service Birmingham AL\n715 PM CDT Mon Mar 9 2026\n\n..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...\n..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....\n            ..REMARKS..\n\n0650 PM     Tstm Wnd Dmg     Brooksville             34.18N 86.47W\n03/09/2026                   Blount             AL   Emergency Mngr   \n\n            Reports of gusty winds and a few tree down \n            reports in Blount County.\n";
-        let (bulletin, issues) = parse_lsr_bulletin(text, Utc::now()).expect("lsr bulletin");
+    fn parses_exact_lsr_fixture() {
+        let text =
+            include_str!("../../tests/fixtures/specialized/202603100015-KBMX-NWUS54-LSRBMX.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let (bulletin, issues) = parse_lsr_bulletin(&text, Utc::now()).expect("lsr bulletin");
         assert_eq!(bulletin.reports.len(), 1);
         assert!(issues.is_empty());
         assert_eq!(bulletin.reports[0].city, "Brooksville");

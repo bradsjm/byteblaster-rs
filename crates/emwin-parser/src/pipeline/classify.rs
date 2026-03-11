@@ -6,23 +6,23 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::cf6::parse_cf6_bulletin;
-use crate::cwa::parse_cwa_bulletin;
 use crate::data::{
     TextProductCatalogEntry, TextProductRouting, body_extraction_plan_for_entry,
     text_product_catalog_entry,
 };
-use crate::dcp::parse_dcp_bulletin;
-use crate::dsm::parse_dsm_bulletin;
-use crate::fd::parse_fd_bulletin;
-use crate::hml::parse_hml_bulletin;
-use crate::lsr::parse_lsr_bulletin;
-use crate::metar::parse_metar_bulletin;
-use crate::mos::parse_mos_bulletin;
-use crate::pirep::parse_pirep_bulletin;
-use crate::sigmet::parse_sigmet_bulletin;
-use crate::taf::parse_taf_bulletin;
-use crate::wwp::parse_wwp_bulletin;
+use crate::specialized::cf6::parse_cf6_bulletin;
+use crate::specialized::cwa::parse_cwa_bulletin;
+use crate::specialized::dcp::parse_dcp_bulletin;
+use crate::specialized::dsm::parse_dsm_bulletin;
+use crate::specialized::fd::parse_fd_bulletin;
+use crate::specialized::hml::parse_hml_bulletin;
+use crate::specialized::lsr::parse_lsr_bulletin;
+use crate::specialized::metar::parse_metar_bulletin;
+use crate::specialized::mos::parse_mos_bulletin;
+use crate::specialized::pirep::parse_pirep_bulletin;
+use crate::specialized::sigmet::parse_sigmet_bulletin;
+use crate::specialized::taf::parse_taf_bulletin;
+use crate::specialized::wwp::parse_wwp_bulletin;
 use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enrich_header};
 
 use super::candidate::{
@@ -269,7 +269,13 @@ fn looks_like_cf6_text_product(afos: &str, body_text: &str) -> bool {
 }
 
 fn looks_like_dsm_text_product(afos: &str, body_text: &str) -> bool {
-    afos.starts_with("DSM") && body_text.contains(" DS ") && body_text.contains('=')
+    afos.starts_with("DSM")
+        && body_text.lines().any(|line| {
+            let trimmed = line.trim();
+            trimmed.len() >= 7
+                && trimmed.as_bytes().get(4..7) == Some(b" DS")
+                && trimmed.contains('/')
+        })
 }
 
 fn looks_like_hml_text_product(afos: &str, body_text: &str) -> bool {
@@ -704,6 +710,10 @@ mod tests {
     use crate::{ProductEnrichmentSource, TextProductHeader};
     use chrono::Utc;
 
+    fn exact_envelope(filename: &str, bytes: &'static [u8]) -> ParsedEnvelope {
+        ParsedEnvelope::build(NormalizedInput::from_input(filename, bytes))
+    }
+
     #[test]
     fn afos_fd_strategy_returns_fd_candidate() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
@@ -741,6 +751,151 @@ mod tests {
             classify(&envelope),
             ClassificationCandidate::Sigmet(_)
         ));
+    }
+
+    #[test]
+    fn exact_lsr_fixture_returns_lsr_candidate() {
+        let envelope = exact_envelope(
+            "202603100015-KBMX-NWUS54-LSRBMX.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100015-KBMX-NWUS54-LSRBMX.txt"),
+        );
+
+        let ClassificationCandidate::Lsr(candidate) = classify(&envelope) else {
+            panic!("expected lsr candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("LSR"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.reports.len(), 1);
+    }
+
+    #[test]
+    fn exact_cwa_active_fixture_returns_wmo_only_cwa_candidate() {
+        let envelope = exact_envelope(
+            "202603100229-KZLC-FAUS22-CWAZLC.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100229-KZLC-FAUS22-CWAZLC.txt"),
+        );
+
+        let ClassificationCandidate::Cwa(candidate) = classify(&envelope) else {
+            panic!("expected cwa candidate");
+        };
+
+        assert!(candidate.header.is_none());
+        assert!(candidate.wmo_header.is_some());
+        assert!(candidate.body_request.is_none());
+        assert!(!candidate.bulletin.is_cancelled);
+    }
+
+    #[test]
+    fn exact_cwa_cancel_fixture_returns_wmo_only_cwa_candidate() {
+        let envelope = exact_envelope(
+            "202603100038-KZFW-FAUS24-CWAZFW.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100038-KZFW-FAUS24-CWAZFW.txt"),
+        );
+
+        let ClassificationCandidate::Cwa(candidate) = classify(&envelope) else {
+            panic!("expected cwa candidate");
+        };
+
+        assert!(candidate.header.is_none());
+        assert!(candidate.wmo_header.is_some());
+        assert!(candidate.bulletin.is_cancelled);
+    }
+
+    #[test]
+    fn exact_wwp_fixture_returns_wwp_candidate() {
+        let envelope = exact_envelope(
+            "202603102008-KWNS-WWUS40-WWP1.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603102008-KWNS-WWUS40-WWP1.txt"),
+        );
+
+        let ClassificationCandidate::Wwp(candidate) = classify(&envelope) else {
+            panic!("expected wwp candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("WWP"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.watch_number, 31);
+    }
+
+    #[test]
+    fn exact_cf6_fixture_returns_cf6_candidate() {
+        let envelope = exact_envelope(
+            "202603100030-PGUM-CXGM50-CF6GSN.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt"),
+        );
+
+        let ClassificationCandidate::Cf6(candidate) = classify(&envelope) else {
+            panic!("expected cf6 candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("CF6"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.rows.len(), 9);
+    }
+
+    #[test]
+    fn exact_dsm_fixture_returns_dsm_candidate() {
+        let envelope = exact_envelope(
+            "202603110415-KABQ-CXUS45-DSMCQC.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603110415-KABQ-CXUS45-DSMCQC.txt"),
+        );
+
+        let ClassificationCandidate::Dsm(candidate) = classify(&envelope) else {
+            panic!("expected dsm candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("DSM"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.summaries[0].station, "KCQC");
+    }
+
+    #[test]
+    fn exact_hml_fixture_returns_hml_candidate() {
+        let envelope = exact_envelope(
+            "202603100002-KMTR-SRUS56-HMLMTR.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100002-KMTR-SRUS56-HMLMTR.txt"),
+        );
+
+        let ClassificationCandidate::Hml(candidate) = classify(&envelope) else {
+            panic!("expected hml candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("HML"));
+        assert!(candidate.body_request.is_none());
+        assert!(!candidate.bulletin.documents.is_empty());
+    }
+
+    #[test]
+    fn exact_met_fixture_returns_mos_candidate() {
+        let envelope = exact_envelope(
+            "202603100000-KWNO-FOUS46-METBCK.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100000-KWNO-FOUS46-METBCK.txt"),
+        );
+
+        let ClassificationCandidate::Mos(candidate) = classify(&envelope) else {
+            panic!("expected mos candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("MET"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.sections[0].station, "KBCK");
+    }
+
+    #[test]
+    fn exact_ftp_fixture_returns_mos_candidate() {
+        let envelope = exact_envelope(
+            "202603100000-KWNO-FOAK12-FTPACR.txt",
+            include_bytes!("../../tests/fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt"),
+        );
+
+        let ClassificationCandidate::Mos(candidate) = classify(&envelope) else {
+            panic!("expected mos candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("FTP"));
+        assert!(candidate.body_request.is_none());
+        assert_eq!(candidate.bulletin.sections[0].station, "AHP");
     }
 
     #[test]
@@ -879,6 +1034,97 @@ mod tests {
     }
 
     #[test]
+    fn malformed_lsr_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "LSRBMX.TXT",
+            b"000 \nNWUS54 KBMX 100015\nLSRBMX\nPreliminary Local Storm Report\nNo standard report block\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_wwp_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "WWP1.TXT",
+            b"000 \nWWUS40 KWNS 102012\nWWP1\nTORNADO WATCH PROBABILITIES FOR WT 0031\nPROBABILITY TABLE:\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_cf6_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "CF6GSN.TXT",
+            b"000 \nCXGM50 PGUM 100030\nCF6GSN\nPRELIMINARY LOCAL CLIMATOLOGICAL DATA\nMONTH: MARCH\nYEAR: 2026\nDY MAX MIN AVG DEP HDD CDD WTR\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_hml_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "HMLMTR.TXT",
+            b"000 \nSRUS56 KMTR 100002\nHMLMTR\n<?xml version=\"1.0\"?><site><observed><datum></site>\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_standard_mos_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "METBCK.TXT",
+            b"000 \nFOUS46 KWNO 100000\nMETNC1\nKBCK   NAM MOS GUIDANCE    3/10/2026  0000 UTC\nTMP 41 38 36\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_ftp_falls_back_to_text_generic() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "FTPACR.TXT",
+            b"000 \nFOAK12 KWNO 100000\nFTPACR\n.B NMC 0311\n.B1 bad header\n.END\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::TextGeneric(_)
+        ));
+    }
+
+    #[test]
+    fn invalid_wmo_only_non_cwa_does_not_hit_cwa_strategy() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "FXUS61.TXT",
+            b"FXUS61 KBOX 022101\nAREA FORECAST DISCUSSION\n",
+        ));
+
+        assert!(matches!(
+            classify(&envelope),
+            ClassificationCandidate::UnsupportedWmo(_)
+        ));
+    }
+
+    #[test]
     fn specialized_candidate_can_carry_body_request_when_metadata_enables_catalog_body_behavior() {
         let request = build_body_request(
             Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
@@ -901,7 +1147,7 @@ mod tests {
             pil: Some("FD1".to_string()),
             bbb_kind: Some(BbbKind::Amendment),
             body_request: request,
-            bulletin: crate::fd::parse_fd_bulletin(
+            bulletin: crate::specialized::fd::parse_fd_bulletin(
                 "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
                 Some("FD1US1"),
                 Utc::now(),

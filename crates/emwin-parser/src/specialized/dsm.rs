@@ -167,9 +167,13 @@ mod tests {
     #[test]
     fn parses_exact_dsm_fixture() {
         let text =
-            include_str!("../tests/fixtures/specialized/202603100000-KZAB-CDUS27-DSMGUP.txt");
-        let bulletin = parse_dsm_bulletin(text, Utc::now()).expect("dsm bulletin");
+            include_str!("../../tests/fixtures/specialized/202603110415-KABQ-CXUS45-DSMCQC.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_dsm_bulletin(&text, Utc::now()).expect("dsm bulletin");
         assert_eq!(bulletin.summaries.len(), 1);
-        assert_eq!(bulletin.summaries[0].station, "KGUP");
+        assert_eq!(bulletin.summaries[0].station, "KCQC");
     }
 }

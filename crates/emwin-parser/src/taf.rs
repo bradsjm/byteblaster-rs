@@ -112,6 +112,14 @@ fn compact_ascii_whitespace(text: &str) -> String {
 /// Parses the TAF preamble and absorbs duplicated marker patterns.
 fn parse_taf_prefix(input: &mut &str) -> Option<Preamble> {
     let preamble = alt::<_, Preamble, ContextError, _>((
+        "TAF TAF AMD".value(Preamble {
+            amendment: true,
+            correction: false,
+        }),
+        "TAF TAF COR".value(Preamble {
+            amendment: false,
+            correction: true,
+        }),
         "TAF AMD TAF AMD".value(Preamble {
             amendment: true,
             correction: false,
@@ -305,6 +313,17 @@ mod tests {
 
         assert_eq!(taf.station, "KBOS");
         assert_eq!(taf.issue_time, "090520Z");
+        assert!(taf.correction);
+        assert!(!taf.amendment);
+        assert!(taf.raw.starts_with("TAF COR KBOS 090520Z"));
+    }
+
+    #[test]
+    fn parses_marker_line_then_corrected_taf_prefix() {
+        let text = "TAF\nTAF COR KBOS 090520Z 0906/1012 28012KT P6SM FEW250\n";
+        let taf = parse_taf_bulletin(text).expect("expected marker line followed by TAF COR");
+
+        assert_eq!(taf.station, "KBOS");
         assert!(taf.correction);
         assert!(!taf.amendment);
         assert!(taf.raw.starts_with("TAF COR KBOS 090520Z"));

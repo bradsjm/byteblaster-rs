@@ -403,6 +403,26 @@ mod tests {
     }
 
     #[test]
+    fn marker_line_then_corrected_taf_bulletins_use_wmo_fallback_without_afos() {
+        let enrichment = enrich_product(
+            "TAFMDCOR.TXT",
+            b"FTXX60 KWBC 110130\nTAF\nTAF COR KSVN 110127Z 1101/1207 17006KT 9999 SKC QNH3008INS\n      BECMG 1117/1118 22009KT 9999 BKN060 QNH3004INS TX29/1117Z\n      TN17/1110Z=\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.family, Some("taf_bulletin"));
+        assert_eq!(
+            enrichment.taf.as_ref().map(|value| value.station.as_str()),
+            Some("KSVN")
+        );
+        assert_eq!(
+            enrichment.taf.as_ref().map(|value| value.correction),
+            Some(true)
+        );
+        assert!(enrichment.issues.is_empty());
+    }
+
+    #[test]
     fn wallops_telemetry_variants_with_symbol_noise_use_wmo_dcp_fallback() {
         for (filename, bytes, platform_id) in [
             (
@@ -497,12 +517,12 @@ mod tests {
     #[test]
     fn body_enrichment_uses_body_text_not_afos_line() {
         let enrichment = enrich_product(
-            "RECLWXVA.TXT",
-            b"SXUS41 KLWX 070303\nRECLWX\nVAZ507-508-071100-\n\nForecast for Shenandoah National Park Above 2000 Feet\nNational Weather Service Baltimore MD/Washington DC\n1003 PM EST Fri Mar 6 2026\n",
+            "RFDLWXVA.TXT",
+            b"FNUS41 KLWX 070303\nRFDLWX\nVAZ507-508-071100-\n\nRangeland Fire Danger Forecast\nNational Weather Service Baltimore MD/Washington DC\n1003 PM EST Fri Mar 6 2026\n",
         );
 
         assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
-        assert_eq!(enrichment.pil.as_deref(), Some("REC"));
+        assert_eq!(enrichment.pil.as_deref(), Some("RFD"));
         assert!(enrichment.issues.is_empty());
         assert_eq!(
             enrichment

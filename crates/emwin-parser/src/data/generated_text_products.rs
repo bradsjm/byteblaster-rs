@@ -6,7 +6,7 @@
 use super::{TextProductBodyBehavior, TextProductCatalogEntry, TextProductRouting};
 use crate::body::BodyExtractorId;
 
-pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-10T01:45:04Z";
+pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-11T17:16:26Z";
 pub const TEXT_PRODUCT_ENTRY_COUNT: usize = 506;
 
 pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_COUNT] = [
@@ -911,8 +911,8 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         wmo_prefix: "FO",
         title: "Flash Flood Guidance",
         routing: TextProductRouting::Generic,
-        body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Ugc],
+        body_behavior: TextProductBodyBehavior::Never,
+        extractors: &[],
     },
     TextProductCatalogEntry {
         pil: "FFH",
@@ -2770,8 +2770,8 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         wmo_prefix: "SX",
         title: "Recreational Report",
         routing: TextProductRouting::Generic,
-        body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Ugc],
+        body_behavior: TextProductBodyBehavior::Never,
+        extractors: &[],
     },
     TextProductCatalogEntry {
         pil: "RER",
@@ -3034,8 +3034,8 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         wmo_prefix: "SR",
         title: "Miscellaneous River Product",
         routing: TextProductRouting::Generic,
-        body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Ugc],
+        body_behavior: TextProductBodyBehavior::Never,
+        extractors: &[],
     },
     TextProductCatalogEntry {
         pil: "RVR",
@@ -3369,7 +3369,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Satellite Precipitation Estimates",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Ugc, BodyExtractorId::LatLon],
+        extractors: &[BodyExtractorId::LatLon],
     },
     TextProductCatalogEntry {
         pil: "SPF",

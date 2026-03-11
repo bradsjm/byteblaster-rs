@@ -362,6 +362,24 @@ mod tests {
     }
 
     #[test]
+    fn noisy_generic_ugc_families_can_disable_body_extraction() {
+        for pil in ["FFG", "REC", "RVM"] {
+            let entry = text_product_catalog_entry(pil).expect("expected generated catalog entry");
+            assert_eq!(entry.routing, TextProductRouting::Generic);
+            assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+            assert!(entry.extractors.is_empty());
+        }
+    }
+
+    #[test]
+    fn satellite_precipitation_estimates_keep_only_latlon_extraction() {
+        let entry = text_product_catalog_entry("SPE").expect("expected generated catalog entry");
+        assert_eq!(entry.routing, TextProductRouting::Generic);
+        assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
+        assert_eq!(entry.extractors, &[BodyExtractorId::LatLon]);
+    }
+
+    #[test]
     fn nwslid_lookup_is_case_insensitive() {
         let entry = nwslid_entry("chfa2").expect("expected generated nwslid entry");
         assert_eq!(entry.nwslid, "CHFA2");

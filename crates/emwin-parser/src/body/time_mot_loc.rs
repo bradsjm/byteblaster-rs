@@ -348,10 +348,28 @@ fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<Prod
         // Wrapped source lines sometimes split a single coordinate across
         // whitespace boundaries, e.g. `088` + `53` instead of `08853`.
         let token = consume_coordinate_token(tokens, &mut index)?;
+        if let Some((lat, lon)) = split_packed_coordinate_pair(&normalized, &token) {
+            normalized.push(lat);
+            normalized.push(lon);
+            continue;
+        }
         normalized.push(token);
     }
 
     Some((normalized, issues))
+}
+
+fn split_packed_coordinate_pair(normalized: &[String], token: &str) -> Option<(String, String)> {
+    if token.len() != 8 || !normalized.len().is_multiple_of(2) {
+        return None;
+    }
+
+    let lat = token[..4].to_string();
+    let lon = token[4..].to_string();
+    parse_coordinate(&lat, true)?;
+    parse_coordinate(&lon, false)?;
+
+    Some((lat, lon))
 }
 
 fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
@@ -555,6 +573,16 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].points.len(), 2);
         assert!((entries[0].points[0].1 + 88.53).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_time_mot_loc_with_packed_coordinate_pair_token() {
+        let text = "TIME...MOT...LOC 2310Z 238DEG 39KT 32210853 32250849\n";
+        let (entries, issues) = parse_time_mot_loc_entries_with_issues(text, reference_time());
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].points.len(), 2);
+        assert!(issues.is_empty());
     }
 
     #[test]

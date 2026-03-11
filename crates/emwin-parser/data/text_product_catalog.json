@@ -852,10 +852,8 @@
     "wmo_prefix": "FO",
     "title": "Flash Flood Guidance",
     "routing": "generic",
-    "body_behavior": "catalog",
-    "extractors": [
-      "ugc"
-    ]
+    "body_behavior": "never",
+    "extractors": []
   },
   "FFH": {
     "wmo_prefix": "FO",
@@ -2556,10 +2554,8 @@
     "wmo_prefix": "SX",
     "title": "Recreational Report",
     "routing": "generic",
-    "body_behavior": "catalog",
-    "extractors": [
-      "ugc"
-    ]
+    "body_behavior": "never",
+    "extractors": []
   },
   "RER": {
     "wmo_prefix": "SX",
@@ -2810,10 +2806,8 @@
     "wmo_prefix": "SR",
     "title": "Miscellaneous River Product",
     "routing": "generic",
-    "body_behavior": "catalog",
-    "extractors": [
-      "ugc"
-    ]
+    "body_behavior": "never",
+    "extractors": []
   },
   "RVR": {
     "wmo_prefix": "FG",
@@ -3132,7 +3126,6 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "ugc",
       "latlon"
     ]
   },

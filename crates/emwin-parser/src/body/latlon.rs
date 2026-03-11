@@ -268,6 +268,11 @@ fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<Prod
 
     while index < tokens.len() {
         let token = consume_coordinate_token(tokens, &mut index)?;
+        if let Some((lat, lon)) = split_packed_coordinate_pair(&normalized, &token) {
+            normalized.push(lat);
+            normalized.push(lon);
+            continue;
+        }
         // Some warning products lose an internal separator and fuse a longitude
         // token with the following latitude token, e.g. `98112979` instead of
         // `9811 2979`. Only repair the narrow 4+4 case when the stream is
@@ -288,6 +293,19 @@ fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<Prod
     }
 
     Some((normalized, issues))
+}
+
+fn split_packed_coordinate_pair(normalized: &[String], token: &str) -> Option<(String, String)> {
+    if token.starts_with('-') || token.len() != 8 || !normalized.len().is_multiple_of(2) {
+        return None;
+    }
+
+    let lat = token[..4].to_string();
+    let lon = token[4..].to_string();
+    parse_coordinate(&lat, true)?;
+    parse_coordinate(&lon, false)?;
+
+    Some((lat, lon))
 }
 
 fn consume_coordinate_token(tokens: &[&str], index: &mut usize) -> Option<String> {
@@ -626,6 +644,14 @@ mod tests {
         let polygons = parse_latlon_polygons(text);
 
         assert_eq!(polygons.len(), 1);
+    }
+
+    #[test]
+    fn parse_latlon_packed_pair_token_emits_no_repair_issue() {
+        let text = "LAT...LON 40009800 41009800 42009900";
+        let (_polygons, issues) = parse_latlon_polygons_with_issues(text);
+
+        assert!(issues.is_empty());
     }
 
     #[test]

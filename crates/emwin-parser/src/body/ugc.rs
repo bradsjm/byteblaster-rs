@@ -251,7 +251,7 @@ where
         let _ = remaining_lines.next();
     }
 
-    Some(combined)
+    has_ugc_expiration_suffix(&combined).then_some(combined)
 }
 
 fn compact_ugc_text(text: &str) -> String {
@@ -263,7 +263,7 @@ fn compact_ugc_text(text: &str) -> String {
 fn is_ugc_start(line: &str) -> bool {
     let trimmed = line.trim_start();
     let mut chars = trimmed.chars();
-    matches!(
+    let is_prefix_match = matches!(
         (
             chars.next(),
             chars.next(),
@@ -279,7 +279,15 @@ fn is_ugc_start(line: &str) -> bool {
                 && d1.is_ascii_digit()
                 && d2.is_ascii_digit()
                 && d3.is_ascii_digit()
-    )
+    );
+    if !is_prefix_match {
+        return false;
+    }
+
+    trimmed
+        .as_bytes()
+        .get(6)
+        .is_none_or(|character| matches!(character, b'-' | b'>' | b',' | b' ' | b'\t'))
 }
 
 fn has_ugc_expiration_suffix(text: &str) -> bool {
@@ -576,13 +584,12 @@ IAC001-\n\
     }
 
     #[test]
-    fn block_terminated_by_blank_line_reports_invalid_format() {
+    fn block_terminated_by_blank_line_is_ignored() {
         let text = "IAC001-\n\nNEXT SECTION:\n";
         let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
 
         assert!(sections.is_empty());
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_ugc_format");
+        assert!(issues.is_empty());
     }
 
     #[test]
@@ -604,12 +611,29 @@ IAC001-\n\
     }
 
     #[test]
-    fn invalid_expiration_reports_one_issue() {
+    fn invalid_expiration_fragment_is_ignored_without_full_block() {
         let text = "IAC001-\nBROKEN CONTINUATION\n";
         let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
 
         assert!(sections.is_empty());
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].code, "invalid_ugc_format");
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn dotted_advisory_lines_do_not_start_ugc_capture() {
+        let text = "AKZ321.WinterWeatherAdvisoryfrom4AMto4PMAKDTWednesdayforAKZ323.";
+        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
+
+        assert!(sections.is_empty());
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn incomplete_ugc_candidates_without_expiration_are_ignored() {
+        let text = "OVC002\nWAZ040-10630-\n";
+        let (sections, issues) = parse_ugc_sections_with_issues(text, test_valid_time());
+
+        assert!(sections.is_empty());
+        assert!(issues.is_empty());
     }
 }

@@ -223,17 +223,30 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn parses_exact_lsr_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100015-KBMX-NWUS54-LSRBMX.txt")
-                .lines()
-                .skip(3)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let (bulletin, issues) = parse_lsr_bulletin(&text, Utc::now()).expect("lsr bulletin");
+    fn parses_local_lsr_report() {
+        let text = "\
+0150 AM     HAIL             BROOKSVILLE             34.40N 87.70W
+03/10/2026  1.00 IN          WINSTON             AL  PUBLIC
+QUARTER SIZE HAIL REPORTED
+&&";
+        let (bulletin, issues) = parse_lsr_bulletin(text, Utc::now()).expect("lsr bulletin");
         assert_eq!(bulletin.reports.len(), 1);
         assert!(issues.is_empty());
-        assert_eq!(bulletin.reports[0].city, "Brooksville");
+        assert_eq!(bulletin.reports[0].city, "BROOKSVILLE");
         assert_eq!(bulletin.reports[0].state.as_deref(), Some("AL"));
+    }
+
+    #[test]
+    fn malformed_lsr_block_reports_issue_but_keeps_valid_report() {
+        let text = "\
+0150 AM     HAIL             BROOKSVILLE             34.40N 87.70W
+03/10/2026  1.00 IN          WINSTON             AL  PUBLIC
+0145 AM     HAIL             NOWHERE                 34.00N 87.00W
+03/10/2026
+&&";
+        let (bulletin, issues) = parse_lsr_bulletin(text, Utc::now()).expect("lsr bulletin");
+        assert_eq!(bulletin.reports.len(), 1);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "invalid_lsr_report");
     }
 }

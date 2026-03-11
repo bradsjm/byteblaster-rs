@@ -173,15 +173,18 @@ mod tests {
     use super::parse_hml_bulletin;
 
     #[test]
-    fn parses_exact_hml_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100002-KMTR-SRUS56-HMLMTR.txt")
-                .lines()
-                .skip(3)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_hml_bulletin(&text).expect("hml bulletin");
-        assert!(bulletin.documents.len() > 1);
+    fn parses_local_hml_document() {
+        let text = r#"<?xml version="1.0"?>
+<site id="AAMC1" name="ARROYO SECO" originator="MTR" generationtime="2026-03-10T00:02:00Z">
+  <observed issued="2026-03-10T00:00:00Z" primaryName="Stage" primaryUnits="FT">
+    <datum><valid>2026-03-10T00:00:00Z</valid><primary>2.5</primary></datum>
+  </observed>
+  <forecast issued="2026-03-10T00:00:00Z" primaryName="Stage" primaryUnits="FT">
+    <datum><valid>2026-03-10T06:00:00Z</valid><primary>3.0</primary></datum>
+  </forecast>
+</site>"#;
+        let bulletin = parse_hml_bulletin(text).expect("hml bulletin");
+        assert_eq!(bulletin.documents.len(), 1);
         assert_eq!(bulletin.documents[0].station_id, "AAMC1");
         assert!(bulletin.documents[0].observed.is_some());
     }

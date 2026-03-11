@@ -233,14 +233,12 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn parses_exact_active_cwa_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100229-KZLC-FAUS22-CWAZLC.txt")
-                .lines()
-                .skip(2)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_cwa_bulletin(&text, Utc::now()).expect("cwa bulletin");
+    fn parses_local_active_cwa() {
+        let text = "\
+ZLC CWA 202 100229
+ZLC CWA 202 VALID UNTIL 100430
+FROM SLC-SHR-DDY AREA TS.";
+        let bulletin = parse_cwa_bulletin(text, Utc::now()).expect("cwa bulletin");
         assert!(!bulletin.is_cancelled);
         assert_eq!(bulletin.number, 202);
         assert!(matches!(
@@ -250,14 +248,12 @@ mod tests {
     }
 
     #[test]
-    fn parses_exact_cancel_cwa_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100038-KZFW-FAUS24-CWAZFW.txt")
-                .lines()
-                .skip(2)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_cwa_bulletin(&text, Utc::now()).expect("cancel cwa");
+    fn parses_local_cancel_cwa() {
+        let text = "\
+ZFW CWA 101 100038
+ZFW CWA 101 VALID UNTIL 100200
+CANCEL CWA 101. ERROR CORRECTED.";
+        let bulletin = parse_cwa_bulletin(text, Utc::now()).expect("cancel cwa");
         assert!(bulletin.is_cancelled);
         assert!(bulletin.geometry.is_none());
     }

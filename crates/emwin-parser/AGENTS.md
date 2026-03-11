@@ -333,6 +333,12 @@ Every architecture-affecting parser change must add or update tests close to the
 
 Integration tests should use real product bulletins as fixtures where possible, especially for classification and assembly changes from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
 
+Unit tests under `src/**` must not depend on files under `tests/**`.
+
+Archived real-bulletin fixtures belong under `tests/fixtures/**` and must be consumed only by integration tests under `tests/**`.
+
+Unit tests in `src/**` should use inline or module-local data and focus on parser mechanics, candidate logic, and output-shape behavior.
+
 ### `pyIEM` sanity checks
 
 Use `pyIEM` as a behavior and fixture sanity-check source when working on weather product parsers.
@@ -412,6 +418,7 @@ Reject changes that do any of the following:
 - add generic body parsing directly from header enrichment
 - bypass generator validation by editing generated files manually
 - preserve obsolete names “for compatibility” during development
+- adding `src/**` tests that read fixtures from `tests/**`
 
 ## Practical Update Checklists
 

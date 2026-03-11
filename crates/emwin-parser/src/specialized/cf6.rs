@@ -188,12 +188,17 @@ mod tests {
     use super::parse_cf6_bulletin;
 
     #[test]
-    fn parses_exact_cf6_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt");
+    fn parses_local_cf6_rows() {
+        let text = "\
+PRELIMINARY LOCAL CLIMATOLOGICAL DATA
+STATION: TEST STATION
+MONTH: MARCH
+YEAR: 2026
+DY MAX MIN AVG DEP HDD CDD PCP SNW SND AWD MWD DIR MIN PSBL SKY WX GST GDR
+ 1 70 50 60 0 5 0 0.10 0.0 0 8.5 20 180 600 720 CLR RA 30 190";
         let (bulletin, issues) = parse_cf6_bulletin(text).expect("cf6 bulletin");
-        assert_eq!(bulletin.station, "SAIPAN/ISLEY_(CGS) MP");
-        assert_eq!(bulletin.rows.len(), 9);
+        assert_eq!(bulletin.station, "TEST STATION");
+        assert_eq!(bulletin.rows.len(), 1);
         assert!(issues.is_empty());
     }
 }

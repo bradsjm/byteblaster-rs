@@ -434,8 +434,9 @@ That separation is deliberate:
 
 Archived exact bulletin fixtures under `tests/fixtures/specialized/` are pulled
 from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` and are
-used to ground parser and end-to-end enrichment regressions against real
-products.
+used by integration tests under `tests/` to ground end-to-end enrichment
+regressions against real products. Unit tests under `src/**` should use
+inline or module-local samples and must not import files from `tests/**`.
 
 ## Current Limitations
 

@@ -97,14 +97,24 @@ mod tests {
     use super::{WwpWatchType, parse_wwp_bulletin};
 
     #[test]
-    fn parses_exact_wwp_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603102008-KWNS-WWUS40-WWP1.txt")
-                .lines()
-                .skip(4)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_wwp_bulletin(&text).expect("wwp bulletin");
+    fn parses_local_wwp_bulletin() {
+        let text = "\
+TORNADO WATCH PROBABILITIES FOR WT 0031
+
+PROB OF 2 OR MORE TORNADOES : 20%
+PROB OF 1 OR MORE STRONG /EF2-EF5/ TORNADOES : 10%
+PROB OF 10 OR MORE SEVERE WIND EVENTS : 70%
+PROB OF 1 OR MORE WIND EVENTS >= 65 KNOTS : 40%
+PROB OF 10 OR MORE SEVERE HAIL EVENTS : 60%
+PROB OF 1 OR MORE HAIL EVENTS >= 2 INCHES : 30%
+PROB OF 6 OR MORE COMBINED SEVERE HAIL/WIND EVENTS : 95%
+
+MAX HAIL /INCHES/ : 2.0
+MAX WIND GUSTS SURFACE /KNOTS/ : 70
+MAX TOPS /X 100 FEET/ : 500
+MEAN STORM MOTION VECTOR /DEGREES AND KNOTS/ : 24035
+PARTICULARLY DANGEROUS SITUATION : NO";
+        let bulletin = parse_wwp_bulletin(text).expect("wwp bulletin");
         assert_eq!(bulletin.watch_type, WwpWatchType::Tornado);
         assert_eq!(bulletin.watch_number, 31);
         assert_eq!(bulletin.prob_combined_hail_wind_6_or_more, 95);

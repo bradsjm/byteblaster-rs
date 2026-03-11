@@ -243,14 +243,13 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn parses_exact_standard_mos_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100000-KWNO-FOUS46-METBCK.txt")
-                .lines()
-                .skip(3)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("mos bulletin");
+    fn parses_local_standard_mos_section() {
+        let text = "\
+KBCK NAM MET GUIDANCE 03/10/2026 0000 UTC
+HR 00 03 06
+TMP 20 21 22
+WND 05 06 07";
+        let bulletin = parse_mos_bulletin(text, Utc::now()).expect("mos bulletin");
         assert_eq!(bulletin.sections.len(), 1);
         assert_eq!(bulletin.sections[0].station, "KBCK");
         assert!(bulletin.sections[0].forecasts[0].values.contains_key("TMP"));
@@ -258,14 +257,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_exact_ftp_fixture() {
-        let text =
-            include_str!("../../tests/fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt")
-                .lines()
-                .skip(3)
-                .collect::<Vec<_>>()
-                .join("\n");
-        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("ftp mos bulletin");
+    fn parses_local_ftp_mos_section() {
+        let text = "\
+.B FTP 0310 DH06/DC03100600
+AHP 12/08/13/09";
+        let bulletin = parse_mos_bulletin(text, Utc::now()).expect("ftp mos bulletin");
         assert!(!bulletin.sections.is_empty());
         assert_eq!(bulletin.sections[0].station, "AHP");
         assert!(

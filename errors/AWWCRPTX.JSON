@@ -1,0 +1,56 @@
+{
+  "filename": "AWWCRPTX.TXT",
+  "size": 482,
+  "timestamp_utc": 1773182957,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Aviation Weather Warning",
+    "container": "raw",
+    "pil": "AWW",
+    "wmo_prefix": "WW",
+    "office": {
+      "code": "CRP",
+      "city": "Corpus Christi",
+      "state": "TX"
+    },
+    "header": {
+      "ttaaii": "WWUS84",
+      "cccc": "KCRP",
+      "ddhhmm": "102249",
+      "bbb": null,
+      "afos": "AWWCRP"
+    },
+    "body": {
+      "ugc": [
+        {
+          "zones": {
+            "TX": [
+              {
+                "id": 243,
+                "name": "Inland Nueces",
+                "lat": 27.7423,
+                "lon": -97.7226
+              },
+              {
+                "id": 343,
+                "name": "Coastal Nueces",
+                "lat": 27.6637,
+                "lon": -97.4107
+              }
+            ]
+          },
+          "expires": "2026-03-11T01:45:00Z"
+        }
+      ]
+    },
+    "issues": [
+      {
+        "kind": "latlon_parse",
+        "code": "invalid_latlon_coordinate_format",
+        "message": "could not normalize LAT...LON coordinates from block: `LAT...LON 2785 9760 2780 9741 2771 9743 2775 9762 $$`",
+        "line": "LAT...LON 2785 9760 2780 9741 2771 9743 2775 9762 $$"
+      }
+    ]
+  }
+}

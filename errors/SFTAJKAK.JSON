@@ -1,0 +1,145 @@
+{
+  "filename": "SFTAJKAK.TXT",
+  "size": 4023,
+  "timestamp_utc": 1773191993,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Tabular State Forecast",
+    "container": "raw",
+    "pil": "SFT",
+    "wmo_prefix": "FP",
+    "office": {
+      "code": "AJK",
+      "city": "Juneau",
+      "state": "AK"
+    },
+    "header": {
+      "ttaaii": "FPAK67",
+      "cccc": "PAJK",
+      "ddhhmm": "110119",
+      "bbb": null,
+      "afos": "SFTAJK"
+    },
+    "body": {
+      "ugc": [
+        {
+          "zones": {
+            "AK": [
+              {
+                "id": 317,
+                "name": "City and Borough of Yakutat",
+                "lat": 59.8909,
+                "lon": -140.3727
+              },
+              {
+                "id": 318,
+                "name": "Municipality of Skagway",
+                "lat": 59.5617,
+                "lon": -135.338
+              },
+              {
+                "id": 319,
+                "name": "Haines Borough and Klukwan",
+                "lat": 59.1229,
+                "lon": -135.5035
+              },
+              {
+                "id": 320,
+                "name": "Glacier Bay",
+                "lat": 58.7923,
+                "lon": -136.375
+              },
+              {
+                "id": 321,
+                "name": "Eastern Chichagof Island",
+                "lat": 58.0323,
+                "lon": -135.5319
+              },
+              {
+                "id": 322,
+                "name": "Cape Fairweather to Lisianski Strait",
+                "lat": 58.3917,
+                "lon": -136.9205
+              },
+              {
+                "id": 323,
+                "name": "City and Borough of Sitka",
+                "lat": 57.2368,
+                "lon": -135.3018
+              },
+              {
+                "id": 324,
+                "name": "Admiralty Island",
+                "lat": 57.7045,
+                "lon": -134.0838
+              },
+              {
+                "id": 325,
+                "name": "City and Borough of Juneau",
+                "lat": 58.458,
+                "lon": -134.1724
+              },
+              {
+                "id": 326,
+                "name": "Petersburg Borough",
+                "lat": 57.1337,
+                "lon": -132.9266
+              },
+              {
+                "id": 326,
+                "name": "Petersburg Borough",
+                "lat": 57.1337,
+                "lon": -132.9266
+              },
+              {
+                "id": 327,
+                "name": "Western Kupreanof and Kuiu Island",
+                "lat": 56.6439,
+                "lon": -133.8989
+              },
+              {
+                "id": 328,
+                "name": "Prince of Wales Island",
+                "lat": 55.5012,
+                "lon": -132.8811
+              },
+              {
+                "id": 329,
+                "name": "City and Borough of Wrangell",
+                "lat": 56.3356,
+                "lon": -132.0134
+              },
+              {
+                "id": 330,
+                "name": "Ketchikan Gateway Borough",
+                "lat": 55.5976,
+                "lon": -130.9293
+              },
+              {
+                "id": 331,
+                "name": "City of Hyder",
+                "lat": 55.9588,
+                "lon": -130.169
+              },
+              {
+                "id": 332,
+                "name": "Annette Island",
+                "lat": 55.1277,
+                "lon": -131.4853
+              }
+            ]
+          },
+          "expires": "2026-03-11T13:00:00Z"
+        }
+      ]
+    },
+    "issues": [
+      {
+        "kind": "body_qc",
+        "code": "ugc_duplicate_code",
+        "message": "encountered duplicated UGC codes in parsed product body: AKZ326"
+      }
+    ]
+  }
+}

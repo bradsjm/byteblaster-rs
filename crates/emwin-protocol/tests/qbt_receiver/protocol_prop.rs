@@ -1,3 +1,5 @@
+//! Property tests for decoder robustness and chunking behavior.
+
 use crate::support::build_single_block_frame;
 use emwin_protocol::qbt_receiver::{QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder};
 use proptest::prelude::*;

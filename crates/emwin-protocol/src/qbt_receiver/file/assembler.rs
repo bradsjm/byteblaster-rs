@@ -1,7 +1,4 @@
-//! File assembly from EMWIN protocol segments.
-//!
-//! This module provides functionality for assembling complete files from
-//! individual data segments received over the EMWIN protocol.
+//! Assemble completed files from incoming QBT segments.
 
 use crate::qbt_receiver::error::QbtReceiverError;
 use crate::qbt_receiver::protocol::model::QbtSegment;
@@ -15,7 +12,7 @@ const DEFAULT_MAX_INFLIGHT_FILES: usize = 256;
 /// Default TTL for inflight file entries (in seconds).
 const DEFAULT_INFLIGHT_TTL_SECS: u64 = 90;
 
-/// A completed file with its filename and data.
+/// Completed file emitted by the assembler.
 #[derive(Debug, Clone)]
 pub struct QbtCompletedFile {
     /// The filename of the completed file.
@@ -26,31 +23,16 @@ pub struct QbtCompletedFile {
     pub timestamp_utc: SystemTime,
 }
 
-/// Trait for segment assemblers that can collect and assemble file segments.
+/// Trait for assemblers that consume segments and emit completed files.
 pub trait QbtSegmentAssembler {
-    /// Pushes a segment into the assembler.
-    ///
-    /// # Arguments
-    ///
-    /// * `segment` - The segment to add
-    ///
-    /// # Returns
-    ///
-    /// `Some(QbtCompletedFile)` if this segment completes a file, `None` otherwise
+    /// Pushes one segment into the assembler.
     fn push(&mut self, segment: QbtSegment) -> Result<Option<QbtCompletedFile>, QbtReceiverError>;
 
     /// Clears all in-progress and completed files.
     fn clear(&mut self);
 }
 
-/// File assembler that collects segments and produces complete files.
-///
-/// This assembler:
-/// - Tracks in-progress files by filename and timestamp
-/// - Handles out-of-order segment arrival
-/// - Suppresses duplicate completed files
-/// - Evicts stale entries based on TTL
-/// - Limits concurrent inflight files
+/// File assembler that tracks in-flight products until all blocks arrive.
 #[derive(Debug, Default)]
 pub struct QbtFileAssembler {
     /// Inflight files being assembled, keyed by file_key().
@@ -79,11 +61,7 @@ struct InflightFile {
 }
 
 impl QbtFileAssembler {
-    /// Creates a new file assembler with default limits.
-    ///
-    /// # Arguments
-    ///
-    /// * `duplicate_cache_size` - Number of completed files to remember for duplicate suppression
+    /// Creates an assembler with default inflight limits and duplicate suppression.
     pub fn new(duplicate_cache_size: usize) -> Self {
         Self::with_limits(
             duplicate_cache_size,
@@ -92,13 +70,7 @@ impl QbtFileAssembler {
         )
     }
 
-    /// Creates a new file assembler with custom limits.
-    ///
-    /// # Arguments
-    ///
-    /// * `duplicate_cache_size` - Number of completed files to remember
-    /// * `max_inflight_files` - Maximum concurrent files being assembled
-    /// * `inflight_ttl` - Time-to-live for inactive inflight files
+    /// Creates an assembler with explicit duplicate, capacity, and TTL limits.
     pub fn with_limits(
         duplicate_cache_size: usize,
         max_inflight_files: usize,
@@ -114,7 +86,7 @@ impl QbtFileAssembler {
         }
     }
 
-    /// Generates a unique key for a segment based on filename and timestamp.
+    /// Generates the duplicate-suppression key for a segment.
     fn file_key(segment: &QbtSegment) -> String {
         let ts = segment
             .timestamp_utc
@@ -145,7 +117,7 @@ impl QbtFileAssembler {
             .retain(|_, inflight| now.duration_since(inflight.last_seen) <= ttl);
     }
 
-    /// Evicts oldest inflight entries to make room for new ones.
+    /// Evicts the oldest inflight entries to make room for new ones.
     fn evict_overflow_inflight(&mut self, min_capacity: usize) {
         while self.by_key.len() >= min_capacity {
             let Some(oldest_key) = self

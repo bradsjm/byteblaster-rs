@@ -1,3 +1,5 @@
+//! QBT protocol and runtime integration test entrypoint.
+
 #[path = "qbt_receiver/support/mod.rs"]
 mod support;
 

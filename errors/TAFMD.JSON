@@ -1,0 +1,29 @@
+{
+  "filename": "TAFMD.TXT",
+  "size": 167,
+  "timestamp_utc": 1773192610,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "office": {
+      "code": "WBC",
+      "city": "National Centers for Environmental Prediction",
+      "state": "MD"
+    },
+    "wmo_header": {
+      "ttaaii": "FTXX60",
+      "cccc": "KWBC",
+      "ddhhmm": "110130",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_wmo_bulletin",
+        "message": "recognized valid WMO bulletin without AFOS line, but no parser is available",
+        "line": "TAF"
+      }
+    ]
+  }
+}

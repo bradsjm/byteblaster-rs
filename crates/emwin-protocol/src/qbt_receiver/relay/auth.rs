@@ -1,15 +1,8 @@
-//! Authentication parser for QBT relay clients.
-//!
-//! This module provides stateful parsing of authentication messages from downstream
-//! clients connecting to the relay. It accumulates decoded wire data and extracts
-//! logon messages using the ByteBlast protocol format.
+//! Stateful parser for downstream relay authentication messages.
 
 use crate::qbt_receiver::protocol::auth::{LOGON_PREFIX, LOGON_SUFFIX, parse_logon_message};
 
-/// State machine for parsing authentication from wire chunks.
-///
-/// Accumulates XOR-decoded text and extracts complete logon messages
-/// when the ByteBlast format is detected.
+/// Incremental parser for relay logon messages.
 #[derive(Default)]
 pub(super) struct AuthParser {
     /// Accumulated decoded text buffer (capped at 8KB).
@@ -17,21 +10,10 @@ pub(super) struct AuthParser {
 }
 
 impl AuthParser {
-    /// Consumes a wire chunk and attempts to extract an authenticated email.
+    /// Consumes a wire chunk and extracts an authenticated email when a full logon arrives.
     ///
-    /// XOR-decodes the wire data, appends it to the internal buffer, and
-    /// scans for complete logon messages in ByteBlast format.
-    ///
-    /// The buffer is capped at 8KB to prevent unbounded growth.
-    ///
-    /// # Arguments
-    ///
-    /// * `wire` - Raw bytes from the wire (XOR-encoded)
-    ///
-    /// # Returns
-    ///
-    /// The authenticated email address if a valid logon message was found,
-    /// `None` otherwise.
+    /// The parser keeps only the trailing 8 KiB of decoded text so malformed or noisy clients
+    /// cannot grow the buffer without bound.
     pub(super) fn consume(&mut self, wire: &[u8]) -> Option<String> {
         let decoded = wire.iter().map(|byte| byte ^ 0xFF).collect::<Vec<_>>();
         self.decoded_text

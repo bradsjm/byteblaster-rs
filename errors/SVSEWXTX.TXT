@@ -1,0 +1,80 @@
+WWUS54 KEWX 102346
+SVSEWX
+
+Severe Weather Statement
+National Weather Service Austin/San Antonio TX
+646 PM CDT Tue Mar 10 2026
+
+TXC137-102356-
+/O.CAN.KEWX.SV.W.0013.000000T0000Z-260311T0015Z/
+Edwards TX-
+646 PM CDT Tue Mar 10 2026
+
+...THE SEVERE THUNDERSTORM WARNING FOR SOUTH CENTRAL EDWARDS COUNTY
+IS CANCELLED...
+
+The severe thunderstorm which prompted the warning has moved out of
+the warned area. Therefore, the warning has been cancelled.
+
+A Tornado Watch remains in effect until 1000 PM CDT for south central
+Texas.
+
+LAT...LON 2951 9960 2950 9967 2953 10003 2962 10003
+      2963 10001 2966 10003 2968 10002 2969 10004
+      2972 10004 2972 10002 2973 10003 2989 9961
+TIME...MOT...LOC 2346Z 254DEG 32KT 2967 9996
+
+$$
+
+TXC385-463-110015-
+/O.CON.KEWX.SV.W.0013.000000T0000Z-260311T0015Z/
+Uvalde TX-Real TX-
+646 PM CDT Tue Mar 10 2026
+
+...A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 715 PM CDT
+FOR NORTHWESTERN UVALDE AND SOUTHERN REAL COUNTIES...
+
+At 646 PM CDT, a severe thunderstorm was located near Camp Wood, or
+12 miles west of Leakey, moving east at 35 mph.
+
+HAZARD...Golf ball size hail and 70 mph wind gusts.
+
+SOURCE...Radar indicated.
+
+IMPACT...People and animals outdoors will be injured. Expect hail
+         damage to roofs, siding, windows, and vehicles. Expect
+         considerable tree damage. Wind damage is also likely to
+         mobile homes, roofs, and outbuildings.
+
+Locations impacted include...
+Leakey, Camp Wood, Montell, Garner State Park, Tuff, Rio Frio, Reagan
+Wells, Concan, Barksdale, and Lost Maples State Natural Area.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+A Tornado Watch remains in effect until 1000 PM CDT for south central
+Texas.
+
+For your protection move to an interior room on the lowest floor of a
+building.
+
+This storm is producing destructive winds and large damaging hail.
+SEEK SHELTER NOW inside a sturdy structure and stay away from
+windows.
+
+&&
+
+LAT...LON 2951 9960 2950 9967 2953 10003 2962 10003
+      2963 10001 296610003 2968 10002 2969 10004
+      2972 10004 2972 10002 2973 10003 2989 9961
+TIME...MOT...LOC 2346Z 254DEG 32KT 2967 9996
+
+THUNDERSTORM DAMAGE THREAT...CONSIDERABLE
+HAIL THREAT...RADAR INDICATED
+MAX HAIL SIZE...1.75 IN
+WIND THREAT...RADAR INDICATED
+MAX WIND GUST...70 MPH
+
+$$
+
+62

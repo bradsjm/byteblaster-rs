@@ -1,13 +1,8 @@
-//! Protocol codec for EMWIN wire format.
+//! Stateful codec for the QBT wire format.
 //!
-//! This module provides the main protocol decoder that handles:
-//! - XOR 0xFF wire obfuscation
-//! - Frame synchronization
-//! - V1 and V2 frame parsing
-//! - Checksum validation
-//! - Zlib decompression (V2)
-//! - Server list parsing
-//! - Text padding trimming
+//! The decoder turns an arbitrary stream of XOR-obfuscated bytes into typed protocol events. It
+//! owns resynchronization, frame classification, checksum validation, and the V2 decompression
+//! boundary so higher layers never have to reason about partial wire state.
 
 use crate::qbt_receiver::config::{QbtDecodeConfig, QbtV2CompressionPolicy};
 use crate::qbt_receiver::error::QbtProtocolError;
@@ -33,47 +28,22 @@ const HEADER_SIZE: usize = 80;
 /// Body size for V1 protocol frames (fixed 1024 bytes).
 const V1_BODY_SIZE: usize = 1024;
 
-/// Trait for frame decoders that can process wire data.
+/// Trait for decoders that consume raw QBT wire bytes.
 pub trait QbtFrameDecoder {
-    /// Feeds a chunk of wire data to the decoder.
-    ///
-    /// # Arguments
-    ///
-    /// * `chunk` - Raw bytes from the wire (XOR 0xFF encoded)
-    ///
-    /// # Returns
-    ///
-    /// A vector of decoded frame events
+    /// Feeds one chunk of XOR-obfuscated wire data into the decoder.
     fn feed(&mut self, chunk: &[u8]) -> Result<Vec<QbtFrameEvent>, QbtProtocolError>;
 
     /// Resets the decoder state.
     fn reset(&mut self);
 }
 
-/// Trait for frame encoders that can create wire data.
+/// Trait for encoders that build outbound QBT wire frames.
 pub trait QbtFrameEncoder {
-    /// Encodes an authentication message.
-    ///
-    /// # Arguments
-    ///
-    /// * `auth` - The authentication message to encode
-    ///
-    /// # Returns
-    ///
-    /// Encoded bytes ready for transmission
+    /// Encodes an authentication message into its wire representation.
     fn encode_auth(&self, auth: &QbtAuthMessage) -> Result<Bytes, QbtProtocolError>;
 }
 
-/// Internal state machine for the protocol decoder.
-///
-/// The decoder processes frames through a series of states:
-/// - `Resync`: Looking for sync bytes to start a new frame
-/// - `StartFrame`: Skipping padding after sync
-/// - `FrameType`: Detecting the type of frame (data block or server list)
-/// - `QbtServerList`: Processing server list frame content
-/// - `BlockHeader`: Parsing data block header fields
-/// - `BlockBody`: Reading the body content
-/// - `Validate`: Validating checksum and emitting the segment
+/// Internal state machine for the streaming decoder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecoderState {
     /// Looking for sync bytes (six null bytes).
@@ -92,10 +62,7 @@ enum DecoderState {
     Validate,
 }
 
-/// Pending segment being assembled from a data block frame.
-///
-/// This holds the partially parsed data from the header and
-/// the body content as it's being read.
+/// Partially decoded data-block frame held between state-machine steps.
 #[derive(Debug)]
 struct PendingSegment {
     /// Filename from the /PF header field.
@@ -122,23 +89,8 @@ struct PendingSegment {
 
 /// Stateful decoder for EMWIN protocol frames.
 ///
-/// This decoder processes raw wire data (XOR 0xFF encoded) and emits
-/// high-level frame events. It handles:
-/// - Frame synchronization
-/// - Header parsing
-/// - Body reading
-/// - Checksum validation
-/// - Zlib decompression (V2)
-///
-/// # Example
-///
-/// ```
-/// use emwin_protocol::qbt_receiver::{QbtFrameDecoder, QbtProtocolDecoder};
-///
-/// let mut decoder = QbtProtocolDecoder::default();
-/// // Feed XOR-encoded wire data
-/// let events = decoder.feed(&[]).expect("decode should not fail");
-/// ```
+/// The type is intentionally incremental: callers can feed TCP-sized chunks and rely on the
+/// decoder to retain unfinished frame state between calls.
 #[derive(Debug)]
 pub struct QbtProtocolDecoder {
     /// Decoder configuration.
@@ -158,11 +110,7 @@ impl Default for QbtProtocolDecoder {
 }
 
 impl QbtProtocolDecoder {
-    /// Creates a new protocol decoder with the given configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Decoder configuration options
+    /// Creates a decoder with the supplied checksum and compression policy.
     pub fn new(config: QbtDecodeConfig) -> Self {
         Self {
             config,
@@ -172,10 +120,7 @@ impl QbtProtocolDecoder {
         }
     }
 
-    /// Processes the internal buffer based on current state.
-    ///
-    /// This is the main state machine dispatch. It processes as much
-    /// data as possible and returns whether progress was made.
+    /// Dispatches one state-machine step against the buffered wire data.
     fn process_buffer(&mut self, out: &mut Vec<QbtFrameEvent>) -> Result<bool, QbtProtocolError> {
         match self.state {
             DecoderState::Resync => Ok(self.find_sync()),
@@ -188,11 +133,7 @@ impl QbtProtocolDecoder {
         }
     }
 
-    /// Finds sync bytes in the buffer to synchronize frame boundaries.
-    ///
-    /// Looks for six consecutive null bytes. If found, consumes everything
-    /// up to and including the sync bytes and transitions to StartFrame state.
-    /// If not found, keeps the last 5 bytes in case they're partial sync.
+    /// Searches for the six-byte sync marker and retains a suffix for split markers.
     fn find_sync(&mut self) -> bool {
         if self.buffer.len() < SYNC_BYTES.len() {
             return false;
@@ -218,10 +159,7 @@ impl QbtProtocolDecoder {
         }
     }
 
-    /// Skips null padding bytes after sync.
-    ///
-    /// Some frames have additional null padding after the sync bytes.
-    /// This method consumes all null bytes until a non-null byte is found.
+    /// Consumes any padding that follows a sync marker before frame classification.
     fn skip_padding(&mut self) -> bool {
         let mut skipped = 0usize;
         while self.buffer.first() == Some(&0) {
@@ -235,12 +173,7 @@ impl QbtProtocolDecoder {
         skipped > 0
     }
 
-    /// Detects the type of frame based on the first non-null bytes.
-    ///
-    /// Frame types:
-    /// - `/PF` - Data block frame (transitions to BlockHeader state)
-    /// - `/Se` or `/ServerList/` - Server list frame (transitions to QbtServerList state)
-    /// - Anything else - Invalid, resync
+    /// Routes the decoder into the handler for the next frame kind.
     fn detect_frame_type(&mut self) -> bool {
         if self.buffer.is_empty() {
             return false;

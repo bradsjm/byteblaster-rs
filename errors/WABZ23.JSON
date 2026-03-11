@@ -1,0 +1,24 @@
+{
+  "filename": "WABZ23.TXT",
+  "size": 189,
+  "timestamp_utc": 1773184670,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "WABZ23",
+      "cccc": "SBGL",
+      "ddhhmm": "102310",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_airmet_bulletin",
+        "message": "recognized valid WMO AIRMET bulletin, but textual AIRMET parsing is not implemented",
+        "line": "SBCW AIRMET 26 VALID 102315/110130 SBCW - SBCW CURITIBA FIR BKN CLD 200/1000FT FCST WI S2337 W05133 - S2303 W05133 - S2303 W05044 - S2337 W05044 - S2337 W05133  STNR NC="
+      }
+    ]
+  }
+}

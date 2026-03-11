@@ -1,0 +1,129 @@
+{
+  "filename": "SVREAXMO.TXT",
+  "size": 1234,
+  "timestamp_utc": 1773189248,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Severe Thunderstorm Warning",
+    "container": "raw",
+    "pil": "SVR",
+    "wmo_prefix": "WU",
+    "office": {
+      "code": "EAX",
+      "city": "Pleasant Hill",
+      "state": "MO"
+    },
+    "header": {
+      "ttaaii": "WUUS53",
+      "cccc": "KEAX",
+      "ddhhmm": "110033",
+      "bbb": null,
+      "afos": "SVREAX"
+    },
+    "body": {
+      "vtec": [
+        {
+          "status": "O",
+          "status_description": "Operational",
+          "action": "NEW",
+          "action_description": "New",
+          "office": "KEAX",
+          "phenomena": "SV",
+          "phenomena_description": "Severe Thunderstorm",
+          "significance": "W",
+          "significance_description": "Warning",
+          "etn": 23,
+          "begin": "2026-03-11T00:33:00Z",
+          "end": "2026-03-11T01:15:00Z"
+        }
+      ],
+      "ugc": [
+        {
+          "counties": {
+            "MO": [
+              {
+                "id": 197,
+                "name": "Schuyler",
+                "lat": 40.4703,
+                "lon": -92.5209
+              }
+            ]
+          },
+          "expires": "2026-03-11T01:15:00Z"
+        }
+      ],
+      "latlon": [
+        {
+          "points": [
+            [
+              40.51,
+              -92.35
+            ],
+            [
+              40.49,
+              -92.54
+            ],
+            [
+              40.59,
+              -92.56
+            ],
+            [
+              40.6,
+              -92.54
+            ],
+            [
+              40.6,
+              -92.35
+            ],
+            [
+              40.51,
+              -92.35
+            ]
+          ],
+          "wkt": "POLYGON((-92.350000 40.510000, -92.540000 40.490000, -92.560000 40.590000, -92.540000 40.600000, -92.350000 40.600000, -92.350000 40.510000))"
+        }
+      ],
+      "time_mot_loc": [
+        {
+          "time_utc": "2026-03-11T00:33:00Z",
+          "direction_degrees": 262,
+          "speed_kt": 38,
+          "points": [
+            [
+              40.55,
+              -92.46
+            ]
+          ],
+          "wkt": "POINT(-92.4600 40.5500)"
+        }
+      ],
+      "wind_hail": [
+        {
+          "kind": "hail_threat"
+        },
+        {
+          "kind": "max_hail_size",
+          "numeric_value": 1.0,
+          "units": "IN"
+        },
+        {
+          "kind": "wind_threat"
+        },
+        {
+          "kind": "max_wind_gust",
+          "numeric_value": 60.0,
+          "units": "MPH"
+        }
+      ]
+    },
+    "issues": [
+      {
+        "kind": "latlon_parse",
+        "code": "latlon_fused_token_repaired",
+        "message": "repaired fused LAT...LON coordinate token `92544059` into `9254` `4059`",
+        "line": "92544059"
+      }
+    ]
+  }
+}

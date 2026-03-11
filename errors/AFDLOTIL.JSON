@@ -1,0 +1,33 @@
+{
+  "filename": "AFDLOTIL.TXT",
+  "size": 11397,
+  "timestamp_utc": 1773187858,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "LOT",
+      "city": "Romeoville",
+      "state": "IL"
+    },
+    "header": {
+      "ttaaii": "FXUS63",
+      "cccc": "KLOT",
+      "ddhhmm": "110010",
+      "bbb": null,
+      "afos": "AFDLOT"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `ILZ020-ILZ021-ILZ023-ILZ103-ILZ104-ILZ105-ILZ106-ILZ107-ILZ108.`",
+        "line": "ILZ020-ILZ021-ILZ023-ILZ103-ILZ104-ILZ105-ILZ106-ILZ107-ILZ108."
+      }
+    ]
+  }
+}

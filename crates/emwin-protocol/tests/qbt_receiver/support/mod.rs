@@ -1,3 +1,5 @@
+//! Shared test helpers for QBT integration tests.
+
 use emwin_protocol::qbt_receiver::calculate_qbt_checksum;
 
 const SYNC: &[u8; 6] = b"\0\0\0\0\0\0";

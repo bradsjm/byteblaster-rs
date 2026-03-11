@@ -1,53 +1,24 @@
-//! Server list parsing for EMWIN protocol.
+//! Parse server-list control frames emitted by the EMWIN feed.
 //!
-//! This module handles parsing of server list frames received from
-//! the EMWIN servers, including both primary and satellite servers.
+//! Server-list frames use a different grammar than product frames and may contain malformed
+//! entries that should be reported as warnings instead of tearing down the connection.
 
 use crate::qbt_receiver::error::QbtProtocolError;
 use crate::qbt_receiver::protocol::model::{QbtProtocolWarning, QbtServerList};
 
-/// Parses a single server endpoint from a string.
-///
-/// Expected format: `host:port`
-///
-/// # Arguments
-///
-/// * `input` - The server string to parse
-///
-/// # Returns
-///
-/// `Some((host, port))` if parsing succeeds, `None` otherwise
-///
-/// # Example
-///
-/// ```
-/// use emwin_protocol::qbt_receiver::parse_qbt_server;
-///
-/// let result = parse_qbt_server("example.com:2211");
-/// assert_eq!(result, Some(("example.com".to_string(), 2211)));
-/// ```
+/// Parses one `host:port` endpoint from a server-list payload.
 pub fn parse_qbt_server(input: &str) -> Option<(String, u16)> {
     let (host, port) = input.rsplit_once(':')?;
     let parsed_port = port.parse::<u16>().ok()?;
     Some((host.to_string(), parsed_port))
 }
 
-/// Parses a complete server list frame.
-///
-/// Server list frames have the format:
-/// `/ServerList/host1:port1|host2:port2\ServerList\/SatServers/sat1:port1+sat2:port2\SatServers\`
-///
-/// # Arguments
-///
-/// * `content` - The frame content to parse
-///
-/// # Returns
-///
-/// A tuple of (QbtServerList, warnings) on success
+/// Parses a complete `/ServerList/` control frame.
 ///
 /// # Errors
 ///
-/// Returns `QbtProtocolError::UnsupportedFrame` if the content doesn't start with `/ServerList/`
+/// Returns [`QbtProtocolError::UnsupportedFrame`] when the payload does not start with the server
+/// list marker expected by the protocol decoder.
 pub fn parse_server_list_frame(
     content: &str,
 ) -> Result<(QbtServerList, Vec<QbtProtocolWarning>), QbtProtocolError> {
@@ -88,7 +59,7 @@ pub fn parse_server_list_frame(
     Ok((out, warnings))
 }
 
-/// Parses a list of server entries separated by a delimiter.
+/// Parses a delimited list of endpoints and records malformed entries as warnings.
 fn parse_list_entries(
     input: &str,
     delimiter: char,
@@ -110,10 +81,9 @@ fn parse_list_entries(
         .collect()
 }
 
-/// Parses a server list frame, returning an empty list on failure.
+/// Parses a server list frame and falls back to the empty list on failure.
 ///
-/// This is a convenience function that discards warnings and returns
-/// an empty QbtServerList on parse failure.
+/// This convenience API exists for callers that only need the best-effort endpoint set.
 pub fn parse_simple_server_list(content: &str) -> QbtServerList {
     parse_server_list_frame(content)
         .map(|(list, _warnings)| list)

@@ -1,54 +1,14 @@
-//! Watchdog health monitoring for EMWIN connections.
+//! Track connection health and decide when the runtime should reconnect.
 //!
-//! This module provides a watchdog that monitors connection health
-//! based on data reception and exception counts, triggering connection
-//! closure when thresholds are exceeded.
-//!
-//! ## Health Metrics
-//!
-//! The watchdog monitors two primary health indicators:
-//! - **Data reception timeout**: If no data is received within the configured
-//!   timeout duration, the connection is considered unhealthy
-//! - **Exception count**: If too many consecutive exceptions/errors occur,
-//!   the connection is considered unhealthy
-//!
-//! ## Usage Pattern
-//!
-//! The watchdog is integrated into the client runtime's read loop:
-//! 1. Create a `Watchdog` with timeout and max exceptions from config
-//! 2. Call `on_data_received` each time data is successfully read
-//! 3. Call `on_exception` each time an error occurs during processing
-//! 4. Periodically check `should_close` or `should_close_at` to determine
-//!    if the connection should be terminated due to health issues
-//!
-//! When the watchdog signals that the connection should close, the client
-//! runtime triggers a reconnection cycle, allowing the system to recover
-//! from transient failures.
-//!
-//! ## Trait Implementation
-//!
-//! The [`HealthObserver`] trait allows the watchdog to be used generically
-//! with any type that needs to report health events. The [`Watchdog`]
-//! struct implements this trait and can be used directly or wrapped in
-//! other types that need health monitoring.
-//!
-//! ## Configuration
-//!
-//! Watchdog behavior is controlled by two parameters:
-//! - `timeout_secs`: Maximum time without data reception (minimum 1 second)
-//! - `max_exceptions`: Maximum number of consecutive exceptions allowed
-//!
-//! These values come from `QbtReceiverConfig.watchdog_timeout_secs` and
-//! `QbtReceiverConfig.max_exceptions` fields.
+//! The watchdog collapses two failure signals into one policy object: time since the last
+//! successful read and the current streak of exceptions. That keeps the client loop simple and
+//! makes reconnection policy easy to test in isolation.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::time::{Duration, Instant};
 
-/// Trait for health observation.
-///
-/// Implementors can track connection health by receiving notifications
-/// about data reception and exceptions.
+/// Receives health signals from the client runtime.
 pub trait HealthObserver: Send + Sync {
     /// Called when data is successfully received.
     fn on_data_received(&self);
@@ -58,14 +18,7 @@ pub trait HealthObserver: Send + Sync {
     fn should_close(&self) -> bool;
 }
 
-/// Connection health watchdog.
-///
-/// Monitors connection health based on:
-/// - Time since last data reception (timeout)
-/// - Number of consecutive exceptions
-///
-/// If either threshold is exceeded, the watchdog signals that the
-/// connection should be closed.
+/// Connection health policy used by the runtime read loop.
 #[derive(Debug)]
 pub struct Watchdog {
     /// Timeout duration for data reception.
@@ -79,12 +32,7 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
-    /// Creates a new watchdog with the given parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `timeout_secs` - Timeout in seconds (minimum 1)
-    /// * `max_exceptions` - Maximum allowed consecutive exceptions
+    /// Creates a watchdog with a minimum timeout of one second.
     pub fn new(timeout_secs: u64, max_exceptions: u32) -> Self {
         Self {
             timeout: Duration::from_secs(timeout_secs.max(1)),
@@ -94,15 +42,9 @@ impl Watchdog {
         }
     }
 
-    /// Checks if the connection should be closed at the given time.
+    /// Evaluates the close policy against a caller-supplied instant.
     ///
-    /// # Arguments
-    ///
-    /// * `now` - The current instant to check against
-    ///
-    /// # Returns
-    ///
-    /// `true` if the connection should be closed
+    /// Accepting `now` as an argument keeps the logic deterministic in tests.
     pub fn should_close_at(&self, now: Instant) -> bool {
         let exceptions = self.exception_count.load(Ordering::Relaxed);
         if exceptions > self.max_exceptions {

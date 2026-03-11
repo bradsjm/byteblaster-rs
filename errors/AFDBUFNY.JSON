@@ -1,0 +1,33 @@
+{
+  "filename": "AFDBUFNY.TXT",
+  "size": 12918,
+  "timestamp_utc": 1773185484,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "BUF",
+      "city": "Buffalo",
+      "state": "NY"
+    },
+    "header": {
+      "ttaaii": "FXUS61",
+      "cccc": "KBUF",
+      "ddhhmm": "102331",
+      "bbb": null,
+      "afos": "AFDBUF"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `NYZ007.FloodWatchfromWednesdaymorningthroughThursdayafternoonforNYZ007-008.`",
+        "line": "NYZ007.FloodWatchfromWednesdaymorningthroughThursdayafternoonforNYZ007-008."
+      }
+    ]
+  }
+}

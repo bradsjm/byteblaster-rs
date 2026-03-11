@@ -1,3 +1,5 @@
+//! Smoke tests that exercise the major body parsers together on one bulletin.
+
 use chrono::Utc;
 use emwin_parser::{
     parse_hvtec_codes, parse_latlon_polygons, parse_time_mot_loc_entries, parse_ugc_sections,

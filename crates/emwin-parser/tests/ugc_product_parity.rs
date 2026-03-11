@@ -1,3 +1,5 @@
+//! Regression coverage for products with repeated UGC sections.
+
 use emwin_parser::enrich_product;
 
 #[test]

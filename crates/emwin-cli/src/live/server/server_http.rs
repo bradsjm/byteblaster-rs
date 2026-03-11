@@ -1,3 +1,8 @@
+//! HTTP and SSE handlers for live server mode.
+//!
+//! The handlers stay thin: request parsing and response shaping live here, while retention,
+//! filtering, and ingest coordination live in neighboring modules.
+
 use super::types::{
     AppState, BroadcastEvent, ClientGuard, EndpointDoc, EventFilter, EventKind, EventsQuery,
     FilesResponse, HealthResponse, RootResponse,
@@ -17,6 +22,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+/// Builds the Axum router for live server mode.
 pub(super) fn build_router(state: Arc<AppState>, cors: tower_http::cors::CorsLayer) -> Router {
     Router::new()
         .route("/", get(root_handler))

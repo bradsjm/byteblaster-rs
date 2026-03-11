@@ -1,0 +1,29 @@
+{
+  "filename": "SABO41.TXT",
+  "size": 24,
+  "timestamp_utc": 1773191168,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "office": {
+      "code": "WBC",
+      "city": "National Centers for Environmental Prediction",
+      "state": "MD"
+    },
+    "wmo_header": {
+      "ttaaii": "SABO41",
+      "cccc": "KWBC",
+      "ddhhmm": "110100",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_wmo_bulletin",
+        "message": "recognized valid WMO bulletin without AFOS line, but no parser is available",
+        "line": "NIL="
+      }
+    ]
+  }
+}

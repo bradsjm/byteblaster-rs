@@ -1,29 +1,12 @@
-//! Compression utilities for EMWIN V2 protocol.
-//!
-//! This module provides zlib compression detection and decompression
-//! for V2 protocol frames that use compression.
+//! Handle the zlib-compressed payloads used by V2 protocol frames.
 
 use crate::qbt_receiver::error::QbtProtocolError;
 use std::io::Read;
 
-/// Checks if the input has a valid zlib header.
+/// Returns `true` when the payload starts with one of the zlib headers seen on the feed.
 ///
-/// Zlib headers start with specific byte pairs that indicate
-/// compression level and window size.
-///
-/// # Arguments
-///
-/// * `input` - The byte slice to check
-///
-/// # Returns
-///
-/// `true` if the input starts with a valid zlib header
-///
-/// # Valid Headers
-///
-/// - `0x78 0x9C` - Default compression
-/// - `0x78 0xDA` - Best compression
-/// - `0x78 0x01` - No compression
+/// The decoder keeps this check separate from decompression so policy code can decide whether a
+/// missing header is fatal or just suspicious.
 pub fn has_zlib_header(input: &[u8]) -> bool {
     matches!(
         input.get(0..2),
@@ -31,19 +14,11 @@ pub fn has_zlib_header(input: &[u8]) -> bool {
     )
 }
 
-/// Decompresses zlib-compressed data.
-///
-/// # Arguments
-///
-/// * `input` - The compressed byte slice
-///
-/// # Returns
-///
-/// Decompressed bytes on success, or a `QbtProtocolError::Decompression` on failure
+/// Decompresses a zlib payload into an owned buffer.
 ///
 /// # Errors
 ///
-/// Returns an error if the data is not valid zlib compressed data
+/// Returns [`QbtProtocolError::Decompression`] when the body is not valid zlib data.
 pub fn decompress_zlib(input: &[u8]) -> Result<Vec<u8>, QbtProtocolError> {
     let mut decoder = flate2::read::ZlibDecoder::new(input);
     let mut out = Vec::new();

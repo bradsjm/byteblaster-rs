@@ -1,0 +1,216 @@
+SXUS43 KMKX 110031
+RECMKX
+
+Evening Hot Air Balloon Forecast
+National Weather Service Milwaukee/Sullivan WI
+731 PM CDT TUE MAR 10 2026
+
+...Waukesha...
+
+...Severe Thunderstorm Watch until midnight CDT tonight...
+
+.This Evening...
+
+    Sunset:                          652 PM
+
+    Boundary Layer Wind:             7 PM  050/20 MPH
+
+    NWS Doppler Winds (at 0723 PM):  1000ft  050/20 MPH
+                                     2000ft  070/28 MPH
+                                     3000ft  100/28 MPH
+
+    RAP Winds (from 2200Z run):      1000ft  Mis/sing MPH
+                                     2000ft  Mis/sing MPH
+                                     3000ft  Mis/sing MPH
+
+    Surface Lifted Index:            7 PM  +18
+
+    Additional Weather Info:         Possible low ceilings,
+                                     Precipitation likely
+                                     See Waukesha TAF below
+
+
+.Outlook for Tomorrow Morning...
+
+    Sunrise:        710 AM
+    Weather:        Possible low ceilings,
+                    Chance of precipitation,
+                    Reduced visibility in fog
+                    See Waukesha TAF below
+    Surface Wind:   7 AM  340/13G22 MPH
+                    9 AM  340/14G24 MPH
+    Boundary Wind:  7 AM  010/24 MPH
+
+.Latest Waukesha TAF(2336Z)...
+
+    FM102336 05012G23KT 6SM -RA OVC009
+     TEMPO 1101/1104 2SM TSGRRA BR OVC004CB
+    FM110400 04010G19KT 4SM -RA BR OVC005
+     PROB30 1104/1107 2SM -TSRAGR BR OVC001CB
+    FM110800 36009KT 4SM BR OVC005
+     PROB30 1114/1118 2SM -FZDZSN BR OVC004
+    FM111800 32013G23KT 2SM -SN BR OVC010
+    FM112100 32014G25KT P6SM OVC045=
+
+&&
+
+...Janesville...
+
+...Severe Thunderstorm Watch until midnight CDT tonight...
+
+.This Evening...
+
+    Sunset:                          652 PM
+
+    Boundary Layer Wind:             7 PM  070/17 MPH
+
+    NWS Doppler Winds (at 0723 PM):  1000ft  050/20 MPH
+                                     2000ft  070/28 MPH
+                                     3000ft  100/28 MPH
+
+    RAP Winds (from 2200Z run):      1000ft  Mis/sing MPH
+                                     2000ft  Mis/sing MPH
+                                     3000ft  Mis/sing MPH
+
+    Surface Lifted Index:            7 PM  +18
+
+    Additional Weather Info:         Possible low ceilings,
+                                     Chance of precipitation
+                                     See Janesville TAF below
+
+
+.Outlook for Tomorrow Morning...
+
+    Sunrise:        710 AM
+    Weather:        Possible low ceilings,
+                    Chance of precipitation,
+                    Reduced visibility in fog
+                    See Janesville TAF below
+    Surface Wind:   7 AM  350/13G23 MPH
+                    9 AM  350/14G24 MPH
+    Boundary Wind:  7 AM  360/22 MPH
+
+.Latest Janesville TAF(2342Z)...
+
+    FM102342 07011KT P6SM OVC012
+    FM110100 06011G19KT 5SM -RA OVC009 PROB30 1101/1105 2SM
+     TSGRRA
+     BR OVC004CB
+    FM110500 02009KT 4SM BR OVC005 PROB30 1105/1107 2SM -DZ  BR
+     OVC002
+    FM111600 33013G21KT 3SM -SN BR OVC007 PROB30 1116/1119
+     2SM -SN
+     BR OVC004
+    FM112000 33016G24KT P6SM OVC018
+    FM112200 33015G25KT P6SM OVC070
+
+&&
+
+...Madison...
+
+...Severe Thunderstorm Watch until midnight CDT tonight...
+
+.This Evening...
+
+    Sunset:                          652 PM
+
+    Boundary Layer Wind:             7 PM  060/20 MPH
+
+    NWS Doppler Winds (at 0723 PM):  1000ft  050/20 MPH
+                                     2000ft  070/28 MPH
+                                     3000ft  100/28 MPH
+
+    RAP Winds (from 2200Z run):      1000ft  Mis/sing MPH
+                                     2000ft  Mis/sing MPH
+                                     3000ft  Mis/sing MPH
+
+    Surface Lifted Index:            7 PM  +17
+
+    Additional Weather Info:         Possible low ceilings,
+                                     Precipitation likely
+                                     See Madison TAF below
+
+
+.Outlook for Tomorrow Morning...
+
+    Sunrise:        710 AM
+    Weather:        Possible low ceilings,
+                    Chance of precipitation,
+                    Reduced visibility in fog
+                    See Madison TAF below
+    Surface Wind:   7 AM  350/13G23 MPH
+                    9 AM  350/14G24 MPH
+    Boundary Wind:  7 AM  010/22 MPH
+
+.Latest Madison TAF(2336Z)...
+
+    FM102336 06013G22KT P6SM -RA OVC015 PROB30 1102/1105
+     4SM TSGRRA OVC004CB
+    FM110500 03010G19KT 5SM -RA OVC008 PROB30 1105/1108 2SM
+     -TSRADZ OVC004CB
+    FM110900 01010G18KT 4SM BR OVC007 PROB30 1114/1116 2SM
+     -FZDZSN
+     BR OVC004
+    FM111600 34012G21KT 3SM BR OVC008 PROB30 1116/1118 1SM
+     -SN BR
+     OVC004
+    FM111800 33013G23KT 6SM BR OVC012 PROB30 1118/1121 4SM
+     -SN
+     OVC008
+    FM112200 33015G25KT P6SM OVC080
+
+&&
+
+...Sheboygan...
+
+...Winter Weather Advisory from 1 AM to 1 PM CDT Wednesday...
+
+.This Evening...
+
+    Sunset:                          652 PM
+
+    Boundary Layer Wind:             7 PM  040/29 MPH
+
+    NWS Doppler Winds (at 0723 PM):  1000ft  050/20 MPH
+                                     2000ft  070/28 MPH
+                                     3000ft  100/28 MPH
+
+    RAP Winds (from 2200Z run):      1000ft  Mis/sing MPH
+                                     2000ft  Mis/sing MPH
+                                     3000ft  Mis/sing MPH
+
+    Surface Lifted Index:            7 PM  +20
+
+    Additional Weather Info:         Possible low ceilings,
+                                     Occasional precipitation
+                                     See Sheboygan TAF below
+
+
+.Outlook for Tomorrow Morning...
+
+    Sunrise:        710 AM
+    Weather:        Possible low ceilings,
+                    Slight chance of precipitation,
+                    Reduced visibility in fog
+                    See Sheboygan TAF below
+    Surface Wind:   7 AM  360/16G28 MPH
+                    9 AM  350/16G29 MPH
+    Boundary Wind:  7 AM  020/32 MPH
+
+.Latest Sheboygan TAF(2336Z)...
+
+    FM102336 04016G27KT 6SM -RA OVC016
+     TEMPO 1100/1104 2SM TSRA OVC008CB
+    FM110500 04014G23KT 4SM -RA BR OVC005
+    FM110700 03013G22KT 4SM BR OVC006 PROB30 1111/1117 2SM
+     -FZDZSN
+     BR OVC004
+    FM111700 34015G24KT 3SM -SN BR OVC008
+    FM112200 33016G26KT P6SM OVC060
+
+&&
+
+This forecast is not routinely updated or amended outside of
+scheduled issuances.
+
+$$

@@ -1,56 +1,8 @@
-//! EMWIN QBT satellite receiver client.
+//! QBT receiver runtime and protocol support.
 //!
-//! This module provides a complete client implementation for receiving products via the
-//! EMWIN QBT satellite broadcast protocol.
-//!
-//! ## Architecture
-//!
-//! The receiver is organized into several components:
-//!
-//! - **Protocol** (`protocol`): WMO header parsing, checksum validation, compression handling,
-//!   server-list parsing, and authentication message encoding/decoding
-//! - **Client** (`client`): Connection management with reconnect/backoff, auth ticker, watchdog,
-//!   and handler isolation for error resilience
-//! - **File assembly** (`file`): Reassembles multi-segment files with duplicate suppression
-//!   and inflight entry expiration
-//! - **Stream** (`stream`): Adapter types for receiving segments or completed files as streams
-//! - **Relay** (`relay`): Low-latency TCP passthrough with metrics and client management
-//!
-//! ## Example
-//!
-//! ```rust,no_run
-//! use emwin_protocol::qbt_receiver::{
-//!     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig,
-//!     default_qbt_upstream_servers,
-//! };
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = QbtReceiverConfig {
-//!         email: "you@example.com".to_string(),
-//!         servers: default_qbt_upstream_servers(),
-//!         server_list_path: None,
-//!         follow_server_list_updates: true,
-//!         reconnect_delay_secs: 5,
-//!         connection_timeout_secs: 5,
-//!         watchdog_timeout_secs: 49,
-//!         max_exceptions: 10,
-//!         decode: QbtDecodeConfig::default(),
-//!     };
-//!     let mut receiver = QbtReceiver::builder(config).build()?;
-//!     receiver.start()?;
-//!     receiver.stop().await?;
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Configurable Policies
-//!
-//! - **Checksum policy**: Strict (drop on failure) or Lenient (emit warning)
-//! - **V2 compression policy**: Strict (drop on failure) or Lenient (emit warning)
-//! - **Server list rotation**: Automatic fallback when primary pool is exhausted
-//!
-//! See [`QbtReceiverConfig`] for all configuration options.
+//! This module groups the streaming decoder, connection-management logic, file assembly, and relay
+//! support needed for the EMWIN QBT feed. The public API exposes stable runtime types while
+//! keeping lower-level protocol helpers available through curated re-exports.
 
 mod client;
 mod config;

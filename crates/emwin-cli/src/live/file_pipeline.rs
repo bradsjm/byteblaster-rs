@@ -1,7 +1,13 @@
+//! Write completed files and their metadata sidecars for live mode.
+//!
+//! The file pipeline keeps persistence concerns separate from stream rendering so the same
+//! assembled payload can be written to disk and broadcast to other consumers.
+
 use emwin_parser::{ProductEnrichment, enrich_product};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
+/// Serializable metadata emitted beside a completed output file.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub(crate) struct CompletedFileMetadata {
     pub(crate) filename: String,
@@ -10,6 +16,7 @@ pub(crate) struct CompletedFileMetadata {
     pub(crate) product: ProductEnrichment,
 }
 
+/// Paths and metadata returned after a file plus sidecar have been written.
 #[derive(Debug, Clone)]
 pub(crate) struct CompletedFileRecord {
     pub(crate) path: String,
@@ -17,6 +24,7 @@ pub(crate) struct CompletedFileRecord {
     pub(crate) metadata: CompletedFileMetadata,
 }
 
+/// Persists an assembled file and returns its displayable path.
 pub(crate) fn write_completed_file(
     output_dir: &Path,
     filename: &str,
@@ -30,6 +38,7 @@ pub(crate) fn write_completed_file(
     Ok(target.to_string_lossy().to_string())
 }
 
+/// Returns the sibling `.JSON` sidecar path for a completed file.
 pub(crate) fn metadata_sidecar_path(output_dir: &Path, filename: &str) -> PathBuf {
     let target = output_dir.join(filename);
     match target.extension() {

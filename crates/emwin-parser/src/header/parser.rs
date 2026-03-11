@@ -1,23 +1,7 @@
-//! WMO/AFOS header parsing implementation.
+//! Parse conditioned WMO and AFOS header lines without losing borrowable slices.
 //!
-//! This module implements the parsing logic for WMO (World Meteorological Organization)
-//! headers and AFOS (Automation of Field Operations and Services) Product Identifier Lines (PILs).
-//!
-//! ## Header Format
-//!
-//! NWS text products follow this structure:
-//! - Line 1: LDM sequence number (e.g., "000 ")
-//! - Line 2: WMO header (ttaaii cccc ddhhmm [bbb])
-//! - Line 3: AFOS PIL (Product Identifier Line)
-//! - Body: Product content
-//!
-//! Example:
-//! ```text
-//! 000
-//! FXUS61 KBOX 022101
-//! AFDBOX
-//! AREA FORECAST DISCUSSION
-//! ```
+//! The internal reference types keep parsing on top of a shared text buffer so callers can inspect
+//! the body and header fields without allocating until they cross the public API boundary.
 
 use crate::time::resolve_day_time_nearest;
 use bstr::ByteSlice;
@@ -28,35 +12,31 @@ use serde::Serialize;
 use std::sync::OnceLock;
 use thiserror::Error;
 
-/// Parsed WMO/AFOS text product header.
-///
-/// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
+/// Parsed WMO header for products that do not expose an AFOS PIL.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WmoHeader {
-    /// WMO product type indicator (6 characters, normalized from 4 to "00")
+    /// WMO product type indicator, normalized to six characters when needed.
     pub ttaaii: String,
-    /// 4-letter ICAO station code
+    /// Four-letter ICAO issuing office.
     pub cccc: String,
-    /// Day and time (UTC) in DDHHMM format
+    /// UTC day and time in `DDHHMM` form.
     pub ddhhmm: String,
-    /// Optional BBB indicator (CORrection, AMEndment, RR, etc.)
+    /// Optional BBB correction or amendment marker.
     pub bbb: Option<String>,
 }
 
-/// Parsed WMO/AFOS text product header.
-///
-/// Contains the standard WMO header fields plus the AFOS Product Identifier Line (PIL).
+/// Parsed WMO header plus the AFOS PIL used by most text products.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductHeader {
-    /// WMO product type indicator (6 characters, normalized from 4 to "00")
+    /// WMO product type indicator, normalized to six characters when needed.
     pub ttaaii: String,
-    /// 4-letter ICAO station code
+    /// Four-letter ICAO issuing office.
     pub cccc: String,
-    /// Day and time (UTC) in DDHHMM format
+    /// UTC day and time in `DDHHMM` form.
     pub ddhhmm: String,
-    /// Optional BBB indicator (CORrection, AMEndment, RR, etc.)
+    /// Optional BBB correction or amendment marker.
     pub bbb: Option<String>,
-    /// Product Identifier Line (PIL), typically 6 characters
+    /// AFOS Product Identifier Line.
     pub afos: String,
 }
 
@@ -140,17 +120,10 @@ impl TextProductHeaderRef<'_> {
 }
 
 impl WmoHeader {
-    /// Parse the ddhhmm field into a UTC DateTime.
+    /// Resolves the header's `DDHHMM` field into a full UTC timestamp.
     ///
-    /// Uses the provided reference time to determine the nearest plausible month and year.
-    ///
-    /// # Arguments
-    ///
-    /// * `reference_time` - Reference UTC time (typically current time)
-    ///
-    /// # Returns
-    ///
-    /// `Some(DateTime<Utc>)` if ddhhmm is valid, `None` otherwise
+    /// WMO headers omit the month and year, so the caller supplies the reference instant that
+    /// anchors the nearest plausible calendar date.
     pub fn timestamp(&self, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
         WmoHeaderRef {
             ttaaii: &self.ttaaii,
@@ -163,9 +136,7 @@ impl WmoHeader {
 }
 
 impl TextProductHeader {
-    /// Parse the ddhhmm field into a UTC DateTime.
-    ///
-    /// Uses the provided reference time to determine the nearest plausible month and year.
+    /// Resolves the header's `DDHHMM` field into a full UTC timestamp.
     pub fn timestamp(&self, reference_time: DateTime<Utc>) -> Option<DateTime<Utc>> {
         TextProductHeaderRef {
             ttaaii: &self.ttaaii,
@@ -193,41 +164,16 @@ pub enum ParserError {
     MissingAfos { line: String },
 }
 
-/// Parses a WMO/AFOS text product header from raw bytes.
+/// Parses a text product header from raw transport bytes.
 ///
-/// This function performs text conditioning (SOH/ETX stripping, null byte removal, LDM insertion)
-/// before parsing the WMO header and AFOS PIL.
-///
-/// # Arguments
-///
-/// * `bytes` - Raw product text as bytes
-///
-/// # Returns
-///
-/// A `Result` containing the parsed [`TextProductHeader`] or a [`ParserError`]
+/// The function first normalizes transport artifacts such as SOH, ETX, null bytes, and missing
+/// LDM sequence lines. Parsing only starts after the text is in the canonical shape expected by
+/// the rest of the crate.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Text is empty after conditioning
-/// - No WMO header line is found
-/// - WMO header format is invalid
-/// - No AFOS line is found
-/// - AFOS PIL cannot be parsed
-///
-/// # Example
-///
-/// ```
-/// use emwin_parser::parse_text_product;
-///
-/// let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
-/// let header = parse_text_product(raw_text)?;
-///
-/// assert_eq!(header.afos, "AFDBOX");
-/// assert_eq!(header.cccc, "KBOX");
-/// assert_eq!(header.ttaaii, "FXUS61");
-/// # Ok::<(), emwin_parser::ParserError>(())
-/// ```
+/// Returns an error when the conditioned text is empty, the WMO line is malformed, or the AFOS
+/// line cannot be recovered.
 pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError> {
     let conditioned = condition_text_bytes(bytes)?;
     Ok(parse_text_product_conditioned_ref(&conditioned)?
@@ -235,7 +181,7 @@ pub fn parse_text_product(bytes: &[u8]) -> Result<TextProductHeader, ParserError
         .to_owned())
 }
 
-/// Conditions raw bytes into a parseable bulletin text buffer.
+/// Conditions raw bytes into the canonical text form used by the parser.
 pub(crate) fn condition_text_bytes(bytes: &[u8]) -> Result<String, ParserError> {
     let raw = bytes.to_str_lossy();
     condition_text(raw.as_ref())
@@ -276,13 +222,13 @@ pub(crate) fn parse_wmo_bulletin_conditioned_ref(
     })
 }
 
-/// Extracts body text as a subslice by skipping the first N lines.
+/// Returns the body slice after the fixed number of header lines.
 fn body_after_lines(text: &str, lines_to_skip: usize) -> &str {
     let offset = offset_after_n_lines(text, lines_to_skip).unwrap_or(text.len());
     &text[offset..]
 }
 
-/// Locates the byte offset immediately after `lines_to_skip` newline-delimited lines.
+/// Finds the byte offset just after `lines_to_skip` newline-delimited lines.
 fn offset_after_n_lines(text: &str, lines_to_skip: usize) -> Option<usize> {
     if lines_to_skip == 0 {
         return Some(0);
@@ -299,9 +245,7 @@ fn offset_after_n_lines(text: &str, lines_to_skip: usize) -> Option<usize> {
     Some(text.len())
 }
 
-/// Parses WMO header fields from text.
-///
-/// Extracts ttaaii, cccc, ddhhmm, and optional BBB indicator.
+/// Parses the WMO line from the conditioned bulletin text.
 fn parse_wmo(text: &str) -> Result<WmoHeaderRef<'_>, ParserError> {
     let search_window = text.get(..100).unwrap_or(text);
     let captures =
@@ -328,7 +272,7 @@ fn parse_wmo(text: &str) -> Result<WmoHeaderRef<'_>, ParserError> {
     })
 }
 
-/// Parses AFOS PIL from line 3 of the conditioned text.
+/// Parses the AFOS PIL from the third logical line of the conditioned text.
 fn parse_afos(text: &str) -> Result<&str, ParserError> {
     let line3 = nth_line(text, 2).ok_or(ParserError::MissingAfosLine)?;
     let captures = afos_re()
@@ -346,14 +290,10 @@ fn parse_afos(text: &str) -> Result<&str, ParserError> {
     Ok(afos)
 }
 
-/// Conditions raw text for parsing by normalizing control characters and headers.
+/// Normalizes transport artifacts before header parsing begins.
 ///
-/// Performs the following transformations:
-/// - Removes carriage returns and null bytes
-/// - Strips SOH (Start of Header) character and preceding content
-/// - Strips ETX (End of Text) character
-/// - Adds LDM sequence line if missing
-/// - Ensures trailing newline
+/// The parser insists on this step so every downstream routine can assume a stable line layout and
+/// borrow slices from the same owned buffer.
 fn condition_text(input: &str) -> Result<String, ParserError> {
     let mut sanitized = String::with_capacity(input.len() + 5);
     for ch in input.chars() {
@@ -430,13 +370,13 @@ fn nth_line(text: &str, index: usize) -> Option<&str> {
     text.lines().nth(index)
 }
 
-/// Regex for LDM sequence line detection.
+/// Detects the optional LDM sequence line that precedes the WMO header.
 fn ldm_sequence_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^\d\d\d\s?").expect("ldm sequence regex compiles"))
 }
 
-/// Regex for WMO header parsing (line 2).
+/// Parses the WMO header line after conditioning.
 fn wmo_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -447,7 +387,7 @@ fn wmo_re() -> &'static Regex {
     })
 }
 
-/// Regex for AFOS PIL parsing (line 3).
+/// Parses the AFOS PIL line after conditioning.
 fn afos_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^([A-Z0-9]{4,6})\s*\t*$").expect("afos regex compiles"))

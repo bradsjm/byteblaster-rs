@@ -1,12 +1,19 @@
+//! Bridge CLI live-mode requests into the shared ingest runtime.
+//!
+//! The wrapper hides receiver-specific config wiring and exposes a single event stream shape to
+//! command handlers.
+
 use crate::ReceiverKind;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
 use emwin_protocol::ingest::{IngestConfig, IngestError, IngestEvent, IngestReceiver};
 use futures::Stream;
 use std::pin::Pin;
 
+/// Boxed ingest stream used by CLI live-mode commands.
 pub(crate) type IngestEventStream =
     Pin<Box<dyn Stream<Item = Result<IngestEvent, IngestError>> + Send + 'static>>;
 
+/// Inputs required to build a live ingest receiver.
 pub(crate) struct LiveIngestRequest<'a> {
     pub(crate) live: &'a crate::LiveOptions,
     pub(crate) qbt_watchdog_timeout_secs: u64,
@@ -14,12 +21,14 @@ pub(crate) struct LiveIngestRequest<'a> {
     pub(crate) password_context: &'static str,
 }
 
+/// Running ingest receiver plus the CLI-facing receiver kind.
 pub(crate) struct LiveIngest {
     receiver_kind: ReceiverKind,
     receiver: IngestReceiver,
 }
 
 impl LiveIngest {
+    /// Builds and owns a live ingest receiver for the selected backend.
     pub(crate) fn build(request: LiveIngestRequest<'_>) -> crate::error::CliResult<Self> {
         let live = request.live;
         let (receiver_kind, config) = match live.receiver {

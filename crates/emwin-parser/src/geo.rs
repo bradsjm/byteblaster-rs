@@ -1,9 +1,16 @@
+//! Geographic helpers used by product enrichment and filtering.
+//!
+//! The functions here stay allocation-free and operate on plain coordinate values so parsers and
+//! filters can reuse them without bringing in heavier geometry dependencies.
+
+/// Latitude and longitude in decimal degrees.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeoPoint {
     pub lat: f64,
     pub lon: f64,
 }
 
+/// Axis-aligned bounding box in decimal degrees.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeoBounds {
     pub min_lat: f64,
@@ -15,6 +22,7 @@ pub struct GeoBounds {
 const EARTH_RADIUS_MILES: f64 = 3_958.761_3;
 const EPSILON: f64 = 1e-9;
 
+/// Computes great-circle distance in miles with the haversine formula.
 pub fn distance_miles(a: GeoPoint, b: GeoPoint) -> f64 {
     let lat1 = a.lat.to_radians();
     let lat2 = b.lat.to_radians();
@@ -29,6 +37,7 @@ pub fn distance_miles(a: GeoPoint, b: GeoPoint) -> f64 {
     EARTH_RADIUS_MILES * arc
 }
 
+/// Returns the bounding box for a polygon expressed as `(lat, lon)` pairs.
 pub fn polygon_bounds(points: &[(f64, f64)]) -> Option<GeoBounds> {
     let &(first_lat, first_lon) = points.first()?;
     let mut bounds = GeoBounds {

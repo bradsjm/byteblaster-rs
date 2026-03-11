@@ -1,14 +1,21 @@
+//! Build receiver configuration for live CLI commands.
+//!
+//! This module keeps CLI-facing argument validation separate from the protocol crate's config
+//! types so command handlers can stay focused on orchestration.
+
 use crate::ReceiverKind;
 use crate::live::shared::parse_servers_or_default;
 use emwin_protocol::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig};
 use emwin_protocol::wxwire_receiver::WxWireReceiverConfig;
 use std::path::PathBuf;
 
+/// Receiver-specific configuration produced from CLI live-mode arguments.
 pub(crate) enum LiveReceiverConfig {
     Qbt(QbtReceiverConfig),
     WxWire(WxWireReceiverConfig),
 }
 
+/// Normalized inputs used to build a live receiver configuration.
 pub(crate) struct LiveConfigRequest {
     pub receiver: ReceiverKind,
     pub username: Option<String>,
@@ -21,6 +28,7 @@ pub(crate) struct LiveConfigRequest {
     pub password_context: &'static str,
 }
 
+/// Builds the concrete receiver configuration requested by the CLI.
 pub(crate) fn build_live_receiver_config(
     request: LiveConfigRequest,
 ) -> crate::error::CliResult<LiveReceiverConfig> {

@@ -1,37 +1,8 @@
-//! # emwin-parser
+//! Parse and enrich EMWIN text products.
 //!
-//! WMO/AFOS text product parsing library for weather and aviation meteorological products.
-//!
-//! This library provides parsing, enrichment, and lookup capabilities for WMO (World Meteorological
-//! Organization) and AFOS (Automation of Field Operations and Services) formatted text products
-//! commonly used in meteorological broadcasting systems.
-//!
-//! ## Features
-//!
-//! - **WMO header parsing**: Extracts TTAAII, CCCC, DDHHMM, and optional BBB indicators
-//! - **AFOS PIL extraction**: Parses the Product Identifier Line (PIL) with robust error handling
-//! - **Text conditioning**: Handles SOH/ETX control characters, null bytes, missing LDM sequences
-//! - **PIL lookup**: Built-in product type descriptions for common meteorological products
-//! - **UGC geography lookup**: Built-in county and zone catalogs keyed by canonical UGC codes
-//! - **Header enrichment**: Classifies BBB indicators (Amendment, Correction, Delayed Repeat)
-//! - **Zero-copy parsing**: Efficient byte-based parsing with minimal allocations
-//!
-//! ## Example
-//!
-//! ```rust
-//! use emwin_parser::{parse_text_product, enrich_header};
-//!
-//! let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
-//! let header = parse_text_product(raw_text)?;
-//! let enriched = enrich_header(&header);
-//!
-//! println!("AFOS PIL: {}", header.afos);
-//! println!("Station: {}", header.cccc);
-//! if let Some(desc) = enriched.pil_description {
-//!     println!("Product type: {}", desc);
-//! }
-//! # Ok::<(), emwin_parser::ParserError>(())
-//! ```
+//! `emwin-parser` turns raw bulletin bytes into structured headers, body features, and catalog
+//! lookups used elsewhere in the workspace. The crate prefers explicit parsing steps and borrowed
+//! views internally so higher-level code can opt into owned data only at stable API boundaries.
 
 mod body;
 mod data;

@@ -1,0 +1,33 @@
+{
+  "filename": "AFDDLHMN.TXT",
+  "size": 7418,
+  "timestamp_utc": 1773185092,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "DLH",
+      "city": "Duluth",
+      "state": "MN"
+    },
+    "header": {
+      "ttaaii": "FXUS63",
+      "cccc": "KDLH",
+      "ddhhmm": "102324",
+      "bbb": null,
+      "afos": "AFDDLH"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `WIZ001>003-006>008.WinterStormWarninguntil1PMCDTWednesdayforWIZ004-009.`",
+        "line": "WIZ001>003-006>008.WinterStormWarninguntil1PMCDTWednesdayforWIZ004-009."
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "filename": "SAHOURLY.TXT",
+  "size": 108,
+  "timestamp_utc": 1773193058,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "SACN82",
+      "cccc": "CWAO",
+      "ddhhmm": "110100",
+      "bbb": "RRC"
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "MFX SA 0100 AUTO8 M M M 109/-29/-32/2620/M/     PK WND 2624 0008Z SOG 12 1016 65MM="
+      }
+    ]
+  }
+}

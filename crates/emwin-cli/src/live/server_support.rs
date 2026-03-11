@@ -1,3 +1,8 @@
+//! Shared helpers for the live HTTP server.
+//!
+//! This module owns retained-file lifecycle rules and a few HTTP response helpers so the request
+//! handlers can stay focused on endpoint behavior.
+
 use crate::live::file_pipeline::{CompletedFileMetadata, build_completed_file_metadata};
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -5,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, SystemTime};
 
+/// File retained in memory for later download or listing.
 #[derive(Debug, Clone)]
 pub(crate) struct RetainedFile {
     pub(crate) data: Vec<u8>,
@@ -12,6 +18,7 @@ pub(crate) struct RetainedFile {
     pub(crate) metadata: CompletedFileMetadata,
 }
 
+/// Bounded in-memory store for completed files.
 #[derive(Debug)]
 pub(crate) struct RetainedFiles {
     by_name: HashMap<String, RetainedFile>,

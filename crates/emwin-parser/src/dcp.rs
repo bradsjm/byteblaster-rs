@@ -1,45 +1,27 @@
-//! Minimal GOES DCP telemetry bulletin parsing for WMO bulletins without AFOS PIL lines.
+//! Parse GOES DCP telemetry bulletins that arrive as WMO-only products.
 //!
-//! DCP (Data Collection Platform) bulletins contain GOES (Geostationary Operational
-//! Environmental Satellite) telemetry data from remote sensors such as river gauges,
-//! weather stations, and seismic monitors.
-//!
-//! ## File Patterns
-//!
-//! - MISDCP*.TXT - Standard DCP telemetry
-//! - MISA*.TXT - Alternate DCP format
-//!
-//! WMO headers for DCP: SX* ttaaii codes from KWAL (Wallops Island, VA)
+//! These files do not carry AFOS PIL lines, so classification relies on the filename and WMO
+//! header. The parser stays intentionally narrow and only recognizes the Wallops Island bulletin
+//! patterns used for DCP telemetry.
 
 use serde::Serialize;
 
 use crate::WmoHeader;
 
-/// GOES DCP telemetry bulletin.
+/// Parsed GOES DCP telemetry bulletin.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DcpBulletin {
-    /// Platform identifier string (typically alphanumeric + numeric sequence)
+    /// Platform identifier carried by the first telemetry line when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub platform_id: Option<String>,
-    /// Raw telemetry data lines
+    /// Telemetry payload lines after control-character cleanup.
     pub lines: Vec<String>,
 }
 
-/// Parses a DCP bulletin from text content.
+/// Parses DCP telemetry only when both filename and WMO header match the expected feed.
 ///
-/// Validates the filename pattern and WMO header, then extracts the platform
-/// identifier and telemetry data lines.
-///
-/// # Arguments
-///
-/// * `filename` - Original filename (must match MISDCP*.TXT or MISA*.TXT pattern)
-/// * `wmo_header` - Parsed WMO header (must have SX* ttaaii from KWAL)
-/// * `text` - Raw DCP bulletin text
-///
-/// # Returns
-///
-/// `Some(DcpBulletin)` if the file appears to be valid DCP telemetry,
-/// `None` if validation fails
+/// Returning `None` is the normal rejection path for non-DCP products that share the broader
+/// bulletin pipeline.
 pub(crate) fn parse_dcp_bulletin(
     filename: &str,
     wmo_header: &WmoHeader,
@@ -60,20 +42,18 @@ pub(crate) fn parse_dcp_bulletin(
     })
 }
 
-/// Checks if filename matches DCP file patterns.
-///
-/// Valid patterns: MISDCP*.TXT, MISA*.TXT (case-insensitive)
+/// Checks the narrow filename patterns used by DCP telemetry products.
 fn looks_like_dcp_filename(filename: &str) -> bool {
     let upper = filename.to_ascii_uppercase();
     (upper.starts_with("MISDCP") || upper.starts_with("MISA")) && upper.ends_with(".TXT")
 }
 
-/// Validates WMO header is from Wallops Island with SX* bulletin type.
+/// Checks for the Wallops Island `SX*` WMO header family used by DCP bulletins.
 fn looks_like_dcp_wmo_header(wmo_header: &WmoHeader) -> bool {
     wmo_header.cccc == "KWAL" && wmo_header.ttaaii.starts_with("SX")
 }
 
-/// Extracts non-empty lines from body text, stripping control characters.
+/// Normalizes the body into owned, non-empty telemetry lines.
 fn body_lines(text: &str) -> Vec<String> {
     text.lines()
         .map(strip_control_chars)
@@ -82,14 +62,14 @@ fn body_lines(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Removes non-whitespace control characters from a line.
+/// Removes transport noise without disturbing meaningful whitespace.
 fn strip_control_chars(line: &str) -> String {
     line.chars()
         .filter(|ch| !ch.is_ascii_control() || ch.is_ascii_whitespace())
         .collect()
 }
 
-/// Validates the payload appears to contain DCP telemetry data.
+/// Applies lightweight heuristics before the parser commits to DCP classification.
 fn looks_like_dcp_payload(lines: &[String]) -> bool {
     let first = match lines.first() {
         Some(first) => first,
@@ -107,10 +87,10 @@ fn looks_like_dcp_payload(lines: &[String]) -> bool {
             .any(|line| looks_like_telemetry_line(line))
 }
 
-/// Extracts the platform ID from the first line of DCP data.
+/// Extracts the platform identifier from the first telemetry line.
 ///
-/// Platform IDs have the format: `ALPHANUMERIC<space>NUMERIC`
-/// where the alphanumeric part is at least 8 chars and numeric part at least 9 digits.
+/// The parser keeps this logic explicit because the payload grammar outside the identifier is much
+/// looser than the first-token shape.
 fn extract_platform_id(line: &str) -> Option<String> {
     let line = line.trim_start();
     let mut chars = line.char_indices().peekable();
@@ -145,7 +125,7 @@ fn extract_platform_id(line: &str) -> Option<String> {
     Some(format!("{first} {second}"))
 }
 
-/// Checks if line contains inline telemetry after the platform ID.
+/// Detects telemetry that shares the same physical line as the platform identifier.
 fn has_inline_telemetry(line: &str, platform_id: &str) -> bool {
     let remainder = line.strip_prefix(platform_id).unwrap_or(line).trim();
     !remainder.is_empty()
@@ -155,7 +135,7 @@ fn has_inline_telemetry(line: &str, platform_id: &str) -> bool {
         && remainder.chars().any(|ch| !ch.is_ascii_digit())
 }
 
-/// Validates a line appears to contain telemetry data (alphanumeric + basic symbols).
+/// Accepts the printable-character envelope seen in DCP telemetry lines.
 fn looks_like_telemetry_line(line: &str) -> bool {
     line.chars()
         .all(|ch| ch.is_ascii_graphic() || ch.is_ascii_whitespace())

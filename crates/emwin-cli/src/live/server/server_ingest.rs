@@ -1,3 +1,8 @@
+//! Feed ingest events into the live server state.
+//!
+//! This module translates runtime events into retained files, broadcast notifications, and
+//! telemetry snapshots without leaking transport-specific details into the HTTP layer.
+
 use super::types::{AppState, CompletedFilePayload, EventKind, TelemetryPayload};
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
@@ -12,6 +17,7 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::watch;
 use tracing::info;
 
+/// Runs the QBT ingest loop until shutdown or stream termination.
 pub(super) async fn run_qbt_ingest_loop(
     config: QbtReceiverConfig,
     state: Arc<AppState>,

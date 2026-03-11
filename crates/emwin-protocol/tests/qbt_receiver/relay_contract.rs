@@ -1,3 +1,5 @@
+//! End-to-end relay contract tests covering upstream and downstream behavior.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

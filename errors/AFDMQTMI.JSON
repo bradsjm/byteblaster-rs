@@ -1,0 +1,33 @@
+{
+  "filename": "AFDMQTMI.TXT",
+  "size": 7829,
+  "timestamp_utc": 1773184207,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "MQT",
+      "city": "Marquette",
+      "state": "MI"
+    },
+    "header": {
+      "ttaaii": "FXUS63",
+      "cccc": "KMQT",
+      "ddhhmm": "102309",
+      "bbb": null,
+      "afos": "AFDMQT"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `MIZ002-004-009>011-084.`",
+        "line": "MIZ002-004-009>011-084."
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "filename": "ADMN75AK.TXT",
+  "size": 898,
+  "timestamp_utc": 1773187310,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "office": {
+      "code": "AAQ",
+      "city": "Palmer",
+      "state": "AK"
+    },
+    "wmo_header": {
+      "ttaaii": "ADMN75",
+      "cccc": "PAAQ",
+      "ddhhmm": "110001",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_wmo_bulletin",
+        "message": "recognized valid WMO bulletin without AFOS line, but no parser is available",
+        "line": "OBSERVATORY MESSAGE"
+      }
+    ]
+  }
+}

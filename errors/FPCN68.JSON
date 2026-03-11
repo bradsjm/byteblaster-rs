@@ -1,0 +1,24 @@
+{
+  "filename": "FPCN68.TXT",
+  "size": 1974,
+  "timestamp_utc": 1773192205,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "FPCN68",
+      "cccc": "CWVR",
+      "ddhhmm": "110122",
+      "bbb": "AAD"
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "REVISED FORECASTS FOR THE B.C. TRAVELLERS ROUTES ISSUED BY"
+      }
+    ]
+  }
+}

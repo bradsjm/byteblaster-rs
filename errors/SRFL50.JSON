@@ -1,0 +1,29 @@
+{
+  "filename": "SRFL50.TXT",
+  "size": 121,
+  "timestamp_utc": 1773192017,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "office": {
+      "code": "WAL",
+      "city": "Wallops Island",
+      "state": "VA"
+    },
+    "wmo_header": {
+      "ttaaii": "SRFL50",
+      "cccc": "KWAL",
+      "ddhhmm": "110120",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_wmo_bulletin",
+        "message": "recognized valid WMO bulletin without AFOS line, but no parser is available",
+        "line": "FA80E89C 070012004`B1T@jo@jz@Le@LvB_CBbq@nl@io@Eq@Ei@WG@Vi@CI@CE@CM@CHKFpKGG@ML@MN@jO~AfJ 31-0NN 311E"
+      }
+    ]
+  }
+}

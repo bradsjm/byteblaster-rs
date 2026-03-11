@@ -1,3 +1,5 @@
+//! Integration tests for reconnect and failover behavior in the QBT client runtime.
+
 use crate::support::{build_frame, build_header};
 use emwin_protocol::qbt_receiver::{
     QbtDecodeConfig, QbtReceiver, QbtReceiverClient, QbtReceiverConfig, QbtReceiverError,

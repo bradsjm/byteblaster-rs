@@ -1,0 +1,33 @@
+{
+  "filename": "AFDCARME.TXT",
+  "size": 7685,
+  "timestamp_utc": 1773192600,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "CAR",
+      "city": "Caribou",
+      "state": "ME"
+    },
+    "header": {
+      "ttaaii": "FXUS61",
+      "cccc": "KCAR",
+      "ddhhmm": "110129",
+      "bbb": null,
+      "afos": "AFDCAR"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `MEZ010-011-031-032.`",
+        "line": "MEZ010-011-031-032."
+      }
+    ]
+  }
+}

@@ -1,64 +1,35 @@
 use crate::{TextProductHeader, text_product_catalog_entry};
 use serde::Serialize;
 
-/// Classification of WMO BBB (Bulletin Amendment/Correction) indicators.
-///
-/// BBB indicators are used to indicate product corrections, amendments, or retransmissions.
+/// Classification of WMO BBB amendment and correction markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BbbKind {
-    /// Amendment (AA*)
+    /// Amendment family (`AA*`).
     Amendment,
-    /// Correction (CC*)
+    /// Correction family (`CC*`).
     Correction,
-    /// Delayed Repeat (RR*)
+    /// Delayed repeat family (`RR*`).
     DelayedRepeat,
-    /// Other BBB indicator type
+    /// Any recognized BBB value outside the handled families.
     Other,
 }
 
-/// Enriched information about a parsed text product header.
+/// Semantic metadata derived from a parsed text-product header.
 ///
-/// Provides semantic metadata derived from the raw header fields.
-///
-/// Header enrichment exposes PIL-derived identity. The richer text-product
-/// catalog drives routing and generic body policy later in the pipeline.
+/// Enrichment keeps routing decisions out of the string parser. Callers can work with stable
+/// catalog-backed metadata instead of re-slicing the raw AFOS line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextProductEnrichment<'a> {
-    /// First 3 characters of the AFOS PIL (product type code)
+    /// First three AFOS characters when the PIL is long enough to classify.
     pub pil_nnn: Option<&'a str>,
-    /// Human-readable product type description, if known
+    /// Catalog title for the PIL prefix.
     pub pil_description: Option<&'static str>,
-    /// Classification of the BBB indicator, if present
+    /// BBB classification derived from the raw header field.
     pub bbb_kind: Option<BbbKind>,
 }
 
-/// Enriches a parsed header with semantic information.
-///
-/// Extracts the PIL prefix (first 3 characters), looks up a product type description,
-/// and classifies the BBB indicator.
-///
-/// # Arguments
-///
-/// * `header` - Parsed text product header
-///
-/// # Returns
-///
-/// [`TextProductEnrichment`] containing extracted and enriched metadata
-///
-/// # Example
-///
-/// ```
-/// use emwin_parser::{parse_text_product, enrich_header};
-///
-/// let raw_text = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nAREA FORECAST DISCUSSION\n";
-/// let header = parse_text_product(raw_text)?;
-/// let enriched = enrich_header(&header);
-///
-/// assert_eq!(enriched.pil_nnn, Some("AFD"));
-/// assert_eq!(enriched.pil_description, Some("Area Forecast Discussion"));
-/// # Ok::<(), emwin_parser::ParserError>(())
-/// ```
+/// Enriches a parsed header with catalog-backed metadata used later in the pipeline.
 pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     let pil_nnn = if header.afos.len() >= 3 {
         Some(&header.afos[..3])
@@ -76,13 +47,7 @@ pub fn enrich_header(header: &TextProductHeader) -> TextProductEnrichment<'_> {
     }
 }
 
-/// Classifies a BBB indicator into its amendment/correction type.
-///
-/// Recognizes:
-/// - AA* -> Amendment
-/// - CC* -> Correction  
-/// - RR* -> Delayed Repeat
-/// - Other -> Other
+/// Classifies the BBB field into the small set of routing-relevant categories.
 fn classify_bbb(bbb: &str) -> BbbKind {
     let normalized = bbb.trim().to_ascii_uppercase();
     if normalized.starts_with("AA") {

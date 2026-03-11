@@ -1,0 +1,72 @@
+WUUS54 KEWX 102319
+SVREWX
+TXC137-271-385-463-110015-
+/O.NEW.KEWX.SV.W.0013.260310T2319Z-260311T0015Z/
+
+BULLETIN - EAS ACTIVATION REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Austin/San Antonio TX
+619 PM CDT Tue Mar 10 2026
+
+The National Weather Service in Austin San Antonio has issued a
+
+* Severe Thunderstorm Warning for...
+  Northeastern Kinney County in south central Texas...
+  Northwestern Uvalde County in south central Texas...
+  South central Edwards County in south central Texas...
+  Southern Real County in south central Texas...
+
+* Until 715 PM CDT.
+
+* At 619 PM CDT, a severe thunderstorm was located 10 miles southwest
+  of Camp Wood, or 24 miles northeast of Brackettville, moving east
+  at 35 mph.
+
+  HAZARD...Tennis ball size hail and 70 mph wind gusts.
+
+  SOURCE...Radar indicated.
+
+  IMPACT...People and animals outdoors will be injured. Expect hail
+           damage to roofs, siding, windows, and vehicles. Expect
+           considerable tree damage. Wind damage is also likely to
+           mobile homes, roofs, and outbuildings.
+
+* Locations impacted include...
+  Leakey, Camp Wood, Montell, Barksdale, Garner State Park, Tuff, Rio
+  Frio, Reagan Wells, Concan, and Lost Maples State Natural Area.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+A Tornado Watch remains in effect until 1000 PM CDT for south central
+Texas.
+
+For your protection move to an interior room on the lowest floor of a
+building.
+
+This storm is producing destructive winds and large damaging hail.
+SEEK SHELTER NOW inside a sturdy structure and stay away from
+windows!
+
+This is a dangerous storm, capable of producing large hail driven by
+severe winds! SEEK SHELTER NOW inside a sturdy structure and stay
+away from windows! If you are caught outdoors, cover your head and
+neck.
+
+A Tornado Watch remains in effect until 1000 PM CDT for south central
+Texas.
+
+&&
+
+LAT...LON 2991 9969 2990 9961 2949 9960 2950 10024
+      2964 10027 2992 9969
+TIME...MOT...LOC 2319Z 254DEG 32KT 296110016
+
+THUNDERSTORM DAMAGE THREAT...CONSIDERABLE
+HAIL THREAT...RADAR INDICATED
+MAX HAIL SIZE...2.50 IN
+WIND THREAT...RADAR INDICATED
+MAX WIND GUST...70 MPH
+
+$$
+
+62

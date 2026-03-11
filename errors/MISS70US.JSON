@@ -1,0 +1,33 @@
+{
+  "filename": "MISS70US.TXT",
+  "size": 1492,
+  "timestamp_utc": 1773192131,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Satellite Precipitation Estimates",
+    "container": "raw",
+    "pil": "SPE",
+    "wmo_prefix": "TX",
+    "office": {
+      "code": "WBC",
+      "city": "National Centers for Environmental Prediction",
+      "state": "MD"
+    },
+    "header": {
+      "ttaaii": "SPUS70",
+      "cccc": "KWBC",
+      "ddhhmm": "110122",
+      "bbb": null,
+      "afos": "SPECI"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `OVC055M03/M04A2991RMKAO2P0000T10331044$=`",
+        "line": "OVC055M03/M04A2991RMKAO2P0000T10331044$="
+      }
+    ]
+  }
+}

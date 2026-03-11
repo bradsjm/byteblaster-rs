@@ -1,0 +1,52 @@
+WUUS53 KEAX 110033
+SVREAX
+MOC197-110115-
+/O.NEW.KEAX.SV.W.0023.260311T0033Z-260311T0115Z/
+
+BULLETIN - IMMEDIATE BROADCAST REQUESTED
+Severe Thunderstorm Warning
+National Weather Service Kansas City/Pleasant Hill MO
+733 PM CDT Tue Mar 10 2026
+
+The National Weather Service in Pleasant Hill has issued a
+
+* Severe Thunderstorm Warning for...
+  Northeastern Schuyler County in northeastern Missouri...
+
+* Until 815 PM CDT.
+
+* At 733 PM CDT, a severe thunderstorm was located near Lancaster,
+  moving east at 45 mph.
+
+  HAZARD...60 mph wind gusts and quarter size hail.
+
+  SOURCE...Radar indicated.
+
+  IMPACT...Hail damage to vehicles is expected. Expect wind damage
+           to roofs, siding, and trees.
+
+* Locations impacted include...
+  Lancaster.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+For your protection move to an interior room on the lowest floor of a
+building.
+
+A Tornado Watch remains in effect until midnight CDT for northeastern
+Missouri.
+
+&&
+
+LAT...LON 4051 9235 4049 92544059 9256 4060 9254
+      4060 9235
+TIME...MOT...LOC 0033Z 262DEG 38KT 4055 9246
+
+HAIL THREAT...RADAR INDICATED
+MAX HAIL SIZE...1.00 IN
+WIND THREAT...RADAR INDICATED
+MAX WIND GUST...60 MPH
+
+$$
+
+Curtis

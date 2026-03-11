@@ -1,7 +1,4 @@
-//! Authentication utilities for EMWIN protocol.
-//!
-//! This module provides functions for building authentication messages
-//! and applying the XOR 0xFF wire encoding used by the protocol.
+//! Build and parse QBT authentication messages.
 
 use bytes::Bytes;
 
@@ -9,36 +6,17 @@ use crate::qbt_receiver::protocol::model::QbtAuthMessage;
 
 /// Interval between re-authentication messages in seconds.
 ///
-/// The client must send periodic logon messages to maintain the connection.
+/// The client must refresh logon state before the server's idle window expires.
 pub const REAUTH_INTERVAL_SECS: u64 = 115;
 pub const LOGON_PREFIX: &str = "ByteBlast Client|NM-";
 pub const LOGON_SUFFIX: &str = "|V2";
 
-/// Builds a logon message for authentication.
-///
-/// # Arguments
-///
-/// * `email` - The user's email address
-///
-/// # Returns
-///
-/// A formatted logon message string
-///
-/// # Example
-///
-/// ```
-/// use emwin_protocol::unstable::qbt_receiver::build_logon_message;
-///
-/// let msg = build_logon_message("user@example.com");
-/// assert_eq!(msg, "ByteBlast Client|NM-user@example.com|V2");
-/// ```
+/// Builds the wire-format logon message for a user email address.
 pub fn build_logon_message(email: &str) -> String {
     format!("{LOGON_PREFIX}{email}{LOGON_SUFFIX}")
 }
 
-/// Parses a logon message string and extracts the authentication payload.
-///
-/// Expected format: `ByteBlast Client|NM-{email}|V2`
+/// Parses a logon message and extracts the authentication payload.
 pub fn parse_logon_message(message: &str) -> Option<QbtAuthMessage> {
     let payload = message.strip_prefix(LOGON_PREFIX)?;
     let email = payload.strip_suffix(LOGON_SUFFIX)?.trim();
@@ -50,28 +28,7 @@ pub fn parse_logon_message(message: &str) -> Option<QbtAuthMessage> {
     })
 }
 
-/// Applies XOR 0xFF encoding to data.
-///
-/// This is the wire encoding used by the EMWIN protocol.
-/// Each byte is XORed with 0xFF to obfuscate the data.
-///
-/// # Arguments
-///
-/// * `data` - The raw bytes to encode
-///
-/// # Returns
-///
-/// Encoded bytes as a `Bytes` object
-///
-/// # Example
-///
-/// ```
-/// use emwin_protocol::unstable::qbt_receiver::xor_ff;
-///
-/// let encoded = xor_ff(b"Hello");
-/// // Each byte is XORed with 0xFF
-/// assert_eq!(encoded[0], b'H' ^ 0xFF);
-/// ```
+/// Applies the protocol's XOR-`0xFF` wire transform.
 pub fn xor_ff(data: &[u8]) -> Bytes {
     let encoded: Vec<u8> = data.iter().map(|b| b ^ 0xFF).collect();
     Bytes::from(encoded)

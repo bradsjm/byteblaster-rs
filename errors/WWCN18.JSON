@@ -1,0 +1,24 @@
+{
+  "filename": "WWCN18.TXT",
+  "size": 2508,
+  "timestamp_utc": 1773191132,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "WWCN18",
+      "cccc": "CWVR",
+      "ddhhmm": "110105",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "YELLOW WATCH - WINTER STORM"
+      }
+    ]
+  }
+}

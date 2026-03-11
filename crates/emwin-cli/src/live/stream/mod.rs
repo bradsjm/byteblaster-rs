@@ -1,15 +1,7 @@
-//! Live stream command implementation.
+//! Implementation of the `stream` live-mode command.
 //!
-//! This module implements the `stream` subcommand for the EMWIN CLI.
-//! It connects to live servers and streams product events in real-time,
-//! with optional file output to a directory.
-//!
-//! ## Features
-//!
-//! - Real-time event streaming from QBT or Weather Wire sources
-//! - Optional file persistence to a directory
-//! - Telemetry logging and connection state tracking
-//! - Idle timeout handling for automatic disconnection
+//! The command consumes normalized ingest events, applies optional metadata filters, logs
+//! human-facing progress, and optionally persists completed files to disk.
 
 mod common;
 

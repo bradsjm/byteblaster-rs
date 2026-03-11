@@ -1,0 +1,24 @@
+{
+  "filename": "WWCN16.TXT",
+  "size": 1214,
+  "timestamp_utc": 1773192201,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "WWCN16",
+      "cccc": "CWNT",
+      "ddhhmm": "110122",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "YELLOW WARNING - BLIZZARD"
+      }
+    ]
+  }
+}

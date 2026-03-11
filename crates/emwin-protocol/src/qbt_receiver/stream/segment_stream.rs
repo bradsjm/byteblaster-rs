@@ -1,14 +1,9 @@
-//! Segment stream for async segment processing.
-//!
-//! This module provides a simple channel-based stream for protocol segments.
+//! Channel-backed stream for decoded QBT segments.
 
 use crate::qbt_receiver::protocol::model::QbtSegment;
 use tokio::sync::mpsc;
 
-/// A bidirectional channel for segment streaming.
-///
-/// This structure holds both the sender and receiver ends of a channel
-/// for streaming QBT segments between components.
+/// Sender and receiver halves for a bounded segment stream.
 pub struct QbtSegmentStream {
     /// Sender end of the segment stream channel.
     pub tx: mpsc::Sender<QbtSegment>,
@@ -17,11 +12,7 @@ pub struct QbtSegmentStream {
 }
 
 impl QbtSegmentStream {
-    /// Creates a new segment stream with the given buffer capacity.
-    ///
-    /// # Arguments
-    ///
-    /// * `capacity` - Maximum number of segments to buffer
+    /// Creates a segment stream with the requested channel capacity.
     pub fn new(capacity: usize) -> Self {
         let (tx, rx) = mpsc::channel(capacity);
         Self { tx, rx }

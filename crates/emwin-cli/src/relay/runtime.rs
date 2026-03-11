@@ -1,3 +1,8 @@
+//! Run the CLI relay mode and its companion metrics server.
+//!
+//! Relay mode is mostly orchestration: validate CLI config, start the core relay runtime, and
+//! expose health and metrics snapshots over HTTP.
+
 use crate::relay::config::{RelayArgs, RelayConfig};
 use axum::extract::State;
 use axum::routing::get;
@@ -10,6 +15,7 @@ use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tracing::{error, info};
 
+/// Runs the relay command until the process receives a shutdown signal.
 pub async fn run(args: RelayArgs) -> crate::error::CliResult<()> {
     let config = RelayConfig::from_args(args)?;
     config

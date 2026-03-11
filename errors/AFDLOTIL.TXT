@@ -1,0 +1,252 @@
+FXUS63 KLOT 110010
+AFDLOT
+
+Area Forecast Discussion
+National Weather Service Chicago/Romeoville, IL
+710 PM CDT Tue Mar 10 2026
+
+.KEY MESSAGES...
+
+- Severe thunderstorms are expected this afternoon and evening,
+  with the potential for very large hail, damaging winds and
+  tornadoes (some strong).
+
+- Potential for heavy rain and localized flash flooding this
+  afternoon into Wednesday morning.
+
+- Small potential for damaging winds continuing into Wednesday
+  morning across our far south and east.
+
+- Possible very strong winds (45+ mph) Thursday night/Friday.
+
+&&
+
+.DISCUSSION...
+Issued at 253 PM CDT Tue Mar 10 2026
+
+Through Wednesday...
+
+Early this afternoon, an awfully sharp frontal boundary is
+draped across the area from a roughly Pontiac to Kankakee to
+Rensselaer line. North of the front, we find cool northerly
+winds and temperatures in the 40s. Meanwhile across our south,
+temperatures are in the middle and upper 70s with dewpoints into
+the lower 60s. This front is tied to abroad center of low
+pressure pushing into southwestern IA. On the eastern flank of
+this wave, a shortwave low- to mid-level impulse is scooting
+from western into northern IL which will act as the trigger for
+our initial chances for severe weather today.
+
+18Z RAOB from DVN depicts steep mid level lapse rates within
+resident EML plume and a rather formidable capping inversion. an
+18Z balloon from ILX shows recorded over 2,000 J/kg of weakly-
+capped surface based CAPE. Latest SPC mesoanalysis depicts a
+reservoir of MLCAPE over central and extending into northern IL
+and CIN steadily decreasing. Since late this morning, there's
+been a wide expansion of stratocumulus over central and north-
+central IL beneath the capping inversion in the open warm
+sector. And as of 2 PM, some congestus was noted west of the CWA
+and regional radar shows showers have recently been pulsing
+southeast of the Quad Cities.
+
+A very close eye will be kept on the evolution of these
+initial radar echoes southeast of the Quad Cities in the next
+few hours, as they may develop into the first storms of the
+day. Large scale forcing isn't great early on this afternoon,
+but will be aided by the passing of this shortwave and soundings
+from SPC mesoanalysis suggest the cap is becoming rather
+fragile upstream and even weaker with eastward extent into our
+southern CWA. All severe hazards would be possible with any
+storms that develop along and south of the front early this
+afternoon with over 2,000 J/kg of MLCAPE extending into our
+south, 50 to 60 kt of effective shear, and long, veered low
+level hodographs favoring supercell updrafts. Damaging winds and
+large hail, while too favored closer to and south of the front,
+will also be possible with any storms that develop and track
+north of the boundary where the low levels will remain stable.
+
+During the late afternoon into early evening, an expansive SSW
+LLJ will strengthen considerably across IL and nose into
+northern IL. This will bring a notable uptick in moist upglide
+and large scale forcing around the area. As a result, convection
+is anticipated to blossom over the area toward early evening
+with the highest coverage of storms expected near and south of
+the front. South of the front, the low-level wind profile will
+become increasingly curved, which will drive up the strong
+tornado potential. Modeled SRH is maximized south of the front
+after 23Z. For these reasons, the late afternoon through early
+evening period defines the window of highest concern from a
+significant tornado perspective.
+
+Damaging to destructive straight line winds will be moreso
+favored with storms along and south of the front where a lack of
+low level stability will make it far easier for such winds to
+be drawn to the surface, but damaging winds are certainly a
+concern with any storms around the area. The large hail threat
+is active basically area-wide including with any storms that
+track north of the front with substantial mid level shear and
+instability overspreading the CWA. The biggest hail concerns are
+too favored closer to the surface boundary, but extends north
+across most of the Chicago metro area.
+
+Storms will be capable of producing heavy to torrential
+downpours and localized flash flooding may occur with any given
+storm. Flooding concerns are highlighted on either side of the
+front where we expect the overall highest storm coverage and see
+the highest potential for training or regularly recurring
+convection along the boundary. Basically all available
+deterministic guidance resolves at least a county-wide swath of
+1-2" QPF near or on either side of I-80 through the end of the
+event. Accordingly, made the decision to hoist a Flood Watch for
+areas near and north of I-80. Will need to keep a close eye on
+storm evolution into tonight and continued convective chances
+overnight to possibly consider an expansion into our southern
+counties, but initial flooding concerns aren't quite as high
+down in these parts, especially given the largely rural
+landscape.
+
+Taken altogether, any storm this afternoon an evening may
+produce destructive hail larger than 2 inches in diameter,
+damaging winds, flash flooding and, if close to the warm front,
+strong tornadoes.
+
+The elongated center of the surface low will stretch across the
+area tonight with stable low level air immediately in its wake.
+This should shunt the strong storm and heavy rain potential
+after midnight to areas along and southeast of the low track,
+which equates to areas south of I-80. However, occasional
+showers and storms may very well continue across northern IL
+through much of the overnight. The severe threat could linger
+into the overnight across our southern counties where greatest
+forcing and instability will be focused, but stabilizing low
+level air and decreasing low level shear should have the tornado
+threat winding down late evening into the overnight. Hail and
+damaging winds would be the primary concern with continued
+convection into the overnight down south, but showers and
+largely sub-severe convection are expected.
+
+A trailing wave will lift into northern IL very late tonight
+into early Wednesday which will provide additional, likely
+widespread showers for the better part of Wednesday while the
+synoptic system and cold front make their way out of the region.
+There's a signal for some wintry mix or snow showers to develop
+across our north in the cold advection, but no accumulations or
+wintry impacts are anticipated. Temperatures will be cooling
+during the daytime tomorrow around much of the area in the wake
+of the cold front with afternoon temperatures progged in the 30s
+and 40s.
+
+Doom
+
+
+Wednesday night through Tuesday...
+
+It looks like we'll get a bit of a break Wednesday night into
+Thursday as high pressure shifts off to our south. Noting some
+potential for fairly deep mixing Thursday afternoon and for RH
+values to fall around or under 30 percent with breezy westerly
+winds. Given the rain forecast over the next 24 hours, this
+doesn't currently look like an elevated fire threat.
+
+Thursday night into Friday, a robust surface low (mid 980s mb)
+is forecast to track to our north, roughly across the Door
+Peninsula and across northern lower Michigan. Noting a huge low-
+level mass response in the guidance, with 850 mb winds near 70
+knots advertised across the guidance suite. While some low cloud
+cover and at least spotty light precipitation (rain) will be
+possible, deeper-than-typical mixing during the late overnight
+hours into Friday morning may yield a significant increase in
+winds and gusts. Concerningly, latest GFS soundings show roughly
+50 knot boundary layer mean winds during this time frame, with
+even steeper lapse rates developing after daybreak Friday in the
+cold advection regime. Have increased winds and gusts a bit
+with this forecast package above the NBM-delivered values, but
+suspect things remain notably underdone at this time. At this
+time, can't rule out high wind warning type winds and gusts into
+Friday morning given the latest model trends.
+
+Winds will ease sharply Friday evening as high pressure again
+builds across the region. There may be some additional precip
+chances towards the Saturday night - Sunday morning timeframe
+as mid-level frontogenesis intensifies in advance of the next
+disturbance, although the latest guidance suggests most of this
+activity may end up shifting largely north of the region.
+Thereafter, global deterministic and ensemble guidance suggest
+the potential for yet another robust surface low spinning up in
+the general vicinity on Sunday and into Sunday night. A much
+colder airmass bottled up to the north looks like it'll get
+dislodged with this feature and surge across our area during
+this timeframe. While model variability remains somewhat high at
+this juncture, can't totally rule out old man winter making
+another return to the region with some snow potential into early
+Monday morning.
+
+Carlaw
+
+&&
+
+.AVIATION /00Z TAFS THROUGH 06Z THURSDAY/...
+Issued at 710 PM CDT Tue Mar 10 2026
+
+Aviation forecast concernsfor the 00Z TAFs:
+
+- IFR/LIFR ceilings through Wednesday morning, with occasional
+  IFR/MVFR vis in fog/rain. Improvement to MVFR Wednesday
+  afternoon.
+
+- Periods of TSRA expected this evening, with a chance for TSRA
+  to occur as late as ~10Z. A few strong to severe storms
+  possible through 05Z with hail/wind.
+
+- Northeast winds to 15 kt become north-northwest predawn
+  Wednesday and northwest around daybreak. Gusts 25+ kts by
+  afternoon.
+
+- Periodic rain showers to continue through tomorrow, possibly
+  mixing with or changing over to snow before ending.
+
+
+Thunderstorms, fog, and low ceilings are expected this evening
+as the terminals remain north of a warm front and a low pressure
+system moves through the area. Some storms may be strong to
+severe with hail as the primary severe hazard. LIFR conditions
+will be observed at times with the fog/low ceilings.
+
+Winds will shift northwest Wednesday morning as the surface low
+pressure wave moves off to the east of the area and the cold
+front begins to push off to the southeast. Speeds/gusts increase
+by midday as low-level colder air spreads in, with gusts in the
+25+ kt range during the afternoon. IFR cigs should gradually
+rise to MVFR during this time. Periodic -SHRA will also continue
+through the afternoon, possibly mixing with or changing over to
+snow before ending during the late afternoon/early evening.
+
+Ratzer/Ogorek
+
+&&
+
+.LOT WATCHES/WARNINGS/ADVISORIES...
+IL...Flood Watch until 3 AM CDT Wednesday for ILZ012-ILZ013-ILZ019-
+     ILZ020-ILZ021-ILZ023-ILZ103-ILZ104-ILZ105-ILZ106-ILZ107-
+     ILZ108.
+
+IN...Flood Watch until 3 AM CDT Wednesday for INZ001-INZ002.
+
+LM...Small Craft Advisory until 4 AM CDT Thursday for Winthrop
+     Harbor to Northerly Is. IL.
+
+     Dense Fog Advisory until 10 PM CDT this evening for Wilmette
+     Harbor IL to Michigan City IN.
+
+     Small Craft Advisory from 10 AM Wednesday to 4 AM CDT Thursday
+     for Northerly Is. to Gary IN.
+
+     Small Craft Advisory from 10 AM Wednesday to 10AM CDT
+     Thursday for Gary to Burns Harbor IN-Burns Harbor to
+     Michigan City IN.
+
+&&
+
+$$
+
+Visit us at weather.gov/chicago

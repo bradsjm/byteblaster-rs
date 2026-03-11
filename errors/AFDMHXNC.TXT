@@ -1,0 +1,169 @@
+FXUS62 KMHX 102350
+AFDMHX
+
+Area Forecast Discussion
+National Weather Service Newport/Morehead City NC
+750 PM EDT Tue Mar 10 2026
+
+.WHAT HAS CHANGED...
+Sea fog threat decreased quite a bit on the Sounds.
+
+Winds were increased on Wednesday and Thursday
+
+Temperatures were increased on Wednesday
+
+A Gale Watch has been issued for portions of the ENC coastal
+waters.
+
+&&
+
+.KEY MESSAGES...
+1) Well above normal to near record temperatures expected
+through Wednesday, followed by a strong cold front with
+widespread rain and a few thunderstorms on Thursday
+
+2) Temperatures rebound this weekend ahead of a strong cold
+front early next week
+
+Marine...Confidence increasing regarding marine impacts
+Wednesday and Thursday associated with a strong cold front.
+
+&&
+
+.DISCUSSION...
+KEY MESSAGE 1...A potent upper level shortwave will swing east
+through the Carolinas/Mid-Atlantic on Thursday, with an
+associated cold front passage Thursday morning. Ahead of this
+feature, strengthening southerly flow will develop associated
+with a notable southwesterly LLJ. This will support
+strengthening moisture transport, with PWATs climbing to
+1-1.50", and dewpoints rising into the low-mid 60s.
+
+Despite increasing moisture and instability, upper level
+ridging building into the area should keep a fairly tight lid on
+convective potential Wednesday and Wednesday night. Then, by
+the time the front reaches the area on Thursday, the timing
+looks less favorable for severe weather, primarily due to
+limited heating and weak instability. It should be noted,
+though, that this will be a high shear/low CAPE scenario that
+can sometimes support some stronger wind gusts or a very brief,
+weak tornado. While this risk appears low, machine learning
+guidance and pattern recognition suggests the risk isn't zero.
+The most likely scenario is widespread showers with a few
+embedded thunderstorms during the day Thursday.
+
+Ahead of the front, breezy south winds and increasing low-level
+thicknesses beneath the ridge will support well above normal
+temperatures. The ECMWF's EFI guidance continues to show a very
+strong signal for above normal to record high temps. A few
+inland locations could approach 90 degrees. Very warm conditions
+continue into Wednesday night. In fact, lows Wednesday night
+will likely be warmer than our normal highs for this time of
+year.
+
+KEY MESSAGE 2...Yet another strong cold front is forecast to
+move through the U.S. East Coast late this weekend or early next
+week. Similarly, strong southerly flow ahead of the front
+should support increasing moisture with 1"+ PWATs and 60+
+dewpoints. This should once again allow a narrow ribbon of
+modest instability to develop in the warm sector. The timing of
+the cold front looks more favorably timed for peak
+heating/destabilization. Consequently, machine learning guidance
+show a slightly stronger signal for severe thunderstorms during
+this time. This is several days away, but something to monitor
+as we approach the weekend and early next week.
+
+Temperatures will quickly rebound with increasing southerly
+flow ahead of the front this weekend. This looks to be followed
+by a notable surge of cold air next week. In fact, the Climate
+Prediction Center has highlighted a portion of our area for a
+risk of below normal temperatures. This may lead to frost/freeze
+potential which is notable because it comes after some greenup
+is ongoing during this recent stretch of above normal temps.
+
+&&
+
+.AVIATION /00Z WEDNESDAY THROUGH SUNDAY/...
+Light SW winds and VFR conditions through the TAF pd. Fog setup
+looks less significant than this morning, given lowered TD's
+this afternoon and temps expected to remain mainly above x-over
+threshold. HREF only advertising a 20% chc of IFR for the
+inland areas. Any patchy fog that does develop should burn off
+by 14Z, leading to VFR conditions and breezy SW winds with a
+gust factor introduced after 15Z.
+
+Outlook (Thursday through Sunday)...Sub-VFR may return Thursday
+with scattered to numerous showers, isolated storms and gusty
+winds. Pred VFR to return Fri into the weekend.
+
+&&
+
+.MARINE...
+Sea Fog: With the sounds now well into the 60s, the sea fog
+threat here has diminished substantially. Crystal Coast water
+temps have also warmed into the low 60s, so threat is marginal
+for some patchy fog. Best chc for some dense sea fg is the
+waters noth of C Hatteras, where sst's still in the 40s.
+
+Light south winds of 5-10kt are expected to continue into early
+Wednesday morning, with seas of 2-3ft common. These low impact
+conditions won't last long, though, as winds and seas begin to
+build on Wednesday in advance of an approaching cold front.
+Ahead of the front, southerly winds of 10-20kt are expected,
+with seas building to 3-5ft. Behind the front, strong cold air
+advection and enhanced mixing is expected to support widespread
+15-25kt winds, with frequent gusts of 30-35kt+. Of note, some
+guidance suggests gusts of 40kt possible. Given the recent
+warming of SSTs into the 60s, this seems very reasonable as this
+will help enhance mixing (compared to earlier this year when
+SSTs were much colder). In light of all of this, confidence
+continues to steadily increase regarding the potential for gale-
+force gusts, and a Gale Watch has been issued where confidence
+is the highest. Expansions of the watch will be possible, with
+additional marine headlines eventually needed. The cold front
+will be accompanied by a risk of thunderstorms on Thursday, the
+strongest of which may produce enhanced wind gusts and brief
+waterspouts.
+
+Outlook: Winds and seas will lay down Friday and Saturday, with
+more benign marine impacts expected. Winds and seas will
+rebuild Sunday into Monday associated with the next strong cold
+front.
+
+&&
+
+.CLIMATE...
+Record High temps for 3/10 (Tuesday)
+
+LOCATION       TEMP/YEAR
+New Bern        86/1974  (KEWN ASOS)
+Cape Hatteras   74/2000  (KHSE ASOS)
+Greenville      84/2000  (COOP - Not KPGV AWOS)
+Morehead City   86/1974  (COOP - Not KMRH ASOS)
+Kinston         85/2009  (COOP - Not KISO AWOS)
+Jacksonville    84/1974  (NCA ASOS)
+
+Record High temps for 3/11 (Wednesday)
+
+LOCATION       TEMP/YEAR
+New Bern        86/2015  (KEWN ASOS)
+Cape Hatteras   73/1982  (KHSE ASOS)
+Greenville      83/2016  (COOP - Not KPGV AWOS)
+Morehead City   83/1974  (COOP - Not KMRH ASOS)
+Kinston         84/2000,2015  (COOP - Not KISO AWOS)
+Jacksonville    86/2015  (NCA ASOS)
+
+&&
+
+.MHX WATCHES/WARNINGS/ADVISORIES...
+NC...None.
+MARINE...Gale Watch from Thursday morning through Thursday evening for
+     AMZ150-152-154.
+
+&&
+
+$$
+
+DISCUSSION...RM
+AVIATION...TL
+MARINE...RM/TL

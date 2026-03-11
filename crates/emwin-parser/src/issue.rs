@@ -6,33 +6,24 @@
 
 use serde::Serialize;
 
-/// Represents a non-fatal parsing issue encountered during product processing.
+/// Non-fatal parse issue collected during product enrichment.
 ///
-/// Issues are collected during product enrichment and returned alongside
-/// successfully parsed data. Issues are not fatal errors but indicate
-/// potential data quality problems that consumers may want to be aware of.
+/// The parser uses issues instead of hard failures when it can still return useful structured data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProductParseIssue {
-    /// Issue category/type (e.g., "text_product_parse", "header_parse")
+    /// Issue family such as `text_product_parse` or `header_parse`.
     pub kind: &'static str,
-    /// Machine-readable error code (e.g., "missing_wmo_line", "invalid_vtec")
+    /// Stable machine-readable code.
     pub code: &'static str,
-    /// Human-readable error message
+    /// Human-readable detail for logs or diagnostics.
     pub message: String,
-    /// Optional line content where the issue occurred
+    /// Relevant source line when retaining it is useful for debugging.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<String>,
 }
 
 impl ProductParseIssue {
-    /// Creates a new product parse issue.
-    ///
-    /// # Arguments
-    ///
-    /// * `kind` - Issue category/type
-    /// * `code` - Machine-readable error code
-    /// * `message` - Human-readable error message
-    /// * `line` - Optional line content where the issue occurred
+    /// Creates a new parse issue from structured identifiers plus a message.
     pub(crate) fn new(
         kind: &'static str,
         code: &'static str,

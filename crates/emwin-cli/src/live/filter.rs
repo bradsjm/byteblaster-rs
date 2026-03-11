@@ -1,3 +1,8 @@
+//! Filter completed-file events for stream and server consumers.
+//!
+//! These filters operate on already-enriched parser output, which keeps query evaluation out of
+//! the hot path that assembles files from incoming segments.
+
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::wildcard_match;
 use emwin_parser::{
@@ -7,6 +12,7 @@ use emwin_parser::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Raw filter parameters collected from CLI flags or HTTP query strings.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct FileFilterInput {
     pub(crate) filename: Option<String>,

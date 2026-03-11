@@ -1,0 +1,285 @@
+FXUS61 KBUF 102331
+AFDBUF
+
+Area Forecast Discussion
+National Weather Service Buffalo NY
+731 PM EDT Tue Mar 10 2026
+
+.WHAT HAS CHANGED...
+Winter Weather Advisory issued for Jefferson County for late tonight
+through Wednesday morning for freezing rain near the Saint Lawrence
+River.
+
+&&
+
+.KEY MESSAGES...
+1) Widespread rain and scattered thunderstorms Wednesday through
+Wednesday evening. A brief period of freezing rain will occur near
+the Saint Lawrence River late tonight through Wednesday morning.
+
+2) Low chance of severe thunderstorms late Wednesday afternoon and
+evening.
+
+3) Gusty winds Wednesday through early Thursday, especially close to
+the lakes.
+
+4) A progressive system Friday into Friday night will bring snow,
+rain and gusty winds to western New York.
+
+5) Active pattern continues late this weekend into early next week
+as another system may bring the chance of rain, snow, strong winds,
+and a return winter-like temperatures to western New York.
+
+&&
+
+.DISCUSSION...
+KEY MESSAGE 1...Widespread rain and scattered thunderstorms
+Wednesday through Wednesday evening. A brief period of freezing rain
+will occur near the Saint Lawrence River late tonight through
+Wednesday morning.
+
+An east-west oriented frontal zone will gradually strengthen across
+the eastern Great Lakes this afternoon and evening as the thermal
+gradient tightens across the boundary. Moisture transport and
+isentropic upglide across the frontal zone will increase, resulting
+in showers and a few scattered thunderstorms this afternoon and
+evening. The best coverage of rain and best chance of thunder will
+be across Western NY, where a few brief downpours are likely.
+
+The showers and thunder will diminish in coverage temporarily from
+late evening through the early overnight hours as the frontal zone
+moves northward.
+
+Wednesday through Wednesday evening, multiple rounds of showers and
+scattered thunderstorms will cross the eastern Great Lakes as
+convectively augmented shortwaves and deep moisture move across the
+region. The first round will enter Western NY early in the morning,
+followed by several more through the day. A few storms may produce
+brief heavy downpours. The final round of rain and thunder will
+cross the area from west to east Wednesday evening along a strong
+cold front.
+
+A localized area of freezing rain is likely across the Thousand
+Islands region late tonight through Wednesday morning as low level
+northeast flow brings surface temperatures to near or just below
+freezing in the Saint Lawrence Valley. Ice accumulations of up to a
+tenth of an inch or so are possible over northern Jefferson County,
+where a Winter Weather Advisory is in effect.
+
+Rainfall amounts of 1.0" to 1.5" are likely across much of the
+region from today through Wednesday night. The combination of rain
+and snowmelt will continue to increase the flood risk east of Lake
+Ontario. See the Hydrology section below for more details.
+
+A few snow showers will develop late Wednesday night through
+Thursday morning in the strong cold advection regime behind the cold
+front, along with some limited lake enhancement east of both lakes.
+The airmass quickly dries out, so accumulations will be limited to a
+dusting for lower elevations up to a few inches for higher terrain
+east of the lakes.
+
+KEY MESSAGE 2...Low chance of severe thunderstorms late Wednesday
+afternoon and evening.
+
+Strong dynamics from a sharp trough and powerful cold frontal
+passage will bring at least a chance of isolated severe
+thunderstorms late Wednesday afternoon and evening. There will be
+several rounds of thunderstorms Wednesday, but the severe weather
+risk will likely be limited to the last round of storms in the late
+afternoon and early evening along the cold front.
+
+a 55-65 knot low level jet in the warm sector will bring high end
+shear to the setup, but extensive cloud cover and multiple rounds of
+showers will likely limit destabilization. The best chance of
+sufficient surface based instability to support an isolated severe
+risk willbe across the Southern Tier, where SPC continues with a
+Marginal Risk. The primary severe weather risk would be isolated
+damaging wind gusts, with the risk conditional on sufficient
+destabilization.
+
+KEY MESSAGE 3...Gusty winds Wednesday through early Thursday,
+especially close to the lakes.
+
+A strong 55-65 knot low level jet will cross the eastern Great Lakes
+Wednesday through Wednesday evening. The strongest winds aloft will
+be confined to the warm sector of the system, with warm advection
+and poor lapse rates limiting the mixing potential. Nonetheless, a
+few gusts may reach or exceed 40 mph Wednesday through Wednesday
+night, especially on the lake plains. Areas near the eastern shores
+of Lake Ontario from Oswego up to Watertown will have the best
+chance of seeing advisory criteria winds in the post-frontal cold
+advection regime as the surface low continues to deepen moving
+across southern Quebec. Gusts may reach 50 mph here overnight
+Wednesday night.
+
+Farther west, it will be windy in the post-frontal cold advection
+Wednesday night, but gusts may generally be in the 35-45 mph range
+and just shy of Wind Advisory criteria.
+
+KEY MESSAGE 4...A progressive system Friday into Friday night will
+bring snow, rain, and gusty winds to western New York.
+
+A progressive, but deep surface low will move across the Great Lakes
+region Friday with another round of precipitation across the region.
+Ensemble guidance has continued to narrow down the track of this
+system across northern MI into southern Ontario that will result in
+a tight mslp gradient pattern over western NY. While not an ideal
+track based on local wind event climatology, strong winds still
+appear likely Friday into early Saturday. The median of grand
+ensemble members sits above 50 kt for southwesterly 850mb winds
+Friday afternoon with strong winds continuing to persist behind the
+system's cold front turning westerly. This CAA will continue to
+support vertical momentum transport headed into the evening hours.
+
+While snowfall should be the dominant precipitation type for this
+event with temperatures aloft mostly below freezing, marginal 850mb
+temperatures and mid-30s surface temperature sliding into lower
+lying areas will likely result in some rain mixing in. This is
+especially true across areas north of I-90 to the southern Lake
+Ontario shoreline during the afternoon hours Friday. Higher
+elevations of the Allegany's and Tug Hill region will remain all
+snow. Deeper synoptic moisture with this system will be pulled away
+early Saturday morning as this system departs into the Canadian
+Maritimes. Latest NBM probabilities of exceeding 4" of snowfall are
+low (20-30%) across the Boston Hills and medium (40-65%) over the
+North Country, including the Tug Hill plateau.
+
+KEY MESSAGE 5...Active pattern continues late this weekend into
+early next week as another system may bring the chance of rain,
+snow, strong winds, and a return winter-like temperatures to western
+New York.
+
+As the active wave train continues across the northern CONUS, a
+stronger push of colder air will dig a deeper, larger scale trough
+across the eastern half of the US late this weekend into early next
+week. This larger scale system looks to have an expansive warm
+sector with warm southerly flow driving temperatures back above
+normal briefly Sunday as the warm front lifts north with
+precipitation traversing the region. Additional precipitation will
+accompany the system's cold front early Monday while also leading to
+areas of lake effect snow showers under northwest flow in the
+system's wake. Latest guidance from the grand ensemble places
+probabilities of 850mb winds >50 kt at 60-80% with a deepening
+surface low moving northeast from eastern MI across southern Ontario
+into Quebec that may need future monitoring for strong wind
+potential. Plenty of uncertainty still needs to be resolved with the
+track of this system based on ensemble guidance, which will have
+ramification to ptype and strength of winds across western NY for
+Sunday afternoon through Monday. The majority of this uncertainty
+surrounds the timing for this system based on latest cluster
+analysis. The interquartile range for 850mb temps is quite wide
+between 2 to -12 degC early Monday morning, but most members are in
+agreement with eventually dropping around -15 to -20 degC, below the
+climatological 2nd percentile for mid-March.
+
+&&
+
+.AVIATION /00Z WEDNESDAY THROUGH SUNDAY/...
+For the 00Z TAFS, a few showers with embedded MVFR flight conditions
+are found across the region. Farther to the west a southwest flow
+over Lake Erie is bringing a marine layer inland, with low ceiling
+heights near KIAG/KBUF. As winds become more northeasterly through
+the night, flow from Lake Ontario may linger these low ceiling
+heights.
+
+There will be a relative lull in showers after 03Z, with just a
+chance of a few scattered showers across Western NY and the North
+Country.
+
+Tomorrow, low pressure over southern Michigan in the morning will
+deepen as it moves northeast across Ontario and into Quebec by
+Wednesday night. Numerous rounds of showers and scattered
+thunderstorms will cross the eastern Great Lakes Wednesday through
+Wednesday evening, with local MVFR/IFR in the heavier downpours.
+There will also be a period of localized freezing rain late tonight
+through Wednesday morning right along the Saint Lawrence River north
+of KART where surface temperatures will hover near or just below
+freezing.
+
+A strong low level jet will propagate across the eastern Great Lakes
+Wednesday. This may initially produce some low level wind shear
+Wednesday morning before surface gusts increase. Gusts may reach or
+exceed 30 knots Wednesday afternoon, especially across far Western
+NY.
+
+Outlook...
+
+Wednesday night...Rain and scattered thunderstorms early, then some
+light snow showers overnight. MVFR/IFR conditions. Windy.
+
+Thursday...Areas of MVFR/IFR with a few light snow showers likely
+early, improving to mainly VFR. Windy.
+
+Friday...Areas of MVFR/IFR with rain/snow showers likely. Windy.
+
+Saturday...Mainly VFR with a slight chance of a snow shower. Windy.
+
+Sunday...MVFR/IFR with rain and snow likely. Windy.
+
+&&
+
+.MARINE...
+A frontal zone will sag south across Lake Ontario this evening, with
+northeast winds increasing and producing Small Craft Advisory
+conditions along the south shore of the lake. Winds will diminish
+late tonight as the frontal zone begins to move back north across
+the lake.
+
+Low pressure will then move from southern lower Michigan Wednesday
+morning to southern Quebec by Wednesday night, with a strong cold
+front crossing the lake Wednesday evening. West winds will rapidly
+increase following the cold frontal passage, with a period of gales
+likely on Lake Ontario Wednesday night through early Thursday
+morning. Winds will gradually diminish later Thursday.
+
+A series of low pressure systems will cross the Great Lakes Friday
+through early next week, with multiple rounds of gale force winds
+likely.
+
+Please note...most, if not all of the Lake Erie nearshore waters
+continue to be ice covered. Waves have been omitted from the
+forecast.
+
+&&
+
+.HYDROLOGY...
+Ongoing well above average temperatures will continue to support
+rapid snowmelt across the North Country through Wednesday.
+Significant snowpack and SWE remains across the higher terrain
+of the Tug Hill Plateau and western Adirondacks. Rain will bring
+another 1.0 to 1.5 inches of rain Wednesday through Wednesday
+night over much of the region, including the North Country.
+
+Rivers will continue to rise east of Lake Ontario from ongoing
+snowmelt and rainfall. The Black River will likely flood
+starting late Wednesday night or early Thursday, with flooding
+continuing through the weekend on this slow responding river.
+The latest forecast shows the Black River at Watertown reaching
+the high end of Minor Flood Stage, but moderate stage is
+possible by the weekend, which would result in more significant
+impacts.
+
+Flooding is also possible on many other rivers that drain the
+Tug Hill Plateau and western Adirondacks Wednesday night through
+the end of the week.
+
+&&
+
+.BUF WATCHES/WARNINGS/ADVISORIES...
+NY...Winter Weather Advisory from 2 AM to 11 AM EDT Wednesday for
+     NYZ007.
+     Flood Watch from Wednesday morning through Thursday afternoon
+     for NYZ007-008.
+MARINE...Small Craft Advisory until 11 AM EDT Wednesday for LOZ042-043.
+         Gale Watch from Wednesday evening through Thursday morning
+         for LOZ042>045-062>065.
+         Small Craft Advisory until 7 AM EDT Wednesday for LOZ044.
+
+&&
+
+$$
+
+DISCUSSION...Brothers/Hitchcock
+AVIATION...Hitchcock/Thomas
+MARINE...Hitchcock
+HYDROLOGY...Hitchcock

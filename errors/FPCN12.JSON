@@ -1,0 +1,24 @@
+{
+  "filename": "FPCN12.TXT",
+  "size": 23478,
+  "timestamp_utc": 1773189704,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "FPCN12",
+      "cccc": "CWTO",
+      "ddhhmm": "110041",
+      "bbb": "AAA"
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "UPDATED FORECASTS FOR NORTHERN ONTARIO ISSUED BY ENVIRONMENT CANADA"
+      }
+    ]
+  }
+}

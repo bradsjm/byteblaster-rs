@@ -1,3 +1,8 @@
+//! Shared state and response payloads for live server mode.
+//!
+//! Keeping these types in one place helps the HTTP layer, ingest loop, and retention code agree
+//! on stable payload shapes without circular dependencies.
+
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::filter::{FileEventFilter, FileFilterInput};
@@ -13,12 +18,14 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
 use tokio::sync::{broadcast, watch};
 
+/// Lightweight broadcast notification stored in the SSE ring buffer.
 #[derive(Debug, Clone)]
 pub(crate) struct BroadcastEvent {
     pub(crate) id: u64,
     pub(crate) kind: EventKind,
 }
 
+/// Downloadable file payload advertised by the HTTP API.
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct CompletedFilePayload {
     #[serde(flatten)]

@@ -1,0 +1,24 @@
+{
+  "filename": "WOCN13.TXT",
+  "size": 1469,
+  "timestamp_utc": 1773191805,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "WOCN13",
+      "cccc": "CWHX",
+      "ddhhmm": "110115",
+      "bbb": null
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "SPECIAL WEATHER STATEMENT"
+      }
+    ]
+  }
+}

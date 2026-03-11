@@ -1,39 +1,14 @@
-//! Checksum calculation and verification for EMWIN protocol.
-//!
-//! This module provides simple checksum utilities used for data integrity
-//! validation in both V1 and V2 protocol frames.
+//! Calculate and verify the additive checksum used by QBT frames.
 
-/// Calculates a 16-bit checksum by summing all bytes and masking to 16 bits.
-///
-/// This is a simple additive checksum used by the EMWIN protocol
-/// for basic data integrity verification.
-///
-/// # Arguments
-///
-/// * `data` - The byte slice to checksum
-///
-/// # Returns
-///
-/// A 16-bit checksum value
+/// Calculates the 16-bit additive checksum used on the wire.
 pub fn calculate_qbt_checksum(data: &[u8]) -> u16 {
     (data.iter().map(|v| *v as u32).sum::<u32>() & 0xFFFF) as u16
 }
 
-/// Verifies that the calculated checksum matches the expected value.
+/// Verifies a frame checksum against the protocol's 16-bit comparison rules.
 ///
-/// # Arguments
-///
-/// * `data` - The byte slice to verify
-/// * `expected` - The expected checksum value (can be larger than 16 bits for V1 protocol)
-///
-/// # Returns
-///
-/// `true` if the checksum matches, `false` otherwise
-///
-/// # Notes
-///
-/// Negative expected values are always considered invalid.
-/// For V1 protocol, only the lower 16 bits of the expected value are used.
+/// Negative expected values are rejected immediately. For V1 compatibility only the low 16 bits
+/// participate in the comparison.
 pub fn verify_checksum(data: &[u8], expected: i64) -> bool {
     if expected < 0 {
         return false;

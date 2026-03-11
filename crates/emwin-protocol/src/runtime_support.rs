@@ -147,28 +147,10 @@ impl BackpressureTracker {
     }
 }
 
-/// Attempts to send an event, emitting backpressure warnings if needed.
+/// Attempts to send an event and reports backpressure through warning events when possible.
 ///
-/// If there are pending dropped events, first attempts to send a warning
-/// event before sending the actual event. Handles queue full conditions
-/// by recording the failure in the tracker and calling the on_drop callback.
-///
-/// # Type Parameters
-///
-/// * `TEvent` - The event type
-/// * `TError` - The error type
-/// * `FBuildWarning` - Function to build a warning event from tracker state
-/// * `FOnWarningSent` - Callback when warning is successfully sent
-/// * `FOnDrop` - Callback when events are dropped due to full queue
-///
-/// # Arguments
-///
-/// * `event_tx` - The event channel sender
-/// * `event` - The event to send
-/// * `tracker` - Backpressure tracker for drop counting
-/// * `build_warning` - Function to create warning event
-/// * `on_warning_sent` - Callback after warning sent
-/// * `on_drop` - Callback when events are dropped
+/// The helper keeps the queue-full policy centralized so runtimes can share one accounting model
+/// without duplicating sender error handling.
 pub(crate) fn try_send_with_backpressure_warning<
     TEvent,
     TError,

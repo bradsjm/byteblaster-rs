@@ -1,3 +1,5 @@
+//! Protocol regression tests built from representative wire-level scenarios.
+
 use crate::support::{build_frame, build_header, xor_encode};
 use emwin_protocol::qbt_receiver::{
     QbtFrameDecoder, QbtFrameEvent, QbtProtocolDecoder, QbtProtocolWarning, calculate_qbt_checksum,

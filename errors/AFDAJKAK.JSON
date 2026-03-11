@@ -1,0 +1,33 @@
+{
+  "filename": "AFDAJKAK.TXT",
+  "size": 6046,
+  "timestamp_utc": 1773185764,
+  "product": {
+    "source": "text_header",
+    "family": "nws_text_product",
+    "title": "Area Forecast Discussion",
+    "container": "raw",
+    "pil": "AFD",
+    "wmo_prefix": "FX",
+    "office": {
+      "code": "AJK",
+      "city": "Juneau",
+      "state": "AK"
+    },
+    "header": {
+      "ttaaii": "FXAK67",
+      "cccc": "PAJK",
+      "ddhhmm": "102335",
+      "bbb": null,
+      "afos": "AFDAJK"
+    },
+    "issues": [
+      {
+        "kind": "ugc_parse",
+        "code": "invalid_ugc_format",
+        "message": "could not parse UGC section: `AKZ321.WinterWeatherAdvisoryfrom4AMto4PMAKDTWednesdayforAKZ323.WinterWeatherAdvisoryfrom3AMto6PMAKDTWednesdayforAKZ328-330-332.`",
+        "line": "AKZ321.WinterWeatherAdvisoryfrom4AMto4PMAKDTWednesdayforAKZ323.WinterWeatherAdvisoryfrom3AMto6PMAKDTWednesdayforAKZ328-330-332."
+      }
+    ]
+  }
+}

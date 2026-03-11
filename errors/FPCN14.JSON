@@ -1,0 +1,24 @@
+{
+  "filename": "FPCN14.TXT",
+  "size": 915,
+  "timestamp_utc": 1773187402,
+  "product": {
+    "source": "wmo_unsupported_bulletin",
+    "family": "unsupported_wmo_bulletin",
+    "container": "raw",
+    "wmo_header": {
+      "ttaaii": "FPCN14",
+      "cccc": "CWWG",
+      "ddhhmm": "110002",
+      "bbb": "AAA"
+    },
+    "issues": [
+      {
+        "kind": "wmo_bulletin_parse",
+        "code": "unsupported_canadian_text_bulletin",
+        "message": "recognized valid WMO Canadian text bulletin, but parsing is not implemented",
+        "line": "UPDATED FORECASTS FOR NORTHERN SASKATCHEWAN ISSUED BY ENVIRONMENT"
+      }
+    ]
+  }
+}

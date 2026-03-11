@@ -7,7 +7,8 @@ use crate::cmd::event_output::text_preview;
 use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::file_pipeline::CompletedFileRecord;
 use crate::live::shared::unix_seconds;
-use emwin_protocol::ingest::{IngestWarning, ProductOrigin, ReceivedProduct};
+use emwin_protocol::ingest::{IngestWarning, ProductOrigin};
+use std::time::SystemTime;
 use tracing::{info, warn};
 
 #[derive(Debug, Default)]
@@ -34,20 +35,23 @@ pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
 }
 
 pub(super) fn log_product_event(
-    product: &ReceivedProduct,
+    origin: &ProductOrigin,
+    filename: &str,
+    data: &[u8],
+    source_timestamp_utc: SystemTime,
     metadata: &CompletedFileMetadata,
     text_preview_chars: usize,
 ) {
-    let preview = text_preview(&product.filename, &product.data, text_preview_chars);
-    match &product.origin {
+    let preview = text_preview(filename, data, text_preview_chars);
+    match origin {
         ProductOrigin::Qbt => {
             if let Some(title) = metadata.product.title.as_ref() {
                 info!(
                     event = "product",
                     source = "qbt",
-                    filename = %product.filename,
-                    bytes = product.data.len(),
-                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    filename = %filename,
+                    bytes = data.len(),
+                    timestamp_utc = unix_seconds(source_timestamp_utc),
                     product_source = ?metadata.product.source,
                     product_title = title,
                     product_pil = metadata.product.pil.as_deref(),
@@ -59,9 +63,9 @@ pub(super) fn log_product_event(
                 info!(
                     event = "product",
                     source = "qbt",
-                    filename = %product.filename,
-                    bytes = product.data.len(),
-                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    filename = %filename,
+                    bytes = data.len(),
+                    timestamp_utc = unix_seconds(source_timestamp_utc),
                     product_source = ?metadata.product.source,
                     product_pil = metadata.product.pil.as_deref(),
                     product_issue_code = metadata.product.issues.first().map(|value| value.code),
@@ -79,9 +83,9 @@ pub(super) fn log_product_event(
                 info!(
                     event = "product",
                     source = "wxwire",
-                    filename = %product.filename,
-                    bytes = product.data.len(),
-                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    filename = %filename,
+                    bytes = data.len(),
+                    timestamp_utc = unix_seconds(source_timestamp_utc),
                     message_id = %message_id,
                     subject = %subject,
                     delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
@@ -96,9 +100,9 @@ pub(super) fn log_product_event(
                 info!(
                     event = "product",
                     source = "wxwire",
-                    filename = %product.filename,
-                    bytes = product.data.len(),
-                    timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                    filename = %filename,
+                    bytes = data.len(),
+                    timestamp_utc = unix_seconds(source_timestamp_utc),
                     message_id = %message_id,
                     subject = %subject,
                     delay_stamp_utc = delay_stamp_utc.map(unix_seconds),
@@ -114,9 +118,9 @@ pub(super) fn log_product_event(
             info!(
                 event = "product",
                 source = "unknown",
-                filename = %product.filename,
-                bytes = product.data.len(),
-                timestamp_utc = unix_seconds(product.source_timestamp_utc),
+                filename = %filename,
+                bytes = data.len(),
+                timestamp_utc = unix_seconds(source_timestamp_utc),
                 "ingest event"
             );
         }

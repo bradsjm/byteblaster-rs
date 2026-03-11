@@ -5,6 +5,7 @@
 
 mod common;
 
+use crate::live::archive_postprocess::post_process_archive;
 use crate::live::file_pipeline::{build_completed_file_metadata, persist_completed_record};
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};
 use common::{LiveStats, log_completed_file, log_ingest_warning, log_product_event};
@@ -50,10 +51,25 @@ pub async fn run(
             Ok(IngestEvent::Product(product)) => {
                 seen += 1;
                 stats.products_total = stats.products_total.saturating_add(1);
-                let metadata = build_completed_file_metadata(
+                let delivered = match post_process_archive(
+                    live.post_process_archives,
                     &product.filename,
-                    crate::live::shared::unix_seconds(product.source_timestamp_utc),
                     &product.data,
+                ) {
+                    Ok(delivered) => delivered,
+                    Err(err) => {
+                        warn!(
+                            archive_filename = %product.filename,
+                            error = %err,
+                            "Corrupt Zip File Received"
+                        );
+                        continue;
+                    }
+                };
+                let metadata = build_completed_file_metadata(
+                    &delivered.filename,
+                    crate::live::shared::unix_seconds(product.source_timestamp_utc),
+                    &delivered.data,
                 );
                 if live
                     .file_filter
@@ -62,12 +78,19 @@ pub async fn run(
                 {
                     continue;
                 }
-                log_product_event(&product, &metadata, text_preview_chars);
+                log_product_event(
+                    &product.origin,
+                    &delivered.filename,
+                    &delivered.data,
+                    product.source_timestamp_utc,
+                    &metadata,
+                    text_preview_chars,
+                );
                 if let Some(output_dir) = output_dir_path.as_deref() {
                     let completed = persist_completed_record(
                         output_dir,
-                        &product.filename,
-                        &product.data,
+                        &delivered.filename,
+                        &delivered.data,
                         metadata,
                     )?;
                     log_completed_file(&completed);

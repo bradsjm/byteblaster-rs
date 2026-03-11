@@ -4,6 +4,7 @@
 //! telemetry snapshots without leaking transport-specific details into the HTTP layer.
 
 use super::types::{AppState, CompletedFilePayload, EventKind, TelemetryPayload};
+use crate::live::archive_postprocess::post_process_archive;
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
     ProductOrigin,
@@ -21,6 +22,7 @@ use tracing::info;
 pub(super) async fn run_qbt_ingest_loop(
     config: QbtReceiverConfig,
     state: Arc<AppState>,
+    post_process_archives: bool,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
     let mut ingest = IngestReceiver::build(IngestConfig::Qbt(config))?;
@@ -36,7 +38,7 @@ pub(super) async fn run_qbt_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_ingest_event(item, &state);
+                handle_ingest_event(item, &state, post_process_archives);
             }
         }
     }
@@ -50,6 +52,7 @@ pub(super) async fn run_qbt_ingest_loop(
 pub(super) async fn run_wxwire_ingest_loop(
     config: WxWireReceiverConfig,
     state: Arc<AppState>,
+    post_process_archives: bool,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
     let mut ingest = IngestReceiver::build(IngestConfig::WxWire(config))?;
@@ -65,7 +68,7 @@ pub(super) async fn run_wxwire_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_ingest_event(item, &state);
+                handle_ingest_event(item, &state, post_process_archives);
             }
         }
     }
@@ -76,7 +79,11 @@ pub(super) async fn run_wxwire_ingest_loop(
     Ok(())
 }
 
-fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppState>) {
+fn handle_ingest_event(
+    item: Result<IngestEvent, IngestError>,
+    state: &Arc<AppState>,
+    post_process_archives: bool,
+) {
     match item {
         Ok(IngestEvent::Connected { endpoint }) => {
             {
@@ -128,6 +135,19 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
                 state.data_blocks_total.fetch_add(1, Ordering::Relaxed);
             }
 
+            let delivered =
+                match post_process_archive(post_process_archives, &product.filename, &product.data)
+                {
+                    Ok(delivered) => delivered,
+                    Err(err) => {
+                        tracing::warn!(
+                            archive_filename = %product.filename,
+                            error = %err,
+                            "Corrupt Zip File Received"
+                        );
+                        return;
+                    }
+                };
             let completed_at = SystemTime::now();
             let timestamp_utc = product
                 .source_timestamp_utc
@@ -140,8 +160,8 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 guard.insert(
-                    product.filename.clone(),
-                    product.data.to_vec(),
+                    delivered.filename.clone(),
+                    delivered.data.to_vec(),
                     timestamp_utc,
                     completed_at,
                 )
@@ -156,8 +176,8 @@ fn handle_ingest_event(item: Result<IngestEvent, IngestError>, state: &Arc<AppSt
                 state.quiet,
                 &format!(
                     "file complete name={} bytes={} timestamp_utc={}",
-                    product.filename,
-                    product.data.len(),
+                    delivered.filename,
+                    delivered.data.len(),
                     timestamp_utc
                 ),
             );
@@ -252,4 +272,134 @@ pub(super) async fn run_stats_loop(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_ingest_event;
+    use crate::live::server::types::{AppState, EventKind, TelemetryPayload};
+    use crate::live::server_support::RetainedFiles;
+    use bytes::Bytes;
+    use emwin_protocol::ingest::IngestEvent;
+    use emwin_protocol::qbt_receiver::QbtCompletedFile;
+    use std::io::Write;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, AtomicUsize};
+    use std::time::{Duration, Instant, SystemTime};
+    use tokio::sync::{broadcast, watch};
+
+    fn test_state() -> Arc<AppState> {
+        let (_, shutdown_rx) = watch::channel(false);
+        Arc::new(AppState {
+            event_tx: broadcast::channel(16).0,
+            shutdown_rx,
+            retained_files: Mutex::new(RetainedFiles::new(16, Duration::from_secs(60))),
+            telemetry: Mutex::new(TelemetryPayload::Unavailable),
+            connected_clients: AtomicUsize::new(0),
+            max_clients: 16,
+            next_event_id: AtomicU64::new(1),
+            data_blocks_total: AtomicU64::new(0),
+            received_servers: AtomicUsize::new(0),
+            received_sat_servers: AtomicUsize::new(0),
+            started_at: Instant::now(),
+            upstream_endpoint: Mutex::new(None),
+            quiet: true,
+        })
+    }
+
+    fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let cursor = std::io::Cursor::new(Vec::new());
+        let mut writer = zip::ZipWriter::new(cursor);
+        let options: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        for (name, body) in entries {
+            writer
+                .start_file(name, options)
+                .expect("start file should succeed");
+            writer.write_all(body).expect("write body should succeed");
+        }
+        writer.finish().expect("finish should succeed").into_inner()
+    }
+
+    #[test]
+    fn product_event_post_processes_archives_before_retention_and_publish() {
+        let state = test_state();
+        let mut rx = state.event_tx.subscribe();
+        let data = archive(&[(
+            "nested/TAFPDKGA.TXT",
+            b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n",
+        )]);
+
+        handle_ingest_event(
+            Ok(IngestEvent::Product(
+                QbtCompletedFile {
+                    filename: "TAFPDKGA.ZIP".to_string(),
+                    data: Bytes::from(data),
+                    timestamp_utc: SystemTime::UNIX_EPOCH + Duration::from_secs(1),
+                }
+                .into(),
+            )),
+            &state,
+            true,
+        );
+
+        let retained = state
+            .retained_files
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get("nested/TAFPDKGA.TXT")
+            .expect("retained file should exist");
+        assert_eq!(retained.metadata.product.pil.as_deref(), Some("TAF"));
+        assert_eq!(retained.metadata.filename, "nested/TAFPDKGA.TXT");
+        assert!(
+            state
+                .retained_files
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get("TAFPDKGA.ZIP")
+                .is_none()
+        );
+
+        let published = rx.try_recv().expect("file complete event should publish");
+        match published.kind {
+            EventKind::FileComplete(file) => {
+                assert_eq!(file.metadata.filename, "nested/TAFPDKGA.TXT");
+                assert_eq!(file.download_url, "/files/nested%2FTAFPDKGA.TXT");
+            }
+            _ => panic!("expected file_complete event"),
+        }
+    }
+
+    #[test]
+    fn corrupt_archive_is_dropped_before_retention_and_publish() {
+        let state = test_state();
+        let mut rx = state.event_tx.subscribe();
+
+        handle_ingest_event(
+            Ok(IngestEvent::Product(
+                QbtCompletedFile {
+                    filename: "BROKEN.ZIP".to_string(),
+                    data: Bytes::from_static(b"not a zip"),
+                    timestamp_utc: SystemTime::UNIX_EPOCH + Duration::from_secs(1),
+                }
+                .into(),
+            )),
+            &state,
+            true,
+        );
+
+        assert_eq!(
+            state
+                .retained_files
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .len(),
+            0
+        );
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
+    }
 }

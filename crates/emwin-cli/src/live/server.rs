@@ -47,6 +47,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         stats_interval_secs,
         file_retention_secs,
         max_retained_files,
+        post_process_archives,
         quiet,
     } = options;
 
@@ -99,6 +100,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             tokio::spawn(server_ingest::run_qbt_ingest_loop(
                 config,
                 Arc::clone(&state),
+                post_process_archives,
                 shutdown_rx.clone(),
             ))
         }
@@ -121,6 +123,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             tokio::spawn(server_ingest::run_wxwire_ingest_loop(
                 config,
                 Arc::clone(&state),
+                post_process_archives,
                 shutdown_rx.clone(),
             ))
         }

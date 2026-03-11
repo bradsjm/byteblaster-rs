@@ -72,6 +72,7 @@ Live stream mode:
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
+cargo run -p emwin-cli -- stream --output-dir ./out --post-process-archives false --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
 cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username you@example.com --password 'secret'
 ```
@@ -79,6 +80,8 @@ cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username
 Optional stream file writing:
 
 - `stream --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar while still emitting stream events.
+- `stream` and `server` default to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
+- Corrupt `.ZIP` and `.ZIS` payloads are logged as `Corrupt Zip File Received` and dropped when archive post-processing is enabled.
 - `stream --filter <key=value>` filters product/file events using the same keys as `server /events`, for example `has_issues=true` or `issue_code=invalid_wmo_header`.
 - Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
 
@@ -93,6 +96,7 @@ Live server mode (SSE + JSON endpoints):
 ```bash
 cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
 cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password 'secret' --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --post-process-archives false --username you@example.com --bind 127.0.0.1:8080
 ```
 
 Useful server flags:
@@ -151,7 +155,7 @@ Environment and `.env` support:
 
 - `.env` from the current working directory is loaded before CLI parsing.
 - CLI args override process env; process env overrides `.env`.
-- Useful variables include `EMWIN_RECEIVER`, `EMWIN_USERNAME`, `EMWIN_PASSWORD`, `EMWIN_SERVER`, `EMWIN_SERVER_LIST_PATH`, `EMWIN_MAX_EVENTS`, `EMWIN_IDLE_TIMEOUT_SECS`, `EMWIN_BIND`, `EMWIN_CORS_ORIGIN`, `EMWIN_MAX_CLIENTS`, `EMWIN_STATS_INTERVAL_SECS`, `EMWIN_FILE_RETENTION_SECS`, `EMWIN_MAX_RETAINED_FILES`, `EMWIN_QUIET`, and `EMWIN_TEXT_PREVIEW_CHARS`.
+- Useful variables include `EMWIN_RECEIVER`, `EMWIN_USERNAME`, `EMWIN_PASSWORD`, `EMWIN_SERVER`, `EMWIN_SERVER_LIST_PATH`, `EMWIN_MAX_EVENTS`, `EMWIN_IDLE_TIMEOUT_SECS`, `EMWIN_BIND`, `EMWIN_CORS_ORIGIN`, `EMWIN_MAX_CLIENTS`, `EMWIN_STATS_INTERVAL_SECS`, `EMWIN_FILE_RETENTION_SECS`, `EMWIN_MAX_RETAINED_FILES`, `EMWIN_QUIET`, `EMWIN_TEXT_PREVIEW_CHARS`, and `EMWIN_POST_PROCESS_ARCHIVES`.
 - Filters are CLI-only and are not loaded from environment variables.
 
 Relay mode (raw TCP passthrough + metrics):

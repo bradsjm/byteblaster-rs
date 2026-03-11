@@ -10,7 +10,7 @@ mod error;
 mod live;
 mod relay;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use std::io::IsTerminal;
 use tracing_subscriber::EnvFilter;
 
@@ -33,6 +33,8 @@ struct LiveOptions {
     max_events: usize,
     /// Idle timeout before disconnecting (in seconds).
     idle_timeout_secs: u64,
+    /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
+    post_process_archives: bool,
 }
 
 /// Supported upstream receiver backends.
@@ -52,6 +54,14 @@ enum Commands {
         /// Optional directory to write completed files.
         #[arg(long)]
         output_dir: Option<String>,
+        /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
+        #[arg(
+            long,
+            env = "EMWIN_POST_PROCESS_ARCHIVES",
+            default_value = "true",
+            action = ArgAction::Set
+        )]
+        post_process_archives: bool,
         /// Account username for live mode authentication.
         #[arg(long, env = "EMWIN_USERNAME")]
         username: Option<String>,
@@ -79,6 +89,14 @@ enum Commands {
     },
     /// Run HTTP server with SSE endpoints.
     Server {
+        /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
+        #[arg(
+            long,
+            env = "EMWIN_POST_PROCESS_ARCHIVES",
+            default_value = "true",
+            action = ArgAction::Set
+        )]
+        post_process_archives: bool,
         /// Account username for authentication.
         #[arg(long, env = "EMWIN_USERNAME")]
         username: String,
@@ -146,6 +164,7 @@ async fn main() -> crate::error::CliResult<()> {
     match cli.command {
         Commands::Stream {
             output_dir,
+            post_process_archives,
             username,
             password,
             receiver,
@@ -164,10 +183,12 @@ async fn main() -> crate::error::CliResult<()> {
                 file_filter: crate::live::filter::FileEventFilter::from_cli_filters(&filters)?,
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
+                post_process_archives,
             };
             live::stream::run(output_dir, live, text_preview_chars).await
         }
         Commands::Server {
+            post_process_archives,
             username,
             password,
             receiver,
@@ -193,6 +214,7 @@ async fn main() -> crate::error::CliResult<()> {
                 stats_interval_secs,
                 file_retention_secs,
                 max_retained_files,
+                post_process_archives,
                 quiet,
             };
             live::server::run(options).await
@@ -242,7 +264,20 @@ mod tests {
             .to_string();
 
         assert!(help.contains("--output-dir"));
+        assert!(help.contains("--post-process-archives"));
         assert!(!help.contains("download"));
+    }
+
+    #[test]
+    fn server_help_mentions_post_process_archives() {
+        let mut command = Cli::command();
+        let help = command
+            .find_subcommand_mut("server")
+            .expect("server subcommand should exist")
+            .render_long_help()
+            .to_string();
+
+        assert!(help.contains("--post-process-archives"));
     }
 
     #[test]
@@ -255,6 +290,41 @@ mod tests {
                 .to_string()
                 .contains("unrecognized subcommand 'download'")
         );
+    }
+
+    #[test]
+    fn stream_post_process_archives_defaults_true() {
+        let cli = Cli::try_parse_from(["emwin", "stream", "--username", "test@example.com"])
+            .expect("stream args should parse");
+
+        match cli.command {
+            Commands::Stream {
+                post_process_archives,
+                ..
+            } => assert!(post_process_archives),
+            _ => panic!("expected stream command"),
+        }
+    }
+
+    #[test]
+    fn stream_post_process_archives_accepts_false() {
+        let cli = Cli::try_parse_from([
+            "emwin",
+            "stream",
+            "--username",
+            "test@example.com",
+            "--post-process-archives",
+            "false",
+        ])
+        .expect("stream args should parse");
+
+        match cli.command {
+            Commands::Stream {
+                post_process_archives,
+                ..
+            } => assert!(!post_process_archives),
+            _ => panic!("expected stream command"),
+        }
     }
 
     #[test]

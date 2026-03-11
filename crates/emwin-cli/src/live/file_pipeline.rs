@@ -94,6 +94,7 @@ pub(crate) fn persist_completed_record(
 
 #[cfg(test)]
 mod tests {
+    use crate::live::archive_postprocess::post_process_archive;
     use emwin_parser::ProductEnrichmentSource;
 
     use super::{
@@ -144,6 +145,34 @@ mod tests {
         assert_eq!(metadata.product.container, "zip");
         assert!(metadata.product.issues.is_empty());
         assert!(metadata.product.header.is_none());
+    }
+
+    #[test]
+    fn completed_metadata_parses_extracted_archive_content_like_plain_text() {
+        let archive = {
+            let cursor = std::io::Cursor::new(Vec::new());
+            let mut writer = zip::ZipWriter::new(cursor);
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            use std::io::Write;
+            writer
+                .start_file("nested/AFDBOX.TXT", options)
+                .expect("start file should succeed");
+            writer
+                .write_all(b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n")
+                .expect("write should succeed");
+            writer.finish().expect("finish should succeed").into_inner()
+        };
+        let delivered = post_process_archive(true, "AFDBOX.ZIP", &archive)
+            .expect("archive post-processing should succeed");
+
+        let metadata =
+            build_completed_file_metadata(&delivered.filename, 1704070800, &delivered.data);
+
+        assert_eq!(metadata.filename, "nested/AFDBOX.TXT");
+        assert_eq!(metadata.product.source, ProductEnrichmentSource::TextHeader);
+        assert_eq!(metadata.product.pil.as_deref(), Some("AFD"));
+        assert_eq!(metadata.product.container, "raw");
     }
 
     #[test]
@@ -201,6 +230,46 @@ mod tests {
         .expect("metadata json should decode");
 
         assert_eq!(sidecar["filename"], "nested/AFDBOX.TXT");
+        assert_eq!(
+            PathBuf::from(&record.metadata_path),
+            tmp.path().join("nested/AFDBOX.JSON")
+        );
+    }
+
+    #[test]
+    fn persist_completed_record_uses_extracted_filename_and_bytes() {
+        let archive = {
+            let cursor = std::io::Cursor::new(Vec::new());
+            let mut writer = zip::ZipWriter::new(cursor);
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            use std::io::Write;
+            writer
+                .start_file("nested/AFDBOX.TXT", options)
+                .expect("start file should succeed");
+            writer
+                .write_all(b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n")
+                .expect("write should succeed");
+            writer.finish().expect("finish should succeed").into_inner()
+        };
+        let delivered = post_process_archive(true, "AFDBOX.ZIP", &archive)
+            .expect("archive post-processing should succeed");
+        let metadata =
+            build_completed_file_metadata(&delivered.filename, 1704070800, &delivered.data);
+        let tmp = tempfile::tempdir().expect("tempdir should exist");
+
+        let record =
+            persist_completed_record(tmp.path(), &delivered.filename, &delivered.data, metadata)
+                .expect("completed record should persist");
+
+        assert_eq!(
+            std::fs::read(&record.path).expect("payload should be readable"),
+            b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n"
+        );
+        assert_eq!(
+            PathBuf::from(&record.path),
+            tmp.path().join("nested/AFDBOX.TXT")
+        );
         assert_eq!(
             PathBuf::from(&record.metadata_path),
             tmp.path().join("nested/AFDBOX.JSON")

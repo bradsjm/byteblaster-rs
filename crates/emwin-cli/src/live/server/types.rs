@@ -337,6 +337,7 @@ pub struct ServerOptions {
     pub stats_interval_secs: u64,
     pub file_retention_secs: u64,
     pub max_retained_files: usize,
+    pub post_process_archives: bool,
     pub quiet: bool,
 }
 

@@ -30,6 +30,7 @@ For `stream`:
 - `--filter <key=value>` (optional, repeatable; reuses `server /events` file filter keys such as `has_issues=true` or `issue_code=invalid_wmo_header`)
 - `--max-events <N>` (optional; defaults to unbounded)
 - `--idle-timeout-secs <SECONDS>` (default `90`)
+- `--post-process-archives <true|false>` (default `true`; extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and delivery)
 
 Additional `stream` option:
 
@@ -38,6 +39,8 @@ Additional `stream` option:
 Additional `stream --output-dir` behavior:
 
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
+- `.ZIP` and `.ZIS` products are extracted before parsing, filtering, and persistence by default; the extracted entry filename replaces the archive filename
+- corrupt archives are logged as `Corrupt Zip File Received` and dropped when post-processing is enabled
 - sidecar names replace the original extension, for example `AFDBOX.TXT` -> `AFDBOX.JSON`
 
 If `--server` is omitted, built-in default endpoints are used.
@@ -72,6 +75,7 @@ Supported environment variables include:
 - `EMWIN_FILE_RETENTION_SECS`
 - `EMWIN_MAX_RETAINED_FILES`
 - `EMWIN_QUIET`
+- `EMWIN_POST_PROCESS_ARCHIVES`
 
 Filters are intentionally not configurable through environment variables.
 
@@ -83,6 +87,7 @@ Live mode:
 cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
+cargo run -p emwin-cli -- stream --output-dir ./out --post-process-archives false --username you@example.com --max-events 100
 cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password your-pass --max-events 100
 cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username you@example.com --password your-pass --max-events 100
 ```

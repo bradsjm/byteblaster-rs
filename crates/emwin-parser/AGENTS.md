@@ -331,7 +331,32 @@ Do not keep compatibility aliases for removed schema or API names.
 
 Every architecture-affecting parser change must add or update tests close to the changed layer.
 
-Integration tests should use real product bulletins as fixtures where possible, especially for classification and assembly changes from https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}
+Integration tests should use real product bulletins as fixtures where possible, especially for classification and assembly changes from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
+
+### `pyIEM` sanity checks
+
+Use `pyIEM` as a behavior and fixture sanity-check source when working on weather product parsers.
+It is useful because it has a large corpus of real-world weather product handling and sample data.
+
+Helpful references:
+
+- Repository: `https://github.com/akrherz/pyIEM`
+- Example corpus: `pyiem/data/product_examples/`
+
+Use `pyIEM` to:
+
+- find real bulletin samples for regression tests
+- compare edge-case parsing behavior for UGC, VTEC, and HVTEC paths
+- sanity-check malformed or awkward real-world product formatting before inventing synthetic fixtures
+
+Check current local examples of this pattern before adding new tests:
+
+- `tests/vtec_hvtec_parity.rs`
+- `src/body/ugc.rs`
+
+Do not treat `pyIEM` as an architecture authority.
+Do not copy its module structure, parser layering, or public model into `emwin-parser`.
+Do not change `emwin-parser` outputs solely to match `pyIEM` unless a real bulletin fixture proves the discrepancy and the change still fits this crate's public model and issue semantics.
 
 ### Minimum expectations
 

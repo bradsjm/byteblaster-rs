@@ -477,6 +477,7 @@ dependencies = [
  "bstr",
  "chrono",
  "memchr",
+ "quick-xml",
  "regex",
  "serde",
  "serde_json",

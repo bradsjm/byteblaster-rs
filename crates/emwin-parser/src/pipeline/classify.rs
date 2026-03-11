@@ -6,29 +6,48 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::cf6::parse_cf6_bulletin;
+use crate::cwa::parse_cwa_bulletin;
 use crate::data::{
     TextProductCatalogEntry, TextProductRouting, body_extraction_plan_for_entry,
     text_product_catalog_entry,
 };
 use crate::dcp::parse_dcp_bulletin;
+use crate::dsm::parse_dsm_bulletin;
 use crate::fd::parse_fd_bulletin;
+use crate::hml::parse_hml_bulletin;
+use crate::lsr::parse_lsr_bulletin;
 use crate::metar::parse_metar_bulletin;
+use crate::mos::parse_mos_bulletin;
 use crate::pirep::parse_pirep_bulletin;
 use crate::sigmet::parse_sigmet_bulletin;
 use crate::taf::parse_taf_bulletin;
+use crate::wwp::parse_wwp_bulletin;
 use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enrich_header};
 
 use super::candidate::{
-    BodyContributionRequest, ClassificationCandidate, DcpCandidate, FdCandidate, MetarCandidate,
+    BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
+    DsmCandidate, FdCandidate, HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate,
     PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
+    WwpCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
 type TextStrategy = for<'a> fn(&TextClassificationContext<'a>) -> Option<ClassificationCandidate>;
 type WmoStrategy = for<'a> fn(&WmoClassificationContext<'a>) -> Option<ClassificationCandidate>;
 
-const TEXT_STRATEGIES: &[TextStrategy] =
-    &[classify_text_fd, classify_text_pirep, classify_text_sigmet];
+const TEXT_STRATEGIES: &[TextStrategy] = &[
+    classify_text_fd,
+    classify_text_pirep,
+    classify_text_sigmet,
+    classify_text_lsr,
+    classify_text_cwa,
+    classify_text_wwp,
+    classify_text_cf6,
+    classify_text_dsm,
+    classify_text_hml,
+    classify_text_mos,
+];
 
 const WMO_STRATEGIES: &[WmoStrategy] = &[
     classify_wmo_fd,
@@ -36,6 +55,7 @@ const WMO_STRATEGIES: &[WmoStrategy] = &[
     classify_wmo_taf,
     classify_wmo_dcp,
     classify_wmo_sigmet,
+    classify_wmo_cwa,
     classify_wmo_airmet_unsupported,
     classify_wmo_surface_observation_unsupported,
     classify_wmo_canadian_text_unsupported,
@@ -222,6 +242,51 @@ fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
         || body_text.trim_start().starts_with("SIGMET ")
 }
 
+fn looks_like_lsr_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("LSR") && body_text.contains("..TIME...") && body_text.contains("..DATE...")
+}
+
+fn looks_like_cwa_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("CWA")
+        || (body_text.contains(" CWA ") && body_text.contains("VALID UNTIL"))
+        || body_text
+            .lines()
+            .next()
+            .is_some_and(|line| line.contains(" CWA "))
+}
+
+fn looks_like_wwp_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("WWP")
+        && body_text.contains("PROBABILITY TABLE:")
+        && body_text.contains("ATTRIBUTE TABLE:")
+}
+
+fn looks_like_cf6_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("CF6")
+        && body_text.contains("PRELIMINARY LOCAL CLIMATOLOGICAL DATA")
+        && body_text.contains("MONTH:")
+        && body_text.contains("YEAR:")
+}
+
+fn looks_like_dsm_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("DSM") && body_text.contains(" DS ") && body_text.contains('=')
+}
+
+fn looks_like_hml_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("HML") && body_text.contains("<?xml")
+}
+
+fn looks_like_mos_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(afos.get(..3), Some("MET" | "MAV" | "MEX" | "FRH" | "FTP"))
+        && ((body_text.contains("GUIDANCE")
+            && body_text
+                .lines()
+                .any(|line| line.trim_start().starts_with("HR")))
+            || body_text
+                .lines()
+                .any(|line| line.trim_start().starts_with(".B ")))
+}
+
 /// Detects whether WMO-only text resembles a SIGMET bulletin.
 fn looks_like_sigmet_wmo_bulletin(body_text: &str) -> bool {
     let Some(first_line) = first_nonempty_line(body_text) else {
@@ -341,6 +406,137 @@ fn classify_text_sigmet(
             context.reference_time,
         ),
         bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_lsr(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Lsr) {
+        return None;
+    }
+    if !looks_like_lsr_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let (bulletin, issues) = parse_lsr_bulletin(context.body_text, context.reference_time?)?;
+    Some(ClassificationCandidate::Lsr(LsrCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues,
+    }))
+}
+
+fn classify_text_cwa(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Cwa) {
+        return None;
+    }
+    if !looks_like_cwa_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_cwa_bulletin(context.body_text, context.reference_time?)?;
+    Some(ClassificationCandidate::Cwa(CwaCandidate {
+        header: Some(context.header.clone()),
+        wmo_header: None,
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_wwp(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Wwp) {
+        return None;
+    }
+    if !looks_like_wwp_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_wwp_bulletin(context.body_text)?;
+    Some(ClassificationCandidate::Wwp(WwpCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_cf6(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Cf6) {
+        return None;
+    }
+    if !looks_like_cf6_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let (bulletin, issues) = parse_cf6_bulletin(context.body_text)?;
+    Some(ClassificationCandidate::Cf6(Cf6Candidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues,
+    }))
+}
+
+fn classify_text_dsm(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Dsm) {
+        return None;
+    }
+    if !looks_like_dsm_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_dsm_bulletin(
+        context.body_text,
+        context.reference_time.unwrap_or_else(Utc::now),
+    )?;
+    Some(ClassificationCandidate::Dsm(DsmCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_hml(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Hml) {
+        return None;
+    }
+    if !looks_like_hml_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_hml_bulletin(context.body_text)?;
+    Some(ClassificationCandidate::Hml(HmlCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_mos(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Mos) {
+        return None;
+    }
+    if !looks_like_mos_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_mos_bulletin(context.body_text, context.reference_time?)?;
+    Some(ClassificationCandidate::Mos(MosCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
     }))
 }
 
@@ -422,6 +618,24 @@ fn classify_wmo_sigmet(context: &WmoClassificationContext<'_>) -> Option<Classif
         bbb_kind: None,
         body_request: None,
         bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_wmo_cwa(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_cwa_text_product("", context.body_text) {
+        return None;
+    }
+    let bulletin = parse_cwa_bulletin(context.body_text, context.header.timestamp(Utc::now())?)?;
+
+    Some(ClassificationCandidate::Cwa(CwaCandidate {
+        header: None,
+        wmo_header: Some(context.header.clone()),
+        pil: Some("CWA".to_string()),
+        bbb_kind: None,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
     }))
 }
 

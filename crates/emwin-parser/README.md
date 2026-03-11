@@ -29,6 +29,13 @@ The crate currently supports:
   - FD winds and temperatures aloft bulletins
   - PIREP bulletins
   - SIGMET bulletins
+  - LSR bulletins
+  - CWA bulletins
+  - WWP bulletins
+  - CF6 climate bulletins
+  - DSM collectives
+  - HML bulletins
+  - MOS guidance bulletins for `MET`, `MAV`, `MEX`, `FRH`, and `FTP`
   - METAR collectives
   - TAF bulletins
   - GOES DCP telemetry bulletins
@@ -113,6 +120,13 @@ crates/emwin-parser/src
 +-- fd.rs
 +-- pirep.rs
 +-- sigmet.rs
++-- lsr.rs
++-- cwa.rs
++-- wwp.rs
++-- cf6.rs
++-- dsm.rs
++-- hml.rs
++-- mos.rs
 +-- metar.rs
 +-- taf.rs
 +-- dcp.rs
@@ -190,6 +204,13 @@ Text AFOS envelope
     |      +--> routing = fd     -> FD strategy guard
     |      +--> routing = pirep  -> PIREP strategy guard
     |      +--> routing = sigmet -> SIGMET strategy guard
+    |      +--> routing = lsr    -> LSR strategy guard
+    |      +--> routing = cwa    -> CWA strategy guard
+    |      +--> routing = wwp    -> WWP strategy guard
+    |      +--> routing = cf6    -> CF6 strategy guard
+    |      +--> routing = dsm    -> DSM strategy guard
+    |      +--> routing = hml    -> HML strategy guard
+    |      +--> routing = mos    -> MOS strategy guard
     |      +--> routing = generic
     |
     +--> generic text fallback
@@ -197,7 +218,7 @@ Text AFOS envelope
 
 Current repo truth is encoded directly in the catalog:
 
-- `FD*`, `PIR`, and `SIG` route to specialized parsers and use `body_behavior = never`
+- `FD*`, `PIR`, `SIG`, `LSR`, `CWA`, `WWP`, `CF6`, `DSM`, `HML`, `MET`, `MAV`, `MEX`, `FRH`, and `FTP` route to specialized parsers and use `body_behavior = never`
 - generic warning products such as `SVR`, `TOR`, and `FFW` route as `generic`
   and use `body_behavior = catalog`
 
@@ -236,6 +257,16 @@ The core entrypoints are:
   - `parse_latlon_polygons`
   - `parse_time_mot_loc_entries`
   - `parse_wind_hail_entries`
+
+`ProductEnrichment` now also exposes specialized bulletin fields for:
+
+- `lsr`
+- `cwa`
+- `wwp`
+- `cf6`
+- `dsm`
+- `hml`
+- `mos`
 
 ## Installation
 

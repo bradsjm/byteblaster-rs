@@ -1,0 +1,25 @@
+984 
+NWUS54 KBMX 100015
+LSRBMX
+
+Preliminary Local Storm Report
+National Weather Service Birmingham AL
+715 PM CDT Mon Mar 9 2026
+
+..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...
+..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....
+            ..REMARKS..
+
+0650 PM     Tstm Wnd Dmg     Brooksville             34.18N 86.47W
+03/09/2026                   Blount             AL   Emergency Mngr   
+
+            Reports of gusty winds and a few tree down 
+            reports in Blount County. Altoona, 
+            Blountsville, Brooksville. 
+
+
+&&
+
+$$
+
+GMS

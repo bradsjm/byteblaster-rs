@@ -1,0 +1,78 @@
+624 
+CXGM50 PGUM 100030
+CF6GSN
+PRELIMINARY LOCAL CLIMATOLOGICAL DATA (WS FORM: F-6)
+
+                                          STATION:   SAIPAN/ISLEY_(CGS) MP
+                                          MONTH:     MARCH
+                                          YEAR:      2026
+                                          LATITUDE:   15  7 N      
+                                          LONGITUDE: 145-44 E    
+
+  TEMPERATURE IN F:       :PCPN:    SNOW:  WIND      :SUNSHINE: SKY     :PK WND 
+================================================================================
+1   2   3   4   5  6A  6B    7    8   9   10  11  12  13   14  15   16   17  18
+                                     12Z  AVG MX 2MIN
+DY MAX MIN AVG DEP HDD CDD  WTR  SNW DPTH SPD SPD DIR MIN PSBL S-S WX    SPD DR
+================================================================================
+
+ 1  87  77  82   3   0  17 0.22    M    M 10.9 21 100   M    M   6        28 110
+ 2  85  74  80   1   0  15 1.09    M    M 10.1 24  70   M    M   4        33  60
+ 3  86  76  81   2   0  16 0.00    M    M  5.3  9  60   M    M   4        15 100
+ 4  85  75  80   0   0  15 0.10    M    M  5.7 13  80   M    M   5        17  80
+ 5  86  75  81   1   0  16 0.24    M    M 10.2 18  30   M    M   5        23  30
+ 6  87  77  82   2   0  17 0.12    M    M 17.0 28  80   M    M   6        36  60
+ 7  81  76  79  -1   0  14 0.46    M    M 18.3 29  80   M    M   8        39  80
+ 8  81  75  78  -2   0  13 0.32    M    M  9.1 22  90   M    M   8        29  90
+ 9  85  74  80   0   0  15 0.19    M    M 10.7 20  40   M    M   6        26  10
+================================================================================
+SM  763  679         0 138  2.74    M     97.3          M       52              
+================================================================================
+AV 84.8 75.4                              10.8 FASTST   M    M   6    MAX(MPH)  
+                                 MISC ---->    29  80                 39  80   
+================================================================================
+NOTES:
+# LAST OF SEVERAL OCCURRENCES
+
+COLUMN 17 PEAK WIND IN M.P.H.
+
+PRELIMINARY LOCAL CLIMATOLOGICAL DATA (WS FORM: F-6) , PAGE 2
+
+                                          STATION:   SAIPAN/ISLEY_(CGS) MP
+                                          MONTH:     MARCH
+                                          YEAR:      2026
+                                          LATITUDE:   15  7 N      
+                                          LONGITUDE: 145-44 E                   
+
+[TEMPERATURE DATA]      [PRECIPITATION DATA]       SYMBOLS USED IN COLUMN 16    
+
+AVERAGE MONTHLY: 80.1   TOTAL FOR MONTH:   2.74    1 = FOG OR MIST              
+DPTR FM NORMAL:   0.4   DPTR FM NORMAL:    2.11    2 = FOG REDUCING VISIBILITY  
+HIGHEST:    87 ON  6, 1  GRTST 24HR  1.19 ON  1- 2      TO 1/4 MILE OR LESS      
+LOWEST:     74 ON  9, 2                             3 = THUNDER                  
+                        SNOW, ICE PELLETS, HAIL    4 = ICE PELLETS              
+                        TOTAL MONTH:  M            5 = HAIL                     
+                        GRTST 24HR    M  ON   M    6 = FREEZING RAIN OR DRIZZLE
+                        GRTST DEPTH:  M  ON   M    7 = DUSTSTORM OR SANDSTORM:  
+                                                       VSBY 1/2 MILE OR LESS    
+                                                   8 = SMOKE OR HAZE            
+[NO. OF DAYS WITH]      [WEATHER - DAYS WITH]      9 = BLOWING SNOW             
+                                                   X = TORNADO                  
+MAX 32 OR BELOW:   0    0.01 INCH OR MORE:   8                      
+MAX 90 OR ABOVE:   0    0.10 INCH OR MORE:   8                      
+MIN 32 OR BELOW:   0    0.50 INCH OR MORE:   1                      
+MIN  0 OR BELOW:   0    1.00 INCH OR MORE:   1                        
+
+[HDD (BASE 65) ]                                                                
+TOTAL THIS MO.     0    CLEAR  (SCALE 0-3)   0                                  
+DPTR FM NORMAL     0    PTCLDY (SCALE 4-7)   9                                  
+TOTAL FM JUL 1     0    CLOUDY (SCALE 8-10)  0                                  
+DPTR FM NORMAL     0                                                            
+
+[CDD (BASE 65) ]                                                                
+TOTAL THIS MO.   138                                                            
+DPTR FM NORMAL     9    [PRESSURE DATA]                                         
+TOTAL FM JAN 1  1116    HIGHEST SLP 29.89 ON  1        
+DPTR FM NORMAL   146    LOWEST  SLP 29.78 ON  1        
+
+[REMARKS]

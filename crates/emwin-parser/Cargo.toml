@@ -12,6 +12,7 @@ homepage.workspace = true
 bstr.workspace = true
 chrono.workspace = true
 memchr.workspace = true
+quick-xml.workspace = true
 regex.workspace = true
 serde.workspace = true
 thiserror.workspace = true

@@ -3,15 +3,17 @@
 //! The functions here stay allocation-free and operate on plain coordinate values so parsers and
 //! filters can reuse them without bringing in heavier geometry dependencies.
 
+use serde::Serialize;
+
 /// Latitude and longitude in decimal degrees.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct GeoPoint {
     pub lat: f64,
     pub lon: f64,
 }
 
 /// Axis-aligned bounding box in decimal degrees.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct GeoBounds {
     pub min_lat: f64,
     pub max_lat: f64,

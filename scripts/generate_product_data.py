@@ -41,6 +41,13 @@ ROUTING_VARIANTS = {
     "fd": "TextProductRouting::Fd",
     "pirep": "TextProductRouting::Pirep",
     "sigmet": "TextProductRouting::Sigmet",
+    "lsr": "TextProductRouting::Lsr",
+    "cwa": "TextProductRouting::Cwa",
+    "wwp": "TextProductRouting::Wwp",
+    "cf6": "TextProductRouting::Cf6",
+    "dsm": "TextProductRouting::Dsm",
+    "hml": "TextProductRouting::Hml",
+    "mos": "TextProductRouting::Mos",
 }
 
 BODY_BEHAVIOR_VARIANTS = {

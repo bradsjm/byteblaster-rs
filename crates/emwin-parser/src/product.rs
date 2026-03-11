@@ -6,7 +6,8 @@
 
 use crate::pipeline::{NormalizedInput, ParsedEnvelope, assemble_product_enrichment, classify};
 use crate::{
-    BbbKind, ProductBody, ProductParseIssue, TextProductHeader, WmoHeader, WmoOfficeEntry,
+    BbbKind, Cf6Bulletin, CwaBulletin, DsmBulletin, HmlBulletin, LsrBulletin, MosBulletin,
+    ProductBody, ProductParseIssue, TextProductHeader, WmoHeader, WmoOfficeEntry, WwpBulletin,
 };
 use crate::{DcpBulletin, FdBulletin, MetarBulletin, PirepBulletin, SigmetBulletin, TafBulletin};
 use serde::Serialize;
@@ -24,6 +25,13 @@ pub enum ProductEnrichmentSource {
     WmoFdBulletin,
     TextPirepBulletin,
     TextSigmetBulletin,
+    TextLsrBulletin,
+    TextCwaBulletin,
+    TextWwpBulletin,
+    TextCf6Bulletin,
+    TextDsmBulletin,
+    TextHmlBulletin,
+    TextMosBulletin,
     WmoSigmetBulletin,
     WmoMetarBulletin,
     WmoTafBulletin,
@@ -89,6 +97,27 @@ pub struct ProductEnrichment {
     /// Parsed SIGMET bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sigmet: Option<SigmetBulletin>,
+    /// Parsed LSR bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lsr: Option<LsrBulletin>,
+    /// Parsed CWA bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwa: Option<CwaBulletin>,
+    /// Parsed WWP bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wwp: Option<WwpBulletin>,
+    /// Parsed CF6 bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cf6: Option<Cf6Bulletin>,
+    /// Parsed DSM bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dsm: Option<DsmBulletin>,
+    /// Parsed HML bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hml: Option<HmlBulletin>,
+    /// Parsed MOS bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mos: Option<MosBulletin>,
     /// Issues encountered during parsing
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,

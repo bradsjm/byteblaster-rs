@@ -315,7 +315,7 @@
   "CF6": {
     "wmo_prefix": "CX",
     "title": "Climate F-6 products",
-    "routing": "generic",
+    "routing": "cf6",
     "body_behavior": "never",
     "extractors": []
   },
@@ -415,7 +415,7 @@
   "CWA": {
     "wmo_prefix": "WL",
     "title": "Center Weather Advisory",
-    "routing": "generic",
+    "routing": "cwa",
     "body_behavior": "never",
     "extractors": []
   },
@@ -518,7 +518,7 @@
   "DSM": {
     "wmo_prefix": "CX",
     "title": "Asos Daily Summary",
-    "routing": "generic",
+    "routing": "dsm",
     "body_behavior": "never",
     "extractors": []
   },
@@ -945,7 +945,7 @@
   "FRH": {
     "wmo_prefix": "FO",
     "title": "FOUS Relative Humidity/Temperature Guidance",
-    "routing": "generic",
+    "routing": "mos",
     "body_behavior": "never",
     "extractors": []
   },
@@ -991,7 +991,7 @@
   "FTP": {
     "wmo_prefix": "FO",
     "title": "FOUS Prog Max/Min Temp/Pop Guidance",
-    "routing": "generic",
+    "routing": "mos",
     "body_behavior": "never",
     "extractors": []
   },
@@ -1217,7 +1217,7 @@
   "HML": {
     "wmo_prefix": "FD",
     "title": "Hyrdo Obs/Forecasts XML",
-    "routing": "generic",
+    "routing": "hml",
     "body_behavior": "never",
     "extractors": []
   },
@@ -1441,7 +1441,7 @@
   "LSR": {
     "wmo_prefix": "NW",
     "title": "Local Storm Report",
-    "routing": "generic",
+    "routing": "lsr",
     "body_behavior": "never",
     "extractors": []
   },
@@ -1469,7 +1469,7 @@
   "MAV": {
     "wmo_prefix": "FO",
     "title": "GFS Based MOS Guidance",
-    "routing": "generic",
+    "routing": "mos",
     "body_behavior": "never",
     "extractors": []
   },
@@ -1490,14 +1490,14 @@
   "MET": {
     "wmo_prefix": "FO",
     "title": "ETA Based MOS Guidance",
-    "routing": "generic",
+    "routing": "mos",
     "body_behavior": "never",
     "extractors": []
   },
   "MEX": {
     "wmo_prefix": "FE",
     "title": "GFX Extended Based MOS Guidance",
-    "routing": "generic",
+    "routing": "mos",
     "body_behavior": "never",
     "extractors": []
   },
@@ -3836,7 +3836,7 @@
   "WWP": {
     "wmo_prefix": "WW",
     "title": "Severe Thunderstorm Watch Probabilities",
-    "routing": "generic",
+    "routing": "wwp",
     "body_behavior": "never",
     "extractors": []
   },

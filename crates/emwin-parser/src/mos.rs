@@ -1,0 +1,272 @@
+//! Parsing for MOS guidance bulletins.
+
+use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, Timelike, Utc};
+use regex::Regex;
+use serde::Serialize;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MosBulletin {
+    pub sections: Vec<MosSection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MosSection {
+    pub station: String,
+    pub model: String,
+    pub runtime: String,
+    pub forecasts: Vec<MosForecastRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MosForecastRow {
+    pub valid: String,
+    pub values: BTreeMap<String, String>,
+}
+
+pub(crate) fn parse_mos_bulletin(text: &str, reference_time: DateTime<Utc>) -> Option<MosBulletin> {
+    let normalized = text.replace('\r', "");
+    if normalized
+        .lines()
+        .any(|line| line.trim_start().starts_with(".B "))
+    {
+        return parse_ftp_bulletin(&normalized, reference_time);
+    }
+    let sections = split_sections(&normalized)?
+        .into_iter()
+        .filter_map(|section| parse_section(&section))
+        .collect::<Vec<_>>();
+    (!sections.is_empty()).then_some(MosBulletin { sections })
+}
+
+fn split_sections(text: &str) -> Option<Vec<String>> {
+    let mut sections = Vec::new();
+    let mut current = Vec::new();
+    for line in text.lines() {
+        if section_meta_re().is_match(line.trim()) && !current.is_empty() {
+            sections.push(current.join("\n"));
+            current.clear();
+        }
+        current.push(line);
+    }
+    if !current.is_empty() {
+        sections.push(current.join("\n"));
+    }
+    (!sections.is_empty()).then_some(sections)
+}
+
+fn parse_section(section: &str) -> Option<MosSection> {
+    let lines = section.lines().collect::<Vec<_>>();
+    let header = section_meta_re().captures(lines.first()?.trim())?;
+    let station = header.name("station")?.as_str().to_string();
+    let mut model = header.name("model")?.as_str().to_string();
+    let mos_name = header.name("mos")?.as_str();
+    if mos_name == "LAMP" {
+        model = "LAV".to_string();
+    } else if model == "GFSX" {
+        model = "MEX".to_string();
+    } else if model == "NBM" {
+        model = if mos_name == "NBX" { "NBE" } else { mos_name }.to_string();
+    }
+    let runtime = format!(
+        "{}-{:02}-{:02}T{}:00:00Z",
+        header.name("year")?.as_str(),
+        header.name("month")?.as_str().parse::<u8>().ok()?,
+        header.name("day")?.as_str().parse::<u8>().ok()?,
+        &header.name("hhmm")?.as_str()[..2]
+    );
+    let init = DateTime::parse_from_rfc3339(&runtime)
+        .ok()?
+        .with_timezone(&Utc);
+    let (times, data_lines) = parse_hour_axis(&lines, &model, init)?;
+    let mut forecasts: Vec<MosForecastRow> = times
+        .iter()
+        .map(|ts: &DateTime<Utc>| MosForecastRow {
+            valid: ts.to_rfc3339(),
+            values: BTreeMap::new(),
+        })
+        .collect::<Vec<_>>();
+    for line in data_lines.iter().copied() {
+        if line.len() < 3 {
+            continue;
+        }
+        let name = remap_var(line[..3].trim().replace('/', "_"));
+        if name.is_empty() {
+            continue;
+        }
+        let values = line[3..].split_whitespace().collect::<Vec<_>>();
+        for (idx, value) in values.iter().enumerate() {
+            if let Some(forecast) = forecasts.get_mut(idx) {
+                forecast.values.insert(name.clone(), (*value).to_string());
+            }
+        }
+    }
+    Some(MosSection {
+        station,
+        model,
+        runtime,
+        forecasts,
+    })
+}
+
+fn parse_ftp_bulletin(text: &str, reference_time: DateTime<Utc>) -> Option<MosBulletin> {
+    let lines = text.lines().collect::<Vec<_>>();
+    let header_end = lines.iter().position(|line| {
+        let trimmed = line.trim();
+        !trimmed.is_empty() && !trimmed.starts_with(".B")
+    })?;
+    let header_lines = &lines[..header_end];
+    let data_lines = &lines[header_end..];
+    let header_text = header_lines
+        .iter()
+        .map(|line| line.trim())
+        .collect::<Vec<_>>()
+        .join("");
+    let header = ftp_header_re().captures(&header_text)?;
+    let model = header.name("model")?.as_str().to_string();
+    let runtime = format!(
+        "{:04}-{:02}-{:02}T{:02}:00:00Z",
+        reference_time.year(),
+        header.name("dc_month")?.as_str().parse::<u8>().ok()?,
+        header.name("dc_day")?.as_str().parse::<u8>().ok()?,
+        header.name("dc_hour")?.as_str().parse::<u8>().ok()?,
+    );
+    let base_date = NaiveDate::from_ymd_opt(
+        reference_time.year(),
+        header.name("base_month")?.as_str().parse::<u32>().ok()?,
+        header.name("base_day")?.as_str().parse::<u32>().ok()?,
+    )?;
+    let mut sections = Vec::new();
+    for line in data_lines {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('.') {
+            continue;
+        }
+        let mut parts = trimmed.split_whitespace();
+        let Some(station) = parts.next() else {
+            continue;
+        };
+        let Some(value_text) = parts.next() else {
+            continue;
+        };
+        let station = station.to_string();
+        let values = value_text.split('/').collect::<Vec<_>>();
+        if values.len() < 2 || values.len() % 2 != 0 {
+            continue;
+        }
+        let mut forecasts = Vec::new();
+        for (idx, pair) in values.chunks(2).enumerate() {
+            let valid = base_date
+                .checked_add_signed(TimeDelta::days(idx as i64))?
+                .and_hms_opt(0, 0, 0)?
+                .and_utc()
+                .to_rfc3339();
+            let mut map = BTreeMap::new();
+            map.insert("TAIFBX".to_string(), pair[0].to_string());
+            map.insert("TAIFBN".to_string(), pair[1].to_string());
+            forecasts.push(MosForecastRow { valid, values: map });
+        }
+        sections.push(MosSection {
+            station,
+            model: model.clone(),
+            runtime: runtime.clone(),
+            forecasts,
+        });
+    }
+    (!sections.is_empty()).then_some(MosBulletin { sections })
+}
+
+fn parse_hour_axis<'a>(
+    lines: &'a [&'a str],
+    model: &str,
+    init: DateTime<Utc>,
+) -> Option<(Vec<DateTime<Utc>>, Vec<&'a str>)> {
+    let start = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with("HR"))?;
+    let hours = lines[start]
+        .split_whitespace()
+        .skip(1)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let mut times: Vec<DateTime<Utc>> = Vec::new();
+    for (idx, hour) in hours.iter().enumerate() {
+        let ts = if model == "LAV" || matches!(model, "MEX" | "NBE" | "NBS") {
+            init + TimeDelta::hours(i64::from(hour.parse::<u8>().ok()?))
+        } else if hour == "00" && idx > 0 {
+            let prev: DateTime<Utc> = *times.last()?;
+            prev + TimeDelta::hours(i64::from((24 - prev.hour()) % 24))
+        } else {
+            let mut ts = init;
+            ts = ts.with_hour(hour.parse::<u32>().ok()?)?;
+            if !times.is_empty() && ts <= *times.last()? {
+                ts += TimeDelta::days(1);
+            }
+            ts
+        };
+        times.push(ts);
+    }
+    Some((times, lines[start + 1..].to_vec()))
+}
+
+fn remap_var(name: String) -> String {
+    match name.as_str() {
+        "X_N" => "N_X".to_string(),
+        "WND" => "WSP".to_string(),
+        "WGS" => "GST".to_string(),
+        _ => name,
+    }
+}
+
+fn section_meta_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^(?P<station>[A-Z0-9_]{3,10})\s+(?P<model>[A-Z0-9]{3,5})\s+(?:V[0-9]\.[0-9]\s+)?(?P<mos>[A-Z0-9]{3,5}) GUIDANCE\s+(?P<month>\d{1,2})/(?P<day>\d{2})/(?P<year>\d{4})\s+(?P<hhmm>\d{4}) UTC$")
+            .expect("valid MOS metadata regex")
+    })
+}
+
+fn ftp_header_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"^\.B\s+(?P<model>[A-Z0-9]{3,5})\s+(?P<base_month>\d{2})(?P<base_day>\d{2})\s+DH\d{2}/DC(?P<dc_month>\d{2})(?P<dc_day>\d{2})(?P<dc_hour>\d{2})(?:\d{2})?",
+        )
+        .expect("valid FTP MOS header regex")
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_mos_bulletin;
+    use chrono::Utc;
+
+    #[test]
+    fn parses_standard_mos_fixture() {
+        let text = "KBCK   NAM MOS GUIDANCE    3/10/2026  0000 UTC\nDT /MAR  10            /MAR  11                /MAR  12          /\nHR   06 09 12 15 18 21 00 03\nTMP  41 38 36 41 41 42 41 36\nWND  04 06 08 09 08 09 08 08\n";
+        let bulletin = parse_mos_bulletin(text, Utc::now()).expect("mos bulletin");
+        assert_eq!(bulletin.sections.len(), 1);
+        assert_eq!(bulletin.sections[0].station, "KBCK");
+        assert!(bulletin.sections[0].forecasts[0].values.contains_key("TMP"));
+        assert!(bulletin.sections[0].forecasts[0].values.contains_key("WSP"));
+    }
+
+    #[test]
+    fn parses_exact_ftp_fixture() {
+        let text =
+            include_str!("../tests/fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt")
+                .lines()
+                .skip(3)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("ftp mos bulletin");
+        assert!(!bulletin.sections.is_empty());
+        assert_eq!(bulletin.sections[0].station, "AHP");
+        assert!(
+            bulletin.sections[0].forecasts[0]
+                .values
+                .contains_key("TAIFBX")
+        );
+    }
+}

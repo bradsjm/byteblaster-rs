@@ -28,6 +28,13 @@ pub enum TextProductRouting {
     Fd,
     Pirep,
     Sigmet,
+    Lsr,
+    Cwa,
+    Wwp,
+    Cf6,
+    Dsm,
+    Hml,
+    Mos,
 }
 
 /// Generic body extraction policy for an AFOS text product.
@@ -359,6 +366,28 @@ mod tests {
         assert_eq!(entry.routing, TextProductRouting::Sigmet);
         assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
         assert!(entry.extractors.is_empty());
+    }
+
+    #[test]
+    fn new_specialized_entries_expose_specialized_routing_and_never_body_behavior() {
+        for (pil, routing) in [
+            ("LSR", TextProductRouting::Lsr),
+            ("CWA", TextProductRouting::Cwa),
+            ("WWP", TextProductRouting::Wwp),
+            ("CF6", TextProductRouting::Cf6),
+            ("DSM", TextProductRouting::Dsm),
+            ("HML", TextProductRouting::Hml),
+            ("MET", TextProductRouting::Mos),
+            ("MAV", TextProductRouting::Mos),
+            ("MEX", TextProductRouting::Mos),
+            ("FRH", TextProductRouting::Mos),
+            ("FTP", TextProductRouting::Mos),
+        ] {
+            let entry = text_product_catalog_entry(pil).expect("expected generated catalog entry");
+            assert_eq!(entry.routing, routing);
+            assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+            assert!(entry.extractors.is_empty());
+        }
     }
 
     #[test]

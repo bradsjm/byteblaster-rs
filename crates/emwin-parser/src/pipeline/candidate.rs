@@ -10,13 +10,13 @@ use chrono::{DateTime, Utc};
 use crate::body::BodyExtractionPlan;
 use crate::data::NonTextProductMeta;
 use crate::{
-    BbbKind, DcpBulletin, FdBulletin, MetarBulletin, ParserError, PirepBulletin,
-    ProductEnrichmentSource, ProductParseIssue, SigmetBulletin, TafBulletin, TextProductHeader,
-    WmoHeader,
+    BbbKind, Cf6Bulletin, CwaBulletin, DcpBulletin, DsmBulletin, FdBulletin, HmlBulletin,
+    LsrBulletin, MetarBulletin, MosBulletin, ParserError, PirepBulletin, ProductEnrichmentSource,
+    ProductParseIssue, SigmetBulletin, TafBulletin, TextProductHeader, WmoHeader, WwpBulletin,
 };
 
 /// Internal classification result passed from strategy dispatch into assembly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ClassificationCandidate {
     /// Generic AFOS text product that should continue into body enrichment.
     TextGeneric(TextGenericCandidate),
@@ -26,6 +26,20 @@ pub(crate) enum ClassificationCandidate {
     Pirep(PirepCandidate),
     /// Parsed SIGMET bulletin candidate.
     Sigmet(SigmetCandidate),
+    /// Parsed LSR bulletin candidate.
+    Lsr(LsrCandidate),
+    /// Parsed CWA bulletin candidate.
+    Cwa(CwaCandidate),
+    /// Parsed WWP bulletin candidate.
+    Wwp(WwpCandidate),
+    /// Parsed CF6 bulletin candidate.
+    Cf6(Cf6Candidate),
+    /// Parsed DSM bulletin candidate.
+    Dsm(DsmCandidate),
+    /// Parsed HML bulletin candidate.
+    Hml(HmlCandidate),
+    /// Parsed MOS bulletin candidate.
+    Mos(MosCandidate),
     /// Parsed METAR bulletin candidate.
     Metar(MetarCandidate),
     /// Parsed TAF bulletin candidate.
@@ -57,7 +71,7 @@ pub(crate) struct BodyContributionRequest {
 }
 
 /// Generic AFOS text product candidate used for body enrichment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TextGenericCandidate {
     /// Parsed text product header.
     pub(crate) header: TextProductHeader,
@@ -74,7 +88,7 @@ pub(crate) struct TextGenericCandidate {
 }
 
 /// Parsed FD bulletin candidate from either AFOS or WMO-only flows.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FdCandidate {
     /// Output source associated with this candidate.
     pub(crate) source: ProductEnrichmentSource,
@@ -97,7 +111,7 @@ pub(crate) struct FdCandidate {
 }
 
 /// Parsed PIREP bulletin candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PirepCandidate {
     /// AFOS text header for the bulletin.
     pub(crate) header: TextProductHeader,
@@ -112,7 +126,7 @@ pub(crate) struct PirepCandidate {
 }
 
 /// Parsed SIGMET bulletin candidate from text or WMO-only paths.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SigmetCandidate {
     /// Output source associated with the candidate.
     pub(crate) source: ProductEnrichmentSource,
@@ -128,10 +142,83 @@ pub(crate) struct SigmetCandidate {
     pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed SIGMET bulletin payload.
     pub(crate) bulletin: SigmetBulletin,
+    /// Non-fatal parse issues.
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct LsrCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: LsrBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CwaCandidate {
+    pub(crate) header: Option<TextProductHeader>,
+    pub(crate) wmo_header: Option<WmoHeader>,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: CwaBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct WwpCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: WwpBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Cf6Candidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: Cf6Bulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DsmCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: DsmBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct HmlCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: HmlBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MosCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: MosBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
 }
 
 /// Parsed METAR bulletin candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MetarCandidate {
     /// WMO-only header that identified the bulletin.
     pub(crate) header: WmoHeader,
@@ -142,7 +229,7 @@ pub(crate) struct MetarCandidate {
 }
 
 /// Parsed TAF bulletin candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TafCandidate {
     /// WMO-only header that identified the bulletin.
     pub(crate) header: WmoHeader,
@@ -151,7 +238,7 @@ pub(crate) struct TafCandidate {
 }
 
 /// Parsed DCP bulletin candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DcpCandidate {
     /// WMO-only header that identified the bulletin.
     pub(crate) header: WmoHeader,
@@ -160,7 +247,7 @@ pub(crate) struct DcpCandidate {
 }
 
 /// Unsupported-but-recognized WMO bulletin candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct UnsupportedWmoCandidate {
     /// WMO header preserved for output.
     pub(crate) header: WmoHeader,

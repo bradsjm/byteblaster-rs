@@ -6,7 +6,8 @@ This file extends the repository-level `AGENTS.md` and is the architectural cont
 ## Purpose
 
 `emwin-parser` has already been refactored away from ad hoc parser dispatch, flag matrices, and probe-then-reparse flows.
-Future changes must preserve that architecture.
+
+**Future changes must preserve that architecture.**
 
 Do not treat this crate as a place for opportunistic one-off parsing logic.
 If a change does not fit the architecture below, fix the architecture or stop.
@@ -183,6 +184,106 @@ If you cannot prove coexistence with fixtures, do not enable it.
 ## Parser Module Guidance
 
 Parser modules under `src/` and `src/body/` should continue following the modernized style already established in this crate.
+
+## Performance Library Policy
+
+This crate already chose a small set of parsing/performance libraries intentionally.
+Future updates must use them consistently instead of drifting back to full-string rebuilds or regex-first parsing.
+
+### `bstr`
+
+Use `bstr` when operating on incoming text-like bytes that may contain control characters, mixed framing, or imperfect UTF-8 assumptions.
+
+Current architectural role:
+
+- normalization and byte-to-text boundaries
+- header conditioning paths
+- text handling where bytes should remain authoritative until a narrower parse boundary
+
+Use `bstr` for:
+
+- byte-oriented trimming and splitting before committing to owned `String`
+- handling `\0`, `\r`, SOH/ETX, and similar transport artifacts
+- keeping the normalized backing buffer authoritative
+
+Do not:
+
+- eagerly convert payloads into multiple owned `String`s at the start of parsing
+- use lossy string conversion as a general preprocessing step across the whole pipeline
+
+### `memchr`
+
+Use `memchr` for delimiter scanning in hot paths.
+
+Current architectural role:
+
+- newline scanning
+- slash-delimited candidate scanning
+- line/block offset discovery
+
+Use `memchr` for:
+
+- finding `\n` boundaries
+- scanning candidate delimiters such as `/`
+- computing borrowed body slices or ranges
+
+Prefer `memchr` over:
+
+- `lines().collect::<Vec<_>>()` when you only need offsets or sequential scanning
+- repeated `find(...)` loops over the same byte buffer
+- rebuilding text solely to discover section boundaries
+
+### `winnow`
+
+`winnow` is allowed, but only where the grammar is fixed enough that explicit combinators improve clarity.
+
+Current architectural role:
+
+- fixed structured preludes such as TAF and parts of SIGMET
+
+Use `winnow` when:
+
+- the format is grammar-like and stable
+- token order matters
+- parser combinators are clearer than hand-written stateful string walking
+
+Do not use `winnow` for:
+
+- every parser by default
+- loosely structured multiline sections that are easier to scan line-by-line
+- simple token splits where standard parsing is more readable
+
+### `regex`
+
+Regex is permitted only as a narrow tool, not as the default parser model.
+
+Regex is still acceptable when:
+
+- the matched shape is narrow, fixed, and isolated
+- the regex is genuinely simpler than the manual parser
+- the regex is not being used to flatten or “parse everything”
+
+Regex is not acceptable for:
+
+- primary product routing
+- whole-bulletin parsing when token/line parsing is clearer
+- replacing structured parser stages with one large capture expression
+
+### Library Selection Patterns
+
+Choose libraries by parse shape:
+
+- byte buffer normalization or delimiter scanning:
+  - `bstr` + `memchr`
+- line/block parser with narrow repair heuristics:
+  - standard library iteration, optionally `memchr`
+- fixed grammar prelude:
+  - selective `winnow`
+- narrow legacy pattern that is simpler as a single matcher:
+  - `regex`
+
+If a proposed parser change needs a new library, justify why the existing set is insufficient.
+“Because it is easier to write quickly” is not a valid reason.
 
 ### Preferred implementation style
 

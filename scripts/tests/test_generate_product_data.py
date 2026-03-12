@@ -48,7 +48,7 @@ class GenerateProductDataTests(unittest.TestCase):
                     "title": "Severe Thunderstorm Warning",
                     "routing": "bogus",
                     "body_behavior": "catalog",
-                    "extractors": ["vtec"],
+                    "extractors": ["vtec_events"],
                 }
             },
             "unknown routing",
@@ -62,7 +62,7 @@ class GenerateProductDataTests(unittest.TestCase):
                     "title": "Severe Thunderstorm Warning",
                     "routing": "generic",
                     "body_behavior": "bogus",
-                    "extractors": ["vtec"],
+                    "extractors": ["vtec_events"],
                 }
             },
             "unknown body_behavior",
@@ -104,7 +104,7 @@ class GenerateProductDataTests(unittest.TestCase):
                     "title": "Severe Thunderstorm Warning",
                     "routing": "generic",
                     "body_behavior": "catalog",
-                    "extractors": ["ugc", "vtec"],
+                    "extractors": ["ugc", "vtec_events"],
                 }
             },
             "canonical order",

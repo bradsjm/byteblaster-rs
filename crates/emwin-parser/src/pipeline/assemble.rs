@@ -1273,7 +1273,7 @@ mod tests {
             enrichment
                 .body
                 .as_ref()
-                .and_then(|body| body.vtec.as_ref())
+                .and_then(|body| body.as_vtec_event())
                 .is_some()
         );
     }
@@ -1332,8 +1332,10 @@ mod tests {
             pil: Some("SIG".to_string()),
             bbb_kind: None,
             body_request: Some(BodyContributionRequest {
-                text: "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/".to_string(),
-                plan: crate::body::body_extraction_plan(&[crate::body::BodyExtractorId::Vtec]),
+                text: "IAC001-011300-\n/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/\nLAT...LON 4143 9613 4145 9610 4140 9608 4138 9612\n".to_string(),
+                plan: crate::body::body_extraction_plan(&[
+                    crate::body::BodyExtractorId::VtecEvents,
+                ]),
                 reference_time: Some(Utc::now()),
             }),
             bulletin,
@@ -1348,7 +1350,7 @@ mod tests {
             enrichment
                 .body
                 .as_ref()
-                .and_then(|body| body.vtec.as_ref())
+                .and_then(|body| body.as_vtec_event())
                 .is_some()
         );
     }

@@ -46,6 +46,14 @@ fn exact_lsr_edge_case_product_parses_specialized_bulletin() {
             .iter()
             .any(|report| report.city == "7 NW Elk Mountain")
     );
+    assert!(
+        bulletin.reports.iter().any(|report| {
+            report.city == "7 NW Elk Mountain"
+                && report.magnitude_value == Some(63.0)
+                && report.magnitude_units.as_deref() == Some("MPH")
+                && report.magnitude_qualifier.as_deref() == Some("M")
+        })
+    );
 }
 
 #[test]

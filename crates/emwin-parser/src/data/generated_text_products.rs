@@ -6,7 +6,7 @@
 use super::{TextProductBodyBehavior, TextProductCatalogEntry, TextProductRouting};
 use crate::body::BodyExtractorId;
 
-pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-11T17:51:38Z";
+pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-12T03:08:43Z";
 pub const TEXT_PRODUCT_ENTRY_COUNT: usize = 506;
 
 pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_COUNT] = [
@@ -300,13 +300,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Alert Messages in CAP XML",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-            BodyExtractorId::WindHail,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "CCF",
@@ -354,7 +348,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Coastal/Lakeshore Hazard Messages",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "CGR",
@@ -458,7 +452,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Coastal Waters Forecast",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "CWS",
@@ -578,12 +572,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Dust Storm Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "DU3",
@@ -719,12 +708,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Extreme Wind Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FA0",
@@ -900,11 +884,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Flash Flood Watch",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::Hvtec,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FFG",
@@ -928,13 +908,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Flash Flood Statement",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::Hvtec,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FFW",
@@ -942,13 +916,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Flash Flood Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::Hvtec,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FLN",
@@ -964,13 +932,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Flood Statement",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::Hvtec,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FLW",
@@ -978,13 +940,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Flood Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::Hvtec,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "FMR",
@@ -1160,7 +1116,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Great Lakes Forecast",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "GLO",
@@ -1288,7 +1244,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Hurricane Local Statement",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "HMD",
@@ -1688,13 +1644,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Marine Weather Statement",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-            BodyExtractorId::WindHail,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "MWW",
@@ -1702,12 +1652,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Marine Weather Message",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "N0C",
@@ -2347,7 +2292,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Non-Precipitation Message",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "NSH",
@@ -2355,7 +2300,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Nearshore Marine Forecast / Surf Forecast",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "NSP",
@@ -2491,7 +2436,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Offshore Forecast",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "OHA",
@@ -2803,7 +2748,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Red Flag Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "RHW",
@@ -3347,13 +3292,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Special Marine Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-            BodyExtractorId::WindHail,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "SPD",
@@ -3405,12 +3344,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Snow Squall Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "SRF",
@@ -3506,13 +3440,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Severe Thunderstorm Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-            BodyExtractorId::WindHail,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "SVS",
@@ -3520,13 +3448,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Severe Weather Statement",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-            BodyExtractorId::WindHail,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "SWD",
@@ -3654,7 +3576,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Tropical Cyclone Watch/Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "TIB",
@@ -3702,12 +3624,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Tornado Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[
-            BodyExtractorId::Vtec,
-            BodyExtractorId::Ugc,
-            BodyExtractorId::LatLon,
-            BodyExtractorId::TimeMotLoc,
-        ],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "TPT",
@@ -3739,7 +3656,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Tsunami Watch/Warning",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "TVL",
@@ -3963,7 +3880,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Watch County Notification",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "WCR",
@@ -3995,7 +3912,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Watch Outline Update",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "WPD",
@@ -4107,7 +4024,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         title: "Winter Weather Message",
         routing: TextProductRouting::Generic,
         body_behavior: TextProductBodyBehavior::Catalog,
-        extractors: &[BodyExtractorId::Vtec, BodyExtractorId::Ugc],
+        extractors: &[BodyExtractorId::VtecEvents],
     },
     TextProductCatalogEntry {
         pil: "WTS",

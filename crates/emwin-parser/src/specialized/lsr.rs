@@ -264,7 +264,7 @@ fn magnitude_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"^(?:(?P<qual>[EMULTG><=]+)\s+)?(?P<value>-?\d+(?:\.\d+)?)\s*(?P<units>[A-Z/]+)?$",
+            r"^(?:(?P<qual>[EMULTG><=]+)\s*)?(?P<value>-?\d+(?:\.\d+)?)\s*(?P<units>[A-Z/]+)?$",
         )
         .expect("valid LSR magnitude regex")
     })
@@ -337,6 +337,9 @@ QUARTER SIZE HAIL REPORTED
         assert_eq!(bulletin.reports.len(), 1);
         assert_eq!(bulletin.reports[0].event_text, "Non-Tstm Wnd Gst");
         assert_eq!(bulletin.reports[0].city, "7 NW Elk Mountain");
+        assert_eq!(bulletin.reports[0].magnitude_value, Some(63.0));
+        assert_eq!(bulletin.reports[0].magnitude_units.as_deref(), Some("MPH"));
+        assert_eq!(bulletin.reports[0].magnitude_qualifier.as_deref(), Some("M"));
         assert!(issues.is_empty());
     }
 }

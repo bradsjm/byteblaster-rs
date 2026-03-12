@@ -1301,7 +1301,7 @@ HMLMTR
     #[test]
     fn specialized_candidate_can_carry_body_request_when_metadata_enables_catalog_body_behavior() {
         let request = build_body_request(
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/",
             Some(Utc::now()),
         );
@@ -1341,7 +1341,7 @@ HMLMTR
             "LSR",
             "LSRBMX",
             "..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...\n..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....\n0150 AM     HAIL             BROOKSVILLE             34.40N 87.70W\n03/10/2026  1.00 IN          WINSTON             AL  PUBLIC\n&&\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_lsr,
         );
 
@@ -1358,7 +1358,7 @@ HMLMTR
             "CWA",
             "CWAZLC",
             "ZLC2 CWA 100230\nZLC CWA 202 VALID UNTIL 100630\nFROM 75W BIL-15NNE SHR-55SW DDY-45S OCS-35SSE SLC-75W BIL\nAREA MOD/ISO SEV MTN WAVE FL350-ABV FL450. ALTITUDE CHANGE OF +/-25KTS. RPRTD BY ACFT. VISIBLE ON SATELLITE. CWSU 100230Z. CO ID MT UT WY\n=\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_cwa,
         );
 
@@ -1375,7 +1375,7 @@ HMLMTR
             "WWP",
             "WWP1",
             "TORNADO WATCH PROBABILITIES FOR WT 0031\nPROBABILITY TABLE:\nPROB OF 2 OR MORE TORNADOES : 20%\nPROB OF 1 OR MORE STRONG /EF2-EF5/ TORNADOES : 10%\nPROB OF 10 OR MORE SEVERE WIND EVENTS : 70%\nPROB OF 1 OR MORE WIND EVENTS >= 65 KNOTS : 40%\nPROB OF 10 OR MORE SEVERE HAIL EVENTS : 60%\nPROB OF 1 OR MORE HAIL EVENTS >= 2 INCHES : 30%\nPROB OF 6 OR MORE COMBINED SEVERE HAIL/WIND EVENTS : 95%\nATTRIBUTE TABLE:\nMAX HAIL /INCHES/ : 2.0\nMAX WIND GUSTS SURFACE /KNOTS/ : 70\nMAX TOPS /X 100 FEET/ : 500\nMEAN STORM MOTION VECTOR /DEGREES AND KNOTS/ : 24035\nPARTICULARLY DANGEROUS SITUATION : NO\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_wwp,
         );
 
@@ -1392,7 +1392,7 @@ HMLMTR
             "CF6",
             "CF6GSN",
             "PRELIMINARY LOCAL CLIMATOLOGICAL DATA\nSTATION: TEST STATION\nMONTH: MARCH\nYEAR: 2026\nDY MAX MIN AVG DEP HDD CDD PCP SNW SND AWD MWD DIR MIN PSBL SKY WX GST GDR\n 1 70 50 60 0 5 0 0.10 0.0 0 8.5 20 180 600 720 CLR RA 30 190\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_cf6,
         );
 
@@ -1409,7 +1409,7 @@ HMLMTR
             "DSM",
             "DSMCQC",
             "KCQC DS 2100 10/03 631553/ 400627// 63/ 40//9671608/T/00/00/00/T/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/-/-/-/-/28282059/29431531\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_dsm,
         );
 
@@ -1426,7 +1426,7 @@ HMLMTR
             "HML",
             "HMLMTR",
             "<?xml version=\"1.0\"?>\n<site id=\"AAMC1\" name=\"ARROYO SECO\" originator=\"MTR\" generationtime=\"2026-03-10T00:02:00Z\">\n  <observed issued=\"2026-03-10T00:00:00Z\" primaryName=\"Stage\" primaryUnits=\"FT\">\n    <datum><valid>2026-03-10T00:00:00Z</valid><primary>2.5</primary></datum>\n  </observed>\n</site>\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_hml,
         );
 
@@ -1443,7 +1443,7 @@ HMLMTR
             "MET",
             "METBCK",
             "KBCK NAM MET GUIDANCE 03/10/2026 0000 UTC\nHR 00 03 06\nTMP 20 21 22\nWND 05 06 07\n",
-            Some(body_extraction_plan(&[BodyExtractorId::Vtec])),
+            Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             classify_text_mos,
         );
 

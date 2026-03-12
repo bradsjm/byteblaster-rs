@@ -9,12 +9,18 @@ fn product_with_duplicate_ugc_blocks_collects_both_sections() {
         include_bytes!("fixtures/products/generic/flood_statement/FLSRAH.txt"),
     );
 
-    assert!(enrichment.issues.is_empty());
+    assert!(
+        enrichment
+            .issues
+            .iter()
+            .any(|issue| issue.code == "vtec_segment_duplicate_ugc_code")
+    );
 
     let sections = enrichment
         .body
         .as_ref()
-        .and_then(|body| body.ugc.as_ref())
+        .and_then(|body| body.as_vtec_event())
+        .map(|body| &body.segments[0].ugc_sections)
         .expect("expected parsed UGC sections");
 
     assert_eq!(sections.len(), 2);

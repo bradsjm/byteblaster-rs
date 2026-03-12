@@ -19,12 +19,14 @@ The crate currently supports:
 - AFOS PIL parsing
 - Header enrichment from the generated text-product catalog
 - Generic body enrichment for products that carry:
-  - UGC
-  - VTEC
-  - HVTEC
-  - `LAT...LON`
-  - `TIME...MOT...LOC`
-  - wind/hail tags
+  - event-oriented VTEC segments that correlate:
+    - VTEC
+    - UGC
+    - HVTEC
+    - `LAT...LON`
+    - `TIME...MOT...LOC`
+    - wind/hail tags
+  - non-VTEC generic body fields such as UGC, `LAT...LON`, `TIME...MOT...LOC`, and wind/hail tags
 - Structured specialized parsing for:
   - FD winds and temperatures aloft bulletins
   - PIREP bulletins
@@ -108,6 +110,7 @@ crates/emwin-parser/src
 |   +-- hvtec.rs
 |   +-- latlon.rs
 |   +-- time_mot_loc.rs
+|   +-- vtec_events.rs
 |   +-- wind_hail.rs
 |
 +-- pipeline/
@@ -187,15 +190,19 @@ AFOS header
 ```
 
 If `body_behavior` is `catalog`, the ordered extractor list becomes a
-`BodyExtractionPlan` and feeds generic `ProductBody` parsing. If it is `never`,
-the candidate remains bodyless. That keeps extractor order and issue semantics
-stable while making coexistence policy-driven instead of hardcoded.
+`BodyExtractionPlan` and feeds generic `ProductBody` parsing. VTEC-bearing
+generic products now use the `vtec_events` extractor and emit a tagged
+`ProductBody` variant with ordered source segments. Non-VTEC generic products
+emit the `generic` body variant. If `body_behavior` is `never`, the candidate
+remains bodyless.
 
-Generic body QC still emits `vtec_missing_required_polygon` for VTEC products
-that do not yield a `LAT...LON` polygon by default. That QC is skipped when
-the parsed geography is represented entirely by marine-zone UGC sections. This
-is a body-extraction policy detail inside generic enrichment, not a routing
-rule.
+VTEC segment QC now emits event-oriented issue codes such as
+`vtec_segment_missing_required_polygon` and `vtec_segment_missing_ugc`. The
+marine-only UGC exception still applies, but now at the segment level instead
+of the whole-product level. When UGC recovery is blocked only because the
+header timestamp could not be resolved, the parser emits
+`missing_reference_time` and does not also misreport the segment as missing
+UGC in the source text.
 
 ## Product Routing Model
 

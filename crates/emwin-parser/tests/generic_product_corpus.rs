@@ -14,9 +14,17 @@ fn mww_marine_only_ugc_does_not_require_polygon() {
         !enrichment
             .issues
             .iter()
-            .any(|issue| issue.code == "vtec_missing_required_polygon"),
+            .any(|issue| issue.code == "vtec_segment_missing_required_polygon"),
         "{:#?}",
         enrichment.issues
+    );
+
+    assert!(
+        enrichment
+            .body
+            .as_ref()
+            .and_then(|body| body.as_vtec_event())
+            .is_some()
     );
 }
 

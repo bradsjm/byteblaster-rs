@@ -557,6 +557,7 @@ mod tests {
             enrichment
                 .body
                 .as_ref()
+                .and_then(|body| body.as_generic())
                 .and_then(|body| body.ugc.as_ref())
                 .map(|sections| sections[0].zones["VA"]
                     .iter()

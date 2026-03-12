@@ -516,27 +516,28 @@ impl GeoFilter {
         let Some(body) = body else {
             return false;
         };
-        let Some(sections) = body.ugc.as_deref() else {
+        let sections = body_ugc_sections(body);
+        if sections.is_empty() {
             return false;
-        };
+        }
 
-        matches_geo_states(&self.states, sections)
+        matches_geo_states(&self.states, &sections)
             && matches_enriched_ugc_codes(
                 &self.counties,
-                sections,
+                &sections,
                 |section| &section.counties,
                 'C',
             )
-            && matches_enriched_ugc_codes(&self.zones, sections, |section| &section.zones, 'Z')
+            && matches_enriched_ugc_codes(&self.zones, &sections, |section| &section.zones, 'Z')
             && matches_enriched_ugc_codes(
                 &self.fire_zones,
-                sections,
+                &sections,
                 |section| &section.fire_zones,
                 'F',
             )
             && matches_enriched_ugc_codes(
                 &self.marine_zones,
-                sections,
+                &sections,
                 |section| &section.marine_zones,
                 'Z',
             )
@@ -569,9 +570,10 @@ impl VtecFilter {
         let Some(body) = body else {
             return false;
         };
-        let Some(vtec_codes) = body.vtec.as_deref() else {
+        let vtec_codes = body_vtec_codes(body);
+        if vtec_codes.is_empty() {
             return false;
-        };
+        }
 
         vtec_codes.iter().any(|code| self.matches_code(code))
     }
@@ -611,9 +613,9 @@ impl HvtecFilter {
             return true;
         }
 
-        let codes = body.and_then(|body| body.hvtec.as_deref());
+        let codes = body.map(body_hvtec_codes).unwrap_or_default();
         if let Some(present) = self.present
-            && present != codes.is_some_and(|codes| !codes.is_empty())
+            && present == codes.is_empty()
         {
             return false;
         }
@@ -626,9 +628,9 @@ impl HvtecFilter {
             return true;
         }
 
-        let Some(codes) = codes else {
+        if codes.is_empty() {
             return false;
-        };
+        }
 
         codes.iter().any(|code| self.matches_code(code))
     }
@@ -664,18 +666,18 @@ impl WindHailFilter {
             return true;
         }
 
-        let entries = body.and_then(|body| body.wind_hail.as_deref());
+        let entries = body.map(body_wind_hail_entries).unwrap_or_default();
         if let Some(present) = self.present
-            && present != entries.is_some_and(|entries| !entries.is_empty())
+            && present == entries.is_empty()
         {
             return false;
         }
 
-        let Some(entries) = entries else {
+        if entries.is_empty() {
             return self.kinds.is_none()
                 && self.min_wind_mph.is_none()
                 && self.min_hail_inches.is_none();
-        };
+        }
 
         if let Some(kinds) = &self.kinds
             && !entries
@@ -823,24 +825,15 @@ impl BodyPresenceFilter {
     }
 
     fn matches(&self, body: Option<&ProductBody>) -> bool {
-        matches_optional_presence(self.has_vtec, body.and_then(|body| body.vtec.as_deref()))
-            && matches_optional_presence(self.has_ugc, body.and_then(|body| body.ugc.as_deref()))
-            && matches_optional_presence(
-                self.has_hvtec,
-                body.and_then(|body| body.hvtec.as_deref()),
-            )
-            && matches_optional_presence(
-                self.has_latlon,
-                body.and_then(|body| body.latlon.as_deref()),
-            )
+        matches_optional_presence(self.has_vtec, body.map_or(0, body_vtec_codes_len))
+            && matches_optional_presence(self.has_ugc, body.map_or(0, body_ugc_sections_len))
+            && matches_optional_presence(self.has_hvtec, body.map_or(0, body_hvtec_codes_len))
+            && matches_optional_presence(self.has_latlon, body.map_or(0, body_latlon_len))
             && matches_optional_presence(
                 self.has_time_mot_loc,
-                body.and_then(|body| body.time_mot_loc.as_deref()),
+                body.map_or(0, body_time_mot_loc_len),
             )
-            && matches_optional_presence(
-                self.has_wind_hail,
-                body.and_then(|body| body.wind_hail.as_deref()),
-            )
+            && matches_optional_presence(self.has_wind_hail, body.map_or(0, body_wind_hail_len))
     }
 }
 
@@ -886,14 +879,14 @@ fn matches_serialized_option<T: Copy>(
     }
 }
 
-fn matches_optional_presence<T>(expected: Option<bool>, values: Option<&[T]>) -> bool {
+fn matches_optional_presence(expected: Option<bool>, value_count: usize) -> bool {
     match expected {
-        Some(expected) => expected == values.is_some_and(|values| !values.is_empty()),
+        Some(expected) => expected == (value_count > 0),
         None => true,
     }
 }
 
-fn matches_geo_states(allowed: &Option<BTreeSet<String>>, sections: &[UgcSection]) -> bool {
+fn matches_geo_states(allowed: &Option<BTreeSet<String>>, sections: &[&UgcSection]) -> bool {
     match allowed {
         Some(allowed) => sections.iter().any(|section| {
             section.counties.keys().any(|state| allowed.contains(state))
@@ -913,7 +906,7 @@ fn matches_geo_states(allowed: &Option<BTreeSet<String>>, sections: &[UgcSection
 
 fn matches_enriched_ugc_codes(
     allowed: &Option<BTreeSet<String>>,
-    sections: &[UgcSection],
+    sections: &[&UgcSection],
     select: fn(&UgcSection) -> &BTreeMap<String, Vec<emwin_parser::UgcArea>>,
     class_code: char,
 ) -> bool {
@@ -926,6 +919,122 @@ fn matches_enriched_ugc_codes(
             })
         }),
         None => true,
+    }
+}
+
+fn body_ugc_sections(body: &ProductBody) -> Vec<&UgcSection> {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .flat_map(|segment| segment.ugc_sections.iter())
+            .collect(),
+        ProductBody::Generic(body) => body
+            .ugc
+            .iter()
+            .flat_map(|sections| sections.iter())
+            .collect(),
+    }
+}
+
+fn body_vtec_codes(body: &ProductBody) -> Vec<&VtecCode> {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .flat_map(|segment| segment.vtec.iter())
+            .collect(),
+        ProductBody::Generic(_) => Vec::new(),
+    }
+}
+
+fn body_hvtec_codes(body: &ProductBody) -> Vec<&HvtecCode> {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .flat_map(|segment| segment.hvtec.iter())
+            .collect(),
+        ProductBody::Generic(_) => Vec::new(),
+    }
+}
+
+fn body_wind_hail_entries(body: &ProductBody) -> Vec<&WindHailEntry> {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .flat_map(|segment| segment.wind_hail.iter())
+            .collect(),
+        ProductBody::Generic(body) => body
+            .wind_hail
+            .iter()
+            .flat_map(|entries| entries.iter())
+            .collect(),
+    }
+}
+
+fn body_vtec_codes_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => {
+            body.segments.iter().map(|segment| segment.vtec.len()).sum()
+        }
+        ProductBody::Generic(_) => 0,
+    }
+}
+
+fn body_ugc_sections_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .map(|segment| segment.ugc_sections.len())
+            .sum(),
+        ProductBody::Generic(body) => body.ugc.as_ref().map_or(0, Vec::len),
+    }
+}
+
+fn body_hvtec_codes_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .map(|segment| segment.hvtec.len())
+            .sum(),
+        ProductBody::Generic(_) => 0,
+    }
+}
+
+fn body_latlon_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .map(|segment| segment.polygons.len())
+            .sum(),
+        ProductBody::Generic(body) => body.latlon.as_ref().map_or(0, Vec::len),
+    }
+}
+
+fn body_time_mot_loc_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .map(|segment| segment.time_mot_loc.len())
+            .sum(),
+        ProductBody::Generic(body) => body.time_mot_loc.as_ref().map_or(0, Vec::len),
+    }
+}
+
+fn body_wind_hail_len(body: &ProductBody) -> usize {
+    match body {
+        ProductBody::VtecEvent(body) => body
+            .segments
+            .iter()
+            .map(|segment| segment.wind_hail.len())
+            .sum(),
+        ProductBody::Generic(body) => body.wind_hail.as_ref().map_or(0, Vec::len),
     }
 }
 

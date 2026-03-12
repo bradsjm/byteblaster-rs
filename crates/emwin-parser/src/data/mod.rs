@@ -324,16 +324,7 @@ mod tests {
     #[test]
     fn generated_catalog_exposes_ordered_extractors() {
         let entry = text_product_catalog_entry("FFW").expect("expected generated catalog entry");
-        assert_eq!(
-            entry.extractors,
-            &[
-                BodyExtractorId::Vtec,
-                BodyExtractorId::Ugc,
-                BodyExtractorId::Hvtec,
-                BodyExtractorId::LatLon,
-                BodyExtractorId::TimeMotLoc,
-            ]
-        );
+        assert_eq!(entry.extractors, &[BodyExtractorId::VtecEvents]);
     }
 
     #[test]

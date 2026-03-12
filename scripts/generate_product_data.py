@@ -19,18 +19,16 @@ class CatalogEntry(TypedDict):
 
 
 EXTRACTOR_ORDER = [
-    "vtec",
+    "vtec_events",
     "ugc",
-    "hvtec",
     "latlon",
     "time_mot_loc",
     "wind_hail",
 ]
 
 EXTRACTOR_VARIANTS = {
-    "vtec": "BodyExtractorId::Vtec",
+    "vtec_events": "BodyExtractorId::VtecEvents",
     "ugc": "BodyExtractorId::Ugc",
-    "hvtec": "BodyExtractorId::Hvtec",
     "latlon": "BodyExtractorId::LatLon",
     "time_mot_loc": "BodyExtractorId::TimeMotLoc",
     "wind_hail": "BodyExtractorId::WindHail",

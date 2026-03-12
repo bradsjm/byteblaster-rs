@@ -280,11 +280,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc",
-      "wind_hail"
+      "vtec_events"
     ]
   },
   "CCF": {
@@ -332,8 +328,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "CGR": {
@@ -432,8 +427,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "CWS": {
@@ -542,10 +536,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "DU3": {
@@ -684,10 +675,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "FA0": {
@@ -843,9 +831,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "hvtec"
+      "vtec_events"
     ]
   },
   "FFG": {
@@ -868,11 +854,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "hvtec",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "FFW": {
@@ -881,11 +863,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "hvtec",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "FLN": {
@@ -901,11 +879,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "hvtec",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "FLW": {
@@ -914,11 +888,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "hvtec",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "FMR": {
@@ -1088,8 +1058,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "GLO": {
@@ -1203,8 +1172,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "HMD": {
@@ -1572,11 +1540,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc",
-      "wind_hail"
+      "vtec_events"
     ]
   },
   "MWW": {
@@ -1585,10 +1549,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "N0C": {
@@ -2158,8 +2119,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "NSH": {
@@ -2168,8 +2128,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "NSP": {
@@ -2292,8 +2251,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "OHA": {
@@ -2590,8 +2548,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "RHW": {
@@ -3106,11 +3063,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc",
-      "wind_hail"
+      "vtec_events"
     ]
   },
   "SPD": {
@@ -3162,10 +3115,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "SRF": {
@@ -3255,11 +3205,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc",
-      "wind_hail"
+      "vtec_events"
     ]
   },
   "SVS": {
@@ -3268,11 +3214,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc",
-      "wind_hail"
+      "vtec_events"
     ]
   },
   "SWD": {
@@ -3389,8 +3331,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "TIB": {
@@ -3438,10 +3379,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc",
-      "latlon",
-      "time_mot_loc"
+      "vtec_events"
     ]
   },
   "TPT": {
@@ -3471,8 +3409,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "TVL": {
@@ -3674,8 +3611,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "WCR": {
@@ -3705,8 +3641,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "WPD": {
@@ -3806,8 +3741,7 @@
     "routing": "generic",
     "body_behavior": "catalog",
     "extractors": [
-      "vtec",
-      "ugc"
+      "vtec_events"
     ]
   },
   "WTS": {

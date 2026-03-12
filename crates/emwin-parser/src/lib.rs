@@ -15,13 +15,13 @@ mod specialized;
 mod time;
 
 pub use body::{
-    BodyExtractorId, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon, ProductBody,
-    TimeMotLocEntry, UgcArea, UgcClass, UgcCode, UgcSection, VtecCode, WindHailEntry, WindHailKind,
-    enrich_body, parse_hvtec_codes, parse_hvtec_codes_with_issues, parse_latlon_polygons,
-    parse_latlon_polygons_with_issues, parse_time_mot_loc_entries,
-    parse_time_mot_loc_entries_with_issues, parse_ugc_sections, parse_ugc_sections_with_issues,
-    parse_vtec_codes, parse_vtec_codes_with_issues, parse_wind_hail_entries,
-    parse_wind_hail_entries_with_issues,
+    BodyExtractorId, GenericBody, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, LatLonPolygon,
+    ProductBody, TimeMotLocEntry, UgcArea, UgcClass, UgcCode, UgcSection, VtecCode, VtecEventBody,
+    VtecEventSegment, WindHailEntry, WindHailKind, enrich_body, parse_hvtec_codes,
+    parse_hvtec_codes_with_issues, parse_latlon_polygons, parse_latlon_polygons_with_issues,
+    parse_time_mot_loc_entries, parse_time_mot_loc_entries_with_issues, parse_ugc_sections,
+    parse_ugc_sections_with_issues, parse_vtec_codes, parse_vtec_codes_with_issues,
+    parse_wind_hail_entries, parse_wind_hail_entries_with_issues,
 };
 pub use data::{
     NWSLID_ENTRY_COUNT, NWSLID_GENERATED_AT_UTC, NwslidEntry, TEXT_PRODUCT_ENTRY_COUNT,

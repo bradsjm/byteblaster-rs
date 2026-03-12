@@ -40,6 +40,9 @@ The crate currently supports:
   - DSM collectives
   - HML bulletins
   - MOS guidance bulletins for `MET`, `MAV`, `MEX`, `FRH`, and `FTP`
+  - MCD/MPD bulletins
+  - ERO bulletins
+  - SPC outlook points bulletins
   - METAR collectives
   - TAF bulletins
   - GOES DCP telemetry bulletins
@@ -133,6 +136,9 @@ crates/emwin-parser/src
 |   +-- dsm.rs
 |   +-- hml.rs
 |   +-- mos.rs
+|   +-- mcd.rs
+|   +-- ero.rs
+|   +-- spc_outlook.rs
 |   +-- metar.rs
 |   +-- taf.rs
 |   +-- dcp.rs

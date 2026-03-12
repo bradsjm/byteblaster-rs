@@ -6,8 +6,8 @@
 use super::{TextProductBodyBehavior, TextProductCatalogEntry, TextProductRouting};
 use crate::body::BodyExtractorId;
 
-pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-12T19:30:58Z";
-pub const TEXT_PRODUCT_ENTRY_COUNT: usize = 506;
+pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-12T21:24:30Z";
+pub const TEXT_PRODUCT_ENTRY_COUNT: usize = 507;
 
 pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_COUNT] = [
     TextProductCatalogEntry {
@@ -2611,6 +2611,14 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         wmo_prefix: "SD",
         title: "171 QPF Storm Total Accumulation 16 Levels",
         routing: TextProductRouting::Generic,
+        body_behavior: TextProductBodyBehavior::Never,
+        extractors: &[],
+    },
+    TextProductCatalogEntry {
+        pil: "PTS",
+        wmo_prefix: "WU",
+        title: "SPC outlook points product",
+        routing: TextProductRouting::SpcOutlook,
         body_behavior: TextProductBodyBehavior::Never,
         extractors: &[],
     },

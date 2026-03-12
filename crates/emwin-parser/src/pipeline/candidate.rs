@@ -10,10 +10,10 @@ use chrono::{DateTime, Utc};
 use crate::body::BodyExtractionPlan;
 use crate::data::NonTextProductMeta;
 use crate::{
-    BbbKind, Cf6Bulletin, CwaBulletin, DcpBulletin, DsmBulletin, FdBulletin, HmlBulletin,
-    LsrBulletin, MetarBulletin, MosBulletin, ParserError, PirepBulletin, ProductEnrichmentSource,
-    ProductParseIssue, SawBulletin, SelBulletin, SigmetBulletin, TafBulletin, TextProductHeader,
-    WmoHeader, WwpBulletin,
+    BbbKind, Cf6Bulletin, CwaBulletin, DcpBulletin, DsmBulletin, EroBulletin, FdBulletin,
+    HmlBulletin, LsrBulletin, McdBulletin, MetarBulletin, MosBulletin, ParserError, PirepBulletin,
+    ProductEnrichmentSource, ProductParseIssue, SawBulletin, SelBulletin, SigmetBulletin,
+    SpcOutlookBulletin, TafBulletin, TextProductHeader, WmoHeader, WwpBulletin,
 };
 
 /// Internal classification result passed from strategy dispatch into assembly.
@@ -45,6 +45,12 @@ pub(crate) enum ClassificationCandidate {
     Hml(HmlCandidate),
     /// Parsed MOS bulletin candidate.
     Mos(MosCandidate),
+    /// Parsed MCD/MPD bulletin candidate.
+    Mcd(McdCandidate),
+    /// Parsed ERO bulletin candidate.
+    Ero(EroCandidate),
+    /// Parsed SPC outlook bulletin candidate.
+    SpcOutlook(SpcOutlookCandidate),
     /// Parsed METAR bulletin candidate.
     Metar(MetarCandidate),
     /// Parsed TAF bulletin candidate.
@@ -239,6 +245,36 @@ pub(crate) struct MosCandidate {
     pub(crate) bbb_kind: Option<BbbKind>,
     pub(crate) body_request: Option<BodyContributionRequest>,
     pub(crate) bulletin: MosBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct McdCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: McdBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct EroCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: EroBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SpcOutlookCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: SpcOutlookBulletin,
     pub(crate) issues: Vec<ProductParseIssue>,
 }
 

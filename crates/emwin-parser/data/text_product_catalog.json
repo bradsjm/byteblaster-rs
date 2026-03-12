@@ -2420,6 +2420,13 @@
     "body_behavior": "never",
     "extractors": []
   },
+  "PTS": {
+    "wmo_prefix": "WU",
+    "title": "SPC outlook points product",
+    "routing": "spc_outlook",
+    "body_behavior": "never",
+    "extractors": []
+  },
   "PVM": {
     "wmo_prefix": "FX",
     "title": "Public Verification Matrix",

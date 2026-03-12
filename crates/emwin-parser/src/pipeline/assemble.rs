@@ -12,10 +12,10 @@ use crate::{ProductBody, body::enrich_body_from_plan};
 
 use super::ClassificationCandidate;
 use super::candidate::{
-    BodyContributionRequest, Cf6Candidate, CwaCandidate, DcpCandidate, DsmCandidate, FdCandidate,
-    HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate, PirepCandidate, SawCandidate,
-    SelCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
-    WwpCandidate,
+    BodyContributionRequest, Cf6Candidate, CwaCandidate, DcpCandidate, DsmCandidate, EroCandidate,
+    FdCandidate, HmlCandidate, LsrCandidate, McdCandidate, MetarCandidate, MosCandidate,
+    PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, SpcOutlookCandidate, TafCandidate,
+    TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::normalize::detected_container;
 
@@ -44,6 +44,11 @@ pub(crate) fn assemble_product_enrichment(
         ClassificationCandidate::Dsm(candidate) => assemble_from_dsm(candidate, filename),
         ClassificationCandidate::Hml(candidate) => assemble_from_hml(candidate, filename),
         ClassificationCandidate::Mos(candidate) => assemble_from_mos(candidate, filename),
+        ClassificationCandidate::Mcd(candidate) => assemble_from_mcd(candidate, filename),
+        ClassificationCandidate::Ero(candidate) => assemble_from_ero(candidate, filename),
+        ClassificationCandidate::SpcOutlook(candidate) => {
+            assemble_from_spc_outlook(candidate, filename)
+        }
         ClassificationCandidate::Metar(candidate) => assemble_from_metar(candidate, filename),
         ClassificationCandidate::Taf(candidate) => assemble_from_taf(candidate, filename),
         ClassificationCandidate::Dcp(candidate) => assemble_from_dcp(candidate, filename),
@@ -100,6 +105,9 @@ fn assemble_from_text_generic(
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     }
 }
@@ -154,6 +162,9 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     }
 }
@@ -196,6 +207,9 @@ fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnri
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     }
 }
@@ -250,6 +264,9 @@ fn assemble_from_sigmet(candidate: SigmetCandidate, filename: &str) -> ProductEn
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: body_issues,
     }
 }
@@ -293,6 +310,9 @@ fn assemble_specialized_text(spec: SpecializedTextEnvelope) -> ProductEnrichment
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: spec.issues,
     }
 }
@@ -351,6 +371,9 @@ fn assemble_from_cwa(candidate: CwaCandidate, filename: &str) -> ProductEnrichme
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: candidate.issues,
     };
     enrichment.cwa = Some(candidate.bulletin);
@@ -402,6 +425,9 @@ fn assemble_from_saw(candidate: SawCandidate, filename: &str) -> ProductEnrichme
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     };
     enrichment.saw = Some(candidate.bulletin);
@@ -438,6 +464,9 @@ fn assemble_from_sel(candidate: SelCandidate, filename: &str) -> ProductEnrichme
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     };
     enrichment.sel = Some(candidate.bulletin);
@@ -504,6 +533,123 @@ fn assemble_from_mos(candidate: MosCandidate, filename: &str) -> ProductEnrichme
     enrichment
 }
 
+fn assemble_from_mcd(candidate: McdCandidate, filename: &str) -> ProductEnrichment {
+    let (body, mut issues) = assemble_optional_body(candidate.body_request);
+    issues.extend(candidate.issues);
+    let mut enrichment = ProductEnrichment {
+        source: ProductEnrichmentSource::TextMcdBulletin,
+        family: Some("mcd_bulletin"),
+        title: Some("Mesoscale discussion bulletin"),
+        container: container_from_filename(filename),
+        pil: candidate.pil.clone(),
+        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
+        office: wmo_office_entry(&candidate.header.cccc).copied(),
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        lsr: None,
+        cwa: None,
+        wwp: None,
+        saw: None,
+        sel: None,
+        cf6: None,
+        dsm: None,
+        hml: None,
+        mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
+        issues,
+    };
+    enrichment.mcd = Some(candidate.bulletin);
+    enrichment
+}
+
+fn assemble_from_ero(candidate: EroCandidate, filename: &str) -> ProductEnrichment {
+    let (body, mut issues) = assemble_optional_body(candidate.body_request);
+    issues.extend(candidate.issues);
+    let mut enrichment = ProductEnrichment {
+        source: ProductEnrichmentSource::TextEroBulletin,
+        family: Some("ero_bulletin"),
+        title: Some("Excessive rainfall outlook"),
+        container: container_from_filename(filename),
+        pil: candidate.pil.clone(),
+        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
+        office: wmo_office_entry(&candidate.header.cccc).copied(),
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        lsr: None,
+        cwa: None,
+        wwp: None,
+        saw: None,
+        sel: None,
+        cf6: None,
+        dsm: None,
+        hml: None,
+        mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
+        issues,
+    };
+    enrichment.ero = Some(candidate.bulletin);
+    enrichment
+}
+
+fn assemble_from_spc_outlook(candidate: SpcOutlookCandidate, filename: &str) -> ProductEnrichment {
+    let (body, mut issues) = assemble_optional_body(candidate.body_request);
+    issues.extend(candidate.issues);
+    let mut enrichment = ProductEnrichment {
+        source: ProductEnrichmentSource::TextSpcOutlookBulletin,
+        family: Some("spc_outlook_bulletin"),
+        title: Some("SPC outlook bulletin"),
+        container: container_from_filename(filename),
+        pil: candidate.pil.clone(),
+        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
+        office: wmo_office_entry(&candidate.header.cccc).copied(),
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        lsr: None,
+        cwa: None,
+        wwp: None,
+        saw: None,
+        sel: None,
+        cf6: None,
+        dsm: None,
+        hml: None,
+        mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
+        issues,
+    };
+    enrichment.spc_outlook = Some(candidate.bulletin);
+    enrichment
+}
+
 fn assemble_optional_body(
     request: Option<BodyContributionRequest>,
 ) -> (Option<ProductBody>, Vec<ProductParseIssue>) {
@@ -552,6 +698,9 @@ fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnri
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues,
     }
 }
@@ -587,6 +736,9 @@ fn assemble_from_taf(candidate: TafCandidate, filename: &str) -> ProductEnrichme
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: Vec::new(),
     }
 }
@@ -622,6 +774,9 @@ fn assemble_from_dcp(candidate: DcpCandidate, filename: &str) -> ProductEnrichme
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: Vec::new(),
     }
 }
@@ -655,6 +810,9 @@ fn assemble_from_non_text(candidate: NonTextProductMeta) -> ProductEnrichment {
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: Vec::new(),
     }
 }
@@ -698,6 +856,9 @@ fn assemble_from_unsupported_wmo(
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: vec![ProductParseIssue::new(
             "wmo_bulletin_parse",
             code,
@@ -736,6 +897,9 @@ fn assemble_from_text_parse_failure(filename: &str, error: ParserError) -> Produ
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: vec![ProductParseIssue::new(
             "text_product_parse",
             parser_error_code(&error),
@@ -774,6 +938,9 @@ fn assemble_unknown(filename: &str, raw_bytes: &[u8]) -> ProductEnrichment {
         dsm: None,
         hml: None,
         mos: None,
+        mcd: None,
+        ero: None,
+        spc_outlook: None,
         issues: Vec::new(),
     }
 }

@@ -57,6 +57,9 @@ ROUTING_VARIANTS = {
     "mos": "TextProductRouting::Mos",
     "saw": "TextProductRouting::Saw",
     "sel": "TextProductRouting::Sel",
+    "mcd": "TextProductRouting::Mcd",
+    "ero": "TextProductRouting::Ero",
+    "spc_outlook": "TextProductRouting::SpcOutlook",
 }
 
 BODY_BEHAVIOR_VARIANTS = {
@@ -326,6 +329,7 @@ def write_afos_output(overrides: list[tuple[str, AfosOverrideEntry]]) -> None:
         "#[allow(unused_imports)]",
         "use super::{AfosRoutingOverride, TextProductBodyBehavior, TextProductRouting};",
         "",
+        "#[allow(dead_code)]",
         f"pub const AFOS_ROUTING_GENERATED_AT_UTC: &str = {rust_string(generated_at)};",
         f"pub const AFOS_ROUTING_OVERRIDE_COUNT: usize = {len(overrides)};",
         "",

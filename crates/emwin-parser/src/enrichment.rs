@@ -6,8 +6,9 @@
 
 use crate::pipeline::{NormalizedInput, ParsedEnvelope, assemble_product_enrichment, classify};
 use crate::{
-    BbbKind, Cf6Bulletin, CwaBulletin, DsmBulletin, HmlBulletin, LsrBulletin, MosBulletin,
-    ProductBody, ProductParseIssue, TextProductHeader, WmoHeader, WmoOfficeEntry, WwpBulletin,
+    BbbKind, Cf6Bulletin, CwaBulletin, DsmBulletin, EroBulletin, HmlBulletin, LsrBulletin,
+    McdBulletin, MosBulletin, ProductBody, ProductParseIssue, SpcOutlookBulletin,
+    TextProductHeader, WmoHeader, WmoOfficeEntry, WwpBulletin,
 };
 use crate::{
     DcpBulletin, FdBulletin, MetarBulletin, PirepBulletin, SawBulletin, SelBulletin,
@@ -37,6 +38,9 @@ pub enum ProductEnrichmentSource {
     TextDsmBulletin,
     TextHmlBulletin,
     TextMosBulletin,
+    TextMcdBulletin,
+    TextEroBulletin,
+    TextSpcOutlookBulletin,
     WmoSigmetBulletin,
     WmoMetarBulletin,
     WmoTafBulletin,
@@ -129,6 +133,15 @@ pub struct ProductEnrichment {
     /// Parsed MOS bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mos: Option<MosBulletin>,
+    /// Parsed MCD/MPD bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcd: Option<McdBulletin>,
+    /// Parsed ERO bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ero: Option<EroBulletin>,
+    /// Parsed SPC outlook bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spc_outlook: Option<SpcOutlookBulletin>,
     /// Issues encountered during parsing
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,
@@ -658,6 +671,66 @@ HMLMTR
         );
         assert!(mos.mos.is_some());
         assert!(mos.body.is_none());
+    }
+
+    #[test]
+    fn swomcd_products_route_to_structured_mcd_enrichment() {
+        let enrichment = enrich_product(
+            "SWOMCD.TXT",
+            b"000 \nACUS11 KWNS 260208\nSWOMCD\nSPC MCD 260208\nMIZ000-WIZ000-260415-\n\nMESOSCALE DISCUSSION 1525\nNWS STORM PREDICTION CENTER NORMAN OK\n0908 PM CDT THU JUL 25 2013\n\nAREAS AFFECTED...PORTIONS OF NRN WI AND THE UPPER PENINSULA OF MI\n\nCONCERNING...SEVERE THUNDERSTORM WATCH 446...\n\nVALID 260208Z - 260415Z\n\nATTN...WFO...MQT...GRB...DLH...\n\nLAT...LON 44738786 45378992 45829078 46369061 46638962 46338801\n 45868698 44738786\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextMcdBulletin);
+        assert_eq!(enrichment.family, Some("mcd_bulletin"));
+        assert!(enrichment.mcd.is_some());
+        assert!(enrichment.body.is_none());
+        assert_eq!(
+            enrichment
+                .mcd
+                .as_ref()
+                .map(|bulletin| bulletin.discussion_number),
+            Some(1525)
+        );
+    }
+
+    #[test]
+    fn rbg94e_products_route_to_structured_ero_enrichment() {
+        let enrichment = enrich_product(
+            "RBG94E.TXT",
+            b"000 \nFOUS30 KWBC 132156\nRBG94E\nDay 1 Excessive Rainfall Threat Area\nValid 2156Z Tue Jul 13 2021 - 12Z Wed Jul 14 2021\n\nMARGINAL RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM\n20 N CYSC 20 N 1V4 20 SW PSF.\n",
+        );
+
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextEroBulletin);
+        assert_eq!(enrichment.family, Some("ero_bulletin"));
+        assert!(enrichment.ero.is_some());
+        assert!(enrichment.body.is_none());
+        assert_eq!(
+            enrichment.ero.as_ref().map(|bulletin| bulletin.day),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn ptsdy1_products_route_to_structured_spc_outlook_enrichment() {
+        let enrichment = enrich_product(
+            "PTSDY1.TXT",
+            b"000 \nWUUS01 KWNS 071300\nPTSDY1\nVALID TIME 071300Z - 081200Z\n\n... CATEGORICAL ...\n\nMRGL 49061987 48451952 47761927 49061987\n",
+        );
+
+        assert_eq!(
+            enrichment.source,
+            ProductEnrichmentSource::TextSpcOutlookBulletin
+        );
+        assert_eq!(enrichment.family, Some("spc_outlook_bulletin"));
+        assert!(enrichment.spc_outlook.is_some());
+        assert!(enrichment.body.is_none());
+        assert_eq!(
+            enrichment
+                .spc_outlook
+                .as_ref()
+                .map(|bulletin| bulletin.days[0].day),
+            Some(1)
+        );
     }
 
     #[test]

@@ -1,1 +1,42 @@
-{}
+{
+  "FFGMPD": {
+    "title": "Mesoscale precipitation discussion",
+    "routing": "mcd",
+    "body_behavior": "never"
+  },
+  "PFWFD1": {
+    "title": "Day 1 fire weather outlook points",
+    "routing": "spc_outlook",
+    "body_behavior": "never"
+  },
+  "PFWFD2": {
+    "title": "Day 2 fire weather outlook points",
+    "routing": "spc_outlook",
+    "body_behavior": "never"
+  },
+  "PFWF38": {
+    "title": "Days 3-8 fire weather outlook points",
+    "routing": "spc_outlook",
+    "body_behavior": "never"
+  },
+  "RBG94E": {
+    "title": "Day 1 excessive rainfall outlook",
+    "routing": "ero",
+    "body_behavior": "never"
+  },
+  "RBG98E": {
+    "title": "Day 2 excessive rainfall outlook",
+    "routing": "ero",
+    "body_behavior": "never"
+  },
+  "RBG99E": {
+    "title": "Day 3 excessive rainfall outlook",
+    "routing": "ero",
+    "body_behavior": "never"
+  },
+  "SWOMCD": {
+    "title": "Mesoscale discussion",
+    "routing": "mcd",
+    "body_behavior": "never"
+  }
+}

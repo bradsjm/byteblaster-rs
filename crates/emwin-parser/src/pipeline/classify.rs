@@ -14,24 +14,27 @@ use crate::specialized::cf6::parse_cf6_bulletin;
 use crate::specialized::cwa::parse_cwa_bulletin;
 use crate::specialized::dcp::parse_dcp_bulletin;
 use crate::specialized::dsm::parse_dsm_bulletin;
+use crate::specialized::ero::parse_ero_bulletin;
 use crate::specialized::fd::parse_fd_bulletin;
 use crate::specialized::hml::parse_hml_bulletin;
 use crate::specialized::lsr::parse_lsr_bulletin;
+use crate::specialized::mcd::parse_mcd_bulletin;
 use crate::specialized::metar::parse_metar_bulletin;
 use crate::specialized::mos::parse_mos_bulletin;
 use crate::specialized::pirep::parse_pirep_bulletin;
 use crate::specialized::saw::parse_saw_bulletin;
 use crate::specialized::sel::parse_sel_bulletin;
 use crate::specialized::sigmet::parse_sigmet_bulletin;
+use crate::specialized::spc_outlook::parse_spc_outlook_bulletin;
 use crate::specialized::taf::parse_taf_bulletin;
 use crate::specialized::wwp::parse_wwp_bulletin;
 use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enrich_header};
 
 use super::candidate::{
     BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
-    DsmCandidate, FdCandidate, HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate,
-    PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, TafCandidate,
-    TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
+    DsmCandidate, EroCandidate, FdCandidate, HmlCandidate, LsrCandidate, McdCandidate,
+    MetarCandidate, MosCandidate, PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate,
+    SpcOutlookCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
@@ -51,6 +54,9 @@ const TEXT_STRATEGIES: &[TextStrategy] = &[
     classify_text_dsm,
     classify_text_hml,
     classify_text_mos,
+    classify_text_mcd,
+    classify_text_ero,
+    classify_text_spc_outlook,
 ];
 
 const WMO_STRATEGIES: &[WmoStrategy] = &[
@@ -316,6 +322,26 @@ fn looks_like_mos_text_product(afos: &str, body_text: &str) -> bool {
             || body_text
                 .lines()
                 .any(|line| line.trim_start().starts_with(".B ")))
+}
+
+fn looks_like_mcd_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(afos, "SWOMCD" | "FFGMPD")
+        || body_text.contains("MESOSCALE DISCUSSION")
+        || body_text.contains("MPD")
+        || body_text.contains("AREAS AFFECTED")
+}
+
+fn looks_like_ero_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(afos, "RBG94E" | "RBG98E" | "RBG99E")
+        && body_text.contains("Excessive Rainfall")
+        && body_text.contains("TO THE RIGHT OF A LINE FROM")
+}
+
+fn looks_like_spc_outlook_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(
+        afos,
+        "PTSDY1" | "PTSDY2" | "PTSDY3" | "PTSD48" | "PFWFD1" | "PFWFD2" | "PFWF38"
+    ) && body_text.contains("VALID")
 }
 
 /// Detects whether WMO-only text resembles a SIGMET bulletin.
@@ -634,6 +660,79 @@ fn classify_text_mos(context: &TextClassificationContext<'_>) -> Option<Classifi
     }
     let bulletin = parse_mos_bulletin(context.body_text, context.reference_time?)?;
     Some(ClassificationCandidate::Mos(MosCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_mcd(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Mcd) {
+        return None;
+    }
+    if !looks_like_mcd_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_mcd_bulletin(
+        context.body_text,
+        Some(context.header.afos.as_str()),
+        context.reference_time?,
+    )?;
+    Some(ClassificationCandidate::Mcd(McdCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_ero(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Ero) {
+        return None;
+    }
+    if !looks_like_ero_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_ero_bulletin(context.body_text, Some(context.header.afos.as_str()))?;
+    Some(ClassificationCandidate::Ero(EroCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_spc_outlook(
+    context: &TextClassificationContext<'_>,
+) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::SpcOutlook) {
+        return None;
+    }
+    if !looks_like_spc_outlook_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin =
+        parse_spc_outlook_bulletin(context.body_text, Some(context.header.afos.as_str()))?;
+    Some(ClassificationCandidate::SpcOutlook(SpcOutlookCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,

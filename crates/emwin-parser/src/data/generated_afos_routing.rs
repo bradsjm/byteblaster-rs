@@ -9,7 +9,64 @@ use super::{AfosRoutingOverride, TextProductBodyBehavior, TextProductRouting};
 use crate::body::BodyExtractorId;
 
 #[allow(dead_code)]
-pub const AFOS_ROUTING_GENERATED_AT_UTC: &str = "2026-03-12T19:30:58Z";
-pub const AFOS_ROUTING_OVERRIDE_COUNT: usize = 0;
+pub const AFOS_ROUTING_GENERATED_AT_UTC: &str = "2026-03-12T21:24:30Z";
+pub const AFOS_ROUTING_OVERRIDE_COUNT: usize = 8;
 
-pub static AFOS_ROUTING_OVERRIDES: [AfosRoutingOverride; AFOS_ROUTING_OVERRIDE_COUNT] = [];
+pub static AFOS_ROUTING_OVERRIDES: [AfosRoutingOverride; AFOS_ROUTING_OVERRIDE_COUNT] = [
+    AfosRoutingOverride {
+        afos: "FFGMPD",
+        title: Some("Mesoscale precipitation discussion"),
+        routing: Some(TextProductRouting::Mcd),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "PFWF38",
+        title: Some("Days 3-8 fire weather outlook points"),
+        routing: Some(TextProductRouting::SpcOutlook),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "PFWFD1",
+        title: Some("Day 1 fire weather outlook points"),
+        routing: Some(TextProductRouting::SpcOutlook),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "PFWFD2",
+        title: Some("Day 2 fire weather outlook points"),
+        routing: Some(TextProductRouting::SpcOutlook),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "RBG94E",
+        title: Some("Day 1 excessive rainfall outlook"),
+        routing: Some(TextProductRouting::Ero),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "RBG98E",
+        title: Some("Day 2 excessive rainfall outlook"),
+        routing: Some(TextProductRouting::Ero),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "RBG99E",
+        title: Some("Day 3 excessive rainfall outlook"),
+        routing: Some(TextProductRouting::Ero),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+    AfosRoutingOverride {
+        afos: "SWOMCD",
+        title: Some("Mesoscale discussion"),
+        routing: Some(TextProductRouting::Mcd),
+        body_behavior: Some(TextProductBodyBehavior::Never),
+        extractors: None,
+    },
+];

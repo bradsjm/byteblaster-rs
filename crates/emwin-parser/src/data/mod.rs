@@ -38,6 +38,9 @@ pub enum TextProductRouting {
     Mos,
     Saw,
     Sel,
+    Mcd,
+    Ero,
+    SpcOutlook,
 }
 
 /// Generic body extraction policy for an AFOS text product.
@@ -187,6 +190,17 @@ pub(crate) fn resolved_text_product_policy(afos: &str) -> Option<ResolvedTextPro
         .ok()
         .map(|index| &generated_afos_routing::AFOS_ROUTING_OVERRIDES[index]);
 
+    let body_behavior = override_entry
+        .and_then(|entry| entry.body_behavior)
+        .unwrap_or(base.body_behavior);
+    let extractors = if matches!(body_behavior, TextProductBodyBehavior::Never) {
+        &[]
+    } else {
+        override_entry
+            .and_then(|entry| entry.extractors)
+            .unwrap_or(base.extractors)
+    };
+
     Some(ResolvedTextProductPolicy {
         pil: base.pil,
         wmo_prefix: base.wmo_prefix,
@@ -196,12 +210,8 @@ pub(crate) fn resolved_text_product_policy(afos: &str) -> Option<ResolvedTextPro
         routing: override_entry
             .and_then(|entry| entry.routing)
             .unwrap_or(base.routing),
-        body_behavior: override_entry
-            .and_then(|entry| entry.body_behavior)
-            .unwrap_or(base.body_behavior),
-        extractors: override_entry
-            .and_then(|entry| entry.extractors)
-            .unwrap_or(base.extractors),
+        body_behavior,
+        extractors,
     })
 }
 
@@ -434,6 +444,7 @@ mod tests {
             ("MEX", TextProductRouting::Mos),
             ("FRH", TextProductRouting::Mos),
             ("FTP", TextProductRouting::Mos),
+            ("PTS", TextProductRouting::SpcOutlook),
         ] {
             let entry = text_product_catalog_entry(pil).expect("expected generated catalog entry");
             assert_eq!(entry.routing, routing);
@@ -479,6 +490,34 @@ mod tests {
             policy.extractors,
             &[BodyExtractorId::Ugc, BodyExtractorId::LatLon]
         );
+    }
+
+    #[test]
+    fn resolved_policy_applies_exact_afos_routing_overrides() {
+        for (afos, title, routing) in [
+            ("SWOMCD", "Mesoscale discussion", TextProductRouting::Mcd),
+            (
+                "FFGMPD",
+                "Mesoscale precipitation discussion",
+                TextProductRouting::Mcd,
+            ),
+            (
+                "RBG94E",
+                "Day 1 excessive rainfall outlook",
+                TextProductRouting::Ero,
+            ),
+            (
+                "PFWFD1",
+                "Day 1 fire weather outlook points",
+                TextProductRouting::SpcOutlook,
+            ),
+        ] {
+            let policy = resolved_text_product_policy(afos).expect("expected resolved policy");
+            assert_eq!(policy.title, title);
+            assert_eq!(policy.routing, routing);
+            assert_eq!(policy.body_behavior, TextProductBodyBehavior::Never);
+            assert!(policy.extractors.is_empty());
+        }
     }
 
     #[test]

@@ -43,8 +43,10 @@ pub use header::{
 pub use issue::ProductParseIssue;
 pub use specialized::{
     Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DcpBulletin, DsmBulletin,
-    DsmSummary, FdBulletin, FdForecast, FdLevelForecast, HmlBulletin, HmlDatum, HmlDocument,
-    HmlSeries, LsrBulletin, LsrReport, MetarBulletin, MetarReport, MetarReportKind, MosBulletin,
-    MosForecastRow, MosSection, PirepBulletin, PirepKind, PirepReport, SawAction, SawBulletin,
-    SelBulletin, SigmetBulletin, SigmetSection, SpcWatchType, TafBulletin, WwpBulletin,
+    DsmSummary, EroBulletin, EroOutlook, FdBulletin, FdForecast, FdLevelForecast, HmlBulletin,
+    HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport, McdBulletin, McdCenter,
+    McdMostProbableTags, MetarBulletin, MetarReport, MetarReportKind, MosBulletin, MosForecastRow,
+    MosSection, PirepBulletin, PirepKind, PirepReport, SawAction, SawBulletin, SelBulletin,
+    SigmetBulletin, SigmetSection, SpcOutlookArea, SpcOutlookBulletin, SpcOutlookDay,
+    SpcOutlookKind, SpcWatchType, TafBulletin, WwpBulletin,
 };

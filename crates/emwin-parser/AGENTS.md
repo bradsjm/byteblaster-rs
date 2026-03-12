@@ -98,6 +98,13 @@ Current routing values:
 - `fd`
 - `pirep`
 - `sigmet`
+- `lsr`
+- `cwa`
+- `wwp`
+- `cf6`
+- `dsm`
+- `hml`
+- `mos`
 
 If you add a new specialized AFOS family, do all of the following together:
 
@@ -165,6 +172,13 @@ At the time of writing:
 - `FD*` routes to specialized parsing and `body_behavior = never`
 - `PIR` routes to specialized parsing and `body_behavior = never`
 - `SIG` routes to specialized parsing and `body_behavior = never`
+- `LSR` routes to specialized parsing and `body_behavior = never`
+- `CWA` routes to specialized parsing and `body_behavior = never`
+- `WWP` routes to specialized parsing and `body_behavior = never`
+- `CF6` routes to specialized parsing and `body_behavior = never`
+- `DSM` routes to specialized parsing and `body_behavior = never`
+- `HML` routes to specialized parsing and `body_behavior = never`
+- `MET`, `MAV`, `MEX`, `FRH`, and `FTP` route to specialized parsing and `body_behavior = never`
 
 That means current specialized AFOS families remain bodyless by catalog policy.
 

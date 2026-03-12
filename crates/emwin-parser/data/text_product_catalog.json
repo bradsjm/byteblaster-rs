@@ -2870,7 +2870,7 @@
   "SAW": {
     "wmo_prefix": "WW",
     "title": "Prelim Notice of Watch & Cancellation MSG",
-    "routing": "generic",
+    "routing": "saw",
     "body_behavior": "catalog",
     "extractors": [
       "ugc",
@@ -2938,7 +2938,7 @@
   "SEL": {
     "wmo_prefix": "WW",
     "title": "Severe Local Storm Watch and Watch Cancellation",
-    "routing": "generic",
+    "routing": "sel",
     "body_behavior": "catalog",
     "extractors": [
       "ugc"

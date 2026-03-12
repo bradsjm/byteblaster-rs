@@ -6,7 +6,7 @@
 use super::{TextProductBodyBehavior, TextProductCatalogEntry, TextProductRouting};
 use crate::body::BodyExtractorId;
 
-pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-12T03:08:43Z";
+pub const TEXT_PRODUCT_GENERATED_AT_UTC: &str = "2026-03-12T19:30:58Z";
 pub const TEXT_PRODUCT_ENTRY_COUNT: usize = 506;
 
 pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_COUNT] = [
@@ -3090,7 +3090,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         pil: "SAW",
         wmo_prefix: "WW",
         title: "Prelim Notice of Watch & Cancellation MSG",
-        routing: TextProductRouting::Generic,
+        routing: TextProductRouting::Saw,
         body_behavior: TextProductBodyBehavior::Catalog,
         extractors: &[BodyExtractorId::Ugc, BodyExtractorId::LatLon],
     },
@@ -3162,7 +3162,7 @@ pub static TEXT_PRODUCT_CATALOG: [TextProductCatalogEntry; TEXT_PRODUCT_ENTRY_CO
         pil: "SEL",
         wmo_prefix: "WW",
         title: "Severe Local Storm Watch and Watch Cancellation",
-        routing: TextProductRouting::Generic,
+        routing: TextProductRouting::Sel,
         body_behavior: TextProductBodyBehavior::Catalog,
         extractors: &[BodyExtractorId::Ugc],
     },

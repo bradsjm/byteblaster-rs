@@ -34,6 +34,8 @@ The crate currently supports:
   - LSR bulletins
   - CWA bulletins
   - WWP bulletins
+  - SAW bulletins
+  - SEL bulletins
   - CF6 climate bulletins
   - DSM collectives
   - HML bulletins
@@ -449,6 +451,8 @@ Archived exact bulletin fixtures live under `tests/fixtures/products/` and are
 organized first by parser domain (`generic`, `specialized`, `wmo`) and then by
 product family. AFOS-backed fixtures should be pulled from
 `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` where possible.
+Use `scripts/fetch_nwstext_fixture.py` to archive new AFOS-backed fixtures from
+Mesonet instead of copying bulletin text by hand.
 These fixtures are consumed only by integration tests under `tests/` to ground
 real-product corpus coverage. Unit tests under `src/**` should use inline or
 module-local samples and must not import files from `tests/**`. See

@@ -45,6 +45,6 @@ pub use specialized::{
     Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DcpBulletin, DsmBulletin,
     DsmSummary, FdBulletin, FdForecast, FdLevelForecast, HmlBulletin, HmlDatum, HmlDocument,
     HmlSeries, LsrBulletin, LsrReport, MetarBulletin, MetarReport, MetarReportKind, MosBulletin,
-    MosForecastRow, MosSection, PirepBulletin, PirepKind, PirepReport, SigmetBulletin,
-    SigmetSection, TafBulletin, WwpBulletin, WwpWatchType,
+    MosForecastRow, MosSection, PirepBulletin, PirepKind, PirepReport, SawAction, SawBulletin,
+    SelBulletin, SigmetBulletin, SigmetSection, SpcWatchType, TafBulletin, WwpBulletin,
 };

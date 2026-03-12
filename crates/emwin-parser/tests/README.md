@@ -47,6 +47,7 @@ If a fixture represents a product family that does not yet have a directory, add
 
 - Prefer real products from Iowa Mesonet `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
 - Use the documented Iowa Mesonet list endpoints to discover `product_id` values for AFOS-backed products.
+- Use `scripts/fetch_nwstext_fixture.py` to retrieve AFOS-backed fixtures from Mesonet and store the raw archived bulletin text.
 - Use `pyIEM` only as a sanity-check source or to help locate examples when Mesonet discovery is awkward.
 - If a real WMO-only product cannot be discovered from the AFOS list endpoint, a tracked real bulletin text fixture is acceptable, but explain that provenance in the test file.
 

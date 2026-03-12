@@ -1,6 +1,10 @@
 //! Real-product corpus coverage for specialized bulletin families.
+//!
+//! Fixture provenance:
+//! - `SAW` and `SEL` fixtures were archived from Iowa Mesonet
+//!   `api/1/nwstext/{product_id}`.
 
-use emwin_parser::{CwaGeometryKind, ProductEnrichmentSource, WwpWatchType, enrich_product};
+use emwin_parser::{CwaGeometryKind, ProductEnrichmentSource, SpcWatchType, enrich_product};
 
 #[test]
 fn exact_lsr_product_parses_specialized_bulletin() {
@@ -46,14 +50,12 @@ fn exact_lsr_edge_case_product_parses_specialized_bulletin() {
             .iter()
             .any(|report| report.city == "7 NW Elk Mountain")
     );
-    assert!(
-        bulletin.reports.iter().any(|report| {
-            report.city == "7 NW Elk Mountain"
-                && report.magnitude_value == Some(63.0)
-                && report.magnitude_units.as_deref() == Some("MPH")
-                && report.magnitude_qualifier.as_deref() == Some("M")
-        })
-    );
+    assert!(bulletin.reports.iter().any(|report| {
+        report.city == "7 NW Elk Mountain"
+            && report.magnitude_value == Some(63.0)
+            && report.magnitude_units.as_deref() == Some("MPH")
+            && report.magnitude_qualifier.as_deref() == Some("M")
+    }));
 }
 
 #[test]
@@ -109,9 +111,106 @@ fn exact_wwp_product_parses_specialized_bulletin() {
 
     let bulletin = enrichment.wwp.expect("expected WWP bulletin");
     assert_eq!(bulletin.watch_number, 31);
-    assert_eq!(bulletin.watch_type, WwpWatchType::Tornado);
+    assert_eq!(bulletin.watch_type, SpcWatchType::Tornado);
     assert_eq!(bulletin.max_tops_feet, 50_000);
     assert!(!bulletin.is_pds);
+}
+
+#[test]
+fn exact_saw_issue_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "202507251740-KWNS-WWUS30-SAW2.txt",
+        include_bytes!("fixtures/products/specialized/saw/202507251740-KWNS-WWUS30-SAW2.txt"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextSawBulletin);
+    assert_eq!(enrichment.family, Some("saw_bulletin"));
+    assert!(enrichment.body.is_some());
+
+    let bulletin = enrichment.saw.expect("expected SAW bulletin");
+    assert_eq!(bulletin.saw_number, 2);
+    assert_eq!(bulletin.watch_number, 542);
+    assert_eq!(bulletin.watch_type, SpcWatchType::SevereThunderstorm);
+    assert!(matches!(bulletin.action, emwin_parser::SawAction::Issue));
+    assert!(
+        bulletin
+            .polygon
+            .as_ref()
+            .is_some_and(|points| !points.is_empty())
+    );
+
+    let body = enrichment.body.expect("expected generic body");
+    assert!(
+        body.as_generic()
+            .and_then(|body| body.latlon.as_ref())
+            .is_some()
+    );
+}
+
+#[test]
+fn exact_saw_cancel_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "202507250013-KWNS-WWUS30-SAW0.txt",
+        include_bytes!("fixtures/products/specialized/saw/202507250013-KWNS-WWUS30-SAW0.txt"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextSawBulletin);
+    assert_eq!(enrichment.family, Some("saw_bulletin"));
+    assert!(enrichment.body.is_none());
+
+    let bulletin = enrichment.saw.expect("expected SAW bulletin");
+    assert_eq!(bulletin.saw_number, 0);
+    assert_eq!(bulletin.watch_number, 540);
+    assert!(matches!(bulletin.action, emwin_parser::SawAction::Cancel));
+    assert!(bulletin.polygon.is_none());
+}
+
+#[test]
+fn exact_sel_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "202507251745-KWNS-WWUS20-SEL2.txt",
+        include_bytes!("fixtures/products/specialized/sel/202507251745-KWNS-WWUS20-SEL2.txt"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextSelBulletin);
+    assert_eq!(enrichment.family, Some("sel_bulletin"));
+    assert!(enrichment.body.is_some());
+
+    let bulletin = enrichment.sel.expect("expected SEL bulletin");
+    assert_eq!(bulletin.watch_number, 542);
+    assert_eq!(bulletin.watch_type, SpcWatchType::SevereThunderstorm);
+    assert!(!bulletin.is_test);
+
+    let body = enrichment.body.expect("expected generic body");
+    assert!(
+        body.as_generic()
+            .and_then(|body| body.ugc.as_ref())
+            .is_some()
+    );
+}
+
+#[test]
+fn exact_sel_test_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "202001271450-KWNS-WWUS20-SEL9.txt",
+        include_bytes!("fixtures/products/specialized/sel/202001271450-KWNS-WWUS20-SEL9.txt"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextSelBulletin);
+    assert_eq!(enrichment.family, Some("sel_bulletin"));
+    assert!(enrichment.body.is_some());
+
+    let bulletin = enrichment.sel.expect("expected SEL bulletin");
+    assert_eq!(bulletin.watch_number, 9999);
+    assert_eq!(bulletin.watch_type, SpcWatchType::SevereThunderstorm);
+    assert!(bulletin.is_test);
+
+    let body = enrichment.body.expect("expected generic body");
+    assert!(
+        body.as_generic()
+            .and_then(|body| body.ugc.as_ref())
+            .is_some()
+    );
 }
 
 #[test]

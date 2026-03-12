@@ -339,7 +339,10 @@ QUARTER SIZE HAIL REPORTED
         assert_eq!(bulletin.reports[0].city, "7 NW Elk Mountain");
         assert_eq!(bulletin.reports[0].magnitude_value, Some(63.0));
         assert_eq!(bulletin.reports[0].magnitude_units.as_deref(), Some("MPH"));
-        assert_eq!(bulletin.reports[0].magnitude_qualifier.as_deref(), Some("M"));
+        assert_eq!(
+            bulletin.reports[0].magnitude_qualifier.as_deref(),
+            Some("M")
+        );
         assert!(issues.is_empty());
     }
 }

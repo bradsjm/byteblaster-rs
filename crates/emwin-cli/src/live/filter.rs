@@ -1079,6 +1079,8 @@ fn product_source_name(value: ProductEnrichmentSource) -> &'static str {
         ProductEnrichmentSource::TextLsrBulletin => "text_lsr_bulletin",
         ProductEnrichmentSource::TextCwaBulletin => "text_cwa_bulletin",
         ProductEnrichmentSource::TextWwpBulletin => "text_wwp_bulletin",
+        ProductEnrichmentSource::TextSawBulletin => "text_saw_bulletin",
+        ProductEnrichmentSource::TextSelBulletin => "text_sel_bulletin",
         ProductEnrichmentSource::TextCf6Bulletin => "text_cf6_bulletin",
         ProductEnrichmentSource::TextDsmBulletin => "text_dsm_bulletin",
         ProductEnrichmentSource::TextHmlBulletin => "text_hml_bulletin",

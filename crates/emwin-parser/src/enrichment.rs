@@ -9,7 +9,10 @@ use crate::{
     BbbKind, Cf6Bulletin, CwaBulletin, DsmBulletin, HmlBulletin, LsrBulletin, MosBulletin,
     ProductBody, ProductParseIssue, TextProductHeader, WmoHeader, WmoOfficeEntry, WwpBulletin,
 };
-use crate::{DcpBulletin, FdBulletin, MetarBulletin, PirepBulletin, SigmetBulletin, TafBulletin};
+use crate::{
+    DcpBulletin, FdBulletin, MetarBulletin, PirepBulletin, SawBulletin, SelBulletin,
+    SigmetBulletin, TafBulletin,
+};
 use serde::Serialize;
 
 /// Source of product enrichment data.
@@ -28,6 +31,8 @@ pub enum ProductEnrichmentSource {
     TextLsrBulletin,
     TextCwaBulletin,
     TextWwpBulletin,
+    TextSawBulletin,
+    TextSelBulletin,
     TextCf6Bulletin,
     TextDsmBulletin,
     TextHmlBulletin,
@@ -106,6 +111,12 @@ pub struct ProductEnrichment {
     /// Parsed WWP bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wwp: Option<WwpBulletin>,
+    /// Parsed SAW bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saw: Option<SawBulletin>,
+    /// Parsed SEL bulletin (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sel: Option<SelBulletin>,
     /// Parsed CF6 bulletin (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cf6: Option<Cf6Bulletin>,

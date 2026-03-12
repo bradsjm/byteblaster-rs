@@ -7,8 +7,8 @@
 use chrono::{DateTime, Utc};
 
 use crate::data::{
-    TextProductCatalogEntry, TextProductRouting, body_extraction_plan_for_entry,
-    text_product_catalog_entry,
+    ResolvedTextProductPolicy, TextProductBodyBehavior, TextProductRouting,
+    resolved_text_product_policy,
 };
 use crate::specialized::cf6::parse_cf6_bulletin;
 use crate::specialized::cwa::parse_cwa_bulletin;
@@ -20,6 +20,8 @@ use crate::specialized::lsr::parse_lsr_bulletin;
 use crate::specialized::metar::parse_metar_bulletin;
 use crate::specialized::mos::parse_mos_bulletin;
 use crate::specialized::pirep::parse_pirep_bulletin;
+use crate::specialized::saw::parse_saw_bulletin;
+use crate::specialized::sel::parse_sel_bulletin;
 use crate::specialized::sigmet::parse_sigmet_bulletin;
 use crate::specialized::taf::parse_taf_bulletin;
 use crate::specialized::wwp::parse_wwp_bulletin;
@@ -28,8 +30,8 @@ use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enri
 use super::candidate::{
     BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
     DsmCandidate, FdCandidate, HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate,
-    PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
-    WwpCandidate,
+    PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, TafCandidate,
+    TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
@@ -43,6 +45,8 @@ const TEXT_STRATEGIES: &[TextStrategy] = &[
     classify_text_lsr,
     classify_text_cwa,
     classify_text_wwp,
+    classify_text_saw,
+    classify_text_sel,
     classify_text_cf6,
     classify_text_dsm,
     classify_text_hml,
@@ -71,8 +75,8 @@ struct TextClassificationContext<'a> {
     header: &'a TextProductHeader,
     /// Conditioned body text after header removal.
     body_text: &'a str,
-    /// Full text-product catalog metadata when the PIL is known.
-    metadata: Option<&'static TextProductCatalogEntry>,
+    /// Resolved text-product policy after applying exact-AFOS overrides.
+    policy: Option<ResolvedTextProductPolicy>,
     /// Three-character PIL prefix when present.
     pil: Option<String>,
     /// Human-readable title from the PIL catalog.
@@ -130,15 +134,13 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         return ClassificationCandidate::Unknown;
     };
     let header_enrichment = enrich_header(header);
-    let metadata = header_enrichment
-        .pil_nnn
-        .and_then(text_product_catalog_entry);
+    let policy = resolved_text_product_policy(&header.afos);
     let context = TextClassificationContext {
         filename: envelope.filename(),
         pil: header_enrichment.pil_nnn.map(str::to_string),
-        title: header_enrichment.pil_description,
-        body_plan: metadata.and_then(body_extraction_plan_for_entry),
-        metadata,
+        title: policy.map(|policy| policy.title),
+        body_plan: body_extraction_plan_for_policy(policy),
+        policy,
         bbb_kind: header_enrichment.bbb_kind,
         reference_time: header.timestamp(Utc::now()),
         header,
@@ -163,6 +165,18 @@ fn classify_text_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate 
         bbb_kind: context.bbb_kind,
         reference_time: context.reference_time,
     })
+}
+
+fn body_extraction_plan_for_policy(
+    policy: Option<ResolvedTextProductPolicy>,
+) -> Option<crate::body::BodyExtractionPlan> {
+    let policy = policy?;
+    match policy.body_behavior {
+        TextProductBodyBehavior::Never => None,
+        TextProductBodyBehavior::Catalog => {
+            Some(crate::body::body_extraction_plan(policy.extractors))
+        }
+    }
 }
 
 fn classify_wmo_envelope(envelope: &ParsedEnvelope) -> ClassificationCandidate {
@@ -261,6 +275,17 @@ fn looks_like_wwp_text_product(afos: &str, body_text: &str) -> bool {
         && body_text.contains("ATTRIBUTE TABLE:")
 }
 
+fn looks_like_saw_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("SAW") && body_text.contains("WW ") && body_text.contains("SPC AWW")
+}
+
+fn looks_like_sel_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("SEL") && body_text.contains("URGENT - IMMEDIATE BROADCAST REQUESTED") && {
+        let uppercase = body_text.to_ascii_uppercase();
+        uppercase.contains("WATCH NUMBER") || uppercase.contains("WATCH - NUMBER")
+    }
+}
+
 fn looks_like_cf6_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("CF6")
         && body_text.contains("PRELIMINARY LOCAL CLIMATOLOGICAL DATA")
@@ -338,7 +363,7 @@ fn starts_with_icao_sigmet_line(line: &str) -> bool {
 
 fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
     let reference_time = context.reference_time?;
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Fd) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Fd) {
         return None;
     }
     if !looks_like_fd_text_product(&context.header.afos, context.body_text) {
@@ -368,7 +393,7 @@ fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<Classific
 }
 
 fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Pirep) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Pirep) {
         return None;
     }
     if !looks_like_pirep_text_product(&context.header.afos, context.body_text) {
@@ -392,7 +417,7 @@ fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<Classi
 fn classify_text_sigmet(
     context: &TextClassificationContext<'_>,
 ) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Sigmet) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Sigmet) {
         return None;
     }
     if !looks_like_sigmet_text_product(&context.header.afos, context.body_text) {
@@ -417,7 +442,7 @@ fn classify_text_sigmet(
 }
 
 fn classify_text_lsr(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Lsr) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Lsr) {
         return None;
     }
     if !looks_like_lsr_text_product(&context.header.afos, context.body_text) {
@@ -439,7 +464,7 @@ fn classify_text_lsr(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_cwa(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Cwa) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Cwa) {
         return None;
     }
     if !looks_like_cwa_text_product(&context.header.afos, context.body_text) {
@@ -462,7 +487,7 @@ fn classify_text_cwa(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_wwp(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Wwp) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Wwp) {
         return None;
     }
     if !looks_like_wwp_text_product(&context.header.afos, context.body_text) {
@@ -484,7 +509,7 @@ fn classify_text_wwp(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_cf6(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Cf6) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Cf6) {
         return None;
     }
     if !looks_like_cf6_text_product(&context.header.afos, context.body_text) {
@@ -505,8 +530,56 @@ fn classify_text_cf6(context: &TextClassificationContext<'_>) -> Option<Classifi
     }))
 }
 
+fn classify_text_saw(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Saw) {
+        return None;
+    }
+    if !looks_like_saw_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_saw_bulletin(
+        context.body_text,
+        Some(context.header.afos.as_str()),
+        context.reference_time?,
+    )?;
+    Some(ClassificationCandidate::Saw(SawCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_text_sel(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Sel) {
+        return None;
+    }
+    if !looks_like_sel_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_sel_bulletin(context.body_text)?;
+    Some(ClassificationCandidate::Sel(SelCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
 fn classify_text_dsm(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Dsm) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Dsm) {
         return None;
     }
     if !looks_like_dsm_text_product(&context.header.afos, context.body_text) {
@@ -531,7 +604,7 @@ fn classify_text_dsm(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_hml(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Hml) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Hml) {
         return None;
     }
     if !looks_like_hml_text_product(&context.header.afos, context.body_text) {
@@ -553,7 +626,7 @@ fn classify_text_hml(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_mos(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.metadata.map(|entry| entry.routing) != Some(TextProductRouting::Mos) {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Mos) {
         return None;
     }
     if !looks_like_mos_text_product(&context.header.afos, context.body_text) {
@@ -732,10 +805,11 @@ mod tests {
     use super::{
         TextClassificationContext, build_body_request, classify, classify_text_cf6,
         classify_text_cwa, classify_text_dsm, classify_text_fd, classify_text_hml,
-        classify_text_lsr, classify_text_mos, classify_text_wwp,
+        classify_text_lsr, classify_text_mos, classify_text_saw, classify_text_sel,
+        classify_text_wwp,
     };
     use crate::body::{BodyExtractorId, body_extraction_plan};
-    use crate::data::text_product_catalog_entry;
+    use crate::data::resolved_text_product_policy;
     use crate::header::BbbKind;
     use crate::pipeline::candidate::{ClassificationCandidate, FdCandidate};
     use crate::pipeline::{NormalizedInput, ParsedEnvelope};
@@ -749,7 +823,6 @@ mod tests {
         body_plan: Option<crate::body::BodyExtractionPlan>,
         f: impl FnOnce(&TextClassificationContext<'_>) -> T,
     ) -> T {
-        let metadata = text_product_catalog_entry(pil).expect("expected catalog entry");
         let header = TextProductHeader {
             ttaaii: "FTUS80".to_string(),
             cccc: "KWBC".to_string(),
@@ -757,13 +830,14 @@ mod tests {
             bbb: None,
             afos: afos.to_string(),
         };
+        let policy = resolved_text_product_policy(afos).expect("expected catalog policy");
         let context = TextClassificationContext {
             filename: "sample.TXT",
             header: &header,
             body_text,
-            metadata: Some(metadata),
+            policy: Some(policy),
             pil: Some(pil.to_string()),
-            title: Some(metadata.title),
+            title: Some(policy.title),
             body_plan,
             bbb_kind: None,
             reference_time: Some(Utc::now()),
@@ -874,6 +948,38 @@ mod tests {
         assert!(candidate.header.afos.starts_with("WWP"));
         assert!(candidate.body_request.is_none());
         assert_eq!(candidate.bulletin.watch_number, 31);
+    }
+
+    #[test]
+    fn local_saw_sample_returns_saw_candidate_with_body_request() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "SAW2.TXT",
+            b"000 \nWWUS30 KWNS 251740\nSAW2\n\x1eSPC AWW 251740\nWW 542 SEVERE TSTM CT DE MA NJ NY PA RI CW 251745Z - 260100Z\nLAT...LON 41087082 39507704 41247704 42827082\n",
+        ));
+
+        let ClassificationCandidate::Saw(candidate) = classify(&envelope) else {
+            panic!("expected saw candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("SAW"));
+        assert!(candidate.body_request.is_some());
+        assert_eq!(candidate.bulletin.watch_number, 542);
+    }
+
+    #[test]
+    fn local_sel_sample_returns_sel_candidate_with_body_request() {
+        let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
+            "SEL2.TXT",
+            b"844 \nWWUS20 KWNS 251740\nSEL2  \n\x1eSPC WW 251740\nCTZ000-DEZ000-MAZ000-NJZ000-NYZ000-PAZ000-RIZ000-CWZ000-260100-\n\nURGENT - IMMEDIATE BROADCAST REQUESTED\nSevere Thunderstorm Watch Number 542\nNWS Storm Prediction Center Norman OK\n145 PM EDT Fri Jul 25 2025\n",
+        ));
+
+        let ClassificationCandidate::Sel(candidate) = classify(&envelope) else {
+            panic!("expected sel candidate");
+        };
+
+        assert!(candidate.header.afos.starts_with("SEL"));
+        assert!(candidate.body_request.is_some());
+        assert_eq!(candidate.bulletin.watch_number, 542);
     }
 
     #[test]
@@ -1184,7 +1290,6 @@ HMLMTR
 
     #[test]
     fn specialized_strategy_requires_matching_catalog_routing() {
-        let metadata = text_product_catalog_entry("PIR").expect("expected catalog entry");
         let header = TextProductHeader {
             ttaaii: "FTUS80".to_string(),
             cccc: "KWBC".to_string(),
@@ -1196,7 +1301,7 @@ HMLMTR
             filename: "FD1US1.TXT",
             header: &header,
             body_text: "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
-            metadata: Some(metadata),
+            policy: resolved_text_product_policy("PIRBOU"),
             pil: Some("FD1".to_string()),
             title: Some("Winds and Temperatures Aloft"),
             body_plan: None,
@@ -1205,6 +1310,31 @@ HMLMTR
         };
 
         assert!(classify_text_fd(&context).is_none());
+    }
+
+    #[test]
+    fn saw_strategy_requires_matching_catalog_routing() {
+        with_specialized_context(
+            "SEL",
+            "SEL2",
+            "URGENT - IMMEDIATE BROADCAST REQUESTED\nSevere Thunderstorm Watch Number 542\n",
+            Some(body_extraction_plan(&[BodyExtractorId::Ugc])),
+            |context| assert!(classify_text_saw(context).is_none()),
+        );
+    }
+
+    #[test]
+    fn sel_strategy_requires_matching_catalog_routing() {
+        with_specialized_context(
+            "SAW",
+            "SAW2",
+            "SPC AWW 251740\nWW 542 SEVERE TSTM CT DE MA NJ NY PA RI CW 251745Z - 260100Z\nLAT...LON 41087082 39507704 41247704 42827082\n",
+            Some(body_extraction_plan(&[
+                BodyExtractorId::Ugc,
+                BodyExtractorId::LatLon,
+            ])),
+            |context| assert!(classify_text_sel(context).is_none()),
+        );
     }
 
     #[test]

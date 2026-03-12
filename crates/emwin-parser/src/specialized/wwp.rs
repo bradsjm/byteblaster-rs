@@ -6,14 +6,14 @@ use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum WwpWatchType {
+pub enum SpcWatchType {
     Tornado,
     SevereThunderstorm,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct WwpBulletin {
-    pub watch_type: WwpWatchType,
+    pub watch_type: SpcWatchType,
     pub watch_number: u16,
     pub prob_tornadoes_2_or_more: u8,
     pub prob_tornadoes_1_or_more_strong: u8,
@@ -37,9 +37,9 @@ pub(crate) fn parse_wwp_bulletin(text: &str) -> Option<WwpBulletin> {
     let attr = attr_re().captures(&normalized)?;
     Some(WwpBulletin {
         watch_type: if header.name("typ")?.as_str() == "TORNADO" {
-            WwpWatchType::Tornado
+            SpcWatchType::Tornado
         } else {
-            WwpWatchType::SevereThunderstorm
+            SpcWatchType::SevereThunderstorm
         },
         watch_number: header.name("num")?.as_str().parse().ok()?,
         prob_tornadoes_2_or_more: parse_prob(prob.name("t2")?.as_str())?,
@@ -94,7 +94,7 @@ fn parse_prob(value: &str) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{WwpWatchType, parse_wwp_bulletin};
+    use super::{SpcWatchType, parse_wwp_bulletin};
 
     #[test]
     fn parses_local_wwp_bulletin() {
@@ -115,7 +115,7 @@ MAX TOPS /X 100 FEET/ : 500
 MEAN STORM MOTION VECTOR /DEGREES AND KNOTS/ : 24035
 PARTICULARLY DANGEROUS SITUATION : NO";
         let bulletin = parse_wwp_bulletin(text).expect("wwp bulletin");
-        assert_eq!(bulletin.watch_type, WwpWatchType::Tornado);
+        assert_eq!(bulletin.watch_type, SpcWatchType::Tornado);
         assert_eq!(bulletin.watch_number, 31);
         assert_eq!(bulletin.prob_combined_hail_wind_6_or_more, 95);
     }

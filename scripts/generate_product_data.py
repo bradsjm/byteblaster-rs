@@ -8,6 +8,8 @@ from typing import TypedDict
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = REPO_ROOT / "crates/emwin-parser/data/text_product_catalog.json"
 OUTPUT_PATH = REPO_ROOT / "crates/emwin-parser/src/data/generated_text_products.rs"
+AFOS_OVERRIDE_PATH = REPO_ROOT / "crates/emwin-parser/data/afos_routing_overrides.json"
+AFOS_OUTPUT_PATH = REPO_ROOT / "crates/emwin-parser/src/data/generated_afos_routing.rs"
 
 
 class CatalogEntry(TypedDict):
@@ -16,6 +18,13 @@ class CatalogEntry(TypedDict):
     routing: str
     body_behavior: str
     extractors: list[str]
+
+
+class AfosOverrideEntry(TypedDict):
+    title: str | None
+    routing: str | None
+    body_behavior: str | None
+    extractors: list[str] | None
 
 
 EXTRACTOR_ORDER = [
@@ -46,6 +55,8 @@ ROUTING_VARIANTS = {
     "dsm": "TextProductRouting::Dsm",
     "hml": "TextProductRouting::Hml",
     "mos": "TextProductRouting::Mos",
+    "saw": "TextProductRouting::Saw",
+    "sel": "TextProductRouting::Sel",
 }
 
 BODY_BEHAVIOR_VARIANTS = {
@@ -144,6 +155,70 @@ def load_catalog() -> list[tuple[str, CatalogEntry]]:
     return sorted(entries.items())
 
 
+def load_afos_overrides() -> list[tuple[str, AfosOverrideEntry]]:
+    raw = json.loads(AFOS_OVERRIDE_PATH.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise SystemExit("afos override JSON must be an object keyed by exact AFOS id")
+
+    entries: dict[str, AfosOverrideEntry] = {}
+    for afos_key, entry in raw.items():
+        if not isinstance(afos_key, str):
+            raise SystemExit("afos override keys must be strings")
+        if not isinstance(entry, dict):
+            raise SystemExit(f"afos override entry {afos_key} must be an object")
+
+        afos = afos_key.strip().upper()
+        if len(afos) < 3 or len(afos) > 6 or not afos.isalnum():
+            raise SystemExit(f"invalid exact AFOS key: {afos_key}")
+
+        title = entry.get("title")
+        if title is not None:
+            title = str(title).strip()
+            if not title:
+                raise SystemExit(f"blank override title for {afos}")
+
+        routing = entry.get("routing")
+        if routing is not None:
+            routing = str(routing).strip().lower()
+            if routing not in ROUTING_VARIANTS:
+                raise SystemExit(f"afos override {afos} has unknown routing {routing!r}")
+
+        body_behavior = entry.get("body_behavior")
+        if body_behavior is not None:
+            body_behavior = str(body_behavior).strip().lower()
+            if body_behavior not in BODY_BEHAVIOR_VARIANTS:
+                raise SystemExit(
+                    f"afos override {afos} has unknown body_behavior {body_behavior!r}"
+                )
+
+        extractors = entry.get("extractors")
+        normalized_extractors: list[str] | None = None
+        if extractors is not None:
+            if body_behavior is None:
+                raise SystemExit(
+                    f"afos override {afos} cannot define extractors without body_behavior"
+                )
+            normalized_extractors = require_extractors(entry, afos)
+            if body_behavior == "catalog" and not normalized_extractors:
+                raise SystemExit(
+                    f"afos override {afos} with body_behavior='catalog' must define extractors"
+                )
+            if body_behavior == "never" and normalized_extractors:
+                raise SystemExit(
+                    f"afos override {afos} with body_behavior='never' must not define extractors"
+                )
+
+        normalized: AfosOverrideEntry = {
+            "title": title,
+            "routing": routing,
+            "body_behavior": body_behavior,
+            "extractors": normalized_extractors,
+        }
+        entries[afos] = normalized
+
+    return sorted(entries.items())
+
+
 def rust_string(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
@@ -208,9 +283,74 @@ def write_output(catalog: list[tuple[str, CatalogEntry]]) -> None:
     OUTPUT_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 
+def rust_optional_string(value: str | None) -> str:
+    if value is None:
+        return "None"
+    return f"Some({rust_string(value)})"
+
+
+def rust_optional_routing(value: str | None) -> str:
+    if value is None:
+        return "None"
+    return f"Some({rust_routing(value)})"
+
+
+def rust_optional_body_behavior(value: str | None) -> str:
+    if value is None:
+        return "None"
+    return f"Some({rust_body_behavior(value)})"
+
+
+def rust_optional_extractors(values: list[str] | None) -> str:
+    if values is None:
+        return "None"
+    return f"Some({rust_extractors(values)})"
+
+
+def write_afos_output(overrides: list[tuple[str, AfosOverrideEntry]]) -> None:
+    generated_at = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+    lines = [
+        "// @generated by scripts/generate_product_data.py",
+        "// Source files:",
+        "// - crates/emwin-parser/data/afos_routing_overrides.json",
+        "// Do not edit manually.",
+        "",
+        "#[allow(unused_imports)]",
+        "use crate::body::BodyExtractorId;",
+        "#[allow(unused_imports)]",
+        "use super::{AfosRoutingOverride, TextProductBodyBehavior, TextProductRouting};",
+        "",
+        f"pub const AFOS_ROUTING_GENERATED_AT_UTC: &str = {rust_string(generated_at)};",
+        f"pub const AFOS_ROUTING_OVERRIDE_COUNT: usize = {len(overrides)};",
+        "",
+        "pub static AFOS_ROUTING_OVERRIDES: [AfosRoutingOverride; AFOS_ROUTING_OVERRIDE_COUNT] = [",
+    ]
+
+    for afos, entry in overrides:
+        lines.append(
+            "    AfosRoutingOverride { "
+            f"afos: {rust_string(afos)}, "
+            f"title: {rust_optional_string(entry['title'])}, "
+            f"routing: {rust_optional_routing(entry['routing'])}, "
+            f"body_behavior: {rust_optional_body_behavior(entry['body_behavior'])}, "
+            f"extractors: {rust_optional_extractors(entry['extractors'])} }},"
+        )
+
+    lines.extend(["];", ""])
+    AFOS_OUTPUT_PATH.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> None:
     catalog = load_catalog()
+    overrides = load_afos_overrides()
     write_output(catalog)
+    write_afos_output(overrides)
 
 
 if __name__ == "__main__":

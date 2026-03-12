@@ -1,5 +1,6 @@
 //! Product metadata lookup, hydrologic location lookup, and non-text filename classification.
 
+mod generated_afos_routing;
 mod generated_nwslid;
 mod generated_text_products;
 mod generated_ugc;
@@ -35,6 +36,8 @@ pub enum TextProductRouting {
     Dsm,
     Hml,
     Mos,
+    Saw,
+    Sel,
 }
 
 /// Generic body extraction policy for an AFOS text product.
@@ -58,6 +61,25 @@ pub struct TextProductCatalogEntry {
     pub body_behavior: TextProductBodyBehavior,
     /// Ordered generic body extractors derived from the product catalog.
     pub extractors: &'static [BodyExtractorId],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AfosRoutingOverride {
+    pub(crate) afos: &'static str,
+    pub(crate) title: Option<&'static str>,
+    pub(crate) routing: Option<TextProductRouting>,
+    pub(crate) body_behavior: Option<TextProductBodyBehavior>,
+    pub(crate) extractors: Option<&'static [BodyExtractorId]>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ResolvedTextProductPolicy {
+    pub(crate) pil: &'static str,
+    pub(crate) wmo_prefix: &'static str,
+    pub(crate) title: &'static str,
+    pub(crate) routing: TextProductRouting,
+    pub(crate) body_behavior: TextProductBodyBehavior,
+    pub(crate) extractors: &'static [BodyExtractorId],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
@@ -155,6 +177,34 @@ pub fn text_product_catalog_entry(nnn: &str) -> Option<&'static TextProductCatal
         .map(|index| &generated_text_products::TEXT_PRODUCT_CATALOG[index])
 }
 
+pub(crate) fn resolved_text_product_policy(afos: &str) -> Option<ResolvedTextProductPolicy> {
+    let pil = normalize_pil(afos.get(..3)?)?;
+    let base = text_product_catalog_entry(&pil)?;
+    let exact_afos = normalize_exact_afos(afos)?;
+
+    let override_entry = generated_afos_routing::AFOS_ROUTING_OVERRIDES
+        .binary_search_by_key(&exact_afos.as_str(), |entry| entry.afos)
+        .ok()
+        .map(|index| &generated_afos_routing::AFOS_ROUTING_OVERRIDES[index]);
+
+    Some(ResolvedTextProductPolicy {
+        pil: base.pil,
+        wmo_prefix: base.wmo_prefix,
+        title: override_entry
+            .and_then(|entry| entry.title)
+            .unwrap_or(base.title),
+        routing: override_entry
+            .and_then(|entry| entry.routing)
+            .unwrap_or(base.routing),
+        body_behavior: override_entry
+            .and_then(|entry| entry.body_behavior)
+            .unwrap_or(base.body_behavior),
+        extractors: override_entry
+            .and_then(|entry| entry.extractors)
+            .unwrap_or(base.extractors),
+    })
+}
+
 /// Returns the WMO `TTAAII` prefix associated with a PIL prefix.
 pub fn wmo_prefix_for_pil(nnn: &str) -> Option<&'static str> {
     text_product_catalog_entry(nnn).map(|entry| entry.wmo_prefix)
@@ -181,6 +231,15 @@ pub(crate) fn classify_non_text_product(filename: &str) -> Option<NonTextProduct
 fn normalize_pil(nnn: &str) -> Option<String> {
     let key = nnn.trim().to_ascii_uppercase();
     if key.len() == 3 { Some(key) } else { None }
+}
+
+fn normalize_exact_afos(afos: &str) -> Option<String> {
+    let key = afos.trim().to_ascii_uppercase();
+    if (3..=6).contains(&key.len()) && key.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        Some(key)
+    } else {
+        None
+    }
 }
 
 fn normalize_nwslid(code: &str) -> Option<String> {
@@ -272,8 +331,8 @@ pub(super) fn imgmod_re() -> &'static regex::Regex {
 mod tests {
     use super::{
         TextProductBodyBehavior, TextProductRouting, classify_non_text_product, nwslid_entry,
-        pil_description, text_product_catalog_entry, ugc_county_entry, ugc_zone_entry,
-        wmo_office_entry, wmo_prefix_for_pil,
+        pil_description, resolved_text_product_policy, text_product_catalog_entry,
+        ugc_county_entry, ugc_zone_entry, wmo_office_entry, wmo_prefix_for_pil,
     };
     use crate::body::BodyExtractorId;
 
@@ -365,6 +424,8 @@ mod tests {
             ("LSR", TextProductRouting::Lsr),
             ("CWA", TextProductRouting::Cwa),
             ("WWP", TextProductRouting::Wwp),
+            ("SAW", TextProductRouting::Saw),
+            ("SEL", TextProductRouting::Sel),
             ("CF6", TextProductRouting::Cf6),
             ("DSM", TextProductRouting::Dsm),
             ("HML", TextProductRouting::Hml),
@@ -376,8 +437,23 @@ mod tests {
         ] {
             let entry = text_product_catalog_entry(pil).expect("expected generated catalog entry");
             assert_eq!(entry.routing, routing);
-            assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
-            assert!(entry.extractors.is_empty());
+            match pil {
+                "SAW" => {
+                    assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
+                    assert_eq!(
+                        entry.extractors,
+                        &[BodyExtractorId::Ugc, BodyExtractorId::LatLon]
+                    );
+                }
+                "SEL" => {
+                    assert_eq!(entry.body_behavior, TextProductBodyBehavior::Catalog);
+                    assert_eq!(entry.extractors, &[BodyExtractorId::Ugc]);
+                }
+                _ => {
+                    assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
+                    assert!(entry.extractors.is_empty());
+                }
+            }
         }
     }
 
@@ -389,6 +465,20 @@ mod tests {
             assert_eq!(entry.body_behavior, TextProductBodyBehavior::Never);
             assert!(entry.extractors.is_empty());
         }
+    }
+
+    #[test]
+    fn resolved_policy_defaults_to_base_catalog_entry() {
+        let policy = resolved_text_product_policy("SAW0").expect("expected resolved policy");
+        assert_eq!(policy.pil, "SAW");
+        assert_eq!(policy.wmo_prefix, "WW");
+        assert_eq!(policy.title, "Prelim Notice of Watch & Cancellation MSG");
+        assert_eq!(policy.routing, TextProductRouting::Saw);
+        assert_eq!(policy.body_behavior, TextProductBodyBehavior::Catalog);
+        assert_eq!(
+            policy.extractors,
+            &[BodyExtractorId::Ugc, BodyExtractorId::LatLon]
+        );
     }
 
     #[test]

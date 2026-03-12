@@ -13,8 +13,9 @@ use crate::{ProductBody, body::enrich_body_from_plan};
 use super::ClassificationCandidate;
 use super::candidate::{
     BodyContributionRequest, Cf6Candidate, CwaCandidate, DcpCandidate, DsmCandidate, FdCandidate,
-    HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate, PirepCandidate, SigmetCandidate,
-    TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
+    HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate, PirepCandidate, SawCandidate,
+    SelCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate,
+    WwpCandidate,
 };
 use super::normalize::detected_container;
 
@@ -37,6 +38,8 @@ pub(crate) fn assemble_product_enrichment(
         ClassificationCandidate::Lsr(candidate) => assemble_from_lsr(candidate, filename),
         ClassificationCandidate::Cwa(candidate) => assemble_from_cwa(candidate, filename),
         ClassificationCandidate::Wwp(candidate) => assemble_from_wwp(candidate, filename),
+        ClassificationCandidate::Saw(candidate) => assemble_from_saw(candidate, filename),
+        ClassificationCandidate::Sel(candidate) => assemble_from_sel(candidate, filename),
         ClassificationCandidate::Cf6(candidate) => assemble_from_cf6(candidate, filename),
         ClassificationCandidate::Dsm(candidate) => assemble_from_dsm(candidate, filename),
         ClassificationCandidate::Hml(candidate) => assemble_from_hml(candidate, filename),
@@ -91,6 +94,8 @@ fn assemble_from_text_generic(
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -143,6 +148,8 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -183,6 +190,8 @@ fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnri
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -235,6 +244,8 @@ fn assemble_from_sigmet(candidate: SigmetCandidate, filename: &str) -> ProductEn
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -276,6 +287,8 @@ fn assemble_specialized_text(spec: SpecializedTextEnvelope) -> ProductEnrichment
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -332,6 +345,8 @@ fn assemble_from_cwa(candidate: CwaCandidate, filename: &str) -> ProductEnrichme
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -354,6 +369,78 @@ fn assemble_from_wwp(candidate: WwpCandidate, filename: &str) -> ProductEnrichme
         issues: candidate.issues,
     });
     enrichment.wwp = Some(candidate.bulletin);
+    enrichment
+}
+
+fn assemble_from_saw(candidate: SawCandidate, filename: &str) -> ProductEnrichment {
+    let (body, mut issues) = assemble_optional_body(candidate.body_request);
+    issues.extend(candidate.issues);
+    let mut enrichment = ProductEnrichment {
+        source: ProductEnrichmentSource::TextSawBulletin,
+        family: Some("saw_bulletin"),
+        title: Some("SPC preliminary notice of watch"),
+        container: container_from_filename(filename),
+        pil: candidate.pil.clone(),
+        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
+        office: wmo_office_entry(&candidate.header.cccc).copied(),
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        lsr: None,
+        cwa: None,
+        wwp: None,
+        saw: None,
+        sel: None,
+        cf6: None,
+        dsm: None,
+        hml: None,
+        mos: None,
+        issues,
+    };
+    enrichment.saw = Some(candidate.bulletin);
+    enrichment
+}
+
+fn assemble_from_sel(candidate: SelCandidate, filename: &str) -> ProductEnrichment {
+    let (body, mut issues) = assemble_optional_body(candidate.body_request);
+    issues.extend(candidate.issues);
+    let mut enrichment = ProductEnrichment {
+        source: ProductEnrichmentSource::TextSelBulletin,
+        family: Some("sel_bulletin"),
+        title: Some("SPC watch bulletin"),
+        container: container_from_filename(filename),
+        pil: candidate.pil.clone(),
+        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
+        office: wmo_office_entry(&candidate.header.cccc).copied(),
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body,
+        metar: None,
+        taf: None,
+        dcp: None,
+        fd: None,
+        pirep: None,
+        sigmet: None,
+        lsr: None,
+        cwa: None,
+        wwp: None,
+        saw: None,
+        sel: None,
+        cf6: None,
+        dsm: None,
+        hml: None,
+        mos: None,
+        issues,
+    };
+    enrichment.sel = Some(candidate.bulletin);
     enrichment
 }
 
@@ -459,6 +546,8 @@ fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnri
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -492,6 +581,8 @@ fn assemble_from_taf(candidate: TafCandidate, filename: &str) -> ProductEnrichme
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -525,6 +616,8 @@ fn assemble_from_dcp(candidate: DcpCandidate, filename: &str) -> ProductEnrichme
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -556,6 +649,8 @@ fn assemble_from_non_text(candidate: NonTextProductMeta) -> ProductEnrichment {
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -597,6 +692,8 @@ fn assemble_from_unsupported_wmo(
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -633,6 +730,8 @@ fn assemble_from_text_parse_failure(filename: &str, error: ParserError) -> Produ
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -669,6 +768,8 @@ fn assemble_unknown(filename: &str, raw_bytes: &[u8]) -> ProductEnrichment {
         lsr: None,
         cwa: None,
         wwp: None,
+        saw: None,
+        sel: None,
         cf6: None,
         dsm: None,
         hml: None,
@@ -710,15 +811,16 @@ mod tests {
     use crate::{
         Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DsmBulletin, DsmSummary,
         GeoPoint, HmlBulletin, HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport,
-        MosBulletin, MosForecastRow, MosSection, ProductParseIssue, WwpBulletin, WwpWatchType,
+        MosBulletin, MosForecastRow, MosSection, ProductParseIssue, SawAction, SawBulletin,
+        SelBulletin, SpcWatchType, WwpBulletin,
     };
 
     use super::assemble_product_enrichment;
     use crate::pipeline::candidate::{
         BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
         DsmCandidate, FdCandidate, HmlCandidate, LsrCandidate, MetarCandidate, MosCandidate,
-        PirepCandidate, SigmetCandidate, TafCandidate, TextGenericCandidate,
-        UnsupportedWmoCandidate, WwpCandidate,
+        PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, TafCandidate,
+        TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
     };
 
     fn text_header(afos: &str) -> crate::TextProductHeader {
@@ -929,7 +1031,7 @@ mod tests {
     #[test]
     fn assembles_wwp_candidate_shape() {
         let bulletin = WwpBulletin {
-            watch_type: WwpWatchType::Tornado,
+            watch_type: SpcWatchType::Tornado,
             watch_number: 31,
             prob_tornadoes_2_or_more: 20,
             prob_tornadoes_1_or_more_strong: 10,
@@ -964,6 +1066,79 @@ mod tests {
         assert!(enrichment.wwp.is_some());
         assert!(enrichment.cf6.is_none());
         assert!(enrichment.body.is_none());
+    }
+
+    #[test]
+    fn assembles_saw_candidate_with_body_shape() {
+        let candidate = ClassificationCandidate::Saw(SawCandidate {
+            header: text_header("SAW2"),
+            pil: Some("SAW".to_string()),
+            bbb_kind: None,
+            body_request: Some(BodyContributionRequest {
+                text: "MAZ000-RIZ000-CWZ000-\nLAT...LON 41087082 39507704 41247704 42827082\n"
+                    .to_string(),
+                plan: crate::body::body_extraction_plan(&[
+                    crate::BodyExtractorId::Ugc,
+                    crate::BodyExtractorId::LatLon,
+                ]),
+                reference_time: Some(Utc::now()),
+            }),
+            bulletin: SawBulletin {
+                saw_number: 2,
+                watch_number: 542,
+                watch_type: SpcWatchType::SevereThunderstorm,
+                action: SawAction::Issue,
+                is_test: false,
+                replaces_watch_number: None,
+                valid_from: Some("2025-07-25T17:45:00+00:00".to_string()),
+                valid_to: Some("2025-07-26T01:00:00+00:00".to_string()),
+                polygon: Some(vec![GeoPoint {
+                    lat: 41.08,
+                    lon: -70.82,
+                }]),
+            },
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "SAW2.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextSawBulletin
+        );
+        assert_eq!(enrichment.family, Some("saw_bulletin"));
+        assert!(enrichment.saw.is_some());
+        assert!(enrichment.body.is_some());
+    }
+
+    #[test]
+    fn assembles_sel_candidate_with_body_shape() {
+        let candidate = ClassificationCandidate::Sel(SelCandidate {
+            header: text_header("SEL2"),
+            pil: Some("SEL".to_string()),
+            bbb_kind: None,
+            body_request: Some(BodyContributionRequest {
+                text: "IAC001-022320-\n".to_string(),
+                plan: crate::body::body_extraction_plan(&[crate::BodyExtractorId::Ugc]),
+                reference_time: Some(Utc::now()),
+            }),
+            bulletin: SelBulletin {
+                watch_number: 542,
+                watch_type: SpcWatchType::SevereThunderstorm,
+                is_test: false,
+            },
+            issues: Vec::new(),
+        });
+
+        let enrichment = assemble_product_enrichment(candidate, "SEL2.TXT", b"ignored");
+
+        assert_eq!(
+            enrichment.source,
+            crate::ProductEnrichmentSource::TextSelBulletin
+        );
+        assert_eq!(enrichment.family, Some("sel_bulletin"));
+        assert!(enrichment.sel.is_some());
+        assert!(enrichment.body.is_some());
     }
 
     #[test]

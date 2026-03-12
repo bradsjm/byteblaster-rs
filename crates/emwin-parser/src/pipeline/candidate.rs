@@ -12,7 +12,8 @@ use crate::data::NonTextProductMeta;
 use crate::{
     BbbKind, Cf6Bulletin, CwaBulletin, DcpBulletin, DsmBulletin, FdBulletin, HmlBulletin,
     LsrBulletin, MetarBulletin, MosBulletin, ParserError, PirepBulletin, ProductEnrichmentSource,
-    ProductParseIssue, SigmetBulletin, TafBulletin, TextProductHeader, WmoHeader, WwpBulletin,
+    ProductParseIssue, SawBulletin, SelBulletin, SigmetBulletin, TafBulletin, TextProductHeader,
+    WmoHeader, WwpBulletin,
 };
 
 /// Internal classification result passed from strategy dispatch into assembly.
@@ -32,6 +33,10 @@ pub(crate) enum ClassificationCandidate {
     Cwa(CwaCandidate),
     /// Parsed WWP bulletin candidate.
     Wwp(WwpCandidate),
+    /// Parsed SAW bulletin candidate.
+    Saw(SawCandidate),
+    /// Parsed SEL bulletin candidate.
+    Sel(SelCandidate),
     /// Parsed CF6 bulletin candidate.
     Cf6(Cf6Candidate),
     /// Parsed DSM bulletin candidate.
@@ -174,6 +179,26 @@ pub(crate) struct WwpCandidate {
     pub(crate) bbb_kind: Option<BbbKind>,
     pub(crate) body_request: Option<BodyContributionRequest>,
     pub(crate) bulletin: WwpBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SawCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: SawBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SelCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: SelBulletin,
     pub(crate) issues: Vec<ProductParseIssue>,
 }
 

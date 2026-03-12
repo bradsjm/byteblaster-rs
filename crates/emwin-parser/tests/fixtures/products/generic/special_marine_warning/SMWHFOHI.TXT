@@ -1,0 +1,53 @@
+151 
+WHHW50 PHFO 112022
+SMWHFO
+PHZ110-112-112215-
+/O.NEW.PHFO.MA.W.0019.260311T2022Z-260311T2215Z/
+
+BULLETIN - IMMEDIATE BROADCAST REQUESTED
+Special Marine Warning
+National Weather Service Honolulu HI
+1022 AM HST Wed Mar 11 2026
+
+The National Weather Service in Honolulu has issued a
+
+* Special Marine Warning for...
+  Kauai Leeward Waters...
+  Kauai Northwest Waters...
+
+* Until 1215 PM HST.
+
+* At 1022 AM HST, showers capable of producing waterspouts were
+  located along a line extending from 42 nm northwest of Polihale to
+  18 nm northwest of Southern Tip of Niihau, moving northeast at 25
+  knots.
+
+  HAZARD...Waterspouts and wind gusts 34 knots or greater.
+
+  SOURCE...Radar.
+
+  IMPACT...Waterspouts can create locally hazardous seas. Small 
+           craft could be damaged in briefly higher winds and 
+           suddenly higher waves.
+
+* Showers will remain over mainly open waters.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Prepare for gusty winds, steep and fast-building seas, and blinding
+downpours. Stay low or go below, and make sure all on board are
+wearing life jackets.
+
+&&
+
+LAT...LON 2236 15950 2185 16052 2260 16042 2266 16033
+      2269 16012 2288 15974 2288 15945
+TIME...MOT...LOC 2022Z 224DEG 26KT 2248 16040 2193 16050 
+
+WATERSPOUT...POSSIBLE
+HAIL...0.00IN
+WIND...>34KTS
+
+$$
+
+Almanza

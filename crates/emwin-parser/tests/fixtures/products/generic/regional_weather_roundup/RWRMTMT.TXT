@@ -1,0 +1,176 @@
+394 
+ASUS45 KTFX 112010
+RWRMT 
+Montana Regional Weather Roundup
+National Weather Service Great Falls MT
+200 PM MDT WED MAR 11 2026
+
+NOTE: "FAIR" indicates few or no clouds below 12,000 feet with no
+significant weather and/or obstructions to visibility.
+
+MTZ001>007-043-112100-
+West of the divide
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Kalispell      PTSUNNY   38  25  59 SW9       30.12F WCI  31          
+Missoula       CLOUDY    40  23  50 SW3       30.18F                  
+Butte          PTSUNNY   38  10  31 SW12G23   30.18F WCI  30          
+Anaconda       PTCLDY    39  15  36 SW21G31   30.16F WCI  29          
+Hamilton       PTSUNNY   45  19  36 S13G24    30.18F                  
+Mullan Pass    SNOW      23  21  92 VRB3      30.05F VSB 1/4          
+Plains         MOCLDY    43  32  65 SW10      30.16F                  
+Ronan          MOCLDY    41  21  45 S12G18    30.14F                  
+$$
+
+MTZ008-052>055-112100-
+Southwest Montana
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Bozeman        PTSUNNY   44   9  23 W21G36    30.17F                  
+Dillon         PTSUNNY   44   9  23 SW23G36   30.20F                  
+Ennis          MOSUNNY   41   5  22 S22G31    30.27F                  
+Twin Bridges   PTCLDY    45  10  24 SW22G31   30.22F                  
+$$
+
+MTZ009-010-012-014-046-048-049-054-112100-
+East Slopes and Central Montana
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Cut Bank       MOSUNNY   33  22  63 W23G29    30.02F WCI  21          
+Great Falls    PTSUNNY   41  16  36 W22G32    30.08F                  
+Helena         PTSUNNY   45  14  28 SW15G22   30.13F                  
+Malmstrom AFB  PTSUNNY   42  16  34 SW24G32   30.07F                  
+Bowmans Corner MOSUNNY   41  17  38 S16G25    30.02F                  
+Fairfield      PTSUNNY   43  15  31 N17G29    30.03F                  
+Power          PTSUNNY   44  15  30 SW24G30   30.03F                  
+Raynesford     CLOUDY    39  13  33 NW20G29   30.06F WCI  30          
+Ulm            MOSUNNY   44  17  34 N25G31    30.05F                  
+$$
+
+MTZ011-013-016-021-045-047-050-051-112100-
+North Central Montana
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Havre          MOSUNNY   45  13  27 W28G45    30.04S                  
+Lewistown      CLOUDY    40   7  25 W30G44    30.10S WCI  28          
+Denton         CLOUDY    43  11  27 W33G41    30.07F                  
+Fort Benton    MOCLDY    44  13  28 W26G35    30.08F                  
+Geyser         PTSUNNY   40  11  30 SW30G37   30.07S WCI  29          
+Grass Range    PTSUNNY   42   9  25 N30G46    30.03F                  
+N Bar Ranch    DRIZZLE   36  14  41 NW26G37   30.08F WCI  23          
+Roy            CLOUDY    44   8  23 W28G36    30.03F                  
+Stanford       PTSUNNY   41  11  29 S24G36    29.86S                  
+Winifred       PTSUNNY   41  12  30 S25G37    30.05F                  
+$$
+
+MTZ017>020-022>027-061-062-112100-
+Northeast Montana
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Glasgow        PTSUNNY   44  12  27 W22G29    30.07F                  
+Glendive       MOSUNNY   44  16  32 SW18G26   30.15F                  
+Jordan           N/A     45   7  21 W18G33    30.09F                  
+Malta          PTSUNNY   45  10  24 W14       30.03F                  
+Plentywood     PTSUNNY   36  21  55 W17       30.09F WCI  25          
+Poplar         MOSUNNY   43  21  42 SW18G26   30.12F                  
+Scobey           N/A     37  25  60 SW22G29   30.04F WCI  27          
+Sidney         PTSUNNY   42   9  25 SW16G25   30.14F                  
+Wolf Point     MOSUNNY   44  16  32 SW14G22   30.11F                  
+$$
+
+MTZ028>42-056>058-112100-
+Southcentral and southeast Montana
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Baker          SUNNY     40  11  30 W22G30    30.17  WCI  30          
+Big Timber     CLEAR     45   5  19 W31G45    30.13F                  
+Billings       MOSUNNY   47   6  18 W28G43    30.16F                  
+Forsyth        PTCLDY    45  11  25 W22G31    30.15F                  
+Hardin         PTCLDY    46  14  27 W25G32    30.15F                  
+Harlowton      CLOUDY    41  11  29 NW41      30.06F                  
+Laurel         PTCLDY    48   3  15 W29G40    30.17F                  
+Livingston     CLOUDY    44   6  21 SW32G43   30.14F                  
+Miles City     SUNNY     45  10  24 W18G29    30.15F                  
+$$
+
+Regional Reports...Dakotas/MN
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Williston      PTSUNNY   38  18  44 SW16G24   30.11F WCI  29          
+Minot          PTSUNNY   34  22  61 NW9       30.15F WCI  27          
+Dickinson      SUNNY     39  14  36 W21G28    30.14F WCI  29          
+Beach            N/A     37  10  32 W13G21    30.17F WCI  29          
+Bowman         FAIR      41   9  26 W15G25    30.17F                  
+Crosby         FAIR      34  28  80 S7        30.12F WCI  28          
+Glen Ullin     FAIR      41  16  36 W20G26    30.15F                  
+Hettinger      SUNNY     42   7  23 W18G32    30.18F                  
+Tioga          FAIR      36  25  64 SW13      30.14F WCI  27          
+Watford City   FAIR      41  12  30 W17       30.15F                  
+Bismarck       SUNNY     41  23  48 NW14      30.18F                  
+Grand Forks    MOSUNNY   27  17  66 N8        30.21F WCI  19          
+Fargo          CLOUDY    32  19  58 W8        30.18F WCI  25          
+Buffalo SD       N/A     41  15  35 W21G28    30.16F                  
+Rapid City     SUNNY     41  18  39 N13       30.25F                  
+Intl Falls     MOSUNNY   32   9  38 NW13G24   30.07F WCI  22          
+Duluth         SUNNY     35   6  29 NW14G26   30.01F WCI  26          
+Minneapolis    SUNNY     40  19  43 NW13      30.12F WCI  32          
+$$
+
+Regional Reports...WY/CO/ID/WA/OR
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Buffalo WY     SUNNY     35   7  31 CALM      30.18F                  
+Cody           MOSUNNY   37   9  31 W8G30     30.24F WCI  31          
+Gillette       SUNNY     40   6  24 W17G25    30.20F WCI  31          
+Powell         FAIR      37   9  30 SW18G26   30.19F WCI  27          
+Sheridan       SUNNY     41  14  33 SW6G21    30.20F                  
+Yellowstone La   N/A     21   9  59 W9G22     30.30F WCI  11          
+Boise          CLOUDY    50  22  33 SE9       30.40F                  
+Couer d'Alene  LGT RAIN  37  36  96 S8        30.14F WCI  31          
+Idaho Falls    SUNNY     42  14  32 SW26G37   30.40F                  
+Salmon         CLOUDY    46  15  28 S21G29    30.24F                  
+Spokane        LGT RAIN  37  34  89 SW12      30.13F FOG     WCI  29  
+Seattle        LGT RAIN  42  40  92 SE12      30.07F FOG              
+Portland       LGT RAIN  49  46  90 S17G26    30.24R                  
+$$
+
+Other Reports
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Atlanta        MOSUNNY   81  58  45 SW16G29   30.01F                  
+Anchorage      SUNNY      5 -15  39 CALM      30.10R                  
+Boston         PTSUNNY   43  39  87 E10       29.90F                  
+Chicago        CLOUDY    35  29  78 NW18G28   29.87R WCI  24          
+Fairbanks      MOSUNNY  -20 -27  69 CALM      30.49S                  
+Great Falls    PTSUNNY   41  16  36 W22G32    30.08F                  
+Houston        TSTM      65  64  97 SW6       29.87F FOG              
+Las Vegas NV   SUNNY     73  29  19 CALM      30.32F                  
+Phoenix AZ     MOSUNNY   76  45  33 VRB3      30.20F                  
+Salt Lake City MOSUNNY   47  11  23 VRB3      30.51S                  
+San Diego      MOSUNNY   66  56  70 NW13G22   30.24F                  
+San Francisco  SUNNY     61  48  62 CALM      30.40F                  
+Washington Dul PTSUNNY   85  59  41 S15G24    29.74F                  
+$$
+
+Regional Reports...Alberta
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Calgary        PTSUNNY   37   1  22 W17G26    29.87F WCI  28          
+Edmonton       PTSUNNY   34  16  47 NW12G17   29.91F WCI  25          
+Fort McMurray  LGT SNOW  12   7  79 NW10      29.92R WCI  -1          
+High Level     MOSUNNY    1  -6  71 N15G25    30.08R WCI -18          
+Lethbridge     MOSUNNY   39  19  45 W20G29    29.98S WCI  30          
+Medicine Hat   MOSUNNY   45  16  31 W24G35    29.96S                  
+Pincher Creek  SUNNY     34  21  60 W18G28    29.95F WCI  23          
+Fort Smith NWT MOSUNNY    1  -9  60 N12G18    30.09R WCI -15          
+$$
+
+Regional Reports...Saskatchewan
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Estevan        MOSUNNY   30  25  80 S13       30.13F WCI  20          
+Prince Albert  PTSUNNY   18  10  73 SE13      30.00F WCI   4          
+Regina         PTSUNNY   30  27  86 SE14G21   30.04F WCI  20          
+Saskatoon      PTSUNNY   30  23  74 S9        29.93F WCI  22          
+Swift Current  SUNNY     36  21  55 W21G29    29.92F WCI  24          
+$$

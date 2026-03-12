@@ -134,20 +134,35 @@ pub fn parse_hvtec_codes_with_issues(text: &str) -> (Vec<HvtecCode>, Vec<Product
 }
 
 fn find_hvtec_candidates(text: &str) -> Vec<&str> {
-    scan_slash_delimited_candidates(text, |candidate| {
-        let inner = candidate
-            .strip_prefix('/')
-            .and_then(|value| value.strip_suffix('/'));
-        inner
-            .and_then(|value| value.split('.').next())
-            .map(|nwslid| {
-                nwslid.len() == 5
-                    && nwslid
-                        .chars()
-                        .all(|character| character.is_ascii_alphanumeric())
-            })
-            .unwrap_or(false)
-    })
+    scan_slash_delimited_candidates(text, is_structurally_hvtec_candidate)
+}
+
+fn is_structurally_hvtec_candidate(candidate: &str) -> bool {
+    let Some(inner) = candidate
+        .strip_prefix('/')
+        .and_then(|value| value.strip_suffix('/'))
+    else {
+        return false;
+    };
+
+    let fields = inner.split('.').collect::<Vec<_>>();
+    if fields.len() < 3 {
+        return false;
+    }
+
+    is_valid_nwslid(fields[0])
+        && matches!(fields[1], "N" | "0" | "1" | "2" | "3" | "U")
+        && fields[2].len() == 2
+        && fields[2]
+            .chars()
+            .all(|character| character.is_ascii_uppercase())
+}
+
+fn is_valid_nwslid(field: &str) -> bool {
+    field.len() == 5
+        && field
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
 }
 
 fn parse_hvtec_candidate(raw: &str) -> Result<HvtecCode, ProductParseIssue> {
@@ -317,5 +332,14 @@ mod tests {
 
         assert_eq!(codes.len(), 1);
         assert_eq!(codes[0].record, HvtecRecord::Unknown);
+    }
+
+    #[test]
+    fn url_like_slash_block_is_ignored() {
+        let text = "https://water.noaa.gov/wfo/SHV";
+        let (codes, issues) = parse_hvtec_codes_with_issues(text);
+
+        assert!(codes.is_empty());
+        assert!(issues.is_empty());
     }
 }

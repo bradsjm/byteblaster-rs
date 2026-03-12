@@ -1,0 +1,74 @@
+108 
+FPUS82 KCHS 112010
+OPUCHS
+
+TEST...KCHS/KSAV Gateway Observations...TEST
+National Weather Service Charleston SC
+400 PM EDT WED MAR 11 2026
+
+NOTE: "fair" indicates few or no clouds below 12,000 feet with no
+significant weather and/or obstructions to visibility.
+
+SCZ050-WAZ558-NCZ071-TXZ119-213-PAZ071-DCZ001-FLZ074-172-MI076-
+NYZ176-178-MAZ016-IL014-TNZ027-NJZ106-GAZ044-MD014-112100-
+
+...Gateway Observations for Charleston International...
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Chas Airport   PTSUNNY   87  63  44 S16G25    30.01F                  
+Seattle        LGT RAIN  42  40  92 SE12      30.07F FOG              
+Charlotte      PTSUNNY   85  51  31 SW14G30   29.93F                  
+Dallas DFW     MOSUNNY   74  55  51 N24G32    29.94R                  
+Dallas Love    PTSUNNY   72  57  59 N20G31    29.94R                  
+Philladelphia  PTSUNNY   80  61  52 S7        29.76F                  
+Wash National  PTSUNNY   83  58  42 S17G23    29.74F                  
+Baltimore      PTSUNNY   83  58  42 SW10      29.74F                  
+Miami          MOSUNNY   82  68  62 SE12      30.10F                  
+Detroit        CLOUDY    52  48  86 NW15      29.57R                  
+Newark         PTSUNNY   79  58  48 S13G29    29.75F                  
+Laguardia      PTSUNNY   63  49  60 S13       29.77F                  
+J F K          PTSUNNY   59  51  75 S14       29.79F                  
+Boston Logan   PTSUNNY   43  39  87 E10       29.90F                  
+Ft. Lauderdale MOSUNNY   82  69  64 SE14G21   30.10F                  
+Chicago O'Hare CLOUDY    35  29  78 NW18G28   29.87R WCI  24          
+Chicago Midway CLOUDY    36  30  79 NW16G30   29.88R WCI  26          
+Houston Bush   TSTM      65  64  97 SW6       29.87F FOG              
+Houston Hobby  CLOUDY    68  62  81 NW12      29.88R                  
+Nashville      TSTM      66  61  84 W15G29    29.89R FOG              
+Atlanta        MOSUNNY   81  58  45 SW16G29   30.01F                  
+London Heathrw   N/A     48  36  61 W15       30.03R                  
+
+$$
+ 
+GAZ044-118-TXZ119-213-NCZ071-DCZ001-MDZ014-506-PAZ021-071-NJZ106-
+NYZ176-178-MAZ106-OHZ011-021-055-MIZ076-KYZ091-ILZ014-INZ047-
+MNZ060-ONZ431-112100-
+
+...Gateway Observations for Savannah International...
+  
+CITY           SKY/WX    TMP DP  RH WIND       PRES   REMARKS
+Savannah Arpt  PTSUNNY   91  61  36 W13G28    30.02F HX  91           
+Atlanta        MOSUNNY   81  58  45 SW16G29   30.01F                  
+Charlotte      PTSUNNY   85  51  31 SW14G30   29.93F                  
+Dallas DFW     MOSUNNY   74  55  51 N24G32    29.94R                  
+Houston Bush   TSTM      65  64  97 SW6       29.87F FOG              
+Wash National  PTSUNNY   83  58  42 S17G23    29.74F                  
+Wash Dulles    PTSUNNY   85  59  41 S15G24    29.74F                  
+Baltimore      PTSUNNY   83  58  42 SW10      29.74F                  
+Philadelphia   PTSUNNY   80  61  52 S7        29.76F                  
+Newark         PTSUNNY   79  58  48 S13G29    29.75F                  
+Laguardia      PTSUNNY   63  49  60 S13       29.77F                  
+J F K          PTSUNNY   59  51  75 S14       29.79F                  
+Boston         PTSUNNY   43  39  87 E10       29.90F                  
+Pittsburg      CLOUDY    68  61  78 SW14G28   29.68F                  
+Akron          CLOUDY    69  56  62 W17G36    29.63R                  
+Cleveland      PTSUNNY   69  57  65 SW23G33   29.57R                  
+Cincinnati     CLOUDY    71  62  73 SW18G25   29.67F                  
+Columbus       HVY RAIN  65  62  89 W17G28    29.69S                  
+Detroit        CLOUDY    52  48  86 NW15      29.57R                  
+Chicago O'Hare CLOUDY    35  29  78 NW18G28   29.87R WCI  24          
+Minneapolis    SUNNY     40  19  43 NW13      30.12F WCI  32          
+Indianapolis   LGT RAIN  46  44  93 NW14G23   29.78R                  
+Toronto Canada CLOUDY    39  37  93 CALM      29.45F FOG              
+
+$$

@@ -1,0 +1,28 @@
+679 
+WWUS81 KCTP 111953
+AWWUNV
+PAZ019-112030-
+
+Airport Weather Warning
+National Weather Service State College PA
+353 PM EDT Wed Mar 11 2026
+
+...AIRPORT WEATHER WARNING...
+
+The National Weather Service in State College PA has issued an 
+
+* Airport Weather Warning for...
+  State College Regional Airport (UNV).
+
+* Valid until 430 PM EDT or when cancelled. 
+
+* Cloud to ground lightning is expected within 5 mi of the airport.
+
+A Tornado Watch remains in effect until 800 PM EDT for central
+Pennsylvania.
+
+LAT...LON 4076 7784 4078 7792 4084 7797 4090 7794
+      4094 7786 4092 7777 4086 7773 4079 7776
+$$
+
+Dangelo

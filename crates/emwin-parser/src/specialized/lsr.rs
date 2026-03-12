@@ -95,16 +95,15 @@ fn parse_lsr_chunk(text: &str, reference_time: DateTime<Utc>) -> Option<LsrRepor
         .collect::<Vec<_>>()
         .join(" ");
 
-    let first_caps = first_line_re().captures(first)?;
+    let first_fields = parse_first_lsr_line(first)?;
     let second_caps = second_line_re().captures(second)?;
-    let time_token = first_caps.name("hhmm")?.as_str();
-    let ampm = first_caps.name("ampm")?.as_str();
-    let event_text = first_caps.name("event")?.as_str().trim().to_string();
-    let city = first_caps.name("city")?.as_str().trim().to_string();
-    let lat_token = first_caps.name("lat")?.as_str();
-    let lon_token = first_caps.name("lon")?.as_str();
-    let valid = parse_lsr_datetime(time_token, ampm, second.get(..10)?.trim(), reference_time)?;
-    let (latitude, longitude) = parse_lat_lon(lat_token, lon_token)?;
+    let valid = parse_lsr_datetime(
+        &first_fields.time_token,
+        &first_fields.ampm,
+        second.get(..10)?.trim(),
+        reference_time,
+    )?;
+    let (latitude, longitude) = parse_lat_lon(&first_fields.lat_token, &first_fields.lon_token)?;
     let magnitude = second_caps
         .name("mag")
         .map(|m| m.as_str())
@@ -126,8 +125,8 @@ fn parse_lsr_chunk(text: &str, reference_time: DateTime<Utc>) -> Option<LsrRepor
 
     Some(LsrReport {
         valid: valid.to_rfc3339(),
-        event_text,
-        city,
+        event_text: first_fields.event_text,
+        city: first_fields.city,
         county,
         state,
         latitude,
@@ -140,14 +139,88 @@ fn parse_lsr_chunk(text: &str, reference_time: DateTime<Utc>) -> Option<LsrRepor
     })
 }
 
-fn first_line_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r"^(?P<hhmm>\d{4})\s+(?P<ampm>AM|PM)\s+(?P<event>.{1,17}?)\s{2,}(?P<city>.{1,24}?)\s{2,}(?P<lat>\d+\.\d+[NS])\s+(?P<lon>\d+\.\d+[EW])$",
-        )
-        .expect("valid LSR first line regex")
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedLsrFirstLine {
+    time_token: String,
+    ampm: String,
+    event_text: String,
+    city: String,
+    lat_token: String,
+    lon_token: String,
+}
+
+fn parse_first_lsr_line(line: &str) -> Option<ParsedLsrFirstLine> {
+    let time_token = line.get(..4)?;
+    if !time_token
+        .chars()
+        .all(|character| character.is_ascii_digit())
+    {
+        return None;
+    }
+
+    let mut cursor = 4;
+    while line
+        .as_bytes()
+        .get(cursor)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        cursor += 1;
+    }
+
+    let ampm = match line.get(cursor..cursor + 2)? {
+        "AM" | "PM" => line[cursor..cursor + 2].to_string(),
+        _ => return None,
+    };
+    cursor += 2;
+
+    while line
+        .as_bytes()
+        .get(cursor)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        cursor += 1;
+    }
+
+    let payload = line.get(cursor..)?;
+    let mut tail = payload.rsplitn(3, char::is_whitespace);
+    let lon_token = tail.next()?.trim().to_string();
+    let lat_token = tail.next()?.trim().to_string();
+    let middle = tail.next()?.trim_end();
+
+    if !is_lsr_lat_token(&lat_token) || !is_lsr_lon_token(&lon_token) || middle.len() < 17 {
+        return None;
+    }
+
+    let event_text = middle[..17].trim().to_string();
+    let city = middle[17..].trim().to_string();
+    if event_text.is_empty() || city.is_empty() {
+        return None;
+    }
+
+    Some(ParsedLsrFirstLine {
+        time_token: time_token.to_string(),
+        ampm,
+        event_text,
+        city,
+        lat_token,
+        lon_token,
     })
+}
+
+fn is_lsr_lat_token(token: &str) -> bool {
+    token.len() >= 2
+        && token.ends_with(['N', 'S'])
+        && token[..token.len() - 1]
+            .chars()
+            .all(|character| character.is_ascii_digit() || character == '.')
+}
+
+fn is_lsr_lon_token(token: &str) -> bool {
+    token.len() >= 2
+        && token.ends_with(['E', 'W'])
+        && token[..token.len() - 1]
+            .chars()
+            .all(|character| character.is_ascii_digit() || character == '.')
 }
 
 fn second_line_re() -> &'static Regex {
@@ -248,5 +321,22 @@ QUARTER SIZE HAIL REPORTED
         assert_eq!(bulletin.reports.len(), 1);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_lsr_report");
+    }
+
+    #[test]
+    fn parses_city_field_that_begins_with_digit() {
+        let text = "\
+0236 PM     Non-Tstm Wnd Gst 7 NW Elk Mountain       41.75N 106.51W
+03/11/2026  M63 MPH          Carbon             WY   Mesonet
+
+            WYDOT Sensor at Halleck Ridge.
+
+&&";
+        let (bulletin, issues) = parse_lsr_bulletin(text, Utc::now()).expect("lsr bulletin");
+
+        assert_eq!(bulletin.reports.len(), 1);
+        assert_eq!(bulletin.reports[0].event_text, "Non-Tstm Wnd Gst");
+        assert_eq!(bulletin.reports[0].city, "7 NW Elk Mountain");
+        assert!(issues.is_empty());
     }
 }

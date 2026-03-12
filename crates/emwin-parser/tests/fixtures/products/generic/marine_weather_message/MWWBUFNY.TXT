@@ -1,0 +1,133 @@
+857 
+WHUS71 KBUF 112022
+MWWBUF
+
+URGENT - MARINE WEATHER MESSAGE
+National Weather Service Buffalo NY
+422 PM EDT Wed Mar 11 2026
+
+LOZ042-062-120800-
+/O.CON.KBUF.GL.W.0007.260312T0300Z-260312T1200Z/
+Lake Ontario nearshore waters from the Niagara River to Hamlin
+Beach-
+Lake Ontario open waters from the Niagara River to Hamlin Beach-
+422 PM EDT Wed Mar 11 2026
+
+...GALE WARNING REMAINS IN EFFECT FROM 11 PM THIS EVENING TO 8 AM
+EDT THURSDAY...
+
+* WHAT...West gales to 35 knots and waves 10 to 14 feet expected.
+
+* WHERE...The nearshore and open waters of Lake Ontario from the 
+  Niagara River to Hamlin Beach.
+
+* WHEN...From 11 PM this evening to 8 AM EDT Thursday.
+
+* IMPACTS...Strong winds will cause hazardous waves which could 
+  capsize or damage vessels and reduce visibility.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Mariners should alter plans to avoid these hazardous conditions.
+Remain in port, seek safe harbor, alter course, and/or secure the
+vessel for hazardous conditions.
+
+&&
+
+$$
+
+LOZ043>045-063>065-120800-
+/O.CON.KBUF.GL.W.0007.260312T0300Z-260312T1500Z/
+Lake Ontario nearshore waters from Hamlin Beach to Sodus Bay-
+Lake Ontario nearshore waters from Sodus Bay to Mexico Bay-
+Lake Ontario nearshore waters from Mexico Bay to the Saint
+Lawrence River-
+Lake Ontario open waters from Hamlin Beach to Sodus Bay-
+Lake Ontario open waters from Sodus Bay to Mexico Bay-
+Lake Ontario open waters from Mexico Bay to the Saint Lawrence
+River-
+422 PM EDT Wed Mar 11 2026
+
+...GALE WARNING REMAINS IN EFFECT FROM 11 PM THIS EVENING TO
+11 AM EDT THURSDAY...
+
+* WHAT...West gales to 35 knots and waves 12 to 16 feet expected.
+
+* WHERE...The nearshore and open waters of Lake Ontario from 
+  Hamlin Beach to the Saint Lawrence River.
+
+* WHEN...From 11 PM this evening to 11 AM EDT Thursday.
+
+* IMPACTS...Strong winds will cause hazardous waves which could 
+  capsize or damage vessels and reduce visibility.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Mariners should alter plans to avoid these hazardous conditions.
+Remain in port, seek safe harbor, alter course, and/or secure the
+vessel for hazardous conditions.
+
+&&
+
+$$
+
+LEZ040-041-120800-
+/O.CON.KBUF.SC.Y.0019.000000T0000Z-260312T2100Z/
+/O.NEW.KBUF.GL.A.0006.260313T1600Z-260314T0800Z/
+Lake Erie nearshore waters from Ripley to Dunkirk-
+Lake Erie nearshore waters from Dunkirk to Buffalo-
+422 PM EDT Wed Mar 11 2026
+
+...SMALL CRAFT ADVISORY REMAINS IN EFFECT UNTIL 5 PM EDT
+THURSDAY...
+...GALE WATCH IN EFFECT FROM FRIDAY AFTERNOON THROUGH LATE FRIDAY
+NIGHT...
+
+* WHAT...For the Small Craft Advisory, west winds 15 to 25 knots.
+  For the Gale Watch, southwest gales to 40 knots possible.
+
+* WHERE...The nearshore waters of Lake Erie from Ripley to 
+  Buffalo.
+
+* WHEN...For the Small Craft Advisory, until 5 PM EDT Thursday. 
+  For the Gale Watch, from Friday afternoon through late Friday 
+  night.
+
+* IMPACTS...Strong winds can cause hazardous waves which could 
+  capsize or damage vessels and reduce visibility.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Mariners should consider altering plans to avoid possible
+hazardous conditions.  Remain in port, seek safe harbor, alter
+course, and/or secure the vessel for severe wind and waves.
+
+&&
+
+$$
+
+LEZ020-LOZ030-120800-
+/O.CON.KBUF.SC.Y.0019.000000T0000Z-260312T1800Z/
+Upper Niagara River and Buffalo Harbor-Lower Niagara River-
+422 PM EDT Wed Mar 11 2026
+
+...SMALL CRAFT ADVISORY REMAINS IN EFFECT UNTIL 2 PM EDT
+THURSDAY...
+
+* WHAT...West winds 15 to 25 knots.
+
+* WHERE...The Niagara River and Buffalo Harbor.
+
+* WHEN...Until 2 PM EDT Thursday.
+
+* IMPACTS...Winds and/or waves will cause hazardous conditions 
+  that could capsize or damage small craft.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Inexperienced mariners, especially those operating smaller
+vessels, should avoid navigating in hazardous conditions.
+
+&&
+
+$$

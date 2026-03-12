@@ -177,24 +177,15 @@ fn parse_numeric_value(
     error_code: &'static str,
     raw: &str,
 ) -> Result<WindHailEntry, ProductParseIssue> {
-    let value = value.trim();
+    let normalized = normalize_modern_value(value);
+    let value = normalized.as_str();
     let (comparison, remainder) = match value.chars().next() {
         Some('<') | Some('>') => (value.chars().next(), value[1..].trim()),
         _ => (None, value),
     };
 
-    let mut parts = remainder.split_whitespace();
-    let numeric_str = parts
-        .next()
+    let (numeric_str, units) = split_numeric_and_units(remainder, allowed_units)
         .ok_or_else(|| invalid_numeric_issue(error_code, raw))?;
-    let units = parts
-        .next()
-        .map(|units| units.to_ascii_uppercase())
-        .filter(|units| allowed_units.iter().any(|allowed| units == allowed))
-        .ok_or_else(|| invalid_numeric_issue(error_code, raw))?;
-    if parts.next().is_some() {
-        return Err(invalid_numeric_issue(error_code, raw));
-    }
 
     let numeric_value = numeric_str
         .parse::<f64>()
@@ -203,9 +194,59 @@ fn parse_numeric_value(
     Ok(WindHailEntry {
         kind,
         numeric_value: Some(numeric_value),
-        units: Some(units),
+        units: Some(units.to_string()),
         comparison,
     })
+}
+
+fn normalize_modern_value(value: &str) -> String {
+    let mut normalized = value.trim().to_string();
+
+    loop {
+        let stripped = normalized
+            .strip_suffix("$$")
+            .or_else(|| normalized.strip_suffix("&&"));
+        let Some(stripped) = stripped else {
+            break;
+        };
+        normalized = stripped.trim_end().to_string();
+    }
+
+    normalized
+        .trim_end_matches(['.', ',', ';', ':'])
+        .trim_end()
+        .to_string()
+}
+
+fn split_numeric_and_units<'a>(
+    value: &'a str,
+    allowed_units: &[&'a str],
+) -> Option<(&'a str, &'a str)> {
+    let mut parts = value.split_whitespace();
+    let first = parts.next()?;
+
+    if let Some(second) = parts.next() {
+        if parts.next().is_some() {
+            return None;
+        }
+        let units = second.to_ascii_uppercase();
+        return allowed_units
+            .iter()
+            .copied()
+            .find(|allowed| *allowed == units)
+            .map(|allowed| (first, allowed));
+    }
+
+    let split_index = first
+        .find(|character: char| character.is_ascii_alphabetic())
+        .filter(|index| *index > 0)?;
+    let numeric = &first[..split_index];
+    let units = first[split_index..].to_ascii_uppercase();
+    allowed_units
+        .iter()
+        .copied()
+        .find(|allowed| *allowed == units)
+        .map(|allowed| (numeric, allowed))
 }
 
 fn invalid_numeric_issue(code: &'static str, raw: &str) -> ProductParseIssue {
@@ -328,5 +369,39 @@ mod tests {
 
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, "invalid_wind_hail_wind_value");
+    }
+
+    #[test]
+    fn compact_hail_value_parses() {
+        let text = "HAIL...0.00IN";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxHailSize);
+        assert_eq!(entries[0].numeric_value, Some(0.0));
+        assert_eq!(entries[0].units.as_deref(), Some("IN"));
+    }
+
+    #[test]
+    fn compact_wind_value_parses() {
+        let text = "WIND...>34KTS";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxWindGust);
+        assert_eq!(entries[0].comparison, Some('>'));
+        assert_eq!(entries[0].numeric_value, Some(34.0));
+        assert_eq!(entries[0].units.as_deref(), Some("KTS"));
+    }
+
+    #[test]
+    fn trailing_bulletin_terminator_is_ignored() {
+        let text = "MAX WIND GUST...60 MPH$$";
+        let entries = parse_wind_hail_entries(text);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, WindHailKind::MaxWindGust);
+        assert_eq!(entries[0].numeric_value, Some(60.0));
+        assert_eq!(entries[0].units.as_deref(), Some("MPH"));
     }
 }

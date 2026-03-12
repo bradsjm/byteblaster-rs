@@ -191,6 +191,12 @@ If `body_behavior` is `catalog`, the ordered extractor list becomes a
 the candidate remains bodyless. That keeps extractor order and issue semantics
 stable while making coexistence policy-driven instead of hardcoded.
 
+Generic body QC still emits `vtec_missing_required_polygon` for VTEC products
+that do not yield a `LAT...LON` polygon by default. That QC is skipped when
+the parsed geography is represented entirely by marine-zone UGC sections. This
+is a body-extraction policy detail inside generic enrichment, not a routing
+rule.
+
 ## Product Routing Model
 
 Classification is ordered and explicit.
@@ -432,11 +438,14 @@ That separation is deliberate:
 
 ## Fixtures
 
-Archived exact bulletin fixtures under `tests/fixtures/specialized/` are pulled
-from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` and are
-used by integration tests under `tests/` to ground end-to-end enrichment
-regressions against real products. Unit tests under `src/**` should use
-inline or module-local samples and must not import files from `tests/**`.
+Archived exact bulletin fixtures live under `tests/fixtures/products/` and are
+organized first by parser domain (`generic`, `specialized`, `wmo`) and then by
+product family. AFOS-backed fixtures should be pulled from
+`https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` where possible.
+These fixtures are consumed only by integration tests under `tests/` to ground
+real-product corpus coverage. Unit tests under `src/**` should use inline or
+module-local samples and must not import files from `tests/**`. See
+`tests/README.md` for the test-corpus organization rules.
 
 ## Current Limitations
 

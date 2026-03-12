@@ -298,11 +298,14 @@ fn validate_body_qc(body: &ProductBody, plan: &BodyExtractionPlan) -> Vec<Produc
     for rule in plan.qc_rules {
         match rule {
             BodyQcRuleId::VtecMissingRequiredPolygon => {
+                // Marine warnings can legitimately express their geography with
+                // marine-zone UGC alone, so missing LAT...LON should not be QC'd there.
                 if body
                     .vtec
                     .as_ref()
                     .is_some_and(|entries| !entries.is_empty())
                     && body.latlon.as_ref().is_none_or(Vec::is_empty)
+                    && !body_has_marine_only_ugc(body)
                 {
                     issues.push(ProductParseIssue::new(
                         "body_qc",
@@ -361,6 +364,20 @@ fn validate_body_qc(body: &ProductBody, plan: &BodyExtractionPlan) -> Vec<Produc
     }
 
     issues
+}
+
+fn body_has_marine_only_ugc(body: &ProductBody) -> bool {
+    let Some(ugc_sections) = &body.ugc else {
+        return false;
+    };
+
+    !ugc_sections.is_empty()
+        && ugc_sections.iter().all(|section| {
+            section.counties.is_empty()
+                && section.zones.is_empty()
+                && section.fire_zones.is_empty()
+                && !section.marine_zones.is_empty()
+        })
 }
 
 fn collect_duplicate_ugc_codes(
@@ -657,6 +674,49 @@ MAXWINDGUST...60 MPH
         assert!(
             outcome
                 .issues
+                .iter()
+                .any(|issue| issue.code == "vtec_missing_required_polygon")
+        );
+    }
+
+    #[test]
+    fn plan_driven_qc_skips_vtec_missing_required_polygon_for_marine_only_ugc() {
+        let body = ProductBody {
+            vtec: Some(crate::parse_vtec_codes(
+                "/O.CON.KBUF.GL.W.0007.000000T0000Z-260312T1200Z/",
+            )),
+            ugc: Some(vec![crate::UgcSection {
+                counties: std::collections::BTreeMap::new(),
+                zones: std::collections::BTreeMap::new(),
+                fire_zones: std::collections::BTreeMap::new(),
+                marine_zones: std::collections::BTreeMap::from([(
+                    "LO".to_string(),
+                    vec![crate::UgcArea {
+                        id: 42,
+                        name: None,
+                        lat: None,
+                        lon: None,
+                    }],
+                )]),
+                expires: Utc::now(),
+            }]),
+            ..ProductBody::default()
+        };
+
+        let issues = validate_body_qc(
+            &body,
+            &BodyExtractionPlan {
+                extractors: &[
+                    BodyExtractorId::Vtec,
+                    BodyExtractorId::Ugc,
+                    BodyExtractorId::LatLon,
+                ],
+                qc_rules: QC_VTEC_POLYGON_AND_UGC,
+            },
+        );
+
+        assert!(
+            !issues
                 .iter()
                 .any(|issue| issue.code == "vtec_missing_required_polygon")
         );

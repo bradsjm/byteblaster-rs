@@ -4,7 +4,10 @@ use emwin_parser::enrich_product;
 
 #[test]
 fn product_with_duplicate_ugc_blocks_collects_both_sections() {
-    let enrichment = enrich_product("FLSRAH.txt", include_bytes!("fixtures/ugc/FLSRAH.txt"));
+    let enrichment = enrich_product(
+        "FLSRAH.txt",
+        include_bytes!("fixtures/products/generic/flood_statement/FLSRAH.txt"),
+    );
 
     assert!(enrichment.issues.is_empty());
 

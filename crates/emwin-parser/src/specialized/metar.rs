@@ -45,19 +45,19 @@ impl MetarBulletin {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ParsedMetarRef<'a> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedMetarRef {
     kind: MetarReportKind,
-    station: &'a str,
-    observation_time: &'a str,
+    station: String,
+    observation_time: String,
 }
 
-impl ParsedMetarRef<'_> {
+impl ParsedMetarRef {
     fn into_owned(self, raw: String) -> MetarReport {
         MetarReport {
             kind: self.kind,
-            station: self.station.to_string(),
-            observation_time: self.observation_time.to_string(),
+            station: self.station,
+            observation_time: self.observation_time,
             raw,
         }
     }
@@ -113,20 +113,13 @@ fn normalize_metar_segment(segment: &str) -> String {
     normalized
 }
 
-/// Parses a normalized METAR/SPECI segment into borrowed header fields.
-fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef<'_>> {
+/// Parses a normalized METAR/SPECI segment into owned header fields.
+fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef> {
     let tokens = segment.split(' ').collect::<Vec<_>>();
-    let start = tokens
-        .iter()
-        .position(|token| matches!(*token, "METAR" | "SPECI"))?;
+    let (kind, start, inline_station) = find_metar_start(&tokens)?;
     let mut tokens = tokens[start..].iter().copied();
-    let kind = match tokens.next()? {
-        "METAR" => MetarReportKind::Metar,
-        "SPECI" => MetarReportKind::Speci,
-        _ => return None,
-    };
-
-    let maybe_station = tokens.next()?;
+    let _kind_token = tokens.next()?;
+    let maybe_station = inline_station.or_else(|| tokens.next())?;
     let station = if maybe_station == "COR" {
         tokens.next()?
     } else {
@@ -140,9 +133,35 @@ fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef<'_>> {
 
     Some(ParsedMetarRef {
         kind,
-        station,
-        observation_time,
+        station: station.to_string(),
+        observation_time: observation_time.to_string(),
     })
+}
+
+fn find_metar_start<'a>(
+    tokens: &'a [&'a str],
+) -> Option<(MetarReportKind, usize, Option<&'a str>)> {
+    for (index, token) in tokens.iter().copied().enumerate() {
+        match token {
+            "METAR" => return Some((MetarReportKind::Metar, index, None)),
+            "SPECI" => return Some((MetarReportKind::Speci, index, None)),
+            _ => {}
+        }
+
+        if let Some(station) = token.strip_prefix("METAR")
+            && is_metar_station(station)
+        {
+            return Some((MetarReportKind::Metar, index, Some(station)));
+        }
+
+        if let Some(station) = token.strip_prefix("SPECI")
+            && is_metar_station(station)
+        {
+            return Some((MetarReportKind::Speci, index, Some(station)));
+        }
+    }
+
+    None
 }
 
 fn is_metar_station(token: &str) -> bool {
@@ -228,5 +247,17 @@ mod tests {
         let (bulletin, _) = parse_metar_bulletin(text).expect("expected METAR bulletin");
 
         assert_eq!(bulletin.reports[0].raw, "METAR BGKK 070220Z AUTO VRB02KT");
+    }
+
+    #[test]
+    fn parses_compact_metar_prefix() {
+        let text = "METARSBUF 112000Z AUTO 13006KT CAVOK 32/19 Q1009=";
+        let (bulletin, issues) =
+            parse_metar_bulletin(text).expect("expected compact METAR bulletin");
+
+        assert!(issues.is_empty());
+        assert_eq!(bulletin.report_count(), 1);
+        assert_eq!(bulletin.reports[0].station, "SBUF");
+        assert_eq!(bulletin.reports[0].observation_time, "112000Z");
     }
 }

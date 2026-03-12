@@ -1,0 +1,88 @@
+295 
+FPUS61 KLWX 112101
+SFTLWX
+MDZ002-003>025-501>502>509>510-DCZ001-WVZ050>055-501>504-120900-
+
+Tabular State Forecast for Maryland and the Eastern West Virginia Panhandle
+National Weather Service Baltimore MD/Washington DC
+501 PM EDT Wed Mar 11 2026
+
+ROWS INCLUDE...
+   Daily predominant daytime weather 6AM-6PM
+   Forecast temperatures...early morning low/daytime high
+         Probability of precipitation nighttime 6PM-6AM/daytime 6AM-6PM
+          - indicates temperatures below zero
+         MM indicates missing data
+
+
+   FCST     FCST     FCST     FCST     FCST     FCST     FCST     
+   Thu      Fri      Sat      Sun      Mon      Tue      Wed      
+   Mar 12   Mar 13   Mar 14   Mar 15   Mar 16   Mar 17   Mar 18   
+
+
+...Baltimore/Washington Metro...
+   Baltimore
+   Shwrs    Ptcldy   Sunny    Mocldy   Rain     Ptcldy   Ptcldy   
+   46/49    31/52    42/54    39/56    50/65    29/39    25/42    
+    50/90    00/00    00/00    00/10    80/80    80/20    10/10   
+
+   Washington DC
+   Snoshwr  Ptcldy   Ptcldy   Mocldy   Rain     Ptcldy   Ptcldy   
+   48/50    33/55    43/57    41/60    53/67    33/42    28/44    
+    70/90    00/00    00/00    00/10    70/80    80/20    10/10   
+
+
+...Eastern West Virginia Panhandle...
+   Martinsburg
+   Shwrs    Ptcldy   Sunny    Mocldy   Rain     Ptcldy   Ptcldy   
+   44/45    28/56    37/54    35/57    48/63    27/39    22/42    
+    70/90    00/00    00/00    10/10    60/70    60/20    10/10   
+
+   Petersburg
+   Shwrs    Ptcldy   Sunny    Mocldy   Rain     Ptcldy   Ptcldy   
+   41/43    29/61    34/58    36/62    43/61    22/37    19/45    
+    90/80    00/00    00/00    00/10    50/70    50/10    10/10   
+
+
+...Maryland Eastern Shore...
+   Easton
+   Mocldy   Ptcldy   Ptcldy   Mocldy   Mocldy   Ptcldy   Ptcldy   
+   50/52    31/52    42/55    38/59    53/64    33/41    26/41    
+    20/90    00/00    00/00    00/10    80/90    90/30    10/10   
+
+   Ocean City
+   Mocldy   Sunny    Ptcldy   Mocldy   Mocldy   Ptcldy   Ptcldy   
+   53/54    30/50    40/54    38/55    47/59    32/44    26/42    
+    10/100   50/00    00/00    00/10    80/90    90/30    10/10   
+
+   Salisbury
+   Mocldy   Ptcldy   Ptcldy   Mocldy   Mocldy   Ptcldy   Ptcldy   
+   56/60    28/52    42/56    38/59    52/66    31/42    25/42    
+    10/90    30/00    00/00    00/10    70/90    90/30    10/10   
+
+
+...Southern Maryland...
+   Patuxent River NAS
+   Snoshwr  Ptcldy   Ptcldy   Mocldy   Rain     Ptcldy   Ptcldy   
+   50/53    33/54    43/56    42/59    50/66    32/43    28/43    
+    20/100   00/00    00/00    00/20    70/90    90/20    10/10   
+
+
+...Western Maryland...
+   Hagerstown
+   Shwrs    Ptcldy   Sunny    Mocldy   Rain     Ptcldy   Ptcldy   
+   42/43    30/54    36/51    36/55    47/61    26/36    21/39    
+    70/90    00/00    00/00    10/10    70/70    60/20    10/10   
+
+   Cumberland
+   Shwrs    Ptcldy   Sunny    Mocldy   Rain     Ptcldy   Ptcldy   
+   40/43    31/59    36/54    36/59    44/61    25/36    21/44    
+    90/50    00/00    00/00    10/10    50/70    50/10    10/10   
+
+   Oakland
+   Mocldy   Mocldy   Sunny    Mocldy   Rnsnow   Ptcldy   Ptcldy   
+   29/33    28/50    29/43    34/55    36/48    18/26    16/33    
+   100/40    00/10    10/00    10/10    70/70    50/20    10/20   
+
+
+$$

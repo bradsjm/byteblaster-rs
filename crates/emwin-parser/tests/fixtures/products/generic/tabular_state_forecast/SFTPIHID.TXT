@@ -1,0 +1,186 @@
+882 
+FPUS65 KPIH 111936
+SFTPIH
+IDZ051>75-121100-
+
+Tabular State Forecast for Southeast Idaho
+National Weather Service Pocatello ID
+136 PM MDT Wed Mar 11 2026
+
+ROWS INCLUDE...
+   Daily predominant daytime weather 6AM-6PM
+   Forecast temperatures...early morning low/daytime high
+         Probability of precipitation nighttime 6PM-6AM/daytime 6AM-6PM
+          - indicates temperatures below zero
+         MM indicates missing data
+
+
+   FCST     FCST     FCST     FCST     FCST     FCST     FCST     
+   Thu      Fri      Sat      Sun      Mon      Tue      Wed      
+   Mar 12   Mar 13   Mar 14   Mar 15   Mar 16   Mar 17   Mar 18   
+
+...CENTRAL IDAHO MOUNTAINS...
+   Arco
+   Windy    Ptcldy   Rnsnow   Ptcldy   Ptcldy   Sunny    Sunny    
+   31/57    35/59    36/56    24/49    30/64    37/71    39/74    
+    20/10    10/10    20/50    20/10    10/10    00/00    00/00   
+
+   Carey
+   Windy    Ptcldy   Rain     Ptcldy   Ptcldy   Sunny    Sunny    
+   33/56    38/58    39/56    29/51    33/66    40/73    43/75    
+    20/20    30/20    20/50    20/10    10/10    00/00    00/00   
+
+   Challis
+   Rain     Rain     Rnsnow   Mocldy   Mocldy   Sunny    Sunny    
+   36/55    40/56    41/53    24/49    33/63    38/70    39/72    
+    60/60    60/60    60/70    10/10    20/10    10/00    00/00   
+
+   Hailey
+   Ptcldy   Ptcldy   Rnsnow   Ptcldy   Ptcldy   Sunny    Sunny    
+   33/52    37/55    38/51    27/49    33/61    40/68    43/71    
+    50/30    40/40    40/70    20/10    20/10    10/00    00/00   
+
+   Mackay
+   Windy    Ptcldy   Rnsnow   Ptcldy   Mocldy   Sunny    Sunny    
+   31/45    36/47    36/44    24/39    32/53    39/60    41/63    
+    40/30    40/30    40/70    20/10    20/10    10/00    00/00   
+
+   Stanley
+   Rnsnow   Snow     Rnsnow   Mocldy   Mocldy   Ptcldy   Sunny    
+   23/40    27/42    27/41    8/38     19/50    25/56    27/60    
+    90/90    90/80    90/90    30/20    40/30    20/10    10/10   
+
+   Sun Valley/Ketchum
+   Rnsnow   Rnsnow   Rnsnow   Ptcldy   Ptcldy   Sunny    Sunny    
+   31/50    34/52    33/48    23/47    29/59    36/67    38/68    
+    70/50    60/50    50/80    20/20    20/20    10/00    00/00   
+
+...SNAKE RIVER VALLEY...
+   American Falls
+   Windy    Windy    Windy    Mocldy   Mocldy   Sunny    Sunny    
+   40/57    43/59    43/56    33/49    40/62    46/72    48/75    
+    00/10    00/10    10/40    10/10    10/10    00/00    00/00   
+
+   Blackfoot
+   Windy    Windy    Rain     Mocldy   Mocldy   Sunny    Sunny    
+   38/57    42/58    43/56    29/48    37/63    43/71    43/74    
+    10/10    00/10    10/50    20/10    10/10    10/00    00/00   
+
+   Burley
+   Windy    Ptcldy   Windy    Mocldy   Mocldy   Sunny    Sunny    
+   39/60    41/62    41/59    33/52    39/66    45/75    47/78    
+    00/00    00/00    10/40    10/10    10/00    00/00    00/00   
+
+   Dubois
+   Ptcldy   Mocldy   Rnsnow   Mocldy   Mocldy   Ptcldy   Sunny    
+   31/58    34/58    35/56    25/45    30/56    37/65    38/68    
+    20/20    10/20    20/60    20/10    20/20    10/00    00/00   
+
+   Idaho Falls
+   Windy    Windy    Rain     Mocldy   Mocldy   Sunny    Sunny    
+   36/57    41/57    42/57    26/47    35/60    40/69    40/73    
+    10/10    10/20    10/50    20/10    10/10    10/00    00/00   
+
+   INEEL
+   Windy    Windy    Windy    Mocldy   Mocldy   Sunny    Sunny    
+   33/58    38/59    39/57    26/49    30/64    37/71    38/74    
+    10/00    00/10    10/30    10/10    10/10    00/00    00/00   
+
+   Mud Lake
+   Windy    Ptcldy   Windy    Mocldy   Mocldy   Ptcldy   Sunny    
+   33/61    37/61    37/60    26/48    29/60    35/69    37/72    
+    10/10    10/10    10/40    20/10    10/10    10/00    00/00   
+
+   Pocatello
+   Windy    Ptcldy   Rain     Mocldy   Mocldy   Sunny    Sunny    
+   39/58    43/60    44/58    32/50    40/64    46/73    48/75    
+    10/10    00/10    10/50    20/10    10/10    10/00    00/00   
+
+   Rigby
+   Windy    Windy    Rain     Ptcldy   Mocldy   Sunny    Sunny    
+   36/57    40/57    41/57    27/46    34/60    40/68    41/72    
+    20/20    10/20    20/60    30/20    20/20    10/00    00/00   
+
+   Rexburg
+   Windy    Windy    Rain     Ptcldy   Mocldy   Ptcldy   Sunny    
+   36/56    40/57    41/56    27/44    33/58    39/67    40/70    
+    30/20    20/30    30/60    30/10    20/20    10/00    00/00   
+
+   Rupert
+   Windy    Ptcldy   Windy    Mocldy   Mocldy   Sunny    Sunny    
+   38/59    40/61    41/58    32/51    38/65    45/75    46/78    
+    10/00    00/00    10/40    10/10    10/00    00/00    00/00   
+
+   Shoshone
+   Sunny    Ptcldy   Rain     Mocldy   Ptcldy   Ptcldy   Sunny    
+   36/59    39/60    41/57    31/52    36/66    42/75    46/78    
+    10/10    20/10    20/50    10/10    10/10    00/00    00/00   
+
+   St. Anthony
+   Windy    Mocldy   Rain     Ptcldy   Mocldy   Ptcldy   Sunny    
+   35/56    38/55    40/55    26/44    32/56    37/66    38/69    
+    30/30    20/40    30/70    40/10    20/30    20/10    00/00   
+
+...SOUTHEAST IDAHO MOUNTAINS...
+   Ashton
+   Windy    Rain     Rain     Mocldy   Mocldy   Ptcldy   Sunny    
+   33/53    38/52    38/52    24/42    30/52    37/63    38/67    
+    50/40    40/60    50/80    60/20    30/40    30/10    00/00   
+
+   Downey
+   Ptcldy   Mocldy   Rain     Mocldy   Mocldy   Sunny    Sunny    
+   30/58    38/59    39/54    29/48    34/61    39/70    41/73    
+    10/10    10/20    10/70    30/20    20/20    10/00    00/00   
+
+   Driggs
+   Rnsnow   Rnsnow   Rnsnow   Mocldy   Mocldy   Ptcldy   Sunny    
+   29/46    35/45    35/46    19/37    27/48    35/59    37/64    
+    70/60    60/70    70/90    60/20    40/40    30/10    10/00   
+
+   Island Park
+   Rnsnow   Rnsnow   Rnsnow   Mocldy   Rnsnow   Ptcldy   Ptcldy   
+   26/48    31/47    31/47    16/36    24/46    31/57    31/61    
+    60/60    50/80    70/100   70/30    50/50    40/10    10/10   
+
+   Lava Hot Springs
+   Ptcldy   Mocldy   Rain     Ptcldy   Mocldy   Sunny    Sunny    
+   31/51    38/52    38/49    27/43    32/56    38/65    40/68    
+    10/10    10/20    20/70    40/20    30/20    10/10    00/00   
+
+   Malad
+   Ptcldy   Ptcldy   Rain     Mocldy   Mocldy   Sunny    Sunny    
+   31/60    37/61    41/56    32/49    36/63    41/70    43/74    
+    10/10    00/10    10/60    20/20    10/20    10/00    00/00   
+
+   Malta
+   Ptcldy   Ptcldy   Mocldy   Mocldy   Mocldy   Sunny    Sunny    
+   38/62    40/64    40/59    34/53    39/66    45/76    48/80    
+    00/10    00/10    10/40    10/10    10/10    00/00    00/00   
+
+   Montpelier
+   Ptcldy   Ptcldy   Rain     Ptcldy   Mocldy   Sunny    Sunny    
+   28/53    37/54    38/49    27/43    30/55    36/64    38/69    
+    10/20    20/30    20/80    40/20    30/30    10/10    00/00   
+
+   Oakley
+   Windy    Ptcldy   Rain     Mocldy   Mocldy   Sunny    Sunny    
+   41/61    41/62    42/58    34/52    41/66    47/75    51/78    
+    00/00    00/00    10/50    10/10    10/10    00/00    00/00   
+
+   Preston
+   Ptcldy   Ptcldy   Rain     Mocldy   Mocldy   Sunny    Sunny    
+   31/58    38/60    41/55    32/49    35/61    40/69    43/73    
+    10/10    10/20    10/70    30/20    20/20    10/00    00/00   
+
+   Soda Springs
+   Ptcldy   Mocldy   Rnsnow   Ptcldy   Mocldy   Sunny    Sunny    
+   28/50    35/50    36/47    25/41    29/54    35/62    38/65    
+    10/20    20/40    30/80    40/20    30/30    10/10    00/00   
+
+   Swan Valley
+   Windy    Rain     Rain     Mocldy   Mocldy   Sunny    Sunny    
+   34/50    40/49    39/49    26/41    31/53    39/63    40/68    
+    50/40    40/60    50/90    60/20    40/40    20/10    00/00   
+
+
+$$

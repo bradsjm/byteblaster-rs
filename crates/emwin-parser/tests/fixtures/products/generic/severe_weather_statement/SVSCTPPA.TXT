@@ -1,0 +1,79 @@
+952 
+WWUS51 KCTP 112048
+SVSCTP
+
+Severe Weather Statement
+National Weather Service State College PA
+448 PM EDT Wed Mar 11 2026
+
+PAC013-112057-
+/O.CAN.KCTP.SV.W.0009.000000T0000Z-260311T2115Z/
+Blair PA-
+448 PM EDT Wed Mar 11 2026
+
+...THE SEVERE THUNDERSTORM WARNING FOR SOUTHEASTERN BLAIR COUNTY IS
+CANCELLED...
+
+The severe thunderstorm which prompted the warning has moved out of 
+the warned area. Therefore, the warning has been cancelled.
+
+A Tornado Watch remains in effect until 800 PM EDT for central
+Pennsylvania.
+
+&&
+
+LAT...LON 4060 7744 4046 7748 4032 7770 4027 7814
+      4034 7815 4044 7811
+TIME...MOT...LOC 2047Z 255DEG 42KT 4036 7804 
+
+$$
+
+PAC061-067-087-112115-
+/O.CON.KCTP.SV.W.0009.000000T0000Z-260311T2115Z/
+Huntingdon PA-Juniata PA-Mifflin PA-
+448 PM EDT Wed Mar 11 2026
+
+...A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 515 PM EDT
+FOR CENTRAL HUNTINGDON...WEST CENTRAL JUNIATA AND SOUTHWESTERN
+MIFFLIN COUNTIES...
+
+At 447 PM EDT, a severe thunderstorm was located over Trough Creek
+State Park, moving east at 50 mph.
+
+HAZARD...60 mph wind gusts.
+
+SOURCE...ASOS Weather Station. At 4:30 PM 60 MPH winds was reported 
+         at KAOO in Altoona.
+
+IMPACT...Expect damage to roofs, siding, and trees.
+
+Locations impacted include...
+Mount Union, Raystown Dam, Walnut, Trough Creek State Park, Blacklog,
+Mapleton, McVeytown, Mill Creek, Kistler, Longfellow, Newton
+Hamilton, and Atkinson Mills.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+A Tornado Watch remains in effect until 800 PM EDT for central
+Pennsylvania.
+
+Stay inside a well built structure and keep away from windows.
+
+To report severe weather contact your nearest law enforcement agency.
+They will send your report to the National Weather Service office in
+State College PA.
+
+&&
+
+LAT...LON 4060 7744 4046 7748 4032 7770 4027 7814
+      4034 7815 4044 7811
+TIME...MOT...LOC 2047Z 255DEG 42KT 4036 7804 
+
+HAIL THREAT...RADAR INDICATED
+MAX HAIL SIZE...<.75 IN
+WIND THREAT...OBSERVED
+MAX WIND GUST...60 MPH
+
+$$
+
+Bowen

@@ -1,0 +1,67 @@
+881 
+WGUS44 KSHV 111938
+FLWSHV
+
+BULLETIN - IMMEDIATE BROADCAST REQUESTED
+Flood Warning
+National Weather Service Shreveport LA
+238 PM CDT Wed Mar 11 2026
+
+...The National Weather Service in Shreveport has issued a Flood
+Warning for the following rivers in Texas...
+
+  Neches River Near Diboll affecting Trinity, Angelina and Polk
+  Counties.
+
+For the Neches River...including Diboll...Minor flooding is forecast.
+
+PRECAUTIONARY/PREPAREDNESS ACTIONS...
+
+Do not drive cars through flooded areas. Caution is urged when
+walking near riverbanks. Turn around, don't drown when encountering
+flooded roads. Most flood deaths occur in vehicles.
+
+Motorists should not attempt to drive around barricades or drive cars
+through flooded areas.
+
+For more hydrologic information, copy and paste the following website
+address into your favorite web browser URL bar:
+https://water.noaa.gov/wfo/SHV
+
+The next statement will be issued Thursday afternoon at 245 PM CDT.
+
+&&
+
+TXC005-373-455-121945-
+/O.NEW.KSHV.FL.W.0005.260313T0000Z-260315T0600Z/
+/DIBT2.1.ER.260313T0000Z.260313T1200Z.260314T1200Z.NO/
+238 PM CDT Wed Mar 11 2026
+
+...FLOOD WARNING IN EFFECT FROM THURSDAY EVENING TO LATE SATURDAY
+NIGHT...
+
+* WHAT...Minor flooding is forecast.
+
+* WHERE...Neches River near Diboll.
+
+* WHEN...From Thursday evening to late Saturday night.
+
+* IMPACTS...At 12.0 feet, Minor lowland flooding occurs.  Expect
+  flooded boat ramps and trails.
+
+* ADDITIONAL DETAILS...
+  - At 2:15 PM CDT Wednesday the stage was 4.6 feet.
+  - Forecast...The river is expected to rise above flood stage
+    tomorrow evening to a crest of 12.3 feet Friday morning.
+  - Flood stage is 12.0 feet.
+  - http://www.weather.gov/safety/flood
+
+&&
+
+LAT...LON 3140 9494 3118 9478 3107 9454 3104 9460
+      3112 9487 3134 9502
+
+
+$$
+
+88

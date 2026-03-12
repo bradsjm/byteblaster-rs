@@ -588,6 +588,64 @@ mod tests {
         );
         assert!(sigmet.sigmet.is_some());
         assert!(sigmet.body.is_none());
+
+        let lsr = enrich_product(
+            "LSRBMX.TXT",
+            b"000 \nNWUS54 KBMX 100015\nLSRBMX\n..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...\n..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....\n0150 AM     HAIL             BROOKSVILLE             34.40N 87.70W\n03/10/2026  1.00 IN          WINSTON             AL  PUBLIC\n&&\n",
+        );
+        assert!(lsr.lsr.is_some());
+        assert!(lsr.body.is_none());
+
+        let cwa = enrich_product(
+            "CWAZLC.TXT",
+            b"000 \nFAUS22 KZLC 100229\nCWAZLC\nZLC2 CWA 100230\nZLC CWA 202 VALID UNTIL 100630\nFROM 75W BIL-15NNE SHR-55SW DDY-45S OCS-35SSE SLC-75W BIL\nAREA MOD/ISO SEV MTN WAVE FL350-ABV FL450. ALTITUDE CHANGE OF +/-25KTS. RPRTD BY ACFT. VISIBLE ON SATELLITE. CWSU 100230Z. CO ID MT UT WY\n=\n",
+        );
+        assert!(cwa.cwa.is_some());
+        assert!(cwa.body.is_none());
+
+        let wwp = enrich_product(
+            "WWP1.TXT",
+            b"000 \nWWUS40 KWNS 102008\nWWP1\nTORNADO WATCH PROBABILITIES FOR WT 0031\nPROBABILITY TABLE:\nPROB OF 2 OR MORE TORNADOES : 20%\nPROB OF 1 OR MORE STRONG /EF2-EF5/ TORNADOES : 10%\nPROB OF 10 OR MORE SEVERE WIND EVENTS : 70%\nPROB OF 1 OR MORE WIND EVENTS >= 65 KNOTS : 40%\nPROB OF 10 OR MORE SEVERE HAIL EVENTS : 60%\nPROB OF 1 OR MORE HAIL EVENTS >= 2 INCHES : 30%\nPROB OF 6 OR MORE COMBINED SEVERE HAIL/WIND EVENTS : 95%\nATTRIBUTE TABLE:\nMAX HAIL /INCHES/ : 2.0\nMAX WIND GUSTS SURFACE /KNOTS/ : 70\nMAX TOPS /X 100 FEET/ : 500\nMEAN STORM MOTION VECTOR /DEGREES AND KNOTS/ : 24035\nPARTICULARLY DANGEROUS SITUATION : NO\n",
+        );
+        assert!(wwp.wwp.is_some());
+        assert!(wwp.body.is_none());
+
+        let cf6 = enrich_product(
+            "CF6GSN.TXT",
+            b"000 \nCXGM50 PGUM 100030\nCF6GSN\nPRELIMINARY LOCAL CLIMATOLOGICAL DATA\nSTATION: TEST STATION\nMONTH: MARCH\nYEAR: 2026\nDY MAX MIN AVG DEP HDD CDD PCP SNW SND AWD MWD DIR MIN PSBL SKY WX GST GDR\n 1 70 50 60 0 5 0 0.10 0.0 0 8.5 20 180 600 720 CLR RA 30 190\n",
+        );
+        assert!(cf6.cf6.is_some());
+        assert!(cf6.body.is_none());
+
+        let dsm = enrich_product(
+            "DSMCQC.TXT",
+            b"000 \nCXUS45 KABQ 110415\nDSMCQC\nKCQC DS 2100 10/03 631553/ 400627// 63/ 40//9671608/T/00/00/00/T/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/-/-/-/-/28282059/29431531\n",
+        );
+        assert!(dsm.dsm.is_some());
+        assert!(dsm.body.is_none());
+
+        let hml = enrich_product(
+            "HMLMTR.TXT",
+            br#"000 
+SRUS56 KMTR 100002
+HMLMTR
+<?xml version="1.0"?>
+<site id="AAMC1" name="ARROYO SECO" originator="MTR" generationtime="2026-03-10T00:02:00Z">
+  <observed issued="2026-03-10T00:00:00Z" primaryName="Stage" primaryUnits="FT">
+    <datum><valid>2026-03-10T00:00:00Z</valid><primary>2.5</primary></datum>
+  </observed>
+</site>
+"#,
+        );
+        assert!(hml.hml.is_some());
+        assert!(hml.body.is_none());
+
+        let mos = enrich_product(
+            "METBCK.TXT",
+            b"000 \nFOUS46 KWNO 100000\nMETBCK\nKBCK NAM MET GUIDANCE 03/10/2026 0000 UTC\nHR 00 03 06\nTMP 20 21 22\nWND 05 06 07\n",
+        );
+        assert!(mos.mos.is_some());
+        assert!(mos.body.is_none());
     }
 
     #[test]

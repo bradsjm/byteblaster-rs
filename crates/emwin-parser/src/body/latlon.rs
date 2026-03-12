@@ -267,6 +267,9 @@ fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<Prod
     let mut index = 0;
 
     while index < tokens.len() {
+        if is_latlon_terminator(tokens[index]) {
+            break;
+        }
         let token = consume_coordinate_token(tokens, &mut index)?;
         if let Some((lat, lon)) = split_packed_coordinate_pair(&normalized, &token) {
             normalized.push(lat);
@@ -293,6 +296,10 @@ fn normalize_coordinate_tokens(tokens: &[&str]) -> Option<(Vec<String>, Vec<Prod
     }
 
     Some((normalized, issues))
+}
+
+fn is_latlon_terminator(token: &str) -> bool {
+    matches!(token.trim(), "$$" | "&&")
 }
 
 fn split_packed_coordinate_pair(normalized: &[String], token: &str) -> Option<(String, String)> {
@@ -734,5 +741,21 @@ mod tests {
             polygons[0].wkt,
             "POLYGON((-98.000000 40.000000, -98.000000 41.000000, -99.000000 42.000000, -98.000000 40.000000))"
         );
+    }
+
+    #[test]
+    fn parse_latlon_ignores_inline_dollar_terminator() {
+        let text = "LAT...LON 4076 7784 4078 7792 4084 7797 $$";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
+    }
+
+    #[test]
+    fn parse_latlon_ignores_inline_ampersand_terminator() {
+        let text = "LAT...LON 4076 7784 4078 7792 4084 7797 &&";
+        let polygons = parse_latlon_polygons(text);
+
+        assert_eq!(polygons.len(), 1);
     }
 }

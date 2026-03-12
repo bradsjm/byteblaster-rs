@@ -395,21 +395,22 @@ fn parse_ugc_segment(
         if let Some((state, geoclass, numeric)) = parse_full_ugc_segment(segment) {
             *current_prefix = Some((state.clone(), geoclass));
             (state, geoclass, numeric)
-        } else if is_shorthand_ugc_segment(segment) {
+        } else if is_ugc_numeric_sequence(segment) {
             let (state, geoclass) = current_prefix.clone()?;
             (state, geoclass, segment)
         } else {
             return None;
         };
 
-    let (start_num, end_num) = parse_ugc_numeric_range(numeric)?;
     let mut codes = Vec::new();
-    for number in start_num..=end_num {
-        codes.push(UgcCode {
-            state: state.clone(),
-            geoclass,
-            number,
-        });
+    for (start_num, end_num) in parse_ugc_numeric_ranges(numeric)? {
+        for number in start_num..=end_num {
+            codes.push(UgcCode {
+                state: state.clone(),
+                geoclass,
+                number,
+            });
+        }
     }
 
     Some(codes)
@@ -433,35 +434,94 @@ fn parse_full_ugc_segment(segment: &str) -> Option<(String, UgcClass, &str)> {
     }
 
     let numeric = &segment[3..];
-    if is_shorthand_ugc_segment(numeric) {
+    if is_ugc_numeric_sequence(numeric) {
         Some((state.to_string(), UgcClass::from_char(geoclass), numeric))
     } else {
         None
     }
 }
 
-fn is_shorthand_ugc_segment(segment: &str) -> bool {
-    match segment.split_once('>') {
-        Some((start, end)) => [start, end].into_iter().all(|part| {
-            part.len() == 3 && part.chars().all(|character| character.is_ascii_digit())
-        }),
-        None => segment.len() == 3 && segment.chars().all(|character| character.is_ascii_digit()),
+fn is_ugc_numeric_sequence(segment: &str) -> bool {
+    let tokens = segment.split('>').collect::<Vec<_>>();
+    let Some(first) = tokens.first().copied() else {
+        return false;
+    };
+
+    if !is_three_digit_ugc_token(first) {
+        return false;
     }
+
+    if tokens.len() == 1 {
+        return true;
+    }
+
+    if tokens.len() == 2 {
+        return is_one_to_three_digit_ugc_token(tokens[1]);
+    }
+
+    tokens.len().is_multiple_of(2)
+        && tokens[1..]
+            .iter()
+            .copied()
+            .all(is_one_to_three_digit_ugc_token)
 }
 
-fn parse_ugc_numeric_range(numeric: &str) -> Option<(u16, u16)> {
-    if let Some((start, end)) = numeric.split_once('>') {
-        let start_num = parse_ugc_number(start)?;
-        let end_num = parse_ugc_number(end)?;
-        Some((start_num, end_num))
-    } else {
-        let number = parse_ugc_number(numeric)?;
-        Some((number, number))
+fn parse_ugc_numeric_ranges(numeric: &str) -> Option<Vec<(u16, u16)>> {
+    let tokens = numeric.split('>').collect::<Vec<_>>();
+    let first = parse_ugc_number(tokens.first().copied()?)?;
+
+    if tokens.len() == 1 {
+        return Some(vec![(first, first)]);
     }
+
+    if tokens.len() == 2 {
+        let end = parse_ugc_range_end(first, tokens[1])?;
+        return Some(vec![(first, end)]);
+    }
+
+    if !tokens.len().is_multiple_of(2) {
+        return None;
+    }
+
+    let mut ranges = Vec::with_capacity(tokens.len() / 2);
+    let mut index = 0;
+    while index + 1 < tokens.len() {
+        let start = parse_ugc_number(tokens[index])?;
+        let end = parse_ugc_range_end(start, tokens[index + 1])?;
+        ranges.push((start, end));
+        index += 2;
+    }
+
+    Some(ranges)
+}
+
+fn parse_ugc_range_end(start: u16, token: &str) -> Option<u16> {
+    if !is_one_to_three_digit_ugc_token(token) {
+        return None;
+    }
+
+    if token.len() == 3 {
+        let end = parse_ugc_number(token)?;
+        return (end >= start).then_some(end);
+    }
+
+    let suffix: u16 = token.parse().ok()?;
+    let magnitude = 10u16.checked_pow(token.len() as u32)?;
+    let prefix = (start / magnitude) * magnitude;
+    let end = prefix + suffix;
+    (end >= start).then_some(end)
+}
+
+fn is_three_digit_ugc_token(token: &str) -> bool {
+    token.len() == 3 && token.chars().all(|character| character.is_ascii_digit())
+}
+
+fn is_one_to_three_digit_ugc_token(token: &str) -> bool {
+    (1..=3).contains(&token.len()) && token.chars().all(|character| character.is_ascii_digit())
 }
 
 fn parse_ugc_number(text: &str) -> Option<u16> {
-    if text.len() != 3 {
+    if !is_three_digit_ugc_token(text) {
         return None;
     }
     text.parse().ok()
@@ -517,6 +577,50 @@ mod tests {
             names(&sections[0].counties["IA"]),
             vec![Some("Adair"), None, Some("Adams")]
         );
+    }
+
+    #[test]
+    fn parse_ugc_abbreviated_range_end() {
+        let text = "IDZ051>75-121100-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(
+            sections[0].zones["ID"]
+                .iter()
+                .map(|area| area.id)
+                .collect::<Vec<_>>(),
+            (51..=75).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn parse_ugc_multiple_range_pairs_in_single_segment() {
+        let text = "MDZ501>502>509>510-121100-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(
+            sections[0].zones["MD"]
+                .iter()
+                .map(|area| area.id)
+                .collect::<Vec<_>>(),
+            vec![501, 502, 509, 510]
+        );
+    }
+
+    #[test]
+    fn parse_ugc_combines_abbreviated_and_standard_ranges() {
+        let text = "MTZ028>42-056>058-112100-\n";
+        let sections = parse_ugc_sections(text, test_valid_time());
+
+        assert_eq!(sections.len(), 1);
+        let ids = sections[0].zones["MT"]
+            .iter()
+            .map(|area| area.id)
+            .collect::<Vec<_>>();
+        assert!(ids.starts_with(&(28..=42).collect::<Vec<_>>()));
+        assert!(ids.ends_with(&[56, 57, 58]));
     }
 
     #[test]

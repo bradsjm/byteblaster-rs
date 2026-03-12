@@ -1,4 +1,4 @@
-//! Fixture-backed parity coverage for specialized AFOS bulletin families.
+//! Real-product corpus coverage for specialized bulletin families.
 
 use emwin_parser::{CwaGeometryKind, ProductEnrichmentSource, WwpWatchType, enrich_product};
 
@@ -6,7 +6,7 @@ use emwin_parser::{CwaGeometryKind, ProductEnrichmentSource, WwpWatchType, enric
 fn exact_lsr_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100015-KBMX-NWUS54-LSRBMX.txt",
-        include_bytes!("fixtures/specialized/202603100015-KBMX-NWUS54-LSRBMX.txt"),
+        include_bytes!("fixtures/products/specialized/lsr/202603100015-KBMX-NWUS54-LSRBMX.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextLsrBulletin);
@@ -22,10 +22,37 @@ fn exact_lsr_product_parses_specialized_bulletin() {
 }
 
 #[test]
+fn exact_lsr_edge_case_product_parses_specialized_bulletin() {
+    let enrichment = enrich_product(
+        "LSRCYSWY.TXT",
+        include_bytes!("fixtures/products/specialized/lsr/LSRCYSWY.TXT"),
+    );
+
+    assert_eq!(enrichment.source, ProductEnrichmentSource::TextLsrBulletin);
+    assert_eq!(enrichment.family, Some("lsr_bulletin"));
+    assert!(
+        !enrichment
+            .issues
+            .iter()
+            .any(|issue| issue.code == "invalid_lsr_report"),
+        "{:#?}",
+        enrichment.issues
+    );
+
+    let bulletin = enrichment.lsr.expect("expected LSR bulletin");
+    assert!(
+        bulletin
+            .reports
+            .iter()
+            .any(|report| report.city == "7 NW Elk Mountain")
+    );
+}
+
+#[test]
 fn exact_cwa_active_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100229-KZLC-FAUS22-CWAZLC.txt",
-        include_bytes!("fixtures/specialized/202603100229-KZLC-FAUS22-CWAZLC.txt"),
+        include_bytes!("fixtures/products/specialized/cwa/202603100229-KZLC-FAUS22-CWAZLC.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextCwaBulletin);
@@ -52,7 +79,7 @@ fn exact_cwa_active_product_parses_specialized_bulletin() {
 fn exact_cwa_cancel_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100038-KZFW-FAUS24-CWAZFW.txt",
-        include_bytes!("fixtures/specialized/202603100038-KZFW-FAUS24-CWAZFW.txt"),
+        include_bytes!("fixtures/products/specialized/cwa/202603100038-KZFW-FAUS24-CWAZFW.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextCwaBulletin);
@@ -65,7 +92,7 @@ fn exact_cwa_cancel_product_parses_specialized_bulletin() {
 fn exact_wwp_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603102008-KWNS-WWUS40-WWP1.txt",
-        include_bytes!("fixtures/specialized/202603102008-KWNS-WWUS40-WWP1.txt"),
+        include_bytes!("fixtures/products/specialized/wwp/202603102008-KWNS-WWUS40-WWP1.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextWwpBulletin);
@@ -83,7 +110,7 @@ fn exact_wwp_product_parses_specialized_bulletin() {
 fn exact_cf6_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100030-PGUM-CXGM50-CF6GSN.txt",
-        include_bytes!("fixtures/specialized/202603100030-PGUM-CXGM50-CF6GSN.txt"),
+        include_bytes!("fixtures/products/specialized/cf6/202603100030-PGUM-CXGM50-CF6GSN.txt"),
     );
 
     assert_eq!(
@@ -105,7 +132,7 @@ fn exact_cf6_product_parses_specialized_bulletin() {
 fn exact_dsm_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603110415-KABQ-CXUS45-DSMCQC.txt",
-        include_bytes!("fixtures/specialized/202603110415-KABQ-CXUS45-DSMCQC.txt"),
+        include_bytes!("fixtures/products/specialized/dsm/202603110415-KABQ-CXUS45-DSMCQC.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextDsmBulletin);
@@ -122,7 +149,7 @@ fn exact_dsm_product_parses_specialized_bulletin() {
 fn exact_hml_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100002-KMTR-SRUS56-HMLMTR.txt",
-        include_bytes!("fixtures/specialized/202603100002-KMTR-SRUS56-HMLMTR.txt"),
+        include_bytes!("fixtures/products/specialized/hml/202603100002-KMTR-SRUS56-HMLMTR.txt"),
     );
 
     assert_eq!(enrichment.source, ProductEnrichmentSource::TextHmlBulletin);
@@ -139,7 +166,7 @@ fn exact_hml_product_parses_specialized_bulletin() {
 fn exact_met_mos_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100000-KWNO-FOUS46-METBCK.txt",
-        include_bytes!("fixtures/specialized/202603100000-KWNO-FOUS46-METBCK.txt"),
+        include_bytes!("fixtures/products/specialized/mos/202603100000-KWNO-FOUS46-METBCK.txt"),
     );
 
     assert_eq!(
@@ -161,7 +188,7 @@ fn exact_met_mos_product_parses_specialized_bulletin() {
 fn exact_ftp_mos_product_parses_specialized_bulletin() {
     let enrichment = enrich_product(
         "202603100000-KWNO-FOAK12-FTPACR.txt",
-        include_bytes!("fixtures/specialized/202603100000-KWNO-FOAK12-FTPACR.txt"),
+        include_bytes!("fixtures/products/specialized/mos/202603100000-KWNO-FOAK12-FTPACR.txt"),
     );
 
     assert_eq!(

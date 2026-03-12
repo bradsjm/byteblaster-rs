@@ -1,0 +1,57 @@
+397 
+NWUS55 KCYS 112047
+LSRCYS
+
+Preliminary Local Storm Report
+National Weather Service Cheyenne WY
+247 PM MDT Wed Mar 11 2026
+
+..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...
+..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....
+            ..REMARKS..
+
+0700 AM     Snow             3 NNW Horse Creek       41.44N 105.20W
+03/11/2026  M2.2 Inch        Laramie            WY   Cocorahs         
+
+            Cocorahs station WY-LM-229 Laramie 21.7 ENE. 
+
+0700 AM     Snow             6 NE Arlington          41.66N 106.13W
+03/11/2026  M10.1 Inch       Carbon             WY   Cocorahs         
+
+            Cocorahs station WY-CR-5 Rock River 9.6 WSW. 
+
+0700 AM     Snow             2 S Elk Mountain        41.65N 106.41W
+03/11/2026  M7.0 Inch        Carbon             WY   Cocorahs         
+
+            Cocorahs station WY-CR-4 Elk Mountain 2.1 S. 
+
+0700 AM     Snow             6 NE Riverside          41.27N 106.69W
+03/11/2026  M3.0 Inch        Carbon             WY   Cocorahs         
+
+            Cocorahs station WY-CR-32 Riverside 6.1 NE. 
+
+0700 AM     Snow             Elk Mountain            41.68N 106.42W
+03/11/2026  M5.0 Inch        Carbon             WY   Cocorahs         
+
+            Cocorahs station WY-CR-18 Elk Mountain 0.3 
+            SW. 
+
+0700 AM     Snow             7 ENE Bosler            41.63N 105.57W
+03/11/2026  M3.0 Inch        Albany             WY   Cocorahs         
+
+            Cocorahs station WY-AB-188 Bosler 8.0 NE. 
+
+0700 AM     Snow             11 ESE Crawford         42.61N 103.23W
+03/11/2026  M2.5 Inch        Dawes              NE   Cocorahs         
+
+            Cocorahs station NE-DS-7 Crawford 10.8 ESE. 
+
+0236 PM     Non-Tstm Wnd Gst 7 NW Elk Mountain       41.75N 106.51W
+03/11/2026  M63 MPH          Carbon             WY   Mesonet          
+
+            WYDOT Sensor at Halleck Ridge. 
+
+
+&&
+
+$$

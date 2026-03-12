@@ -445,15 +445,9 @@ inline or module-local samples and must not import files from `tests/**`.
 - Some valid WMO bulletin families are recognized but intentionally reported as unsupported.
 - Internal performance work is focused on the shared normalization/header/classification path; not every specialized parser has been rewritten around borrowed parsing yet.
 
-## Validation
+## Development
 
-From the repository root:
-
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test -p emwin-parser
-```
+**Required** Follow instructions in [`agents`](AGENTS.md) when working on this crate.
 
 ## Related Crates
 

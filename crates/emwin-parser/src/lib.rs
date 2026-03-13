@@ -11,6 +11,7 @@ mod geo;
 mod header;
 mod issue;
 mod pipeline;
+mod projection;
 mod specialized;
 mod time;
 
@@ -41,6 +42,11 @@ pub use header::{
     parse_text_product,
 };
 pub use issue::ProductParseIssue;
+pub use projection::{
+    ProductArtifactDetailV2, ProductDetailV2, ProductHeaderV2, ProductOfficeV2,
+    ProductSummaryFacetsV2, ProductSummaryIssuesV2, ProductSummaryKeysV2, ProductSummaryV2,
+    detail_product_v2, summarize_product_v2,
+};
 pub use specialized::{
     Cf6Bulletin, Cf6DayRow, CliBulletin, CliReport, CwaBulletin, CwaGeometry, CwaGeometryKind,
     DcpBulletin, DsmBulletin, DsmSummary, EroBulletin, EroOutlook, FdBulletin, FdForecast,

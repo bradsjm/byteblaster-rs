@@ -3,17 +3,37 @@
 //! The file pipeline keeps persistence concerns separate from stream rendering so the same
 //! assembled payload can be written to disk and broadcast to other consumers.
 
-use emwin_parser::{ProductEnrichment, enrich_product};
-use serde::Serialize;
+use emwin_parser::{
+    ProductDetailV2, ProductEnrichment, ProductSummaryV2, detail_product_v2, enrich_product,
+    summarize_product_v2,
+};
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 use std::path::{Path, PathBuf};
 
 /// Serializable metadata emitted beside a completed output file.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompletedFileMetadata {
     pub(crate) filename: String,
     pub(crate) size: usize,
     pub(crate) timestamp_utc: u64,
     pub(crate) product: ProductEnrichment,
+    pub(crate) product_summary: ProductSummaryV2,
+    pub(crate) product_detail: ProductDetailV2,
+}
+
+impl Serialize for CompletedFileMetadata {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("CompletedFileMetadata", 4)?;
+        state.serialize_field("filename", &self.filename)?;
+        state.serialize_field("size", &self.size)?;
+        state.serialize_field("timestamp_utc", &self.timestamp_utc)?;
+        state.serialize_field("product", &self.product_detail)?;
+        state.end()
+    }
 }
 
 /// Paths and metadata returned after a file plus sidecar have been written.
@@ -69,11 +89,14 @@ pub(crate) fn build_completed_file_metadata(
     timestamp_utc: u64,
     data: &[u8],
 ) -> CompletedFileMetadata {
+    let product = enrich_product(filename, data);
     CompletedFileMetadata {
         filename: filename.to_string(),
         size: data.len(),
         timestamp_utc,
-        product: enrich_product(filename, data),
+        product_summary: summarize_product_v2(&product),
+        product_detail: detail_product_v2(&product),
+        product,
     }
 }
 
@@ -204,10 +227,12 @@ mod tests {
 
         assert_eq!(decoded["filename"], "AFDBOX.TXT");
         assert_eq!(decoded["size"], metadata.size);
+        assert_eq!(decoded["product"]["schema_version"], 2);
         assert_eq!(
             decoded["product"]["issues"][0]["code"],
             "invalid_wmo_header"
         );
+        assert!(decoded["product"].get("parsed").is_none());
     }
 
     #[test]

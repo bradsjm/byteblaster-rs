@@ -85,7 +85,7 @@ Example wire form:
 ```text
 id: 42
 event: file_complete
-data: {"filename":"WARN.txt","size":2140,"timestamp_utc":1767488000,"product":{"source":"text_header","family":"nws_text_product","title":"Area Forecast Discussion","container":"raw","pil":"AFD","wmo_prefix":"FX","office":{"code":"FFC","city":"Peachtree City","state":"GA"},"header":{"ttaaii":"FXUS62","cccc":"KFFC","ddhhmm":"022101","afos":"AFDFFC"},"issues":[]},"download_url":"/files/WARN.txt"}
+data: {"filename":"WARN.txt","size":2140,"timestamp_utc":1767488000,"product":{"schema_version":2,"source":"text_header","family":"nws_text_product","title":"Area Forecast Discussion","container":"raw","pil":"AFD","wmo_prefix":"FX","office":{"code":"FFC","city":"Peachtree City","state":"GA"},"header":{"kind":"afos","ttaaii":"FXUS62","cccc":"KFFC","ddhhmm":"022101","afos":"AFDFFC"},"facets":{"has_body":false,"has_artifact":false,"has_issues":false,"vtec_count":0,"ugc_count":0,"hvtec_count":0,"latlon_count":0,"time_mot_loc_count":0,"wind_hail_count":0},"keys":{},"issues":{"count":0,"codes":[]}},"download_url":"/files/WARN.txt"}
 ```
 
 ## `GET /files`
@@ -102,6 +102,7 @@ Response shape:
       "size": 2140,
       "timestamp_utc": 1767488000,
       "product": {
+        "schema_version": 2,
         "source": "text_header",
         "family": "nws_text_product",
         "title": "Area Forecast Discussion",
@@ -114,6 +115,7 @@ Response shape:
           "state": "GA"
         },
         "header": {
+          "kind": "afos",
           "ttaaii": "FXUS62",
           "cccc": "KFFC",
           "ddhhmm": "022101",
@@ -133,7 +135,7 @@ Fields:
   - `filename` (string): logical filename from feed
   - `size` (number): bytes
   - `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
-  - `product` (object): parsed enrichment metadata for the completed product
+  - `product` (object): detail v2 metadata for the completed product
   - `download_url` (string): URL-encoded retrieval path for `GET /files/*filename`
 
 ## `GET /files/*filename`
@@ -364,7 +366,7 @@ Fields:
 - `filename` (string): completed file name
 - `size` (number): file bytes
 - `timestamp_utc` (number): UNIX timestamp seconds parsed from protocol `/FD`
-- `product` (object): parsed enrichment metadata for the completed product; shape matches the sidecar metadata produced by `stream --output-dir`
+  - `product` (object): summary v2 metadata for the completed product
 - `download_url` (string): URL-encoded retrieval path for `GET /files/*filename`
 
 ## `event: telemetry`

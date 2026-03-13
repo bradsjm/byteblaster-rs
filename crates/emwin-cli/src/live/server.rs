@@ -249,7 +249,7 @@ mod tests {
         sanitize_requested_filename,
     };
     use crate::live::file_pipeline::CompletedFileMetadata;
-    use crate::live::server::types::{AppState, CompletedFilePayload, EventKind, EventsQuery};
+    use crate::live::server::types::{AppState, CompletedFileEventPayload, EventKind, EventsQuery};
     use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
     use axum::Json;
@@ -397,14 +397,17 @@ AKC090-051300-
             b"ignored".as_slice()
         };
 
-        EventKind::FileComplete(Box::new(CompletedFilePayload::from_metadata(
-            CompletedFileMetadata {
-                filename: filename.to_string(),
-                size: 11,
-                timestamp_utc: 1,
-                product: emwin_parser::enrich_product(filename, data),
-            },
-        )))
+        let product = emwin_parser::enrich_product(filename, data);
+        let metadata = CompletedFileMetadata {
+            filename: filename.to_string(),
+            size: 11,
+            timestamp_utc: 1,
+            product_summary: emwin_parser::summarize_product_v2(&product),
+            product_detail: emwin_parser::detail_product_v2(&product),
+            product,
+        };
+
+        EventKind::FileComplete(Box::new(CompletedFileEventPayload::from_metadata(metadata)))
     }
 
     fn empty_events_query() -> EventsQuery {
@@ -596,10 +599,17 @@ Body
         );
         assert_eq!(file.metadata.product.pil.as_deref(), Some("TAF"));
         assert!(file.metadata.product.issues.is_empty());
-        let product_json =
-            serde_json::to_value(&file.metadata.product).expect("product should serialize");
-        assert!(product_json.get("flags").is_none());
-        assert!(product_json["office"].get("office_name").is_none());
+        let metadata_json =
+            serde_json::to_value(&file.metadata).expect("metadata should serialize");
+        assert_eq!(metadata_json["product"]["schema_version"], 2);
+        assert_eq!(metadata_json["product"]["header"]["kind"], "afos");
+        assert!(metadata_json["product"].get("parsed").is_none());
+        assert!(metadata_json["product"].get("wmo_header").is_none());
+        assert!(
+            metadata_json["product"]["office"]
+                .get("office_name")
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -1006,5 +1016,9 @@ Body
 
         assert_eq!(value["download_url"], "/files/nested%2Fmy%20file.txt");
         assert_eq!(value["timestamp_utc"], 1);
+        assert_eq!(value["product"]["schema_version"], 2);
+        assert!(value["product"].get("facets").is_some());
+        assert!(value["product"].get("issues").is_some());
+        assert!(value["product"].get("artifact").is_none());
     }
 }

@@ -3,7 +3,7 @@
 //! This module translates runtime events into retained files, broadcast notifications, and
 //! telemetry snapshots without leaking transport-specific details into the HTTP layer.
 
-use super::types::{AppState, CompletedFilePayload, EventKind, TelemetryPayload};
+use super::types::{AppState, CompletedFileEventPayload, EventKind, TelemetryPayload};
 use crate::live::archive_postprocess::post_process_archive;
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
@@ -168,7 +168,7 @@ fn handle_ingest_event(
             };
             super::publish(
                 state,
-                EventKind::FileComplete(Box::new(CompletedFilePayload::from_metadata(
+                EventKind::FileComplete(Box::new(CompletedFileEventPayload::from_metadata(
                     retained_meta,
                 ))),
             );

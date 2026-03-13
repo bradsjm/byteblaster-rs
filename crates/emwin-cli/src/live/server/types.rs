@@ -9,7 +9,8 @@ use crate::live::filter::{FileEventFilter, FileFilterInput};
 use crate::live::server_support::{RetainedFiles, file_download_url};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -43,6 +44,37 @@ impl CompletedFilePayload {
     }
 }
 
+/// Lightweight file payload advertised in the SSE event stream.
+#[derive(Debug, Clone)]
+pub(crate) struct CompletedFileEventPayload {
+    pub(crate) metadata: CompletedFileMetadata,
+    pub(crate) download_url: String,
+}
+
+impl CompletedFileEventPayload {
+    pub(crate) fn from_metadata(metadata: CompletedFileMetadata) -> Self {
+        Self {
+            download_url: file_download_url(&metadata.filename),
+            metadata,
+        }
+    }
+}
+
+impl Serialize for CompletedFileEventPayload {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("CompletedFileEventPayload", 5)?;
+        state.serialize_field("filename", &self.metadata.filename)?;
+        state.serialize_field("size", &self.metadata.size)?;
+        state.serialize_field("timestamp_utc", &self.metadata.timestamp_utc)?;
+        state.serialize_field("product", &self.metadata.product_summary)?;
+        state.serialize_field("download_url", &self.download_url)?;
+        state.end()
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "receiver", rename_all = "snake_case")]
 pub(crate) enum TelemetryPayload {
@@ -57,7 +89,7 @@ pub(crate) enum EventKind {
     Disconnected,
     QbtFrame(QbtFrameEvent),
     WxWireFrame(WxWireReceiverFrameEvent),
-    FileComplete(Box<CompletedFilePayload>),
+    FileComplete(Box<CompletedFileEventPayload>),
     Telemetry(TelemetryPayload),
     Error { message: String },
 }

@@ -371,33 +371,29 @@ assert_eq!(vtec.len(), 1);
 
 ## Output Shape
 
-`enrich_product()` returns a single `ProductEnrichment` value that can carry:
+`enrich_product()` still returns the canonical `ProductEnrichment` parse result used inside the
+workspace, but external JSON callers should prefer the v2 projection helpers:
 
-- source classification
-- product family/title
-- AFOS header or WMO-only header
-- office metadata
-- generic parsed body content
-- one specialized parsed bulletin payload
-- zero or more parse issues
+- `summarize_product_v2(&ProductEnrichment) -> ProductSummaryV2`
+- `detail_product_v2(&ProductEnrichment) -> ProductDetailV2`
+
+`ProductSummaryV2` is the smaller wire/index shape intended for streaming and model-facing use.
+`ProductDetailV2` is the richer retrieval/archive shape intended for persisted metadata and
+detail-oriented APIs.
 
 Conceptually:
 
 ```text
-ProductEnrichment
+ProductEnrichment (canonical internal parse result)
 |
-+-- source
-+-- family/title
-+-- container
-+-- pil / wmo_prefix / office
-+-- header | wmo_header
-+-- bbb_kind
-+-- body
-+-- metar | taf | dcp | fd | pirep | sigmet
-+-- issues[]
++-- summarize_product_v2 -> ProductSummaryV2
+|
++-- detail_product_v2    -> ProductDetailV2
 ```
 
-The current public shape is intentionally stable even though the internal pipeline is more structured than the flat result object suggests.
+The v2 shapes intentionally collapse `header` and `wmo_header` into one discriminated header
+object and replace the old parser-specific `parsed` wrapper with `artifact_kind` plus an optional
+detail artifact payload.
 
 ## Text Conditioning Behavior
 
@@ -479,7 +475,8 @@ module-local samples and must not import files from `tests/**`. See
 
 ## Current Limitations
 
-- The public `ProductEnrichment` result model is still a flat compatibility shape.
+- `ProductEnrichment` remains the canonical parser result and is richer than the default external
+  summary JSON.
 - Only selected specialized bulletin families are parsed structurally.
 - Some valid WMO bulletin families are recognized but intentionally reported as unsupported.
 - Internal performance work is focused on the shared normalization/header/classification path; not every specialized parser has been rewritten around borrowed parsing yet.

@@ -278,7 +278,7 @@ fn magnitude_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"^(?:(?P<qual>[EMULTG><=]+)\s*)?(?P<value>-?\d+(?:\.\d+)?)\s*(?P<units>[A-Z/]+)?$",
+            r"^(?:(?P<qual>[EMULTG><=]+)\s*)?(?P<value>-?\d+(?:\.\d+)?)\s*(?P<units>[A-Za-z/]+)?$",
         )
         .expect("valid LSR magnitude regex")
     })
@@ -290,12 +290,15 @@ fn parse_magnitude(raw: &str) -> (Option<f64>, Option<String>, Option<String>) {
         return (None, None, None);
     }
     let Some(caps) = magnitude_re().captures(trimmed) else {
-        return (None, Some(trimmed.to_string()), None);
+        return (None, None, None);
     };
     let value = caps
         .name("value")
         .and_then(|m| m.as_str().parse::<f64>().ok());
-    let units = caps.name("units").map(|m| m.as_str().to_string());
+    let units = value.and_then(|_| {
+        caps.name("units")
+            .map(|m| m.as_str().trim().to_ascii_uppercase())
+    });
     let qualifier = caps.name("qual").map(|m| m.as_str().trim().to_string());
     (value, units, qualifier)
 }
@@ -353,6 +356,27 @@ QUARTER SIZE HAIL REPORTED
         assert_eq!(bulletin.reports[0].city, "7 NW Elk Mountain");
         assert_eq!(bulletin.reports[0].magnitude_value, Some(63.0));
         assert_eq!(bulletin.reports[0].magnitude_units.as_deref(), Some("MPH"));
+        assert_eq!(
+            bulletin.reports[0].magnitude_qualifier.as_deref(),
+            Some("M")
+        );
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn parses_mixed_case_units_without_losing_value_or_qualifier() {
+        let text = "\
+1130 AM     Snow             2 E Escanaba            45.74N 87.05W
+03/13/2026  M9.0 Inch        Delta              MI   Trained Spotter
+
+            Snowfall through 11:30 A.M. in Escanaba.
+
+&&";
+        let (bulletin, issues) = parse_lsr_bulletin(text, Utc::now()).expect("lsr bulletin");
+
+        assert_eq!(bulletin.reports.len(), 1);
+        assert_eq!(bulletin.reports[0].magnitude_value, Some(9.0));
+        assert_eq!(bulletin.reports[0].magnitude_units.as_deref(), Some("INCH"));
         assert_eq!(
             bulletin.reports[0].magnitude_qualifier.as_deref(),
             Some("M")

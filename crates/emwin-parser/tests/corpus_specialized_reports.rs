@@ -29,6 +29,30 @@ fn pirep_corpus_routes_to_structured_bulletins() {
             "{} -> expected preserved raw reports",
             case.name
         );
+        for report in &bulletin.reports {
+            assert!(
+                report.station.is_some()
+                    || report.time.is_some()
+                    || report.location_raw.is_some()
+                    || report.location.is_some()
+                    || report.flight_level_ft.is_some()
+                    || report.aircraft_type.is_some()
+                    || report.sky_condition.is_some()
+                    || report.turbulence.is_some()
+                    || report.icing.is_some()
+                    || report.temperature_c.is_some()
+                    || report.remarks.is_some(),
+                "{} -> expected PIREP semantic fields",
+                case.name
+            );
+            if report.location.is_some() {
+                assert!(
+                    report.location_raw.is_some(),
+                    "{} -> parsed PIREP location requires raw location text",
+                    case.name
+                );
+            }
+        }
     }
 }
 
@@ -53,6 +77,45 @@ fn lsr_corpus_routes_to_structured_bulletins() {
             "{} -> expected at least one LSR report",
             case.name
         );
+        for report in &bulletin.reports {
+            assert!(
+                report.magnitude_value.is_some() || report.magnitude_units.is_none(),
+                "{} -> invalid magnitude decomposition for report {report:#?}",
+                case.name
+            );
+        }
+
+        if case.name == "LSR-LSRREV_trace.txt" {
+            assert_eq!(
+                bulletin.reports.len(),
+                2,
+                "{} -> expected two reports",
+                case.name
+            );
+            assert_eq!(bulletin.reports[0].magnitude_value, Some(5.0));
+            assert_eq!(
+                bulletin.reports[0].magnitude_units.as_deref(),
+                Some("INCH"),
+                "{} -> expected normalized mixed-case units",
+                case.name
+            );
+            assert_eq!(
+                bulletin.reports[0].magnitude_qualifier.as_deref(),
+                Some("M"),
+                "{} -> expected mixed-case qualifier preserved",
+                case.name
+            );
+            assert!(
+                bulletin.reports[1].magnitude_value.is_none(),
+                "{} -> trace-style report should not invent a numeric magnitude",
+                case.name
+            );
+            assert!(
+                bulletin.reports[1].magnitude_units.is_none(),
+                "{} -> trace-style report should not populate units without a value",
+                case.name
+            );
+        }
     }
 }
 
@@ -77,6 +140,55 @@ fn cli_corpus_routes_to_structured_bulletins() {
             "{} -> expected CLI station names",
             case.name
         );
+        for report in &bulletin.reports {
+            assert!(
+                !report.raw.trim().is_empty(),
+                "{} -> expected CLI raw section text",
+                case.name
+            );
+            assert!(
+                report.valid_date.is_some()
+                    || report.temperature_maximum.is_some()
+                    || report.temperature_minimum.is_some()
+                    || report.precip_month_inches.is_some()
+                    || report.precip_year_inches.is_some()
+                    || report.precip_today_inches.is_some()
+                    || report.snow_month_inches.is_some()
+                    || report.snow_season_inches.is_some()
+                    || report.snow_today_inches.is_some()
+                    || report.snow_depth_inches.is_some()
+                    || report.average_sky_cover.is_some()
+                    || report.average_wind_speed_mph.is_some()
+                    || report.resultant_wind_speed_mph.is_some()
+                    || report.resultant_wind_direction_degrees.is_some()
+                    || report.highest_wind_speed_mph.is_some()
+                    || report.highest_wind_direction_degrees.is_some()
+                    || report.highest_gust_speed_mph.is_some(),
+                "{} -> expected CLI metrics",
+                case.name
+            );
+            if report.temperature_maximum_time.is_some() {
+                assert!(
+                    report.temperature_maximum.is_some(),
+                    "{} -> CLI maximum time requires maximum temperature",
+                    case.name
+                );
+            }
+            if report.temperature_minimum_time.is_some() {
+                assert!(
+                    report.temperature_minimum.is_some(),
+                    "{} -> CLI minimum time requires minimum temperature",
+                    case.name
+                );
+            }
+            if report.highest_gust_direction_degrees.is_some() {
+                assert!(
+                    report.highest_gust_speed_mph.is_some(),
+                    "{} -> CLI gust direction requires gust speed",
+                    case.name
+                );
+            }
+        }
     }
 }
 

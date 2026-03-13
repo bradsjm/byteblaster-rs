@@ -1,7 +1,7 @@
 mod common;
 
 use common::{assert_supported_family, assert_wmo, enrich, fixture_cases};
-use emwin_parser::enrich_product;
+use emwin_parser::{TafForecastGroupKind, enrich_product};
 
 #[test]
 fn metar_corpus_routes_to_wmo_bulletins() {
@@ -24,6 +24,39 @@ fn metar_corpus_routes_to_wmo_bulletins() {
             "{} -> expected METAR reports",
             case.name
         );
+        for report in &bulletin.reports {
+            assert!(
+                !report.station.trim().is_empty(),
+                "{} -> expected METAR station",
+                case.name
+            );
+            assert!(
+                !report.observation_time.trim().is_empty(),
+                "{} -> expected METAR observation time",
+                case.name
+            );
+            assert!(
+                !report.raw.trim().is_empty(),
+                "{} -> expected preserved METAR report text",
+                case.name
+            );
+            if let Some(wind) = &report.wind
+                && let Some(gust_kt) = wind.gust_kt
+            {
+                assert!(
+                    gust_kt >= wind.speed_kt,
+                    "{} -> METAR gust must be at least steady wind",
+                    case.name
+                );
+            }
+            if let Some(altimeter) = &report.altimeter {
+                assert!(
+                    !altimeter.trim().is_empty(),
+                    "{} -> expected non-empty METAR altimeter token",
+                    case.name
+                );
+            }
+        }
     }
 }
 
@@ -48,6 +81,41 @@ fn taf_corpus_routes_to_wmo_bulletins() {
             "{} -> expected station",
             case.name
         );
+        assert!(
+            !bulletin.issue_time.trim().is_empty(),
+            "{} -> expected TAF issue time",
+            case.name
+        );
+        assert!(
+            !bulletin.raw.trim().is_empty(),
+            "{} -> expected preserved TAF text",
+            case.name
+        );
+        assert_eq!(
+            bulletin.valid_from.is_some(),
+            bulletin.valid_to.is_some(),
+            "{} -> TAF validity bounds must be paired",
+            case.name
+        );
+        for group in &bulletin.groups {
+            assert!(
+                !group.raw.trim().is_empty(),
+                "{} -> expected TAF group raw text",
+                case.name
+            );
+            if let Some(probability_percent) = group.probability_percent {
+                assert!(
+                    matches!(group.change_kind, TafForecastGroupKind::Prob),
+                    "{} -> only PROB groups may carry probability",
+                    case.name
+                );
+                assert!(
+                    probability_percent <= 100,
+                    "{} -> invalid TAF probability",
+                    case.name
+                );
+            }
+        }
     }
 }
 
@@ -104,6 +172,47 @@ fn fd_corpus_routes_to_wmo_bulletins() {
             "{} -> expected FD forecasts",
             case.name
         );
+        assert!(
+            !bulletin.based_on_time.trim().is_empty(),
+            "{} -> expected FD based-on time",
+            case.name
+        );
+        assert!(
+            !bulletin.valid_time.trim().is_empty(),
+            "{} -> expected FD valid time",
+            case.name
+        );
+        assert!(
+            !bulletin.levels.is_empty(),
+            "{} -> expected FD levels",
+            case.name
+        );
+        for forecast in &bulletin.forecasts {
+            assert!(
+                !forecast.station.trim().is_empty(),
+                "{} -> expected FD station",
+                case.name
+            );
+            assert!(
+                !forecast.groups.is_empty(),
+                "{} -> expected FD forecast groups",
+                case.name
+            );
+            for group in &forecast.groups {
+                assert!(
+                    group.altitude_hundreds_ft > 0,
+                    "{} -> expected positive FD altitude",
+                    case.name
+                );
+                if group.wind_direction_degrees.is_some() {
+                    assert!(
+                        group.wind_speed_kt.is_some(),
+                        "{} -> FD wind direction requires speed",
+                        case.name
+                    );
+                }
+            }
+        }
     }
 }
 

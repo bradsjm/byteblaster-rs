@@ -57,6 +57,45 @@ fn dsm_corpus_routes_to_structured_bulletins() {
             "{} -> expected DSM summaries",
             case.name
         );
+        for summary in &bulletin.summaries {
+            assert!(
+                !summary.station.trim().is_empty(),
+                "{} -> expected DSM station",
+                case.name
+            );
+            assert!(
+                !summary.date.trim().is_empty(),
+                "{} -> expected DSM date",
+                case.name
+            );
+            assert_eq!(
+                summary.hourly_precip_inches.len(),
+                24,
+                "{} -> expected 24 hourly precipitation values",
+                case.name
+            );
+            if summary.max_wind_time.is_some() {
+                assert!(
+                    summary.max_wind_mph.is_some(),
+                    "{} -> DSM max wind time requires max wind speed",
+                    case.name
+                );
+            }
+            if summary.max_gust_time.is_some() {
+                assert!(
+                    summary.max_gust_mph.is_some(),
+                    "{} -> DSM max gust time requires max gust speed",
+                    case.name
+                );
+            }
+            if summary.max_wind_dir_degrees.is_some() {
+                assert!(
+                    summary.max_wind_mph.is_some(),
+                    "{} -> DSM max wind direction requires max wind speed",
+                    case.name
+                );
+            }
+        }
     }
 }
 

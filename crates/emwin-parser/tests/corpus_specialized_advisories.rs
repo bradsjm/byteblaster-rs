@@ -57,7 +57,33 @@ fn wwp_corpus_routes_to_structured_bulletins() {
             "{} -> expected watch number",
             case.name
         );
+        assert!(
+            bulletin.max_hail_inches > 0.0,
+            "{} -> expected maximum hail size",
+            case.name
+        );
+        assert!(
+            bulletin.max_wind_gust_knots > 0,
+            "{} -> expected maximum wind gust",
+            case.name
+        );
         assert!(bulletin.max_tops_feet > 0, "{} -> expected tops", case.name);
+        assert!(
+            bulletin.storm_motion_knots > 0,
+            "{} -> expected storm motion speed",
+            case.name
+        );
+        assert!(
+            bulletin.prob_tornadoes_2_or_more <= 100
+                && bulletin.prob_tornadoes_1_or_more_strong <= 100
+                && bulletin.prob_severe_wind_10_or_more <= 100
+                && bulletin.prob_wind_1_or_more_65kt <= 100
+                && bulletin.prob_severe_hail_10_or_more <= 100
+                && bulletin.prob_hail_1_or_more_2inch <= 100
+                && bulletin.prob_combined_hail_wind_6_or_more <= 100,
+            "{} -> expected WWP probabilities within 0-100",
+            case.name
+        );
     }
 }
 
@@ -112,6 +138,34 @@ fn mcd_corpus_routes_to_structured_bulletins() {
         assert!(
             bulletin.discussion_number > 0,
             "{} -> expected discussion number",
+            case.name
+        );
+        assert!(
+            !bulletin.raw.trim().is_empty(),
+            "{} -> expected preserved MCD text",
+            case.name
+        );
+        assert_eq!(
+            bulletin.valid_from.is_some(),
+            bulletin.valid_to.is_some(),
+            "{} -> MCD validity bounds must be paired",
+            case.name
+        );
+        if let Some(watch_probability_percent) = bulletin.watch_probability_percent {
+            assert!(
+                watch_probability_percent <= 100,
+                "{} -> invalid MCD watch probability",
+                case.name
+            );
+        }
+        assert!(
+            bulletin.attn_wfo.iter().all(|entry| !entry.trim().is_empty()),
+            "{} -> expected non-empty MCD WFO attention entries",
+            case.name
+        );
+        assert!(
+            bulletin.attn_rfc.iter().all(|entry| !entry.trim().is_empty()),
+            "{} -> expected non-empty MCD RFC attention entries",
             case.name
         );
     }

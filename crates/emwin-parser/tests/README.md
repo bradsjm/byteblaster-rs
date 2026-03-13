@@ -2,26 +2,22 @@
 
 This directory holds integration tests for `emwin-parser`.
 
-Use the layout here to keep real-product coverage maintainable as the corpus grows.
+The corpus is intentionally fixture-heavy. The goal is to exercise as many real
+formatting variants as practical for each supported parser family, not to keep
+only a few representative examples.
 
 ## Test File Roles
 
 - `body_smoke.rs`
   - Small end-to-end sanity checks for generic body enrichment behavior.
-- `generic_product_corpus.rs`
-  - Real-product corpus coverage for generic body extraction and QC behavior.
-- `specialized_product_corpus.rs`
-  - Real-product corpus coverage for specialized bulletin families.
-- `wmo_product_corpus.rs`
-  - Real-product corpus coverage for WMO-only bulletin families.
-- `ugc_product_parity.rs`
-  - Focused parity/regression coverage for repeated-UGC behavior.
-- `vtec_hvtec_parity.rs`
-  - Focused parser parity coverage for VTEC/HVTEC edge cases.
+- `corpus_*.rs`
+  - Family-scoped or domain-scoped corpus suites over tracked real bulletin fixtures.
+- `*_parity.rs`
+  - Focused parser parity/regression coverage for narrow contracts and previously broken behavior.
 
-Use `*_product_corpus.rs` for tracked real bulletin fixtures that exercise end-to-end enrichment behavior.
-
-Use `*_parity.rs` or `*_regression.rs` only when the test is narrowly scoped to a specific parser contract or a specific previously broken bug.
+Use corpus suites for real-fixture routing, assembly, and output-shape coverage.
+Use parity/regression files only when a narrow parser contract is clearer with a
+small targeted sample.
 
 ## Fixture Layout
 
@@ -35,50 +31,39 @@ Organize fixtures first by parser domain, then by product family.
 
 Examples:
 
-- `fixtures/products/generic/marine_weather_message/MWWBUFNY.TXT`
-- `fixtures/products/specialized/lsr/202603100015-KBMX-NWUS54-LSRBMX.txt`
-- `fixtures/products/wmo/metar_collective/SABZ31.TXT`
+- `fixtures/products/generic/marine_weather_message/MWWAJK.txt`
+- `fixtures/products/specialized/pirep/PIREPS-PIREP.txt`
+- `fixtures/products/wmo/metar_collective/METAR-collective.txt`
 
 Do not create catch-all buckets such as `misc`, `samples`, `tmp`, `sidecars`, or `other`.
 
-If a fixture represents a product family that does not yet have a directory, add a new family directory with the product-family name spelled out in lowercase snake case.
+## Fixture Sources
 
-## Fixture Source Rules
-
-- Prefer real products from Iowa Mesonet `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
-- Use the documented Iowa Mesonet list endpoints to discover `product_id` values for AFOS-backed products.
-- Use `scripts/fetch_nwstext_fixture.py` to retrieve AFOS-backed fixtures from Mesonet and store the raw archived bulletin text.
-- Use `pyIEM` only as a sanity-check source or to help locate examples when Mesonet discovery is awkward.
-- If a real WMO-only product cannot be discovered from the AFOS list endpoint, a tracked real bulletin text fixture is acceptable, but explain that provenance in the test file.
-
-Integration tests must be reproducible from the repository alone.
+- Existing AFOS-backed fixtures may still come from Iowa Mesonet `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
+- The exhaustive variation corpus is imported from `akrherz/pyIEM` `data/product_examples`.
+- Use `scripts/import_pyiem_product_examples.py <pyiem_checkout>` to import or refresh the pyIEM-derived corpus.
+- Use `--dry-run` first when changing the manifest or auditing fixture drift.
+- Integration tests must remain reproducible from the repository alone after import.
 
 ## Naming Rules
 
-- Keep the original bulletin filename when it is already stable and meaningful.
-- Prefer Mesonet `product_id` filenames for archived AFOS fixtures when those names are already used elsewhere in the corpus.
-- Keep extensions as delivered by the fixture source unless there is a strong reason to normalize.
+- Preserve the upstream filename when it is already stable and meaningful.
+- When importing from a numbered or collision-prone pyIEM subdirectory, prefix the filename with the source directory name.
+- Do not rename fixtures to encode bug history.
 
-Do not rename fixtures to encode bug history.
+## Corpus Expectations
 
-## When To Add A Corpus Fixture
-
-Add a real-product corpus fixture when:
-
-- a parser change needs real-world proof
-- a product family has no current end-to-end integration coverage
-- a real formatting variant should remain supported
-- a negative real-world case should continue to emit a specific issue
-
-Do not add large numbers of redundant fixtures that exercise the same behavior with no new coverage value.
+- Every fixture directory must have a corpus suite that enumerates every file in that directory.
+- Default assertions should cover routing, body kind, parsed artifact kind, and minimal structural validity.
+- Explicit allowlists should isolate malformed or intentionally sparse real-world fixtures instead of weakening the whole suite.
+- Negative fixtures remain in the corpus; they should assert the expected issues or degraded shape explicitly.
 
 ## Maintenance Rules
 
 - Keep unit tests under `src/**` inline and module-local.
 - Keep real bulletin fixtures under `tests/fixtures/**` and consume them only from integration tests under `tests/**`.
-- When behavior changes, update the relevant corpus tests and fixture provenance comments in the same change.
-- If a new corpus fixture exposes a broader product-family need, add it to the correct family directory instead of creating a one-off bucket.
-- If a suite becomes too large, split it by parser domain or product family, not by the date the tests were added.
+- When behavior changes, update the relevant corpus suites and provenance comments in the same change.
+- If a family grows too large, split by parser family or body model, not by the date the tests were added.
 
 ## Validation
 

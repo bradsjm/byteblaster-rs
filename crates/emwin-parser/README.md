@@ -470,6 +470,8 @@ product family. AFOS-backed fixtures should be pulled from
 `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}` where possible.
 Use `scripts/fetch_nwstext_fixture.py` to archive new AFOS-backed fixtures from
 Mesonet instead of copying bulletin text by hand.
+The broader formatting-variation corpus is imported from `akrherz/pyIEM`
+`data/product_examples` with `scripts/import_pyiem_product_examples.py`.
 These fixtures are consumed only by integration tests under `tests/` to ground
 real-product corpus coverage. Unit tests under `src/**` should use inline or
 module-local samples and must not import files from `tests/**`. See

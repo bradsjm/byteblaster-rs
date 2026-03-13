@@ -1,0 +1,3023 @@
+[
+  {
+    "source": "PIREPS/OVO.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-OVO.txt"
+  },
+  {
+    "source": "PIREPS/PIREP.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-PIREP.txt"
+  },
+  {
+    "source": "PIREPS/PKTN.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-PKTN.txt"
+  },
+  {
+    "source": "PIREPS/PRCUS.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-PRCUS.txt"
+  },
+  {
+    "source": "PIREPS/airmet.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-airmet.txt"
+  },
+  {
+    "source": "PIREPS/ampersand.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-ampersand.txt"
+  },
+  {
+    "source": "PIREPS/badgeom.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-badgeom.txt"
+  },
+  {
+    "source": "PIREPS/canada.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-canada.txt"
+  },
+  {
+    "source": "PIREPS/fourchar.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-fourchar.txt"
+  },
+  {
+    "source": "PIREPS/groupdict.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-groupdict.txt"
+  },
+  {
+    "source": "PIREPS/latlonint.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-latlonint.txt"
+  },
+  {
+    "source": "PIREPS/latlonloc.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-latlonloc.txt"
+  },
+  {
+    "source": "PIREPS/latlonloc2.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-latlonloc2.txt"
+  },
+  {
+    "source": "PIREPS/no_newline_space.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-no_newline_space.txt"
+  },
+  {
+    "source": "PIREPS/offset.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-offset.txt"
+  },
+  {
+    "source": "PIREPS/runway.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-runway.txt"
+  },
+  {
+    "source": "PIREPS/space.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-space.txt"
+  },
+  {
+    "source": "PIREPS/ubmd90.txt",
+    "destination_dir": "specialized/pirep",
+    "target_name": "PIREPS-ubmd90.txt"
+  },
+  {
+    "source": "MCD_MPD/MPD.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-MPD.txt"
+  },
+  {
+    "source": "MCD_MPD/MPD_noconfidence.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-MPD_noconfidence.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD_2010.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD_2010.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD_301.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD_301.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD_301_COR.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD_301_COR.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD_sep1.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD_sep1.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCD_tags.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCD_tags.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCDconcerning.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCDconcerning.txt"
+  },
+  {
+    "source": "MCD_MPD/SWOMCDprob.txt",
+    "destination_dir": "specialized/mcd",
+    "target_name": "MCD_MPD-SWOMCDprob.txt"
+  },
+  {
+    "source": "CWA/CWAAN1.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAAN1.txt"
+  },
+  {
+    "source": "CWA/CWAZAB_bad.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZAB_bad.txt"
+  },
+  {
+    "source": "CWA/CWAZAB_twoline.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZAB_twoline.txt"
+  },
+  {
+    "source": "CWA/CWAZAN_fl.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZAN_fl.txt"
+  },
+  {
+    "source": "CWA/CWAZAN_lalo.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZAN_lalo.txt"
+  },
+  {
+    "source": "CWA/CWAZAN_line.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZAN_line.txt"
+  },
+  {
+    "source": "CWA/CWAZBW_both.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZBW_both.txt"
+  },
+  {
+    "source": "CWA/CWAZBW_buffer0.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZBW_buffer0.txt"
+  },
+  {
+    "source": "CWA/CWAZHU_cancel.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZHU_cancel.txt"
+  },
+  {
+    "source": "CWA/CWAZHU_cancel2.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZHU_cancel2.txt"
+  },
+  {
+    "source": "CWA/CWAZHU_circle.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZHU_circle.txt"
+  },
+  {
+    "source": "CWA/CWAZHU_circle2.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZHU_circle2.txt"
+  },
+  {
+    "source": "CWA/CWAZHU_line.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZHU_line.txt"
+  },
+  {
+    "source": "CWA/CWAZJX.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZJX.txt"
+  },
+  {
+    "source": "CWA/CWAZKC_line.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZKC_line.txt"
+  },
+  {
+    "source": "CWA/CWAZOA_cancel.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZOA_cancel.txt"
+  },
+  {
+    "source": "CWA/CWAZTL.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZTL.txt"
+  },
+  {
+    "source": "CWA/CWAZTL_cor.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZTL_cor.txt"
+  },
+  {
+    "source": "CWA/CWAZTL_geom.txt",
+    "destination_dir": "specialized/cwa",
+    "target_name": "CWA-CWAZTL_geom.txt"
+  },
+  {
+    "source": "WWP/WWP9.txt",
+    "destination_dir": "specialized/wwp",
+    "target_name": "WWP-WWP9.txt"
+  },
+  {
+    "source": "WWP/WWP9_PDS.txt",
+    "destination_dir": "specialized/wwp",
+    "target_name": "WWP-WWP9_PDS.txt"
+  },
+  {
+    "source": "WWP/WWP_2006.txt",
+    "destination_dir": "specialized/wwp",
+    "target_name": "WWP-WWP_2006.txt"
+  },
+  {
+    "source": "WWP/WWP_TEST.txt",
+    "destination_dir": "specialized/wwp",
+    "target_name": "WWP-WWP_TEST.txt"
+  },
+  {
+    "source": "SAW/SAW-cancelled.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW-cancelled.txt"
+  },
+  {
+    "source": "SAW/SAW-replaces.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW-replaces.txt"
+  },
+  {
+    "source": "SAW/SAW3.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW3.txt"
+  },
+  {
+    "source": "SAW/SAW3_jabber.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW3_jabber.txt"
+  },
+  {
+    "source": "SAW/SAW3_jan1.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW3_jan1.txt"
+  },
+  {
+    "source": "SAW/SAW3_jan1_can.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW3_jan1_can.txt"
+  },
+  {
+    "source": "SAW/SAW6.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW6.txt"
+  },
+  {
+    "source": "SAW/SAW9_PDS.txt",
+    "destination_dir": "specialized/saw",
+    "target_name": "SAW-SAW9_PDS.txt"
+  },
+  {
+    "source": "SEL/SEL5_2007.txt",
+    "destination_dir": "specialized/sel",
+    "target_name": "SEL-SEL5_2007.txt"
+  },
+  {
+    "source": "SEL/SEL9.txt",
+    "destination_dir": "specialized/sel",
+    "target_name": "SEL-SEL9.txt"
+  },
+  {
+    "source": "SEL/SEL9_PDS.txt",
+    "destination_dir": "specialized/sel",
+    "target_name": "SEL-SEL9_PDS.txt"
+  },
+  {
+    "source": "SEL/SEL_CAN.txt",
+    "destination_dir": "specialized/sel",
+    "target_name": "SEL-SEL_CAN.txt"
+  },
+  {
+    "source": "CF6/CF6ANC.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6ANC.txt"
+  },
+  {
+    "source": "CF6/CF6DSM.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6DSM.txt"
+  },
+  {
+    "source": "CF6/CF6DSM_bad.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6DSM_bad.txt"
+  },
+  {
+    "source": "CF6/CF6DSM_empty.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6DSM_empty.txt"
+  },
+  {
+    "source": "CF6/CF6FYV_future.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6FYV_future.txt"
+  },
+  {
+    "source": "CF6/CF6GRR.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6GRR.txt"
+  },
+  {
+    "source": "CF6/CF6MKK.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6MKK.txt"
+  },
+  {
+    "source": "CF6/CF6SEA.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6SEA.txt"
+  },
+  {
+    "source": "CF6/CF6WYS.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6WYS.txt"
+  },
+  {
+    "source": "CF6/CF6WYS_error.txt",
+    "destination_dir": "specialized/cf6",
+    "target_name": "CF6-CF6WYS_error.txt"
+  },
+  {
+    "source": "DSM/DSM.txt",
+    "destination_dir": "specialized/dsm",
+    "target_name": "DSM-DSM.txt"
+  },
+  {
+    "source": "DSM/DSM_allmissing.txt",
+    "destination_dir": "specialized/dsm",
+    "target_name": "DSM-DSM_allmissing.txt"
+  },
+  {
+    "source": "HML/HMLARX.txt",
+    "destination_dir": "specialized/hml",
+    "target_name": "HML-HMLARX.txt"
+  },
+  {
+    "source": "HML/HMLDMX.txt",
+    "destination_dir": "specialized/hml",
+    "target_name": "HML-HMLDMX.txt"
+  },
+  {
+    "source": "HML/HMLMOB.txt",
+    "destination_dir": "specialized/hml",
+    "target_name": "HML-HMLMOB.txt"
+  },
+  {
+    "source": "CLI/CLIABY.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIABY.txt"
+  },
+  {
+    "source": "CLI/CLIACT.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIACT.txt"
+  },
+  {
+    "source": "CLI/CLIALO.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIALO.txt"
+  },
+  {
+    "source": "CLI/CLIANC.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIANC.txt"
+  },
+  {
+    "source": "CLI/CLIANN.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIANN.txt"
+  },
+  {
+    "source": "CLI/CLIBET.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIBET.txt"
+  },
+  {
+    "source": "CLI/CLIBGR.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIBGR.txt"
+  },
+  {
+    "source": "CLI/CLIBNA.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIBNA.txt"
+  },
+  {
+    "source": "CLI/CLIBOI.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIBOI.txt"
+  },
+  {
+    "source": "CLI/CLICKV.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICKV.txt"
+  },
+  {
+    "source": "CLI/CLICVG.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG.txt"
+  },
+  {
+    "source": "CLI/CLICVG_2007.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG_2007.txt"
+  },
+  {
+    "source": "CLI/CLICVG_colon.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG_colon.txt"
+  },
+  {
+    "source": "CLI/CLICVG_newer.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG_newer.txt"
+  },
+  {
+    "source": "CLI/CLICVG_older.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG_older.txt"
+  },
+  {
+    "source": "CLI/CLICVG_tab.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLICVG_tab.txt"
+  },
+  {
+    "source": "CLI/CLIDMH.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIDMH.txt"
+  },
+  {
+    "source": "CLI/CLIDRT.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIDRT.txt"
+  },
+  {
+    "source": "CLI/CLIDSM.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIDSM.txt"
+  },
+  {
+    "source": "CLI/CLIDSM2.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIDSM2.txt"
+  },
+  {
+    "source": "CLI/CLIEAR.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIEAR.txt"
+  },
+  {
+    "source": "CLI/CLIECP.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIECP.txt"
+  },
+  {
+    "source": "CLI/CLIEKA.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIEKA.txt"
+  },
+  {
+    "source": "CLI/CLIEST.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIEST.txt"
+  },
+  {
+    "source": "CLI/CLIEWN.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIEWN.txt"
+  },
+  {
+    "source": "CLI/CLIFFC.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIFFC.txt"
+  },
+  {
+    "source": "CLI/CLIFMY.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIFMY.txt"
+  },
+  {
+    "source": "CLI/CLIHOU.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIHOU.txt"
+  },
+  {
+    "source": "CLI/CLIICT.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIICT.txt"
+  },
+  {
+    "source": "CLI/CLIJNU.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIJNU.txt"
+  },
+  {
+    "source": "CLI/CLILWD.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLILWD.txt"
+  },
+  {
+    "source": "CLI/CLIMAI.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMAI.txt"
+  },
+  {
+    "source": "CLI/CLIMBS.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMBS.txt"
+  },
+  {
+    "source": "CLI/CLIMSO.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMSO.txt"
+  },
+  {
+    "source": "CLI/CLIMSO_2.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMSO_2.txt"
+  },
+  {
+    "source": "CLI/CLIMUO.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMUO.txt"
+  },
+  {
+    "source": "CLI/CLIMYV.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIMYV.txt"
+  },
+  {
+    "source": "CLI/CLINYC.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLINYC.txt"
+  },
+  {
+    "source": "CLI/CLIOLF.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIOLF.txt"
+  },
+  {
+    "source": "CLI/CLIOME.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIOME.txt"
+  },
+  {
+    "source": "CLI/CLIOME_2.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIOME_2.txt"
+  },
+  {
+    "source": "CLI/CLIPPG.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIPPG.txt"
+  },
+  {
+    "source": "CLI/CLIPPG2.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIPPG2.txt"
+  },
+  {
+    "source": "CLI/CLIPPG3.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIPPG3.txt"
+  },
+  {
+    "source": "CLI/CLIPPG4.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIPPG4.txt"
+  },
+  {
+    "source": "CLI/CLIRDU.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIRDU.txt"
+  },
+  {
+    "source": "CLI/CLIRDU_v2.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLIRDU_v2.txt"
+  },
+  {
+    "source": "CLI/CLISAD.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLISAD.txt"
+  },
+  {
+    "source": "CLI/CLISEW.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLISEW.txt"
+  },
+  {
+    "source": "CLI/CLITCS.txt",
+    "destination_dir": "specialized/cli",
+    "target_name": "CLI-CLITCS.txt"
+  },
+  {
+    "source": "LSR/LSR.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSR.txt"
+  },
+  {
+    "source": "LSR/LSRAJK.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRAJK.txt"
+  },
+  {
+    "source": "LSR/LSRBGM_snowsquall.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRBGM_snowsquall.txt"
+  },
+  {
+    "source": "LSR/LSRBOX.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRBOX.txt"
+  },
+  {
+    "source": "LSR/LSRBOXamp.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRBOXamp.txt"
+  },
+  {
+    "source": "LSR/LSRBRO.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRBRO.txt"
+  },
+  {
+    "source": "LSR/LSRCRP.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRCRP.txt"
+  },
+  {
+    "source": "LSR/LSRDMX.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRDMX.txt"
+  },
+  {
+    "source": "LSR/LSRDVN_old.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRDVN_old.txt"
+  },
+  {
+    "source": "LSR/LSRFSD.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRFSD.txt"
+  },
+  {
+    "source": "LSR/LSRFWD.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRFWD.txt"
+  },
+  {
+    "source": "LSR/LSRGSP_future.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRGSP_future.txt"
+  },
+  {
+    "source": "LSR/LSRGUM.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRGUM.txt"
+  },
+  {
+    "source": "LSR/LSRHGX_marine.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRHGX_marine.txt"
+  },
+  {
+    "source": "LSR/LSRICT_mixed.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRICT_mixed.txt"
+  },
+  {
+    "source": "LSR/LSRJAN_NAN.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRJAN_NAN.txt"
+  },
+  {
+    "source": "LSR/LSRJAN_fakeunits.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRJAN_fakeunits.txt"
+  },
+  {
+    "source": "LSR/LSRJAX_marinehail.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRJAX_marinehail.txt"
+  },
+  {
+    "source": "LSR/LSRKEY.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRKEY.txt"
+  },
+  {
+    "source": "LSR/LSROUN_hail.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSROUN_hail.txt"
+  },
+  {
+    "source": "LSR/LSRPAH_ice.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPAH_ice.txt"
+  },
+  {
+    "source": "LSR/LSRPAH_ice2.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPAH_ice2.txt"
+  },
+  {
+    "source": "LSR/LSRPHI.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPHI.txt"
+  },
+  {
+    "source": "LSR/LSRPIH.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPIH.txt"
+  },
+  {
+    "source": "LSR/LSRPIH_summary.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPIH_summary.txt"
+  },
+  {
+    "source": "LSR/LSRPPG.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPPG.txt"
+  },
+  {
+    "source": "LSR/LSRPSR.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRPSR.txt"
+  },
+  {
+    "source": "LSR/LSRREV_trace.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRREV_trace.txt"
+  },
+  {
+    "source": "LSR/LSRSEW.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRSEW.txt"
+  },
+  {
+    "source": "LSR/LSRSJU.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRSJU.txt"
+  },
+  {
+    "source": "LSR/LSRTAE.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRTAE.txt"
+  },
+  {
+    "source": "LSR/LSRTBW_badmnd.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRTBW_badmnd.txt"
+  },
+  {
+    "source": "LSR/LSRTOP_ICE.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRTOP_ICE.txt"
+  },
+  {
+    "source": "LSR/LSRTWC.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSRTWC.txt"
+  },
+  {
+    "source": "LSR/LSR_empty.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSR_empty.txt"
+  },
+  {
+    "source": "LSR/LSR_fog.txt",
+    "destination_dir": "specialized/lsr",
+    "target_name": "LSR-LSR_fog.txt"
+  },
+  {
+    "source": "SPCPTS/PFWF38.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PFWF38.txt"
+  },
+  {
+    "source": "SPCPTS/PFWF38_empty.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PFWF38_empty.txt"
+  },
+  {
+    "source": "SPCPTS/PFWFD1_example.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PFWFD1_example.txt"
+  },
+  {
+    "source": "SPCPTS/PFWFD2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PFWFD2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48_crosses.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48_crosses.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48_day6.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48_day6.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48_empty.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48_empty.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48_nullgeom.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48_nullgeom.txt"
+  },
+  {
+    "source": "SPCPTS/PTSD48_pre2015.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSD48_pre2015.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_190907.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_190907.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_2002.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_2002.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_2002_nogeom.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_2002_nogeom.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_20Z_1.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_20Z_1.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_20Z_2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_20Z_2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_20Z_3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_20Z_3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_baddbtime.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_baddbtime.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_badpoly.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_badpoly.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_badpoly2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_badpoly2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_badpoly3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_badpoly3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_bigenh.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_bigenh.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_biggeom.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_biggeom.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_biggeom2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_biggeom2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_canada.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_canada.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_closed.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_closed.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_complex.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_complex.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_conus.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_conus.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_geos.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_geos.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_gh1156.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_gh1156.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_gh23.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_gh23.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_hole.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_hole.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_idx1_idx2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_idx1_idx2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_interior.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_interior.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_invalidtime.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_invalidtime.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_larger.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_larger.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_largetor10.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_largetor10.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_last.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_last.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_maine.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_maine.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_maine2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_maine2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_marine.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_marine.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_may3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_may3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_multi.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_multi.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_multipoly.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_multipoly.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_new.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_new.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_nogeom.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_nogeom.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_nogeom2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_nogeom2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_sequence.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_sequence.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_shapelyerror.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_shapelyerror.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_three.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_three.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_topo.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_topo.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_topo2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_topo2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_topoexp.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_topoexp.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY1_west.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY1_west.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_canada.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_canada.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_greatlakes.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_greatlakes.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_interior.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_interior.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_invalid.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_invalid.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_invalid2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_invalid2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_invalid3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_invalid3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_month.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_month.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_nogeom.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_nogeom.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_nogeom2.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_nogeom2.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_nogeom3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_nogeom3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_nogeom4.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_nogeom4.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_notimp.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_notimp.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_single.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_single.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY2_unpack.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY2_unpack.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY3.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY3.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY3_20z.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY3_20z.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY3_CIG1.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY3_CIG1.txt"
+  },
+  {
+    "source": "SPCPTS/PTSDY3_nogeoms.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-PTSDY3_nogeoms.txt"
+  },
+  {
+    "source": "SPCPTS/SPCPTS.txt",
+    "destination_dir": "specialized/spc_outlook",
+    "target_name": "SPCPTS-SPCPTS.txt"
+  },
+  {
+    "source": "ERO/RBG94E.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG94E.txt"
+  },
+  {
+    "source": "ERO/RBG94E_4F4.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG94E_4F4.txt"
+  },
+  {
+    "source": "ERO/RBG94E_calif.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG94E_calif.txt"
+  },
+  {
+    "source": "ERO/RBG94E_dblen.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG94E_dblen.txt"
+  },
+  {
+    "source": "ERO/RBG94E_nullgeom.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG94E_nullgeom.txt"
+  },
+  {
+    "source": "ERO/RBG98E.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG98E.txt"
+  },
+  {
+    "source": "ERO/RBG98E_dup.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG98E_dup.txt"
+  },
+  {
+    "source": "ERO/RBG99E.txt",
+    "destination_dir": "specialized/ero",
+    "target_name": "ERO-RBG99E.txt"
+  },
+  {
+    "source": "MOS/ECS.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-ECS.txt"
+  },
+  {
+    "source": "MOS/LAVUSA.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-LAVUSA.txt"
+  },
+  {
+    "source": "MOS/LEVUSA.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-LEVUSA.txt"
+  },
+  {
+    "source": "MOS/METNC1.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-METNC1.txt"
+  },
+  {
+    "source": "MOS/MET_empty.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-MET_empty.txt"
+  },
+  {
+    "source": "MOS/MEXAFG.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-MEXAFG.txt"
+  },
+  {
+    "source": "MOS/MEXNC1.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-MEXNC1.txt"
+  },
+  {
+    "source": "MOS/MEXNC1_winter.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-MEXNC1_winter.txt"
+  },
+  {
+    "source": "MOS/NBEUSA.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBEUSA.txt"
+  },
+  {
+    "source": "MOS/NBSUSA.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBSUSA.txt"
+  },
+  {
+    "source": "MOS/NBSUSA_32.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBSUSA_32.txt"
+  },
+  {
+    "source": "MOS/NBSUSA_32_station.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBSUSA_32_station.txt"
+  },
+  {
+    "source": "MOS/NBSUSA_empty.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBSUSA_empty.txt"
+  },
+  {
+    "source": "MOS/NBS_12Z.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBS_12Z.txt"
+  },
+  {
+    "source": "MOS/NBS_15Z.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBS_15Z.txt"
+  },
+  {
+    "source": "MOS/NBS_21Z.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBS_21Z.txt"
+  },
+  {
+    "source": "MOS/NBXUSA.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBXUSA.txt"
+  },
+  {
+    "source": "MOS/NBXUSA_int.txt",
+    "destination_dir": "specialized/mos",
+    "target_name": "MOS-NBXUSA_int.txt"
+  },
+  {
+    "source": "SIGMETS/SIGA0A.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGA0B.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGAK2.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGAK3.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGAX.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGC.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGC_ISOL.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGC_badgeom.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGC_line.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGE.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGE3.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGE_210S_CEW.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGP0A_line.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGP0H.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGPAP_cancel.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGPAS.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIGPAT.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "SIGMETS/SIG_cancel.txt",
+    "destination_dir": "wmo/sigmet_bulletin"
+  },
+  {
+    "source": "TAF/TAFAGS.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFAGS_2.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFDSM.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFDSM_2.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFGRI.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFGRR.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFHKY.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFHPN.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFJFK.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFJXN.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFLAN.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFLBF.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFOLF.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFPAM.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFTOP.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAFTPP.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAF_EGRR.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAF_amd.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "TAF/TAF_collective.txt",
+    "destination_dir": "wmo/taf_bulletin"
+  },
+  {
+    "source": "tempwind/FD0HW9.txt",
+    "destination_dir": "wmo/fd_bulletin"
+  },
+  {
+    "source": "tempwind/FD1US1.txt",
+    "destination_dir": "wmo/fd_bulletin"
+  },
+  {
+    "source": "tempwind/FD1US1_controlchar.txt",
+    "destination_dir": "wmo/fd_bulletin"
+  },
+  {
+    "source": "tempwind/FD3CN3.txt",
+    "destination_dir": "wmo/fd_bulletin"
+  },
+  {
+    "source": "METAR/badchars.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/collective.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/collective2.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/first.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/kawn.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/kmwn.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/nullbyte.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/rtd_bbb.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "METAR/sa.txt",
+    "destination_dir": "wmo/metar_collective"
+  },
+  {
+    "source": "AWW/AWWBZN.txt",
+    "destination_dir": "generic/airport_weather_warning",
+    "target_name": "AWW-AWWBZN.txt"
+  },
+  {
+    "source": "FFA.txt",
+    "destination_dir": "generic/flood_watch"
+  },
+  {
+    "source": "FFAEKA/0.txt",
+    "destination_dir": "generic/flood_watch",
+    "target_name": "FFAEKA-0.txt"
+  },
+  {
+    "source": "FFAEKA/1.txt",
+    "destination_dir": "generic/flood_watch",
+    "target_name": "FFAEKA-1.txt"
+  },
+  {
+    "source": "FFWTWC_tilde.txt",
+    "destination_dir": "generic/flash_flood_warning"
+  },
+  {
+    "source": "FFW/FFSLCH_1.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFSLCH_1.txt"
+  },
+  {
+    "source": "FFW/FFWFFC_0.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFWFFC_0.txt"
+  },
+  {
+    "source": "FFW/FFWFFC_1.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFWFFC_1.txt"
+  },
+  {
+    "source": "FFW/FFWGUM.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFWGUM.txt"
+  },
+  {
+    "source": "FFW/FFWLCH_0.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFWLCH_0.txt"
+  },
+  {
+    "source": "FFW/FFW_tags.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFW-FFW_tags.txt"
+  },
+  {
+    "source": "FFWOKX/1.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-1.txt"
+  },
+  {
+    "source": "FFWOKX/2.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-2.txt"
+  },
+  {
+    "source": "FFWOKX/3.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-3.txt"
+  },
+  {
+    "source": "FFWOKX/4.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-4.txt"
+  },
+  {
+    "source": "FFWOKX/5.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-5.txt"
+  },
+  {
+    "source": "FFWOKX/6.txt",
+    "destination_dir": "generic/flash_flood_warning",
+    "target_name": "FFWOKX-6.txt"
+  },
+  {
+    "source": "FLSBOU.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSBRO_nomnd.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSDMX.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSGRB.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSICT.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSLZK_notime.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSMKX.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSRAH.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLSTWC.txt",
+    "destination_dir": "generic/flood_statement"
+  },
+  {
+    "source": "FLS/FLSGUM_timestamp.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLS-FLSGUM_timestamp.txt"
+  },
+  {
+    "source": "FLS/FLSSEW_bullets.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLS-FLSSEW_bullets.txt"
+  },
+  {
+    "source": "FLS/FLSSEW_vtec1970.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLS-FLSSEW_vtec1970.txt"
+  },
+  {
+    "source": "FLS/FLSSJU_twopoint.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLS-FLSSJU_twopoint.txt"
+  },
+  {
+    "source": "FLS/FLSTFX_indexerror.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLS-FLSTFX_indexerror.txt"
+  },
+  {
+    "source": "FLSIND/0.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-0.txt"
+  },
+  {
+    "source": "FLSIND/1.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-1.txt"
+  },
+  {
+    "source": "FLSIND/10.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-10.txt"
+  },
+  {
+    "source": "FLSIND/11.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-11.txt"
+  },
+  {
+    "source": "FLSIND/12.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-12.txt"
+  },
+  {
+    "source": "FLSIND/2.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-2.txt"
+  },
+  {
+    "source": "FLSIND/3.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-3.txt"
+  },
+  {
+    "source": "FLSIND/4.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-4.txt"
+  },
+  {
+    "source": "FLSIND/5.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-5.txt"
+  },
+  {
+    "source": "FLSIND/6.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-6.txt"
+  },
+  {
+    "source": "FLSIND/7.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-7.txt"
+  },
+  {
+    "source": "FLSIND/8.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-8.txt"
+  },
+  {
+    "source": "FLSIND/9.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSIND-9.txt"
+  },
+  {
+    "source": "FLSLBF/0.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-0.txt"
+  },
+  {
+    "source": "FLSLBF/1.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-1.txt"
+  },
+  {
+    "source": "FLSLBF/2.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-2.txt"
+  },
+  {
+    "source": "FLSLBF/3.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-3.txt"
+  },
+  {
+    "source": "FLSLBF/4.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-4.txt"
+  },
+  {
+    "source": "FLSLBF/5.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-5.txt"
+  },
+  {
+    "source": "FLSLBF/6.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLSLBF-6.txt"
+  },
+  {
+    "source": "FLScrosses/FLS_0.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLScrosses-FLS_0.txt"
+  },
+  {
+    "source": "FLScrosses/FLW_0.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLScrosses-FLW_0.txt"
+  },
+  {
+    "source": "FLScrosses/FLW_1.txt",
+    "destination_dir": "generic/flood_statement",
+    "target_name": "FLScrosses-FLW_1.txt"
+  },
+  {
+    "source": "FLWBOI.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLWGRB.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLWHGX_ccw.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLWLCH.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLWLZK.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLWMKX_ROU.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLW_badgeom.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLW_badugc.txt",
+    "destination_dir": "generic/flood_warning"
+  },
+  {
+    "source": "FLW/FLWJKL_multipolygon.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLW-FLWJKL_multipolygon.txt"
+  },
+  {
+    "source": "FLWCAE/0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCAE-0.txt"
+  },
+  {
+    "source": "FLWCAE/1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCAE-1.txt"
+  },
+  {
+    "source": "FLWCHS/2019_0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_0.txt"
+  },
+  {
+    "source": "FLWCHS/2019_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_1.txt"
+  },
+  {
+    "source": "FLWCHS/2019_2.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_2.txt"
+  },
+  {
+    "source": "FLWCHS/2019_3.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_3.txt"
+  },
+  {
+    "source": "FLWCHS/2019_4.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_4.txt"
+  },
+  {
+    "source": "FLWCHS/2019_5.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_5.txt"
+  },
+  {
+    "source": "FLWCHS/2019_6.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2019_6.txt"
+  },
+  {
+    "source": "FLWCHS/2020_0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2020_0.txt"
+  },
+  {
+    "source": "FLWCHS/2020_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWCHS-2020_1.txt"
+  },
+  {
+    "source": "FLWLBF/FLWLBF_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWLBF-FLWLBF_1.txt"
+  },
+  {
+    "source": "FLWLBF/FLWLBF_2.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWLBF-FLWLBF_2.txt"
+  },
+  {
+    "source": "FLWLBF/FLWLBF_3.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWLBF-FLWLBF_3.txt"
+  },
+  {
+    "source": "FLWLBF/FLWLBF_4.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWLBF-FLWLBF_4.txt"
+  },
+  {
+    "source": "FLWLBF/FLWLBF_5.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWLBF-FLWLBF_5.txt"
+  },
+  {
+    "source": "FLWMEG/FLSMEG_0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMEG-FLSMEG_0.txt"
+  },
+  {
+    "source": "FLWMEG/FLSMEG_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMEG-FLSMEG_1.txt"
+  },
+  {
+    "source": "FLWMEG/FLWMEG.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMEG-FLWMEG.txt"
+  },
+  {
+    "source": "FLWMHX/0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMHX-0.txt"
+  },
+  {
+    "source": "FLWMHX/1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMHX-1.txt"
+  },
+  {
+    "source": "FLWMOB/FLS.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMOB-FLS.txt"
+  },
+  {
+    "source": "FLWMOB/FLW.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMOB-FLW.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_0.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_0.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_1.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_2.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_2.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_3.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_3.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_4.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_4.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_5.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_5.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_6.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_6.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_7.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_7.txt"
+  },
+  {
+    "source": "FLWMTR/FLWMTR_8.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWMTR-FLWMTR_8.txt"
+  },
+  {
+    "source": "FLWPAH/FLWPAH_1.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWPAH-FLWPAH_1.txt"
+  },
+  {
+    "source": "FLWPAH/FLWPAH_2.txt",
+    "destination_dir": "generic/flood_warning",
+    "target_name": "FLWPAH-FLWPAH_2.txt"
+  },
+  {
+    "source": "MWWAJK.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWBRO.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWLWX.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWLWX_dups.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWLWX_twovtec.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWSEW.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWspanish.txt",
+    "destination_dir": "generic/marine_weather_message"
+  },
+  {
+    "source": "MWWCAR/0.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-0.txt"
+  },
+  {
+    "source": "MWWCAR/1.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-1.txt"
+  },
+  {
+    "source": "MWWCAR/10.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-10.txt"
+  },
+  {
+    "source": "MWWCAR/11.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-11.txt"
+  },
+  {
+    "source": "MWWCAR/12.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-12.txt"
+  },
+  {
+    "source": "MWWCAR/13.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-13.txt"
+  },
+  {
+    "source": "MWWCAR/14.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-14.txt"
+  },
+  {
+    "source": "MWWCAR/15.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-15.txt"
+  },
+  {
+    "source": "MWWCAR/16.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-16.txt"
+  },
+  {
+    "source": "MWWCAR/17.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-17.txt"
+  },
+  {
+    "source": "MWWCAR/18.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-18.txt"
+  },
+  {
+    "source": "MWWCAR/19.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-19.txt"
+  },
+  {
+    "source": "MWWCAR/2.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-2.txt"
+  },
+  {
+    "source": "MWWCAR/20.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-20.txt"
+  },
+  {
+    "source": "MWWCAR/21.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-21.txt"
+  },
+  {
+    "source": "MWWCAR/22.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-22.txt"
+  },
+  {
+    "source": "MWWCAR/3.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-3.txt"
+  },
+  {
+    "source": "MWWCAR/4.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-4.txt"
+  },
+  {
+    "source": "MWWCAR/5.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-5.txt"
+  },
+  {
+    "source": "MWWCAR/6.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-6.txt"
+  },
+  {
+    "source": "MWWCAR/7.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-7.txt"
+  },
+  {
+    "source": "MWWCAR/8.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-8.txt"
+  },
+  {
+    "source": "MWWCAR/9.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWCAR-9.txt"
+  },
+  {
+    "source": "MWWLWX/00.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-00.txt"
+  },
+  {
+    "source": "MWWLWX/01.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-01.txt"
+  },
+  {
+    "source": "MWWLWX/02.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-02.txt"
+  },
+  {
+    "source": "MWWLWX/03.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-03.txt"
+  },
+  {
+    "source": "MWWLWX/04.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-04.txt"
+  },
+  {
+    "source": "MWWLWX/05.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-05.txt"
+  },
+  {
+    "source": "MWWLWX/06.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-06.txt"
+  },
+  {
+    "source": "MWWLWX/07.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-07.txt"
+  },
+  {
+    "source": "MWWLWX/08.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-08.txt"
+  },
+  {
+    "source": "MWWLWX/09.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-09.txt"
+  },
+  {
+    "source": "MWWLWX/10.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-10.txt"
+  },
+  {
+    "source": "MWWLWX/11.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-11.txt"
+  },
+  {
+    "source": "MWWLWX/12.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-12.txt"
+  },
+  {
+    "source": "MWWLWX/13.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-13.txt"
+  },
+  {
+    "source": "MWWLWX/14.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-14.txt"
+  },
+  {
+    "source": "MWWLWX/15.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-15.txt"
+  },
+  {
+    "source": "MWWLWX/16.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-16.txt"
+  },
+  {
+    "source": "MWWLWX/17.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWLWX-17.txt"
+  },
+  {
+    "source": "MWWMQT/0.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWMQT-0.txt"
+  },
+  {
+    "source": "MWWMQT/1.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWMQT-1.txt"
+  },
+  {
+    "source": "MWWMQT/2.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWMQT-2.txt"
+  },
+  {
+    "source": "MWWMQT/3.txt",
+    "destination_dir": "generic/marine_weather_message",
+    "target_name": "MWWMQT-3.txt"
+  },
+  {
+    "source": "SMWLWX.txt",
+    "destination_dir": "generic/special_marine_warning"
+  },
+  {
+    "source": "SMWMFL.txt",
+    "destination_dir": "generic/special_marine_warning"
+  },
+  {
+    "source": "SVRBMX.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVRLMK.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVRLMK_1.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVRLMK_2.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVRMEG.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVROUN.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning"
+  },
+  {
+    "source": "SVR/SVRILN_mnd_timestamp.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVR-SVRILN_mnd_timestamp.txt"
+  },
+  {
+    "source": "SVR/SVRPSR.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVR-SVRPSR.txt"
+  },
+  {
+    "source": "SVR/SVRPSR_IBW1.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVR-SVRPSR_IBW1.txt"
+  },
+  {
+    "source": "SVRMEG/SVRMEG_0.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVRMEG-SVRMEG_0.txt"
+  },
+  {
+    "source": "SVRMEG/SVRMEG_1.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVRMEG-SVRMEG_1.txt"
+  },
+  {
+    "source": "SVRMEG/SVRMEG_2.txt",
+    "destination_dir": "generic/severe_thunderstorm_warning",
+    "target_name": "SVRMEG-SVRMEG_2.txt"
+  },
+  {
+    "source": "SVS.txt",
+    "destination_dir": "generic/severe_weather_statement"
+  },
+  {
+    "source": "SVSFFC.txt",
+    "destination_dir": "generic/severe_weather_statement"
+  },
+  {
+    "source": "SVSMOB.txt",
+    "destination_dir": "generic/severe_weather_statement"
+  },
+  {
+    "source": "TOR.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TORBOU_ibw.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TORFSD.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TORILX.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TOROUN.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TORSVS.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TOR_badmnd_timestamp.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TOR_emergency.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TORtag.txt",
+    "destination_dir": "generic/tornado_warning"
+  },
+  {
+    "source": "TOROAX/0.txt",
+    "destination_dir": "generic/tornado_warning",
+    "target_name": "TOROAX-0.txt"
+  },
+  {
+    "source": "TOROAX/1.txt",
+    "destination_dir": "generic/tornado_warning",
+    "target_name": "TOROAX-1.txt"
+  },
+  {
+    "source": "TOROAX/2.txt",
+    "destination_dir": "generic/tornado_warning",
+    "target_name": "TOROAX-2.txt"
+  },
+  {
+    "source": "TOROAX/3.txt",
+    "destination_dir": "generic/tornado_warning",
+    "target_name": "TOROAX-3.txt"
+  },
+  {
+    "source": "TORE/SVS_E.txt",
+    "destination_dir": "generic/tornado_emergency_statement",
+    "target_name": "TORE-SVS_E.txt"
+  },
+  {
+    "source": "TORE/SVS_F.txt",
+    "destination_dir": "generic/tornado_emergency_statement",
+    "target_name": "TORE-SVS_F.txt"
+  },
+  {
+    "source": "TORE/TOR.txt",
+    "destination_dir": "generic/tornado_emergency_statement",
+    "target_name": "TORE-TOR.txt"
+  },
+  {
+    "source": "TORE/TORHGX_false_positive.txt",
+    "destination_dir": "generic/tornado_emergency_statement",
+    "target_name": "TORE-TORHGX_false_positive.txt"
+  },
+  {
+    "source": "RFWBOI_fakeugc.txt",
+    "destination_dir": "generic/red_flag_warning"
+  },
+  {
+    "source": "RFWSEW.txt",
+    "destination_dir": "generic/red_flag_warning"
+  },
+  {
+    "source": "RFWVEF/RFW_00.txt",
+    "destination_dir": "generic/red_flag_warning",
+    "target_name": "RFWVEF-RFW_00.txt"
+  },
+  {
+    "source": "RFWVEF/RFW_01.txt",
+    "destination_dir": "generic/red_flag_warning",
+    "target_name": "RFWVEF-RFW_01.txt"
+  },
+  {
+    "source": "RFWVEF/RFW_02.txt",
+    "destination_dir": "generic/red_flag_warning",
+    "target_name": "RFWVEF-RFW_02.txt"
+  },
+  {
+    "source": "RFWVEF/RFW_03.txt",
+    "destination_dir": "generic/red_flag_warning",
+    "target_name": "RFWVEF-RFW_03.txt"
+  },
+  {
+    "source": "NPW/NPWDMX.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPW-NPWDMX.txt"
+  },
+  {
+    "source": "NPW/NPWFFC.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPW-NPWFFC.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_01.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_01.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_02.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_02.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_03.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_03.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_04.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_04.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_05.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_05.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_06.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_06.txt"
+  },
+  {
+    "source": "NPWBOX/NPW_07.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWBOX-NPW_07.txt"
+  },
+  {
+    "source": "NPWGID/00.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWGID-00.txt"
+  },
+  {
+    "source": "NPWGID/01.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWGID-01.txt"
+  },
+  {
+    "source": "NPWGID/02.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWGID-02.txt"
+  },
+  {
+    "source": "NPWGID/03.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWGID-03.txt"
+  },
+  {
+    "source": "NPWLCH/00.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWLCH-00.txt"
+  },
+  {
+    "source": "NPWLCH/01.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWLCH-01.txt"
+  },
+  {
+    "source": "NPWLCH/02.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWLCH-02.txt"
+  },
+  {
+    "source": "NPWMRX/NPWMRX_0.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWMRX-NPWMRX_0.txt"
+  },
+  {
+    "source": "NPWMRX/NPWMRX_1.txt",
+    "destination_dir": "generic/non_precipitation_warning",
+    "target_name": "NPWMRX-NPWMRX_1.txt"
+  },
+  {
+    "source": "WSW/WSWDLH.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSW-WSWDLH.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_00.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_00.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_01.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_01.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_02.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_02.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_03.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_03.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_04.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_04.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_05.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_05.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_06.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_06.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_07.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_07.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_08.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_08.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_09.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_09.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_10.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_10.txt"
+  },
+  {
+    "source": "WSWAMA/WSWAMA_11.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWAMA-WSWAMA_11.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_00.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_00.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_01.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_01.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_02.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_02.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_03.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_03.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_04.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_04.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_05.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_05.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_06.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_06.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_07.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_07.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_08.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_08.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_09.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_09.txt"
+  },
+  {
+    "source": "WSWDMX/WSW_N1.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDMX-WSW_N1.txt"
+  },
+  {
+    "source": "WSWDVN/0.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDVN-0.txt"
+  },
+  {
+    "source": "WSWDVN/1.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDVN-1.txt"
+  },
+  {
+    "source": "WSWDVN/2.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWDVN-2.txt"
+  },
+  {
+    "source": "WSWGRR/0.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-0.txt"
+  },
+  {
+    "source": "WSWGRR/1.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-1.txt"
+  },
+  {
+    "source": "WSWGRR/10.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-10.txt"
+  },
+  {
+    "source": "WSWGRR/11.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-11.txt"
+  },
+  {
+    "source": "WSWGRR/12.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-12.txt"
+  },
+  {
+    "source": "WSWGRR/13.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-13.txt"
+  },
+  {
+    "source": "WSWGRR/14.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-14.txt"
+  },
+  {
+    "source": "WSWGRR/2.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-2.txt"
+  },
+  {
+    "source": "WSWGRR/3.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-3.txt"
+  },
+  {
+    "source": "WSWGRR/4.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-4.txt"
+  },
+  {
+    "source": "WSWGRR/5.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-5.txt"
+  },
+  {
+    "source": "WSWGRR/6.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-6.txt"
+  },
+  {
+    "source": "WSWGRR/7.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-7.txt"
+  },
+  {
+    "source": "WSWGRR/8.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-8.txt"
+  },
+  {
+    "source": "WSWGRR/9.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWGRR-9.txt"
+  },
+  {
+    "source": "WSWOKX/0.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-0.txt"
+  },
+  {
+    "source": "WSWOKX/1.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-1.txt"
+  },
+  {
+    "source": "WSWOKX/10.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-10.txt"
+  },
+  {
+    "source": "WSWOKX/11.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-11.txt"
+  },
+  {
+    "source": "WSWOKX/12.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-12.txt"
+  },
+  {
+    "source": "WSWOKX/13.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-13.txt"
+  },
+  {
+    "source": "WSWOKX/14.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-14.txt"
+  },
+  {
+    "source": "WSWOKX/15.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-15.txt"
+  },
+  {
+    "source": "WSWOKX/16.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-16.txt"
+  },
+  {
+    "source": "WSWOKX/17.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-17.txt"
+  },
+  {
+    "source": "WSWOKX/2.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-2.txt"
+  },
+  {
+    "source": "WSWOKX/3.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-3.txt"
+  },
+  {
+    "source": "WSWOKX/4.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-4.txt"
+  },
+  {
+    "source": "WSWOKX/5.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-5.txt"
+  },
+  {
+    "source": "WSWOKX/6.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-6.txt"
+  },
+  {
+    "source": "WSWOKX/7.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-7.txt"
+  },
+  {
+    "source": "WSWOKX/8.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-8.txt"
+  },
+  {
+    "source": "WSWOKX/9.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOKX-9.txt"
+  },
+  {
+    "source": "WSWOUN/0.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-0.txt"
+  },
+  {
+    "source": "WSWOUN/1.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-1.txt"
+  },
+  {
+    "source": "WSWOUN/10.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-10.txt"
+  },
+  {
+    "source": "WSWOUN/11.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-11.txt"
+  },
+  {
+    "source": "WSWOUN/12.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-12.txt"
+  },
+  {
+    "source": "WSWOUN/2.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-2.txt"
+  },
+  {
+    "source": "WSWOUN/3.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-3.txt"
+  },
+  {
+    "source": "WSWOUN/4.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-4.txt"
+  },
+  {
+    "source": "WSWOUN/5.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-5.txt"
+  },
+  {
+    "source": "WSWOUN/6.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-6.txt"
+  },
+  {
+    "source": "WSWOUN/7.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-7.txt"
+  },
+  {
+    "source": "WSWOUN/8.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-8.txt"
+  },
+  {
+    "source": "WSWOUN/9.txt",
+    "destination_dir": "generic/winter_weather_message",
+    "target_name": "WSWOUN-9.txt"
+  },
+  {
+    "source": "WCN/WCN.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCN.txt"
+  },
+  {
+    "source": "WCN/WCNLIX.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCNLIX.txt"
+  },
+  {
+    "source": "WCN/WCNMEG.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCNMEG.txt"
+  },
+  {
+    "source": "WCN/WCNMPX.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCNMPX.txt"
+  },
+  {
+    "source": "WCN/WCNPHI.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCNPHI.txt"
+  },
+  {
+    "source": "WCN/WCNTSA.txt",
+    "destination_dir": "generic/watch_county_notification",
+    "target_name": "WCN-WCNTSA.txt"
+  },
+  {
+    "source": "SPS/SPSBMX.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSBMX.txt"
+  },
+  {
+    "source": "SPS/SPSBMX_IBW1.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSBMX_IBW1.txt"
+  },
+  {
+    "source": "SPS/SPSBMX_IBW2.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSBMX_IBW2.txt"
+  },
+  {
+    "source": "SPS/SPSBMX_IBW3.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSBMX_IBW3.txt"
+  },
+  {
+    "source": "SPS/SPSJAX.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSJAX.txt"
+  },
+  {
+    "source": "SPS/SPSOKX.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSOKX.txt"
+  },
+  {
+    "source": "SPS/SPSRIW.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSRIW.txt"
+  },
+  {
+    "source": "SPS/SPSRLX.txt",
+    "destination_dir": "generic/special_weather_statement",
+    "target_name": "SPS-SPSRLX.txt"
+  },
+  {
+    "source": "SQW/SQWBTV.txt",
+    "destination_dir": "generic/snow_squall_warning",
+    "target_name": "SQW-SQWBTV.txt"
+  },
+  {
+    "source": "SQW/SQWDVN.txt",
+    "destination_dir": "generic/snow_squall_warning",
+    "target_name": "SQW-SQWDVN.txt"
+  },
+  {
+    "source": "vtec/NPWDMX_0.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-NPWDMX_0.txt"
+  },
+  {
+    "source": "vtec/NPWDMX_1.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-NPWDMX_1.txt"
+  },
+  {
+    "source": "vtec/TORFWD_0.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-TORFWD_0.txt"
+  },
+  {
+    "source": "vtec/TORFWD_1.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-TORFWD_1.txt"
+  },
+  {
+    "source": "vtec/WSWLWX_0.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-WSWLWX_0.txt"
+  },
+  {
+    "source": "vtec/WSWLWX_1.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-WSWLWX_1.txt"
+  },
+  {
+    "source": "vtec/WSWLWX_2.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-WSWLWX_2.txt"
+  },
+  {
+    "source": "vtec/crosses_0.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-crosses_0.txt"
+  },
+  {
+    "source": "vtec/crosses_1.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-crosses_1.txt"
+  },
+  {
+    "source": "vtec/crosses_2.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-crosses_2.txt"
+  },
+  {
+    "source": "vtec/multiple.txt",
+    "destination_dir": "generic/vtec_regression",
+    "target_name": "vtec-multiple.txt"
+  },
+  {
+    "source": "SFTPQ2.txt",
+    "destination_dir": "generic/tabular_state_forecast"
+  }
+]

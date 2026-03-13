@@ -1,9 +1,4 @@
-//! Minimal METAR bulletin parsing for WMO collectives without AFOS PIL lines.
-//!
-//! The parser keeps the existing owned `MetarBulletin` output but replaces the
-//! regex-based core parse with explicit token handling. This removes repeated
-//! whitespace join/split churn from the collective path while preserving the
-//! same issue behavior for invalid report-like segments.
+//! Structured METAR bulletin parsing for WMO collectives without AFOS PIL lines.
 
 use crate::ProductParseIssue;
 use serde::Serialize;
@@ -18,15 +13,62 @@ pub enum MetarReportKind {
     Speci,
 }
 
+/// Wind block from a METAR observation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MetarWind {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction_degrees: Option<u16>,
+    pub speed_kt: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gust_kt: Option<u16>,
+    pub is_variable: bool,
+}
+
+/// Sky condition group from a METAR observation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MetarSkyCondition {
+    pub cover: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height_ft_agl: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modifier: Option<String>,
+}
+
 /// Individual METAR report from a single station.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MetarReport {
     /// Type of report (METAR or SPECI)
     pub kind: MetarReportKind,
-    /// ICAO station identifier (e.g., "KBOS")
+    /// ICAO station identifier (e.g., `KBOS`)
     pub station: String,
-    /// Observation time in HHMMSSZ format
+    /// Observation time in `HHMMSSZ` format
     pub observation_time: String,
+    /// True when `COR` was present in the header
+    pub correction: bool,
+    /// Parsed wind group
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wind: Option<MetarWind>,
+    /// Parsed visibility token
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<String>,
+    /// Present-weather tokens such as `-RA`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weather: Vec<String>,
+    /// Parsed sky groups
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sky_conditions: Vec<MetarSkyCondition>,
+    /// Air temperature in Celsius
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature_c: Option<i16>,
+    /// Dewpoint in Celsius
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dewpoint_c: Option<i16>,
+    /// Altimeter setting such as `Q1029` or `A3017`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub altimeter: Option<String>,
+    /// Remainder beginning with `RMK`, when present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remarks: Option<String>,
     /// Complete raw METAR text
     pub raw: String,
 }
@@ -50,6 +92,15 @@ struct ParsedMetarRef {
     kind: MetarReportKind,
     station: String,
     observation_time: String,
+    correction: bool,
+    wind: Option<MetarWind>,
+    visibility: Option<String>,
+    weather: Vec<String>,
+    sky_conditions: Vec<MetarSkyCondition>,
+    temperature_c: Option<i16>,
+    dewpoint_c: Option<i16>,
+    altimeter: Option<String>,
+    remarks: Option<String>,
 }
 
 impl ParsedMetarRef {
@@ -58,6 +109,15 @@ impl ParsedMetarRef {
             kind: self.kind,
             station: self.station,
             observation_time: self.observation_time,
+            correction: self.correction,
+            wind: self.wind,
+            visibility: self.visibility,
+            weather: self.weather,
+            sky_conditions: self.sky_conditions,
+            temperature_c: self.temperature_c,
+            dewpoint_c: self.dewpoint_c,
+            altimeter: self.altimeter,
+            remarks: self.remarks,
             raw,
         }
     }
@@ -117,24 +177,105 @@ fn normalize_metar_segment(segment: &str) -> String {
 fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef> {
     let tokens = segment.split(' ').collect::<Vec<_>>();
     let (kind, start, inline_station) = find_metar_start(&tokens)?;
-    let mut tokens = tokens[start..].iter().copied();
-    let _kind_token = tokens.next()?;
-    let maybe_station = inline_station.or_else(|| tokens.next())?;
-    let station = if maybe_station == "COR" {
-        tokens.next()?
-    } else {
-        maybe_station
-    };
-    let observation_time = tokens.next()?;
+    let mut index = start + 1;
+    let mut correction = false;
 
+    let station = inline_station.unwrap_or_else(|| {
+        let token = tokens[index];
+        index += 1;
+        token
+    });
+    if station == "COR" {
+        correction = true;
+        let next = *tokens.get(index)?;
+        index += 1;
+        if !is_metar_station(next) {
+            return None;
+        }
+        return parse_metar_body(kind, next, &tokens[index..], correction, segment);
+    }
+
+    parse_metar_body(kind, station, &tokens[index..], correction, segment)
+}
+
+fn parse_metar_body(
+    kind: MetarReportKind,
+    station: &str,
+    body_tokens: &[&str],
+    correction: bool,
+    _raw: &str,
+) -> Option<ParsedMetarRef> {
+    let observation_time = *body_tokens.first()?;
     if !is_metar_station(station) || !is_observation_time(observation_time) {
         return None;
+    }
+
+    let mut wind = None;
+    let mut visibility = None;
+    let mut weather = Vec::new();
+    let mut sky_conditions = Vec::new();
+    let mut temperature_c = None;
+    let mut dewpoint_c = None;
+    let mut altimeter = None;
+    let mut remarks_tokens = Vec::new();
+    let mut in_remarks = false;
+
+    for token in &body_tokens[1..] {
+        if *token == "COR" {
+            continue;
+        }
+        if in_remarks {
+            remarks_tokens.push((*token).to_string());
+            continue;
+        }
+        if *token == "RMK" {
+            in_remarks = true;
+            continue;
+        }
+        if wind.is_none()
+            && let Some(parsed) = parse_wind(token)
+        {
+            wind = Some(parsed);
+            continue;
+        }
+        if visibility.is_none() && is_visibility_token(token) {
+            visibility = Some((*token).to_string());
+            continue;
+        }
+        if temperature_c.is_none()
+            && dewpoint_c.is_none()
+            && let Some((temperature, dewpoint)) = parse_temperature_pair(token)
+        {
+            temperature_c = Some(temperature);
+            dewpoint_c = dewpoint;
+            continue;
+        }
+        if altimeter.is_none() && is_altimeter_token(token) {
+            altimeter = Some((*token).to_string());
+            continue;
+        }
+        if let Some(condition) = parse_sky_condition(token) {
+            sky_conditions.push(condition);
+            continue;
+        }
+        if is_weather_token(token) {
+            weather.push((*token).to_string());
+        }
     }
 
     Some(ParsedMetarRef {
         kind,
         station: station.to_string(),
         observation_time: observation_time.to_string(),
+        correction,
+        wind,
+        visibility,
+        weather,
+        sky_conditions,
+        temperature_c,
+        dewpoint_c,
+        altimeter,
+        remarks: (!remarks_tokens.is_empty()).then_some(remarks_tokens.join(" ")),
     })
 }
 
@@ -164,6 +305,97 @@ fn find_metar_start<'a>(
     None
 }
 
+fn parse_wind(token: &str) -> Option<MetarWind> {
+    if !token.ends_with("KT") {
+        return None;
+    }
+    let core = token.strip_suffix("KT")?;
+    let (direction, remainder, is_variable) = if let Some(rest) = core.strip_prefix("VRB") {
+        (None, rest, true)
+    } else {
+        let (direction, rest) = core.split_at(3);
+        (Some(direction.parse::<u16>().ok()?), rest, false)
+    };
+    let (speed, gust_kt) = if let Some((speed, gust)) = remainder.split_once('G') {
+        (speed.parse::<u16>().ok()?, Some(gust.parse::<u16>().ok()?))
+    } else {
+        (remainder.parse::<u16>().ok()?, None)
+    };
+    Some(MetarWind {
+        direction_degrees: direction,
+        speed_kt: speed,
+        gust_kt,
+        is_variable,
+    })
+}
+
+fn is_visibility_token(token: &str) -> bool {
+    token == "CAVOK"
+        || token == "9999"
+        || token == "9999NDV"
+        || token.ends_with("SM")
+        || token.chars().all(|ch| ch.is_ascii_digit()) && token.len() == 4
+}
+
+fn is_weather_token(token: &str) -> bool {
+    let token = token.trim_matches('+').trim_matches('-');
+    token.len() >= 2
+        && token.len() <= 8
+        && token.chars().all(|ch| ch.is_ascii_uppercase())
+        && !is_altimeter_token(token)
+        && !matches!(
+            token,
+            "AUTO" | "NOSIG" | "RMK" | "COR" | "AO1" | "AO2" | "CLR" | "SKC"
+        )
+}
+
+fn parse_sky_condition(token: &str) -> Option<MetarSkyCondition> {
+    let cover = token.get(..3)?;
+    if !matches!(
+        cover,
+        "SKC" | "CLR" | "FEW" | "SCT" | "BKN" | "OVC" | "VV0" | "VV/"
+    ) {
+        return None;
+    }
+    let height = token
+        .get(3..6)
+        .filter(|digits| digits.chars().all(|ch| ch.is_ascii_digit()))
+        .and_then(|digits| digits.parse::<u32>().ok())
+        .map(|height| height * 100);
+    let modifier = token
+        .get(6..)
+        .filter(|suffix| !suffix.is_empty())
+        .map(str::to_string);
+    Some(MetarSkyCondition {
+        cover: cover.to_string(),
+        height_ft_agl: height,
+        modifier,
+    })
+}
+
+fn parse_temperature_pair(token: &str) -> Option<(i16, Option<i16>)> {
+    let (temperature, dewpoint) = token.split_once('/')?;
+    Some((
+        parse_signed_temperature(temperature)?,
+        parse_signed_temperature(dewpoint),
+    ))
+}
+
+fn parse_signed_temperature(token: &str) -> Option<i16> {
+    if token.is_empty() || token == "//" || token.contains('/') {
+        return None;
+    }
+    let negative = token.starts_with('M') || token.starts_with('-');
+    let digits = token.trim_start_matches('M').trim_start_matches('-');
+    let value = digits.parse::<i16>().ok()?;
+    Some(if negative { -value } else { value })
+}
+
+fn is_altimeter_token(token: &str) -> bool {
+    (token.starts_with('Q') && token.len() == 5 || token.starts_with('A') && token.len() == 5)
+        && token[1..].chars().all(|ch| ch.is_ascii_digit())
+}
+
 fn is_metar_station(token: &str) -> bool {
     token.len() == 4
         && token.starts_with(|ch: char| ch.is_ascii_uppercase())
@@ -189,11 +421,15 @@ mod tests {
         assert_eq!(bulletin.reports[0].kind, MetarReportKind::Metar);
         assert_eq!(bulletin.reports[0].station, "BGKK");
         assert_eq!(bulletin.reports[0].observation_time, "070220Z");
+        assert_eq!(bulletin.reports[0].visibility.as_deref(), Some("9999NDV"));
+        assert_eq!(bulletin.reports[0].temperature_c, Some(-3));
+        assert_eq!(bulletin.reports[0].dewpoint_c, Some(-8));
     }
 
     #[test]
     fn parses_multiple_reports_in_bulletin() {
-        let text = "METAR BGKK 070220Z AUTO VRB02KT 9999= SPECI KDSM 070254Z 33007KT 10SM CLR=";
+        let text =
+            "METAR BGKK 070220Z AUTO VRB02KT 9999= SPECI KDSM 070254Z 33007KT 10SM CLR RMK AO2=";
         let (bulletin, issues) =
             parse_metar_bulletin(text).expect("expected multiple METAR reports");
 
@@ -201,6 +437,7 @@ mod tests {
         assert_eq!(bulletin.report_count(), 2);
         assert_eq!(bulletin.reports[1].kind, MetarReportKind::Speci);
         assert_eq!(bulletin.reports[1].station, "KDSM");
+        assert_eq!(bulletin.reports[1].remarks.as_deref(), Some("AO2"));
     }
 
     #[test]
@@ -217,6 +454,7 @@ mod tests {
 
         assert_eq!(bulletin.report_count(), 1);
         assert_eq!(bulletin.reports[0].station, "UGKO");
+        assert!(bulletin.reports[0].correction);
         assert!(issues.is_empty());
     }
 
@@ -228,6 +466,7 @@ mod tests {
 
         assert_eq!(bulletin.report_count(), 1);
         assert_eq!(bulletin.reports[0].station, "KDSM");
+        assert_eq!(bulletin.reports[0].altimeter.as_deref(), Some("A3017"));
         assert!(issues.is_empty());
     }
 
@@ -258,6 +497,6 @@ mod tests {
         assert!(issues.is_empty());
         assert_eq!(bulletin.report_count(), 1);
         assert_eq!(bulletin.reports[0].station, "SBUF");
-        assert_eq!(bulletin.reports[0].observation_time, "112000Z");
+        assert_eq!(bulletin.reports[0].visibility.as_deref(), Some("CAVOK"));
     }
 }

@@ -45,6 +45,7 @@ EXTRACTOR_VARIANTS = {
 
 ROUTING_VARIANTS = {
     "generic": "TextProductRouting::Generic",
+    "cli": "TextProductRouting::Cli",
     "fd": "TextProductRouting::Fd",
     "pirep": "TextProductRouting::Pirep",
     "sigmet": "TextProductRouting::Sigmet",

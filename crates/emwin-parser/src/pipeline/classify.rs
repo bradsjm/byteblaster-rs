@@ -11,6 +11,7 @@ use crate::data::{
     resolved_text_product_policy,
 };
 use crate::specialized::cf6::parse_cf6_bulletin;
+use crate::specialized::cli::parse_cli_bulletin;
 use crate::specialized::cwa::parse_cwa_bulletin;
 use crate::specialized::dcp::parse_dcp_bulletin;
 use crate::specialized::dsm::parse_dsm_bulletin;
@@ -31,10 +32,11 @@ use crate::specialized::wwp::parse_wwp_bulletin;
 use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enrich_header};
 
 use super::candidate::{
-    BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CwaCandidate, DcpCandidate,
-    DsmCandidate, EroCandidate, FdCandidate, HmlCandidate, LsrCandidate, McdCandidate,
-    MetarCandidate, MosCandidate, PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate,
-    SpcOutlookCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
+    BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CliCandidate, CwaCandidate,
+    DcpCandidate, DsmCandidate, EroCandidate, FdCandidate, HmlCandidate, LsrCandidate,
+    McdCandidate, MetarCandidate, MosCandidate, PirepCandidate, SawCandidate, SelCandidate,
+    SigmetCandidate, SpcOutlookCandidate, TafCandidate, TextGenericCandidate,
+    UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
@@ -46,6 +48,7 @@ const TEXT_STRATEGIES: &[TextStrategy] = &[
     classify_text_pirep,
     classify_text_sigmet,
     classify_text_lsr,
+    classify_text_cli,
     classify_text_cwa,
     classify_text_wwp,
     classify_text_saw,
@@ -253,6 +256,13 @@ fn looks_like_pirep_text_product(afos: &str, body_text: &str) -> bool {
             && (body_text.contains(" UA ") || body_text.contains(" UUA ")))
 }
 
+/// Detects whether AFOS text resembles a CLI bulletin.
+fn looks_like_cli_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("CLI")
+        || (body_text.to_ascii_uppercase().contains("CLIMATE SUMMARY")
+            && body_text.to_ascii_uppercase().contains("WEATHER ITEM"))
+}
+
 /// Detects whether AFOS text resembles a SIGMET bulletin.
 fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("SIG")
@@ -452,7 +462,7 @@ fn classify_text_sigmet(
     let bulletin = parse_sigmet_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
-        source: ProductEnrichmentSource::TextSigmetBulletin,
+        source: ProductEnrichmentSource::TextHeader,
         header: Some(context.header.clone()),
         wmo_header: None,
         pil: context.pil.clone(),
@@ -486,6 +496,28 @@ fn classify_text_lsr(context: &TextClassificationContext<'_>) -> Option<Classifi
         ),
         bulletin,
         issues,
+    }))
+}
+
+fn classify_text_cli(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Cli) {
+        return None;
+    }
+    if !looks_like_cli_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let bulletin = parse_cli_bulletin(context.body_text)?;
+    Some(ClassificationCandidate::Cli(CliCandidate {
+        header: context.header.clone(),
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: build_body_request(
+            context.body_plan,
+            context.body_text,
+            context.reference_time,
+        ),
+        bulletin,
+        issues: Vec::new(),
     }))
 }
 
@@ -770,7 +802,7 @@ fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<Classificat
     )?;
 
     Some(ClassificationCandidate::Fd(FdCandidate {
-        source: ProductEnrichmentSource::WmoFdBulletin,
+        source: ProductEnrichmentSource::WmoBulletin,
         family: "fd_bulletin",
         title: "Winds and temperatures aloft",
         header: None,
@@ -817,7 +849,7 @@ fn classify_wmo_sigmet(context: &WmoClassificationContext<'_>) -> Option<Classif
     let bulletin = parse_sigmet_bulletin(context.body_text)?;
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
-        source: ProductEnrichmentSource::WmoSigmetBulletin,
+        source: ProductEnrichmentSource::WmoBulletin,
         header: None,
         wmo_header: Some(context.header.clone()),
         pil: None,
@@ -913,7 +945,7 @@ mod tests {
     use crate::pipeline::candidate::{ClassificationCandidate, FdCandidate};
     use crate::pipeline::{NormalizedInput, ParsedEnvelope};
     use crate::{ProductEnrichmentSource, TextProductHeader};
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
 
     fn with_specialized_context<T>(
         pil: &'static str,
@@ -1529,10 +1561,14 @@ HMLMTR
 
     #[test]
     fn specialized_candidate_can_carry_body_request_when_metadata_enables_catalog_body_behavior() {
+        let reference_time = Utc
+            .with_ymd_and_hms(2025, 3, 7, 0, 0, 0)
+            .single()
+            .expect("valid reference time");
         let request = build_body_request(
             Some(body_extraction_plan(&[BodyExtractorId::WindHail])),
             "/O.NEW.KDMX.TO.W.0001.250301T1200Z-250301T1300Z/",
-            Some(Utc::now()),
+            Some(reference_time),
         );
 
         let candidate = ClassificationCandidate::Fd(FdCandidate {
@@ -1553,7 +1589,7 @@ HMLMTR
             bulletin: crate::specialized::fd::parse_fd_bulletin(
                 "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
                 Some("FD1US1"),
-                Utc::now(),
+                reference_time,
             )
             .expect("fd bulletin should parse"),
         });

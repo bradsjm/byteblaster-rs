@@ -26,6 +26,7 @@ pub use generated_wmo_office::{
 #[serde(rename_all = "snake_case")]
 pub enum TextProductRouting {
     Generic,
+    Cli,
     Fd,
     Pirep,
     Sigmet,

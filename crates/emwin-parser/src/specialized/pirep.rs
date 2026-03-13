@@ -1,14 +1,11 @@
-//! Minimal PIREP bulletin parsing.
-//!
-//! The report header remains regex-driven because that is the narrowest and
-//! clearest fixed-format part of the grammar. The rest of the parser now keeps
-//! report normalization and field extraction explicit so it no longer rebuilds
-//! the same string repeatedly.
+//! Structured PIREP bulletin parsing.
 
 use regex::Regex;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
+
+use crate::GeoPoint;
 
 /// Type of PIREP report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -21,48 +18,73 @@ pub enum PirepKind {
 }
 
 /// Individual PIREP report from a pilot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PirepReport {
     /// Type of report (UA or UUA)
     #[serde(rename = "kind")]
     pub report_kind: PirepKind,
-    /// Reporting station/airport (optional)
+    /// Reporting station/airport
     #[serde(skip_serializing_if = "Option::is_none")]
     pub station: Option<String>,
-    /// Report time in HHMM format (optional)
+    /// Report time in HHMM format
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
-    /// Raw location text from /OV field (optional)
+    /// Raw location text from /OV
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location_raw: Option<String>,
-    /// Flight level in feet (optional)
+    /// Resolved /OV location when supported
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<GeoPoint>,
+    /// Flight level in feet
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flight_level_ft: Option<u32>,
-    /// Aircraft type from /TP field (optional)
+    /// Aircraft type from /TP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aircraft_type: Option<String>,
-    /// All parsed fields by their 2-letter codes
-    pub fields: BTreeMap<String, String>,
+    /// Sky condition from /SK
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sky_condition: Option<String>,
+    /// Turbulence from /TB
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turbulence: Option<String>,
+    /// Icing from /IC
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icing: Option<String>,
+    /// Temperature from /TA
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature_c: Option<i16>,
+    /// Remarks from /RM
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remarks: Option<String>,
+    /// Unsupported but preserved fields by tag code
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub unsupported_fields: BTreeMap<String, String>,
     /// Complete raw PIREP text
     pub raw: String,
 }
 
 /// PIREP bulletin containing multiple pilot reports.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PirepBulletin {
     /// Individual PIREP reports in the bulletin
     pub reports: Vec<PirepReport>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct ParsedPirepRef<'a> {
     report_kind: PirepKind,
     station: Option<&'a str>,
     time: Option<String>,
     location_raw: Option<String>,
+    location: Option<GeoPoint>,
     flight_level_ft: Option<u32>,
     aircraft_type: Option<String>,
-    fields: BTreeMap<String, String>,
+    sky_condition: Option<String>,
+    turbulence: Option<String>,
+    icing: Option<String>,
+    temperature_c: Option<i16>,
+    remarks: Option<String>,
+    unsupported_fields: BTreeMap<String, String>,
 }
 
 impl ParsedPirepRef<'_> {
@@ -72,9 +94,15 @@ impl ParsedPirepRef<'_> {
             station: self.station.map(str::to_string),
             time: self.time,
             location_raw: self.location_raw,
+            location: self.location,
             flight_level_ft: self.flight_level_ft,
             aircraft_type: self.aircraft_type,
-            fields: self.fields,
+            sky_condition: self.sky_condition,
+            turbulence: self.turbulence,
+            icing: self.icing,
+            temperature_c: self.temperature_c,
+            remarks: self.remarks,
+            unsupported_fields: self.unsupported_fields,
             raw,
         }
     }
@@ -82,14 +110,12 @@ impl ParsedPirepRef<'_> {
 
 /// Parses a PIREP bulletin from text content.
 pub(crate) fn parse_pirep_bulletin(text: &str) -> Option<PirepBulletin> {
-    let mut reports = Vec::new();
-
-    for report in pirep_reports(text) {
-        let Some(parsed) = parse_pirep_report_ref(&report) else {
-            continue;
-        };
-        reports.push(parsed.into_owned(report.clone()));
-    }
+    let reports = pirep_reports(text)
+        .into_iter()
+        .filter_map(|report| {
+            parse_pirep_report_ref(&report).map(|parsed| parsed.into_owned(report.clone()))
+        })
+        .collect::<Vec<_>>();
 
     (!reports.is_empty()).then_some(PirepBulletin { reports })
 }
@@ -137,21 +163,37 @@ fn parse_pirep_report_ref(report: &str) -> Option<ParsedPirepRef<'_>> {
         _ => return None,
     };
     let station = captures.name("station").map(|value| value.as_str());
-    let fields = parse_pirep_fields(body);
+    let mut fields = parse_pirep_fields(body);
 
-    let time = fields.get("TM").map(|value| normalize_time(value));
-    let location_raw = fields.get("OV").cloned();
-    let flight_level_ft = fields.get("FL").and_then(|value| parse_flight_level(value));
-    let aircraft_type = fields.get("TP").cloned();
+    let time = fields.remove("TM").map(|value| normalize_time(&value));
+    let location_raw = fields.remove("OV");
+    let location = location_raw.as_deref().and_then(parse_ov_latlon);
+    let flight_level_ft = fields
+        .remove("FL")
+        .and_then(|value| parse_flight_level(&value));
+    let aircraft_type = fields.remove("TP");
+    let sky_condition = fields.remove("SK");
+    let turbulence = fields.remove("TB");
+    let icing = fields.remove("IC");
+    let temperature_c = fields
+        .remove("TA")
+        .and_then(|value| parse_temperature_c(&value));
+    let remarks = fields.remove("RM");
 
     Some(ParsedPirepRef {
         report_kind,
         station,
         time,
         location_raw,
+        location,
         flight_level_ft,
         aircraft_type,
-        fields,
+        sky_condition,
+        turbulence,
+        icing,
+        temperature_c,
+        remarks,
+        unsupported_fields: fields,
     })
 }
 
@@ -186,6 +228,33 @@ fn normalize_time(value: &str) -> String {
         .collect()
 }
 
+fn parse_ov_latlon(value: &str) -> Option<GeoPoint> {
+    let compact = value
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect::<String>();
+    let captures = ov_latlon_re().captures(&compact)?;
+    let lat_degrees = captures.name("lat_deg")?.as_str().parse::<f64>().ok()?;
+    let lat_minutes = captures
+        .name("lat_min")
+        .and_then(|value| value.as_str().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let lon_degrees = captures.name("lon_deg")?.as_str().parse::<f64>().ok()?;
+    let lon_minutes = captures
+        .name("lon_min")
+        .and_then(|value| value.as_str().parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let mut lat = lat_degrees + lat_minutes / 60.0;
+    let mut lon = lon_degrees + lon_minutes / 60.0;
+    if captures.name("lat_hemi")?.as_str() == "S" {
+        lat *= -1.0;
+    }
+    if captures.name("lon_hemi")?.as_str() == "W" {
+        lon *= -1.0;
+    }
+    Some(GeoPoint { lat, lon })
+}
+
 fn parse_flight_level(value: &str) -> Option<u32> {
     let digits = value.strip_prefix("FL").unwrap_or(value);
     let digits = digits
@@ -198,11 +267,34 @@ fn parse_flight_level(value: &str) -> Option<u32> {
         .map(|level| level.saturating_mul(100))
 }
 
+fn parse_temperature_c(value: &str) -> Option<i16> {
+    let digits = value.trim().trim_end_matches('C');
+    let negative = digits.starts_with('M') || digits.starts_with('-');
+    let digits = digits.trim_start_matches('M').trim_start_matches('-');
+    let number = digits
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>()
+        .parse::<i16>()
+        .ok()?;
+    Some(if negative { -number } else { number })
+}
+
 fn report_header_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(r"^(?P<station>[A-Z0-9]{3,4})\s+(?P<kind>UA|UUA)\b")
             .expect("pirep header regex compiles")
+    })
+}
+
+fn ov_latlon_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"^(?P<lat_deg>\d{2})(?P<lat_min>\d{2})?(?P<lat_hemi>[NS])(?P<lon_deg>\d{3})(?P<lon_min>\d{2})?(?P<lon_hemi>[EW])$",
+        )
+        .expect("pirep ov latlon regex compiles")
     })
 }
 
@@ -212,7 +304,7 @@ mod tests {
 
     #[test]
     fn parses_multiple_pireps() {
-        let text = "DEN UA /OV 35 SW=\nKGTF UUA /OV GTF209006/TM 1925/FL050/TP E145=\n";
+        let text = "DEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\nKGTF UUA /OV GTF209006/TM 1925/FL050/TP E145/TB LGT-MOD/IC NEG=\n";
         let bulletin = parse_pirep_bulletin(text).expect("pirep bulletin should parse");
 
         assert_eq!(bulletin.reports.len(), 2);
@@ -221,25 +313,40 @@ mod tests {
         assert_eq!(bulletin.reports[1].time.as_deref(), Some("1925"));
         assert_eq!(bulletin.reports[1].flight_level_ft, Some(5_000));
         assert_eq!(bulletin.reports[1].aircraft_type.as_deref(), Some("E145"));
+        assert_eq!(bulletin.reports[1].turbulence.as_deref(), Some("LGT-MOD"));
     }
 
     #[test]
-    fn parses_single_pirep() {
-        let text = "DEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n";
+    fn keeps_station_relative_location_as_raw_text() {
+        let text = "DEN UA /OV 35 SW DEN /TM 1925 /FL050 /TP E145 /TA M05=\n";
         let bulletin = parse_pirep_bulletin(text).expect("single pirep should parse");
 
         assert_eq!(bulletin.reports.len(), 1);
         assert_eq!(bulletin.reports[0].station.as_deref(), Some("DEN"));
-        assert_eq!(bulletin.reports[0].location_raw.as_deref(), Some("35 SW"));
+        assert_eq!(bulletin.reports[0].temperature_c, Some(-5));
+        assert_eq!(
+            bulletin.reports[0].location_raw.as_deref(),
+            Some("35 SW DEN")
+        );
+        assert!(bulletin.reports[0].location.is_none());
+    }
+
+    #[test]
+    fn parses_direct_latlon_location_without_lookup() {
+        let text = "DEN UA /OV 3905N10450W /TM 1925 /FL050=\n";
+        let bulletin = parse_pirep_bulletin(text).expect("single pirep should parse");
+
+        assert!(bulletin.reports[0].location.is_some());
     }
 
     #[test]
     fn wrapped_report_lines_are_normalized() {
-        let text = "DEN UA /OV 35 SW\n/TM 1925 /FL050\n/TP E145=\n";
+        let text = "DEN UA /OV 35 SW DEN\n/TM 1925 /FL050\n/TP E145 /RM SMOOTH=\n";
         let bulletin = parse_pirep_bulletin(text).expect("wrapped pirep should parse");
 
         assert_eq!(bulletin.reports[0].time.as_deref(), Some("1925"));
         assert_eq!(bulletin.reports[0].aircraft_type.as_deref(), Some("E145"));
+        assert_eq!(bulletin.reports[0].remarks.as_deref(), Some("SMOOTH"));
     }
 
     #[test]

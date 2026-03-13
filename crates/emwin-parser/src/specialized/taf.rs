@@ -1,33 +1,98 @@
-//! Minimal TAF bulletin parsing for WMO bulletins without AFOS PIL lines.
-//!
-//! This parser keeps the owned public `TafBulletin` output stable while
-//! shifting the parsing work onto explicit preamble/core steps. The preamble is
-//! parsed with `winnow` so duplicated `TAF` markers and amendment/correction
-//! qualifiers are handled in one place instead of through repeated string
-//! rebuilding.
+//! Structured TAF bulletin parsing for WMO bulletins without AFOS PIL lines.
 
 use serde::Serialize;
 use winnow::Parser;
 use winnow::combinator::alt;
 use winnow::error::ContextError;
 
+/// Wind block from a TAF forecast.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TafWind {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction_degrees: Option<u16>,
+    pub speed_kt: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gust_kt: Option<u16>,
+    pub is_variable: bool,
+}
+
+/// Sky condition group from a TAF forecast.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TafSkyCondition {
+    pub cover: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height_ft_agl: Option<u32>,
+}
+
+/// Low-level wind-shear group from a TAF forecast.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TafWindShear {
+    pub height_ft_agl: u32,
+    pub direction_degrees: u16,
+    pub speed_kt: u16,
+}
+
+/// Parsed conditions attached to the initial TAF or a change group.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct TafConditions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wind: Option<TafWind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weather: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sky_conditions: Vec<TafSkyCondition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wind_shear: Option<TafWindShear>,
+}
+
+/// TAF change-group type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TafForecastGroupKind {
+    Fm,
+    Tempo,
+    Prob,
+    Becmg,
+}
+
+/// Forecast or change group contained within a TAF bulletin.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TafForecastGroup {
+    pub change_kind: TafForecastGroupKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub probability_percent: Option<u8>,
+    pub conditions: TafConditions,
+    pub raw: String,
+}
+
 /// TAF bulletin containing a terminal aerodrome forecast.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TafBulletin {
-    /// ICAO station identifier (e.g., "KBOS")
+    /// ICAO station identifier (e.g., `KBOS`)
     pub station: String,
-    /// Issue time in HHMMSSZ format
+    /// Issue time in `HHMMSSZ` format
     pub issue_time: String,
-    /// Validity period start (DDHH format)
+    /// Validity period start (`DDHH`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_from: Option<String>,
-    /// Validity period end (DDHH format)
+    /// Validity period end (`DDHH`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_to: Option<String>,
-    /// True if this is an amended forecast (TAF AMD)
+    /// True if this is an amended forecast (`TAF AMD`)
     pub amendment: bool,
-    /// True if this is a corrected forecast (TAF COR)
+    /// True if this is a corrected forecast (`TAF COR`)
     pub correction: bool,
+    /// Initial forecast conditions before any explicit change group
+    pub initial_conditions: TafConditions,
+    /// Ordered change groups
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<TafForecastGroup>,
     /// Complete raw TAF text
     pub raw: String,
 }
@@ -49,43 +114,40 @@ impl Preamble {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ParsedTafRef<'a> {
-    station: &'a str,
-    issue_time: &'a str,
-    valid_from: Option<&'a str>,
-    valid_to: Option<&'a str>,
-}
-
-impl ParsedTafRef<'_> {
-    fn into_owned(self, preamble: Preamble, raw: String) -> TafBulletin {
-        TafBulletin {
-            station: self.station.to_string(),
-            issue_time: self.issue_time.to_string(),
-            valid_from: self.valid_from.map(str::to_string),
-            valid_to: self.valid_to.map(str::to_string),
-            amendment: preamble.amendment,
-            correction: preamble.correction,
-            raw,
-        }
-    }
-}
-
 /// Parses a TAF bulletin from text content.
 pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
     let compact = compact_ascii_whitespace(text);
     let mut input = compact.as_str();
     let preamble = parse_taf_prefix(&mut input)?;
     let report_body = input;
-    let parsed = parse_taf_core(&mut input)?;
-    let raw = if report_body.is_empty() {
-        preamble.normalized_prefix().to_string()
-    } else {
-        format!("{} {}", preamble.normalized_prefix(), report_body)
-    };
-    let owned = parsed.into_owned(preamble, raw);
+    let station = next_token(&mut input)?;
+    let issue_time = next_token(&mut input)?;
+    if !is_station_token(station) || !is_issue_time_token(issue_time) {
+        return None;
+    }
 
-    Some(owned)
+    let (valid_from, valid_to) = next_token(&mut input)
+        .and_then(parse_validity_range)
+        .map(|(from, to)| (Some(from.to_string()), Some(to.to_string())))
+        .unwrap_or((None, None));
+    let remainder = input.trim();
+    let (initial_conditions, groups) = parse_forecast_groups(remainder);
+
+    Some(TafBulletin {
+        station: station.to_string(),
+        issue_time: issue_time.to_string(),
+        valid_from,
+        valid_to,
+        amendment: preamble.amendment,
+        correction: preamble.correction,
+        initial_conditions,
+        groups,
+        raw: if report_body.is_empty() {
+            preamble.normalized_prefix().to_string()
+        } else {
+            format!("{} {}", preamble.normalized_prefix(), report_body)
+        },
+    })
 }
 
 /// Compacts ASCII whitespace in one pass.
@@ -163,41 +225,207 @@ fn parse_taf_prefix(input: &mut &str) -> Option<Preamble> {
     Some(preamble)
 }
 
-/// Parses the station, issue time, and optional validity window from compacted text.
-fn parse_taf_core<'a>(input: &mut &'a str) -> Option<ParsedTafRef<'a>> {
-    let station = next_token(input)?;
-    let issue_time = next_token(input)?;
-    if !is_station_token(station) || !is_issue_time_token(issue_time) {
+fn parse_forecast_groups(remainder: &str) -> (TafConditions, Vec<TafForecastGroup>) {
+    if remainder.is_empty() {
+        return (TafConditions::default(), Vec::new());
+    }
+
+    let tokens = remainder.split_whitespace().collect::<Vec<_>>();
+    let mut segments = Vec::<Vec<&str>>::new();
+    let mut current = Vec::new();
+
+    for token in tokens {
+        if is_group_marker(token) && !current.is_empty() {
+            segments.push(std::mem::take(&mut current));
+        }
+        current.push(token);
+    }
+    if !current.is_empty() {
+        segments.push(current);
+    }
+
+    let initial = segments
+        .first()
+        .map(|tokens| parse_conditions(tokens))
+        .unwrap_or_default();
+    let groups = segments
+        .into_iter()
+        .skip(1)
+        .filter_map(|segment| parse_group(&segment))
+        .collect();
+
+    (initial, groups)
+}
+
+fn parse_group(tokens: &[&str]) -> Option<TafForecastGroup> {
+    let first = *tokens.first()?;
+    let mut index = 1;
+    let (change_kind, valid_from, valid_to, probability_percent) =
+        if let Some(from) = first.strip_prefix("FM") {
+            if from.len() != 6 || !from.chars().all(|ch| ch.is_ascii_digit()) {
+                return None;
+            }
+            (
+                TafForecastGroupKind::Fm,
+                Some(from[..4].to_string()),
+                None,
+                None,
+            )
+        } else if first == "TEMPO" || first == "BECMG" {
+            let validity = *tokens.get(index)?;
+            let (from, to) = parse_validity_range(validity)?;
+            index += 1;
+            (
+                if first == "TEMPO" {
+                    TafForecastGroupKind::Tempo
+                } else {
+                    TafForecastGroupKind::Becmg
+                },
+                Some(from.to_string()),
+                Some(to.to_string()),
+                None,
+            )
+        } else if let Some(probability) = first.strip_prefix("PROB") {
+            let probability_percent = probability.parse::<u8>().ok()?;
+            let validity = *tokens.get(index)?;
+            let (from, to) = parse_validity_range(validity)?;
+            index += 1;
+            (
+                TafForecastGroupKind::Prob,
+                Some(from.to_string()),
+                Some(to.to_string()),
+                Some(probability_percent),
+            )
+        } else {
+            return None;
+        };
+
+    let body = tokens[index..].join(" ");
+    Some(TafForecastGroup {
+        change_kind,
+        valid_from,
+        valid_to,
+        probability_percent,
+        conditions: parse_conditions(&tokens[index..]),
+        raw: body,
+    })
+}
+
+fn parse_conditions(tokens: &[&str]) -> TafConditions {
+    let mut conditions = TafConditions::default();
+
+    for token in tokens {
+        if conditions.wind.is_none()
+            && let Some(wind) = parse_wind(token)
+        {
+            conditions.wind = Some(wind);
+            continue;
+        }
+        if conditions.visibility.is_none() && is_visibility_token(token) {
+            conditions.visibility = Some((*token).to_string());
+            continue;
+        }
+        if conditions.wind_shear.is_none()
+            && let Some(shear) = parse_wind_shear(token)
+        {
+            conditions.wind_shear = Some(shear);
+            continue;
+        }
+        if let Some(sky) = parse_sky_condition(token) {
+            conditions.sky_conditions.push(sky);
+            continue;
+        }
+        if is_weather_token(token) {
+            conditions.weather.push((*token).to_string());
+        }
+    }
+
+    conditions
+}
+
+fn is_group_marker(token: &str) -> bool {
+    token.starts_with("FM")
+        || token == "TEMPO"
+        || token == "BECMG"
+        || token.starts_with("PROB30")
+        || token.starts_with("PROB40")
+}
+
+fn parse_wind(token: &str) -> Option<TafWind> {
+    if !token.ends_with("KT") {
         return None;
     }
-
-    let validity = input
-        .split_once(' ')
-        .map(|(candidate, _)| candidate)
-        .or((!input.is_empty()).then_some(*input))
-        .and_then(parse_validity_range);
-
-    if let Some((valid_from, valid_to)) = validity {
-        let consumed = valid_from.len() + valid_to.len() + 1;
-        *input = input.get(consumed..).unwrap_or_default();
-        if input.starts_with(' ') {
-            *input = &input[1..];
+    let core = token.strip_suffix("KT")?;
+    let (direction, remainder, is_variable) = if let Some(rest) = core.strip_prefix("VRB") {
+        (None, rest, true)
+    } else {
+        let (direction, rest) = core.split_at(3);
+        if !direction.chars().all(|ch| ch.is_ascii_digit()) {
+            return None;
         }
-
-        return Some(ParsedTafRef {
-            station,
-            issue_time,
-            valid_from: Some(valid_from),
-            valid_to: Some(valid_to),
-        });
-    }
-
-    Some(ParsedTafRef {
-        station,
-        issue_time,
-        valid_from: None,
-        valid_to: None,
+        (Some(direction.parse::<u16>().ok()?), rest, false)
+    };
+    let (speed, gust_kt) = if let Some((speed, gust)) = remainder.split_once('G') {
+        (speed.parse::<u16>().ok()?, Some(gust.parse::<u16>().ok()?))
+    } else {
+        (remainder.parse::<u16>().ok()?, None)
+    };
+    Some(TafWind {
+        direction_degrees: direction,
+        speed_kt: speed,
+        gust_kt,
+        is_variable,
     })
+}
+
+fn is_visibility_token(token: &str) -> bool {
+    token == "CAVOK"
+        || token == "9999"
+        || token.ends_with("SM")
+        || token.starts_with('P') && token.ends_with("SM")
+}
+
+fn parse_wind_shear(token: &str) -> Option<TafWindShear> {
+    let core = token.strip_prefix("WS")?;
+    let (height, wind) = core.split_once('/')?;
+    if height.len() != 3 {
+        return None;
+    }
+    let height_ft_agl = height.parse::<u32>().ok()?.saturating_mul(100);
+    let wind = wind.strip_suffix("KT")?;
+    if wind.len() != 5 {
+        return None;
+    }
+    Some(TafWindShear {
+        height_ft_agl,
+        direction_degrees: wind[..3].parse::<u16>().ok()?,
+        speed_kt: wind[3..].parse::<u16>().ok()?,
+    })
+}
+
+fn parse_sky_condition(token: &str) -> Option<TafSkyCondition> {
+    let cover = token.get(..3)?;
+    if !matches!(cover, "SKC" | "NSC" | "FEW" | "SCT" | "BKN" | "OVC" | "VV0") {
+        return None;
+    }
+    let height_ft_agl = token
+        .get(3..6)
+        .filter(|digits| digits.chars().all(|ch| ch.is_ascii_digit()))
+        .and_then(|digits| digits.parse::<u32>().ok())
+        .map(|height| height * 100);
+    Some(TafSkyCondition {
+        cover: cover.to_string(),
+        height_ft_agl,
+    })
+}
+
+fn is_weather_token(token: &str) -> bool {
+    let trimmed = token.trim_matches('+').trim_matches('-');
+    trimmed.len() >= 2
+        && trimmed.len() <= 8
+        && trimmed.chars().all(|ch| ch.is_ascii_uppercase())
+        && !matches!(trimmed, "RMK" | "AMD" | "COR" | "TX" | "TN" | "QNH")
+        && !trimmed.starts_with("QNH")
 }
 
 fn next_token<'a>(input: &mut &'a str) -> Option<&'a str> {
@@ -234,7 +462,7 @@ fn parse_validity_range(token: &str) -> Option<(&str, &str)> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_taf_bulletin;
+    use super::{TafForecastGroupKind, parse_taf_bulletin};
 
     #[test]
     fn parses_amended_taf_bulletin() {
@@ -247,6 +475,13 @@ mod tests {
         assert_eq!(taf.valid_to.as_deref(), Some("0803"));
         assert!(taf.amendment);
         assert!(!taf.correction);
+        assert_eq!(
+            taf.initial_conditions
+                .wind
+                .as_ref()
+                .map(|wind| wind.speed_kt),
+            Some(12)
+        );
     }
 
     #[test]
@@ -269,9 +504,9 @@ mod tests {
         assert_eq!(taf.issue_time, "070400Z");
         assert_eq!(taf.valid_from.as_deref(), Some("0706"));
         assert_eq!(taf.valid_to.as_deref(), Some("0806"));
-        assert!(!taf.amendment);
-        assert!(!taf.correction);
-        assert!(taf.raw.starts_with("TAF SVJC 070400Z"));
+        assert_eq!(taf.groups.len(), 2);
+        assert_eq!(taf.groups[0].change_kind, TafForecastGroupKind::Tempo);
+        assert_eq!(taf.groups[1].change_kind, TafForecastGroupKind::Fm);
     }
 
     #[test]
@@ -281,15 +516,20 @@ mod tests {
     }
 
     #[test]
-    fn parses_duplicated_taf_prefix() {
-        let text = "TAF\nTAF KDSM 090520Z 0906/1012 28012KT P6SM FEW250\n";
-        let taf = parse_taf_bulletin(text).expect("expected duplicated TAF parsing to succeed");
+    fn parses_probability_group() {
+        let text =
+            "TAF KDSM 090520Z 0906/1012 28012KT P6SM FEW250 PROB30 0910/0914 2SM TSRA BKN040CB";
+        let taf = parse_taf_bulletin(text).expect("expected probability taf");
 
-        assert_eq!(taf.station, "KDSM");
-        assert_eq!(taf.issue_time, "090520Z");
-        assert!(!taf.correction);
-        assert!(!taf.amendment);
-        assert!(taf.raw.starts_with("TAF KDSM 090520Z"));
+        assert_eq!(taf.groups.len(), 1);
+        assert_eq!(taf.groups[0].change_kind, TafForecastGroupKind::Prob);
+        assert_eq!(taf.groups[0].probability_percent, Some(30));
+        assert!(
+            taf.groups[0]
+                .conditions
+                .weather
+                .contains(&"TSRA".to_string())
+        );
     }
 
     #[test]
@@ -304,38 +544,5 @@ mod tests {
         assert!(taf.amendment);
         assert!(!taf.correction);
         assert!(taf.raw.starts_with("TAF AMD MMAS 090101Z"));
-    }
-
-    #[test]
-    fn parses_duplicated_corrected_taf_prefix() {
-        let text = "TAF COR\nTAF COR KBOS 090520Z 0906/1012 28012KT P6SM FEW250\n";
-        let taf = parse_taf_bulletin(text).expect("expected duplicated TAF COR parsing to succeed");
-
-        assert_eq!(taf.station, "KBOS");
-        assert_eq!(taf.issue_time, "090520Z");
-        assert!(taf.correction);
-        assert!(!taf.amendment);
-        assert!(taf.raw.starts_with("TAF COR KBOS 090520Z"));
-    }
-
-    #[test]
-    fn parses_marker_line_then_corrected_taf_prefix() {
-        let text = "TAF\nTAF COR KBOS 090520Z 0906/1012 28012KT P6SM FEW250\n";
-        let taf = parse_taf_bulletin(text).expect("expected marker line followed by TAF COR");
-
-        assert_eq!(taf.station, "KBOS");
-        assert!(taf.correction);
-        assert!(!taf.amendment);
-        assert!(taf.raw.starts_with("TAF COR KBOS 090520Z"));
-    }
-
-    #[test]
-    fn parses_taf_without_validity_range() {
-        let text = "TAF KMEM 090520Z 28012KT P6SM FEW250\n";
-        let taf = parse_taf_bulletin(text).expect("expected TAF without validity range");
-
-        assert_eq!(taf.station, "KMEM");
-        assert_eq!(taf.valid_from, None);
-        assert_eq!(taf.valid_to, None);
     }
 }

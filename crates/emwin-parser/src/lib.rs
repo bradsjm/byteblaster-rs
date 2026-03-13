@@ -32,7 +32,7 @@ pub use data::{
     pil_description, text_product_catalog_entry, ugc_county_entry, ugc_zone_entry,
     wmo_office_entry, wmo_prefix_for_pil,
 };
-pub use enrichment::{ProductEnrichment, ProductEnrichmentSource, enrich_product};
+pub use enrichment::{ProductArtifact, ProductEnrichment, ProductEnrichmentSource, enrich_product};
 pub use geo::{
     GeoBounds, GeoPoint, bounds_contains, distance_miles, point_in_polygon, polygon_bounds,
 };
@@ -42,11 +42,13 @@ pub use header::{
 };
 pub use issue::ProductParseIssue;
 pub use specialized::{
-    Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DcpBulletin, DsmBulletin,
-    DsmSummary, EroBulletin, EroOutlook, FdBulletin, FdForecast, FdLevelForecast, HmlBulletin,
-    HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport, McdBulletin, McdCenter,
-    McdMostProbableTags, MetarBulletin, MetarReport, MetarReportKind, MosBulletin, MosForecastRow,
-    MosSection, PirepBulletin, PirepKind, PirepReport, SawAction, SawBulletin, SelBulletin,
-    SigmetBulletin, SigmetSection, SpcOutlookArea, SpcOutlookBulletin, SpcOutlookDay,
-    SpcOutlookKind, SpcWatchType, TafBulletin, WwpBulletin,
+    Cf6Bulletin, Cf6DayRow, CliBulletin, CliReport, CwaBulletin, CwaGeometry, CwaGeometryKind,
+    DcpBulletin, DsmBulletin, DsmSummary, EroBulletin, EroOutlook, FdBulletin, FdForecast,
+    FdLevelForecast, HmlBulletin, HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport,
+    McdBulletin, McdCenter, McdMostProbableTags, MetarBulletin, MetarReport, MetarReportKind,
+    MetarSkyCondition, MetarWind, MosBulletin, MosForecastRow, MosSection, PirepBulletin,
+    PirepKind, PirepReport, SawAction, SawBulletin, SelBulletin, SigmetBulletin, SigmetSection,
+    SpcOutlookArea, SpcOutlookBulletin, SpcOutlookDay, SpcOutlookKind, SpcWatchType, TafBulletin,
+    TafConditions, TafForecastGroup, TafForecastGroupKind, TafSkyCondition, TafWind, TafWindShear,
+    WwpBulletin,
 };

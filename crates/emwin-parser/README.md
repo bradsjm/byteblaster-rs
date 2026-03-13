@@ -40,6 +40,7 @@ The crate currently supports:
   - DSM collectives
   - HML bulletins
   - MOS guidance bulletins for `MET`, `MAV`, `MEX`, `FRH`, and `FTP`
+  - CLI daily climate bulletins
   - MCD/MPD bulletins
   - ERO bulletins
   - SPC outlook points bulletins
@@ -240,7 +241,8 @@ Text AFOS envelope
 
 Current repo truth is encoded directly in the catalog:
 
-- `FD*`, `PIR`, `SIG`, `LSR`, `CWA`, `WWP`, `CF6`, `DSM`, `HML`, `MET`, `MAV`, `MEX`, `FRH`, and `FTP` route to specialized parsers and use `body_behavior = never`
+- `FD*`, `PIR`, `SIG`, `LSR`, `CWA`, `WWP`, `CF6`, `DSM`, `HML`, `MET`, `MAV`, `MEX`, `FRH`, `FTP`, and `CLI` route to specialized parsers and use `body_behavior = never`
+- exact-AFOS overrides also route `SWOMCD`, `FFGMPD`, `RBG94E`, `RBG98E`, `RBG99E`, `PTSDY1`, `PTSDY2`, `PTSDY3`, `PTSD48`, `PFWFD1`, `PFWFD2`, and `PFWF38` to specialized parsers
 - generic warning products such as `SVR`, `TOR`, and `FFW` route as `generic`
   and use `body_behavior = catalog`
 
@@ -282,6 +284,12 @@ The core entrypoints are:
 
 `ProductEnrichment` now also exposes specialized bulletin fields for:
 
+- `cli`
+- `fd`
+- `metar`
+- `taf`
+- `pirep`
+- `sigmet`
 - `lsr`
 - `cwa`
 - `wwp`
@@ -289,6 +297,9 @@ The core entrypoints are:
 - `dsm`
 - `hml`
 - `mos`
+- `mcd`
+- `ero`
+- `spc_outlook`
 
 ## Installation
 
@@ -337,16 +348,16 @@ assert_eq!(enriched.pil_description, Some("Terminal Aerodrome Forecast"));
 ### Enrich a Whole Product
 
 ```rust
-use emwin_parser::{ProductEnrichmentSource, enrich_product};
+use emwin_parser::{ProductArtifact, ProductEnrichmentSource, enrich_product};
 
 let enrichment = enrich_product(
     "SAGL31.TXT",
     b"000 \nSAGL31 BGGH 070200\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n",
 );
 
-assert_eq!(enrichment.source, ProductEnrichmentSource::WmoMetarBulletin);
+assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
 assert_eq!(enrichment.family, Some("metar_collective"));
-assert!(enrichment.metar.is_some());
+assert!(enrichment.parsed.as_ref().and_then(ProductArtifact::as_metar).is_some());
 ```
 
 ### Parse Generic Body Features

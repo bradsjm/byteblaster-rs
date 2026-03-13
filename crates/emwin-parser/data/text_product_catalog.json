@@ -357,11 +357,9 @@
   "CLI": {
     "wmo_prefix": "CD",
     "title": "Climate Report Daily",
-    "routing": "generic",
-    "body_behavior": "catalog",
-    "extractors": [
-      "ugc"
-    ]
+    "routing": "cli",
+    "body_behavior": "never",
+    "extractors": []
   },
   "CLM": {
     "wmo_prefix": "CX",

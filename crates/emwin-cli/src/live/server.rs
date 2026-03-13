@@ -681,7 +681,7 @@ Body
     fn events_filter_matches_wmo_header_fallback_fields() {
         let event = file_complete_event("TAFWMOONLY.TXT");
         let filter = crate::live::server::types::EventFilter::from_query(EventsQuery {
-            source: Some("wmo_taf_bulletin".to_string()),
+            source: Some("wmo_bulletin".to_string()),
             cccc: Some("kwbc".to_string()),
             ttaaii: Some("ftus80".to_string()),
             ..empty_events_query()

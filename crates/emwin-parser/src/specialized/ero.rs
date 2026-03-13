@@ -1,5 +1,6 @@
 //! Parsing for WPC excessive rainfall outlook text products.
 
+use crate::LatLonPolygon;
 use regex::Regex;
 use serde::Serialize;
 use std::sync::OnceLock;
@@ -23,6 +24,8 @@ pub struct EroOutlook {
     pub threshold: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub location_tokens: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polygon: Option<LatLonPolygon>,
     pub raw: String,
 }
 
@@ -76,11 +79,12 @@ pub(crate) fn parse_ero_bulletin(text: &str, afos: Option<&str>) -> Option<EroBu
                 .trim_end_matches('.')
                 .split_whitespace()
                 .map(str::to_string)
-                .collect();
+                .collect::<Vec<_>>();
             outlooks.push(EroOutlook {
                 category: "categorical".to_string(),
                 threshold: normalize_risk(&risk),
                 location_tokens,
+                polygon: None,
                 raw,
             });
         }
@@ -137,7 +141,7 @@ Day 1 Excessive Rainfall Threat Area
 Valid 2156Z Tue Jul 13 2021 - 12Z Wed Jul 14 2021
 
 MARGINAL RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM
-20 N CYSC 20 N 1V4 20 SW PSF.
+20 SE GTF 20 E MBW 20 SW PSF.
 
 SLIGHT RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM
 75 W OLS 40 S GBN 35 W GYR.";
@@ -147,8 +151,9 @@ SLIGHT RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM
         assert_eq!(bulletin.outlooks[0].threshold, "MRGL");
         assert!(bulletin.outlooks[0].location_tokens.starts_with(&[
             "20".into(),
-            "N".into(),
-            "CYSC".into()
+            "SE".into(),
+            "GTF".into()
         ]));
+        assert!(bulletin.outlooks[0].polygon.is_none());
     }
 }

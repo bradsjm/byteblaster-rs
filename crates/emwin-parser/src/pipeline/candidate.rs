@@ -10,10 +10,10 @@ use chrono::{DateTime, Utc};
 use crate::body::BodyExtractionPlan;
 use crate::data::NonTextProductMeta;
 use crate::{
-    BbbKind, Cf6Bulletin, CwaBulletin, DcpBulletin, DsmBulletin, EroBulletin, FdBulletin,
-    HmlBulletin, LsrBulletin, McdBulletin, MetarBulletin, MosBulletin, ParserError, PirepBulletin,
-    ProductEnrichmentSource, ProductParseIssue, SawBulletin, SelBulletin, SigmetBulletin,
-    SpcOutlookBulletin, TafBulletin, TextProductHeader, WmoHeader, WwpBulletin,
+    BbbKind, Cf6Bulletin, CliBulletin, CwaBulletin, DcpBulletin, DsmBulletin, EroBulletin,
+    FdBulletin, HmlBulletin, LsrBulletin, McdBulletin, MetarBulletin, MosBulletin, ParserError,
+    PirepBulletin, ProductEnrichmentSource, ProductParseIssue, SawBulletin, SelBulletin,
+    SigmetBulletin, SpcOutlookBulletin, TafBulletin, TextProductHeader, WmoHeader, WwpBulletin,
 };
 
 /// Internal classification result passed from strategy dispatch into assembly.
@@ -29,6 +29,8 @@ pub(crate) enum ClassificationCandidate {
     Sigmet(SigmetCandidate),
     /// Parsed LSR bulletin candidate.
     Lsr(LsrCandidate),
+    /// Parsed CLI bulletin candidate.
+    Cli(CliCandidate),
     /// Parsed CWA bulletin candidate.
     Cwa(CwaCandidate),
     /// Parsed WWP bulletin candidate.
@@ -164,6 +166,16 @@ pub(crate) struct LsrCandidate {
     pub(crate) bbb_kind: Option<BbbKind>,
     pub(crate) body_request: Option<BodyContributionRequest>,
     pub(crate) bulletin: LsrBulletin,
+    pub(crate) issues: Vec<ProductParseIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CliCandidate {
+    pub(crate) header: TextProductHeader,
+    pub(crate) pil: Option<String>,
+    pub(crate) bbb_kind: Option<BbbKind>,
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    pub(crate) bulletin: CliBulletin,
     pub(crate) issues: Vec<ProductParseIssue>,
 }
 

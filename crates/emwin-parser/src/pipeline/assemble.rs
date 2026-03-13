@@ -6,16 +6,17 @@
 
 use crate::data::{NonTextProductMeta, container_from_filename, wmo_office_entry};
 use crate::{
-    ParserError, ProductEnrichment, ProductEnrichmentSource, ProductParseIssue, wmo_prefix_for_pil,
+    ParserError, ProductArtifact, ProductEnrichment, ProductEnrichmentSource, ProductParseIssue,
+    TextProductHeader, WmoHeader, wmo_prefix_for_pil,
 };
 use crate::{ProductBody, body::enrich_body_from_plan};
 
 use super::ClassificationCandidate;
 use super::candidate::{
-    BodyContributionRequest, Cf6Candidate, CwaCandidate, DcpCandidate, DsmCandidate, EroCandidate,
-    FdCandidate, HmlCandidate, LsrCandidate, McdCandidate, MetarCandidate, MosCandidate,
-    PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, SpcOutlookCandidate, TafCandidate,
-    TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
+    BodyContributionRequest, Cf6Candidate, CliCandidate, CwaCandidate, DcpCandidate, DsmCandidate,
+    EroCandidate, FdCandidate, HmlCandidate, LsrCandidate, McdCandidate, MetarCandidate,
+    MosCandidate, PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, SpcOutlookCandidate,
+    TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::normalize::detected_container;
 
@@ -36,6 +37,7 @@ pub(crate) fn assemble_product_enrichment(
         ClassificationCandidate::Pirep(candidate) => assemble_from_pirep(candidate, filename),
         ClassificationCandidate::Sigmet(candidate) => assemble_from_sigmet(candidate, filename),
         ClassificationCandidate::Lsr(candidate) => assemble_from_lsr(candidate, filename),
+        ClassificationCandidate::Cli(candidate) => assemble_from_cli(candidate, filename),
         ClassificationCandidate::Cwa(candidate) => assemble_from_cwa(candidate, filename),
         ClassificationCandidate::Wwp(candidate) => assemble_from_wwp(candidate, filename),
         ClassificationCandidate::Saw(candidate) => assemble_from_saw(candidate, filename),
@@ -63,6 +65,86 @@ pub(crate) fn assemble_product_enrichment(
     }
 }
 
+struct EnrichmentBase {
+    source: ProductEnrichmentSource,
+    family: Option<&'static str>,
+    title: Option<&'static str>,
+    container: &'static str,
+    pil: Option<String>,
+    wmo_prefix: Option<&'static str>,
+    office: Option<crate::WmoOfficeEntry>,
+    header: Option<TextProductHeader>,
+    wmo_header: Option<WmoHeader>,
+    bbb_kind: Option<crate::BbbKind>,
+    body: Option<ProductBody>,
+    parsed: Option<ProductArtifact>,
+    issues: Vec<ProductParseIssue>,
+}
+
+fn build_enrichment(base: EnrichmentBase) -> ProductEnrichment {
+    ProductEnrichment {
+        source: base.source,
+        family: base.family,
+        title: base.title,
+        container: base.container,
+        wmo_prefix: base
+            .wmo_prefix
+            .or_else(|| base.pil.as_deref().and_then(wmo_prefix_for_pil)),
+        pil: base.pil,
+        office: base.office,
+        header: base.header,
+        wmo_header: base.wmo_header,
+        bbb_kind: base.bbb_kind,
+        body: base.body,
+        parsed: base.parsed,
+        issues: base.issues,
+    }
+}
+
+fn office_for_headers(
+    header: Option<&TextProductHeader>,
+    wmo_header: Option<&WmoHeader>,
+) -> Option<crate::WmoOfficeEntry> {
+    header
+        .and_then(|header| wmo_office_entry(&header.cccc).copied())
+        .or_else(|| wmo_header.and_then(|header| wmo_office_entry(&header.cccc).copied()))
+}
+
+struct SpecializedAssemblyInput {
+    source: ProductEnrichmentSource,
+    family: &'static str,
+    title: &'static str,
+    filename: String,
+    pil: Option<String>,
+    header: Option<TextProductHeader>,
+    wmo_header: Option<WmoHeader>,
+    bbb_kind: Option<crate::BbbKind>,
+    body_request: Option<BodyContributionRequest>,
+    issues: Vec<ProductParseIssue>,
+    parsed: ProductArtifact,
+}
+
+fn assemble_specialized_enrichment(input: SpecializedAssemblyInput) -> ProductEnrichment {
+    let (body, mut body_issues) = assemble_optional_body(input.body_request);
+    body_issues.extend(input.issues);
+
+    build_enrichment(EnrichmentBase {
+        source: input.source,
+        family: Some(input.family),
+        title: Some(input.title),
+        container: container_from_filename(&input.filename),
+        pil: input.pil,
+        wmo_prefix: None,
+        office: office_for_headers(input.header.as_ref(), input.wmo_header.as_ref()),
+        header: input.header,
+        wmo_header: input.wmo_header,
+        bbb_kind: input.bbb_kind,
+        body,
+        parsed: Some(input.parsed),
+        issues: body_issues,
+    })
+}
+
 /// Assembles a generic AFOS text product and runs body enrichment.
 fn assemble_from_text_generic(
     candidate: TextGenericCandidate,
@@ -78,38 +160,21 @@ fn assemble_from_text_generic(
     } = candidate;
     let (body, issues) = assemble_optional_body(body_request);
 
-    ProductEnrichment {
+    build_enrichment(EnrichmentBase {
         source: ProductEnrichmentSource::TextHeader,
         family: Some("nws_text_product"),
         title,
         container: container_from_filename(filename),
-        pil: pil.clone(),
-        wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
+        pil,
+        wmo_prefix: None,
         office: wmo_office_entry(&header.cccc).copied(),
         header: Some(header),
         wmo_header: None,
         bbb_kind,
         body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: None,
         issues,
-    }
+    })
 }
 
 /// Assembles an FD bulletin candidate without reparsing it.
@@ -125,48 +190,19 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
         body_request,
         bulletin,
     } = candidate;
-    let (body, issues) = assemble_optional_body(body_request);
-    let office = header
-        .as_ref()
-        .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        .or_else(|| {
-            wmo_header
-                .as_ref()
-                .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        });
-
-    ProductEnrichment {
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
         source,
-        family: Some(family),
-        title: Some(title),
-        container: container_from_filename(filename),
-        pil: pil.clone(),
-        wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-        office,
+        family,
+        title,
+        filename: filename.to_string(),
+        pil,
         header,
         wmo_header,
         bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: Some(bulletin),
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    }
+        body_request,
+        issues: Vec::new(),
+        parsed: ProductArtifact::Fd(bulletin),
+    })
 }
 
 /// Assembles a PIREP bulletin candidate without reparsing it.
@@ -178,40 +214,19 @@ fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnri
         body_request,
         bulletin,
     } = candidate;
-    let (body, issues) = assemble_optional_body(body_request);
-
-    ProductEnrichment {
-        source: ProductEnrichmentSource::TextPirepBulletin,
-        family: Some("pirep_bulletin"),
-        title: Some("Pilot report bulletin"),
-        container: container_from_filename(filename),
-        pil: pil.clone(),
-        wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "pirep_bulletin",
+        title: "Pilot report bulletin",
+        filename: filename.to_string(),
+        pil,
         header: Some(header),
         wmo_header: None,
         bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: Some(bulletin),
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    }
+        body_request,
+        issues: Vec::new(),
+        parsed: ProductArtifact::Pirep(bulletin),
+    })
 }
 
 /// Assembles a SIGMET candidate without reparsing it.
@@ -226,428 +241,231 @@ fn assemble_from_sigmet(candidate: SigmetCandidate, filename: &str) -> ProductEn
         bulletin,
         issues,
     } = candidate;
-    let (body, mut body_issues) = assemble_optional_body(body_request);
-    body_issues.extend(issues);
-    let office = header
-        .as_ref()
-        .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        .or_else(|| {
-            wmo_header
-                .as_ref()
-                .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        });
-
-    ProductEnrichment {
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
         source,
-        family: Some("sigmet_bulletin"),
-        title: Some("SIGMET bulletin"),
-        container: container_from_filename(filename),
-        pil: pil.clone(),
-        wmo_prefix: pil.as_deref().and_then(wmo_prefix_for_pil),
-        office,
+        family: "sigmet_bulletin",
+        title: "SIGMET bulletin",
+        filename: filename.to_string(),
+        pil,
         header,
         wmo_header,
         bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: Some(bulletin),
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues: body_issues,
-    }
-}
-
-struct SpecializedTextEnvelope {
-    source: ProductEnrichmentSource,
-    family: &'static str,
-    title: &'static str,
-    filename: String,
-    header: crate::TextProductHeader,
-    pil: Option<String>,
-    bbb_kind: Option<crate::BbbKind>,
-    issues: Vec<ProductParseIssue>,
-}
-
-fn assemble_specialized_text(spec: SpecializedTextEnvelope) -> ProductEnrichment {
-    ProductEnrichment {
-        source: spec.source,
-        family: Some(spec.family),
-        title: Some(spec.title),
-        container: container_from_filename(&spec.filename),
-        pil: spec.pil.clone(),
-        wmo_prefix: spec.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&spec.header.cccc).copied(),
-        header: Some(spec.header),
-        wmo_header: None,
-        bbb_kind: spec.bbb_kind,
-        body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues: spec.issues,
-    }
+        body_request,
+        issues,
+        parsed: ProductArtifact::Sigmet(bulletin),
+    })
 }
 
 fn assemble_from_lsr(candidate: LsrCandidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextLsrBulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "lsr_bulletin",
         title: "Local Storm Report",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.lsr = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Lsr(candidate.bulletin),
+    })
+}
+
+fn assemble_from_cli(candidate: CliCandidate, filename: &str) -> ProductEnrichment {
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "cli_bulletin",
+        title: "Daily climate report",
+        filename: filename.to_string(),
+        pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
+        bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::Cli(candidate.bulletin),
+    })
 }
 
 fn assemble_from_cwa(candidate: CwaCandidate, filename: &str) -> ProductEnrichment {
-    let office = candidate
-        .header
-        .as_ref()
-        .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        .or_else(|| {
-            candidate
-                .wmo_header
-                .as_ref()
-                .and_then(|header| wmo_office_entry(&header.cccc).copied())
-        });
-
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextCwaBulletin,
-        family: Some("cwa_bulletin"),
-        title: Some("Center Weather Advisory"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: if candidate.header.is_some() {
+            ProductEnrichmentSource::TextHeader
+        } else {
+            ProductEnrichmentSource::WmoBulletin
+        },
+        family: "cwa_bulletin",
+        title: "Center Weather Advisory",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: candidate.header,
         wmo_header: candidate.wmo_header,
         bbb_kind: candidate.bbb_kind,
-        body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    };
-    enrichment.cwa = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Cwa(candidate.bulletin),
+    })
 }
 
 fn assemble_from_wwp(candidate: WwpCandidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextWwpBulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "wwp_bulletin",
         title: "Severe Thunderstorm Watch Probabilities",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.wwp = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Wwp(candidate.bulletin),
+    })
 }
 
 fn assemble_from_saw(candidate: SawCandidate, filename: &str) -> ProductEnrichment {
-    let (body, mut issues) = assemble_optional_body(candidate.body_request);
-    issues.extend(candidate.issues);
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextSawBulletin,
-        family: Some("saw_bulletin"),
-        title: Some("SPC preliminary notice of watch"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&candidate.header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "saw_bulletin",
+        title: "SPC preliminary notice of watch",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: Some(candidate.header),
         wmo_header: None,
         bbb_kind: candidate.bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    };
-    enrichment.saw = Some(candidate.bulletin);
-    enrichment
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::Saw(candidate.bulletin),
+    })
 }
 
 fn assemble_from_sel(candidate: SelCandidate, filename: &str) -> ProductEnrichment {
-    let (body, mut issues) = assemble_optional_body(candidate.body_request);
-    issues.extend(candidate.issues);
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextSelBulletin,
-        family: Some("sel_bulletin"),
-        title: Some("SPC watch bulletin"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&candidate.header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "sel_bulletin",
+        title: "SPC watch bulletin",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: Some(candidate.header),
         wmo_header: None,
         bbb_kind: candidate.bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    };
-    enrichment.sel = Some(candidate.bulletin);
-    enrichment
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::Sel(candidate.bulletin),
+    })
 }
 
 fn assemble_from_cf6(candidate: Cf6Candidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextCf6Bulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "cf6_bulletin",
         title: "Climate F-6 products",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.cf6 = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Cf6(candidate.bulletin),
+    })
 }
 
 fn assemble_from_dsm(candidate: DsmCandidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextDsmBulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "dsm_bulletin",
         title: "Asos Daily Summary",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.dsm = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Dsm(candidate.bulletin),
+    })
 }
 
 fn assemble_from_hml(candidate: HmlCandidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextHmlBulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "hml_bulletin",
         title: "Hyrdo Obs/Forecasts XML",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.hml = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Hml(candidate.bulletin),
+    })
 }
 
 fn assemble_from_mos(candidate: MosCandidate, filename: &str) -> ProductEnrichment {
-    let mut enrichment = assemble_specialized_text(SpecializedTextEnvelope {
-        source: ProductEnrichmentSource::TextMosBulletin,
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
         family: "mos_bulletin",
         title: "MOS guidance bulletin",
         filename: filename.to_string(),
-        header: candidate.header,
         pil: candidate.pil,
+        header: Some(candidate.header),
+        wmo_header: None,
         bbb_kind: candidate.bbb_kind,
+        body_request: candidate.body_request,
         issues: candidate.issues,
-    });
-    enrichment.mos = Some(candidate.bulletin);
-    enrichment
+        parsed: ProductArtifact::Mos(candidate.bulletin),
+    })
 }
 
 fn assemble_from_mcd(candidate: McdCandidate, filename: &str) -> ProductEnrichment {
-    let (body, mut issues) = assemble_optional_body(candidate.body_request);
-    issues.extend(candidate.issues);
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextMcdBulletin,
-        family: Some("mcd_bulletin"),
-        title: Some("Mesoscale discussion bulletin"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&candidate.header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "mcd_bulletin",
+        title: "Mesoscale discussion bulletin",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: Some(candidate.header),
         wmo_header: None,
         bbb_kind: candidate.bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    };
-    enrichment.mcd = Some(candidate.bulletin);
-    enrichment
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::Mcd(candidate.bulletin),
+    })
 }
 
 fn assemble_from_ero(candidate: EroCandidate, filename: &str) -> ProductEnrichment {
-    let (body, mut issues) = assemble_optional_body(candidate.body_request);
-    issues.extend(candidate.issues);
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextEroBulletin,
-        family: Some("ero_bulletin"),
-        title: Some("Excessive rainfall outlook"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&candidate.header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "ero_bulletin",
+        title: "Excessive rainfall outlook",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: Some(candidate.header),
         wmo_header: None,
         bbb_kind: candidate.bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    };
-    enrichment.ero = Some(candidate.bulletin);
-    enrichment
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::Ero(candidate.bulletin),
+    })
 }
 
 fn assemble_from_spc_outlook(candidate: SpcOutlookCandidate, filename: &str) -> ProductEnrichment {
-    let (body, mut issues) = assemble_optional_body(candidate.body_request);
-    issues.extend(candidate.issues);
-    let mut enrichment = ProductEnrichment {
-        source: ProductEnrichmentSource::TextSpcOutlookBulletin,
-        family: Some("spc_outlook_bulletin"),
-        title: Some("SPC outlook bulletin"),
-        container: container_from_filename(filename),
-        pil: candidate.pil.clone(),
-        wmo_prefix: candidate.pil.as_deref().and_then(wmo_prefix_for_pil),
-        office: wmo_office_entry(&candidate.header.cccc).copied(),
+    assemble_specialized_enrichment(SpecializedAssemblyInput {
+        source: ProductEnrichmentSource::TextHeader,
+        family: "spc_outlook_bulletin",
+        title: "SPC outlook bulletin",
+        filename: filename.to_string(),
+        pil: candidate.pil,
         header: Some(candidate.header),
         wmo_header: None,
         bbb_kind: candidate.bbb_kind,
-        body,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
-        issues,
-    };
-    enrichment.spc_outlook = Some(candidate.bulletin);
-    enrichment
+        body_request: candidate.body_request,
+        issues: candidate.issues,
+        parsed: ProductArtifact::SpcOutlook(candidate.bulletin),
+    })
 }
 
 fn assemble_optional_body(
@@ -671,8 +489,8 @@ fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnri
         issues,
     } = candidate;
 
-    ProductEnrichment {
-        source: ProductEnrichmentSource::WmoMetarBulletin,
+    build_enrichment(EnrichmentBase {
+        source: ProductEnrichmentSource::WmoBulletin,
         family: Some("metar_collective"),
         title: Some("METAR bulletin"),
         container: container_from_filename(filename),
@@ -683,34 +501,17 @@ fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnri
         wmo_header: Some(header),
         bbb_kind: None,
         body: None,
-        metar: Some(bulletin),
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: Some(ProductArtifact::Metar(bulletin)),
         issues,
-    }
+    })
 }
 
 /// Assembles a parsed TAF candidate.
 fn assemble_from_taf(candidate: TafCandidate, filename: &str) -> ProductEnrichment {
     let TafCandidate { header, bulletin } = candidate;
 
-    ProductEnrichment {
-        source: ProductEnrichmentSource::WmoTafBulletin,
+    build_enrichment(EnrichmentBase {
+        source: ProductEnrichmentSource::WmoBulletin,
         family: Some("taf_bulletin"),
         title: Some("Terminal Aerodrome Forecast"),
         container: container_from_filename(filename),
@@ -721,34 +522,17 @@ fn assemble_from_taf(candidate: TafCandidate, filename: &str) -> ProductEnrichme
         wmo_header: Some(header),
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: Some(bulletin),
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: Some(ProductArtifact::Taf(bulletin)),
         issues: Vec::new(),
-    }
+    })
 }
 
 /// Assembles a parsed DCP candidate.
 fn assemble_from_dcp(candidate: DcpCandidate, filename: &str) -> ProductEnrichment {
     let DcpCandidate { header, bulletin } = candidate;
 
-    ProductEnrichment {
-        source: ProductEnrichmentSource::WmoDcpBulletin,
+    build_enrichment(EnrichmentBase {
+        source: ProductEnrichmentSource::WmoBulletin,
         family: Some("dcp_telemetry_bulletin"),
         title: Some("GOES DCP telemetry bulletin"),
         container: container_from_filename(filename),
@@ -759,31 +543,14 @@ fn assemble_from_dcp(candidate: DcpCandidate, filename: &str) -> ProductEnrichme
         wmo_header: Some(header),
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: None,
-        dcp: Some(bulletin),
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: Some(ProductArtifact::Dcp(bulletin)),
         issues: Vec::new(),
-    }
+    })
 }
 
 /// Assembles a non-text filename-classified candidate.
 fn assemble_from_non_text(candidate: NonTextProductMeta) -> ProductEnrichment {
-    ProductEnrichment {
+    build_enrichment(EnrichmentBase {
         source: ProductEnrichmentSource::FilenameNonText,
         family: Some(candidate.family),
         title: Some(candidate.title),
@@ -795,26 +562,9 @@ fn assemble_from_non_text(candidate: NonTextProductMeta) -> ProductEnrichment {
         wmo_header: None,
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: None,
         issues: Vec::new(),
-    }
+    })
 }
 
 /// Assembles a recognized unsupported WMO bulletin candidate.
@@ -829,8 +579,8 @@ fn assemble_from_unsupported_wmo(
         line,
     } = candidate;
 
-    ProductEnrichment {
-        source: ProductEnrichmentSource::WmoUnsupportedBulletin,
+    build_enrichment(EnrichmentBase {
+        source: ProductEnrichmentSource::WmoBulletin,
         family: Some("unsupported_wmo_bulletin"),
         title: None,
         container: container_from_filename(filename),
@@ -841,36 +591,19 @@ fn assemble_from_unsupported_wmo(
         wmo_header: Some(header),
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: None,
         issues: vec![ProductParseIssue::new(
             "wmo_bulletin_parse",
             code,
             message,
             line,
         )],
-    }
+    })
 }
 
 /// Preserves the legacy issue shape for AFOS text parse failures.
 fn assemble_from_text_parse_failure(filename: &str, error: ParserError) -> ProductEnrichment {
-    ProductEnrichment {
+    build_enrichment(EnrichmentBase {
         source: ProductEnrichmentSource::TextHeader,
         family: Some("nws_text_product"),
         title: None,
@@ -882,36 +615,19 @@ fn assemble_from_text_parse_failure(filename: &str, error: ParserError) -> Produ
         wmo_header: None,
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: None,
         issues: vec![ProductParseIssue::new(
             "text_product_parse",
             parser_error_code(&error),
             error.to_string(),
             parser_error_line(&error).map(str::to_string),
         )],
-    }
+    })
 }
 
 /// Builds the catch-all unknown product result.
 fn assemble_unknown(filename: &str, raw_bytes: &[u8]) -> ProductEnrichment {
-    ProductEnrichment {
+    build_enrichment(EnrichmentBase {
         source: ProductEnrichmentSource::Unknown,
         family: None,
         title: None,
@@ -923,26 +639,9 @@ fn assemble_unknown(filename: &str, raw_bytes: &[u8]) -> ProductEnrichment {
         wmo_header: None,
         bbb_kind: None,
         body: None,
-        metar: None,
-        taf: None,
-        dcp: None,
-        fd: None,
-        pirep: None,
-        sigmet: None,
-        lsr: None,
-        cwa: None,
-        wwp: None,
-        saw: None,
-        sel: None,
-        cf6: None,
-        dsm: None,
-        hml: None,
-        mos: None,
-        mcd: None,
-        ero: None,
-        spc_outlook: None,
+        parsed: None,
         issues: Vec::new(),
-    }
+    })
 }
 
 fn parser_error_code(error: &ParserError) -> &'static str {
@@ -966,7 +665,7 @@ fn parser_error_line(error: &ParserError) -> Option<&str> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
 
     use crate::ParserError;
     use crate::specialized::dcp::parse_dcp_bulletin;
@@ -978,8 +677,8 @@ mod tests {
     use crate::{
         Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DsmBulletin, DsmSummary,
         GeoPoint, HmlBulletin, HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport,
-        MosBulletin, MosForecastRow, MosSection, ProductParseIssue, SawAction, SawBulletin,
-        SelBulletin, SpcWatchType, WwpBulletin,
+        MosBulletin, MosForecastRow, MosSection, ProductArtifact, ProductParseIssue, SawAction,
+        SawBulletin, SelBulletin, SpcWatchType, WwpBulletin,
     };
 
     use super::assemble_product_enrichment;
@@ -1032,10 +731,14 @@ mod tests {
 
     #[test]
     fn assembles_fd_candidate_shape() {
+        let reference_time = Utc
+            .with_ymd_and_hms(2025, 3, 7, 0, 0, 0)
+            .single()
+            .expect("valid reference time");
         let bulletin = parse_fd_bulletin(
             "DATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
             Some("FD1US1"),
-            Utc::now(),
+            reference_time,
         )
         .expect("fd bulletin should parse");
         let candidate = ClassificationCandidate::Fd(FdCandidate {
@@ -1053,7 +756,13 @@ mod tests {
         let enrichment = assemble_product_enrichment(candidate, "FD1US1.TXT", b"ignored");
 
         assert_eq!(enrichment.family, Some("fd_bulletin"));
-        assert!(enrichment.fd.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_fd)
+                .is_some()
+        );
     }
 
     #[test]
@@ -1072,9 +781,15 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextPirepBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
-        assert!(enrichment.pirep.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_pirep)
+                .is_some()
+        );
     }
 
     #[test]
@@ -1084,7 +799,7 @@ mod tests {
         )
         .expect("sigmet bulletin should parse");
         let candidate = ClassificationCandidate::Sigmet(SigmetCandidate {
-            source: crate::ProductEnrichmentSource::TextSigmetBulletin,
+            source: crate::ProductEnrichmentSource::TextHeader,
             header: Some(text_header("SIGABC")),
             wmo_header: None,
             pil: Some("SIG".to_string()),
@@ -1097,7 +812,13 @@ mod tests {
         let enrichment = assemble_product_enrichment(candidate, "SIGABC.TXT", b"ignored");
 
         assert_eq!(enrichment.family, Some("sigmet_bulletin"));
-        assert!(enrichment.sigmet.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_sigmet)
+                .is_some()
+        );
     }
 
     #[test]
@@ -1138,11 +859,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextLsrBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("lsr_bulletin"));
-        assert!(enrichment.lsr.is_some());
-        assert!(enrichment.cwa.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_lsr)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cwa)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
         assert_eq!(enrichment.issues.len(), 1);
     }
@@ -1185,13 +918,25 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextCwaBulletin
+            crate::ProductEnrichmentSource::WmoBulletin
         );
         assert_eq!(enrichment.family, Some("cwa_bulletin"));
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_some());
-        assert!(enrichment.cwa.is_some());
-        assert!(enrichment.wwp.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cwa)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_wwp)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
     }
 
@@ -1227,11 +972,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextWwpBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("wwp_bulletin"));
-        assert!(enrichment.wwp.is_some());
-        assert!(enrichment.cf6.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_wwp)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cf6)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
     }
 
@@ -1271,10 +1028,16 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextSawBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("saw_bulletin"));
-        assert!(enrichment.saw.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_saw)
+                .is_some()
+        );
         assert!(enrichment.body.is_some());
     }
 
@@ -1301,10 +1064,16 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextSelBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("sel_bulletin"));
-        assert!(enrichment.sel.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_sel)
+                .is_some()
+        );
         assert!(enrichment.body.is_some());
     }
 
@@ -1355,11 +1124,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextCf6Bulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("cf6_bulletin"));
-        assert!(enrichment.cf6.is_some());
-        assert!(enrichment.dsm.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cf6)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dsm)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
         assert_eq!(enrichment.issues.len(), 1);
     }
@@ -1402,11 +1183,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextDsmBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("dsm_bulletin"));
-        assert!(enrichment.dsm.is_some());
-        assert!(enrichment.hml.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dsm)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_hml)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
     }
 
@@ -1446,11 +1239,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextHmlBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("hml_bulletin"));
-        assert!(enrichment.hml.is_some());
-        assert!(enrichment.mos.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_hml)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_mos)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
     }
 
@@ -1483,11 +1288,23 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::TextMosBulletin
+            crate::ProductEnrichmentSource::TextHeader
         );
         assert_eq!(enrichment.family, Some("mos_bulletin"));
-        assert!(enrichment.mos.is_some());
-        assert!(enrichment.lsr.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_mos)
+                .is_some()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_lsr)
+                .is_none()
+        );
         assert!(enrichment.body.is_none());
     }
 
@@ -1506,7 +1323,11 @@ mod tests {
         let enrichment = assemble_product_enrichment(candidate, "SAGL31.TXT", b"ignored");
 
         assert_eq!(
-            enrichment.metar.as_ref().map(MetarBulletin::report_count),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_metar)
+                .map(MetarBulletin::report_count),
             Some(1)
         );
     }
@@ -1523,7 +1344,13 @@ mod tests {
         let enrichment = assemble_product_enrichment(candidate, "TAFWBCFJ.TXT", b"ignored");
 
         assert_eq!(enrichment.family, Some("taf_bulletin"));
-        assert!(enrichment.taf.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .is_some()
+        );
     }
 
     #[test]
@@ -1540,7 +1367,13 @@ mod tests {
         let enrichment = assemble_product_enrichment(candidate, "MISDCPSV.TXT", b"ignored");
 
         assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
-        assert!(enrichment.dcp.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .is_some()
+        );
     }
 
     #[test]
@@ -1556,7 +1389,7 @@ mod tests {
 
         assert_eq!(
             enrichment.source,
-            crate::ProductEnrichmentSource::WmoUnsupportedBulletin
+            crate::ProductEnrichmentSource::WmoBulletin
         );
         assert_eq!(enrichment.issues[0].code, "unsupported_airmet_bulletin");
     }
@@ -1668,7 +1501,7 @@ mod tests {
         )
         .expect("sigmet bulletin should parse");
         let candidate = ClassificationCandidate::Sigmet(SigmetCandidate {
-            source: crate::ProductEnrichmentSource::TextSigmetBulletin,
+            source: crate::ProductEnrichmentSource::TextHeader,
             header: Some(text_header("SIGABC")),
             wmo_header: None,
             pil: Some("SIG".to_string()),
@@ -1686,7 +1519,13 @@ mod tests {
 
         let enrichment = assemble_product_enrichment(candidate, "SIGABC.TXT", b"ignored");
 
-        assert!(enrichment.sigmet.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_sigmet)
+                .is_some()
+        );
         assert!(enrichment.body.is_some());
         assert!(
             enrichment

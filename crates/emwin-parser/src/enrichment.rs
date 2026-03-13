@@ -6,8 +6,8 @@
 
 use crate::pipeline::{NormalizedInput, ParsedEnvelope, assemble_product_enrichment, classify};
 use crate::{
-    BbbKind, Cf6Bulletin, CwaBulletin, DsmBulletin, EroBulletin, HmlBulletin, LsrBulletin,
-    McdBulletin, MosBulletin, ProductBody, ProductParseIssue, SpcOutlookBulletin,
+    BbbKind, Cf6Bulletin, CliBulletin, CwaBulletin, DsmBulletin, EroBulletin, HmlBulletin,
+    LsrBulletin, McdBulletin, MosBulletin, ProductBody, ProductParseIssue, SpcOutlookBulletin,
     TextProductHeader, WmoHeader, WmoOfficeEntry, WwpBulletin,
 };
 use crate::{
@@ -26,28 +26,169 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum ProductEnrichmentSource {
     TextHeader,
-    WmoFdBulletin,
-    TextPirepBulletin,
-    TextSigmetBulletin,
-    TextLsrBulletin,
-    TextCwaBulletin,
-    TextWwpBulletin,
-    TextSawBulletin,
-    TextSelBulletin,
-    TextCf6Bulletin,
-    TextDsmBulletin,
-    TextHmlBulletin,
-    TextMosBulletin,
-    TextMcdBulletin,
-    TextEroBulletin,
-    TextSpcOutlookBulletin,
-    WmoSigmetBulletin,
-    WmoMetarBulletin,
-    WmoTafBulletin,
-    WmoDcpBulletin,
-    WmoUnsupportedBulletin,
+    WmoBulletin,
     FilenameNonText,
     Unknown,
+}
+
+/// Structured parsed artifact emitted for a product when a specialized parser matches.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProductArtifact {
+    Metar(MetarBulletin),
+    Taf(TafBulletin),
+    Dcp(DcpBulletin),
+    Fd(FdBulletin),
+    Pirep(PirepBulletin),
+    Sigmet(SigmetBulletin),
+    Lsr(LsrBulletin),
+    Cli(CliBulletin),
+    Cwa(CwaBulletin),
+    Wwp(WwpBulletin),
+    Saw(SawBulletin),
+    Sel(SelBulletin),
+    Cf6(Cf6Bulletin),
+    Dsm(DsmBulletin),
+    Hml(HmlBulletin),
+    Mos(MosBulletin),
+    Mcd(McdBulletin),
+    Ero(EroBulletin),
+    SpcOutlook(SpcOutlookBulletin),
+}
+
+impl ProductArtifact {
+    pub fn as_metar(&self) -> Option<&MetarBulletin> {
+        match self {
+            Self::Metar(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_taf(&self) -> Option<&TafBulletin> {
+        match self {
+            Self::Taf(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_dcp(&self) -> Option<&DcpBulletin> {
+        match self {
+            Self::Dcp(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_fd(&self) -> Option<&FdBulletin> {
+        match self {
+            Self::Fd(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_pirep(&self) -> Option<&PirepBulletin> {
+        match self {
+            Self::Pirep(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_sigmet(&self) -> Option<&SigmetBulletin> {
+        match self {
+            Self::Sigmet(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_lsr(&self) -> Option<&LsrBulletin> {
+        match self {
+            Self::Lsr(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_cli(&self) -> Option<&CliBulletin> {
+        match self {
+            Self::Cli(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_cwa(&self) -> Option<&CwaBulletin> {
+        match self {
+            Self::Cwa(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_wwp(&self) -> Option<&WwpBulletin> {
+        match self {
+            Self::Wwp(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_saw(&self) -> Option<&SawBulletin> {
+        match self {
+            Self::Saw(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_sel(&self) -> Option<&SelBulletin> {
+        match self {
+            Self::Sel(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_cf6(&self) -> Option<&Cf6Bulletin> {
+        match self {
+            Self::Cf6(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_dsm(&self) -> Option<&DsmBulletin> {
+        match self {
+            Self::Dsm(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_hml(&self) -> Option<&HmlBulletin> {
+        match self {
+            Self::Hml(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_mos(&self) -> Option<&MosBulletin> {
+        match self {
+            Self::Mos(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_mcd(&self) -> Option<&McdBulletin> {
+        match self {
+            Self::Mcd(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_ero(&self) -> Option<&EroBulletin> {
+        match self {
+            Self::Ero(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_spc_outlook(&self) -> Option<&SpcOutlookBulletin> {
+        match self {
+            Self::SpcOutlook(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 /// Enriched product metadata with classification, headers, and parsed content.
@@ -88,60 +229,9 @@ pub struct ProductEnrichment {
     /// Parsed body elements (VTEC, UGC, polygons, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<ProductBody>,
-    /// Parsed METAR bulletin (if applicable)
+    /// Parsed specialized artifact when a structured parser matched.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metar: Option<MetarBulletin>,
-    /// Parsed TAF bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub taf: Option<TafBulletin>,
-    /// Parsed DCP telemetry bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dcp: Option<DcpBulletin>,
-    /// Parsed FD winds/temps bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fd: Option<FdBulletin>,
-    /// Parsed PIREP bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pirep: Option<PirepBulletin>,
-    /// Parsed SIGMET bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sigmet: Option<SigmetBulletin>,
-    /// Parsed LSR bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lsr: Option<LsrBulletin>,
-    /// Parsed CWA bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwa: Option<CwaBulletin>,
-    /// Parsed WWP bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wwp: Option<WwpBulletin>,
-    /// Parsed SAW bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub saw: Option<SawBulletin>,
-    /// Parsed SEL bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sel: Option<SelBulletin>,
-    /// Parsed CF6 bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cf6: Option<Cf6Bulletin>,
-    /// Parsed DSM bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dsm: Option<DsmBulletin>,
-    /// Parsed HML bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hml: Option<HmlBulletin>,
-    /// Parsed MOS bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mos: Option<MosBulletin>,
-    /// Parsed MCD/MPD bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcd: Option<McdBulletin>,
-    /// Parsed ERO bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ero: Option<EroBulletin>,
-    /// Parsed SPC outlook bulletin (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub spc_outlook: Option<SpcOutlookBulletin>,
+    pub parsed: Option<ProductArtifact>,
     /// Issues encountered during parsing
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<ProductParseIssue>,
@@ -162,7 +252,7 @@ pub fn enrich_product(filename: &str, bytes: &[u8]) -> ProductEnrichment {
 
 #[cfg(test)]
 mod tests {
-    use crate::MetarBulletin;
+    use crate::{MetarBulletin, ProductArtifact};
 
     use super::{ProductEnrichmentSource, enrich_product};
 
@@ -187,9 +277,7 @@ mod tests {
         );
         assert!(enrichment.issues.is_empty());
         assert!(enrichment.wmo_header.is_none());
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.parsed.is_none());
         let json = serde_json::to_value(&enrichment).expect("enrichment serializes");
         assert!(json.get("flags").is_none());
     }
@@ -204,9 +292,7 @@ mod tests {
         assert_eq!(enrichment.issues.len(), 1);
         assert_eq!(enrichment.issues[0].code, "invalid_wmo_header");
         assert!(enrichment.wmo_header.is_none());
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.parsed.is_none());
         assert!(enrichment.office.is_none());
     }
 
@@ -217,7 +303,7 @@ mod tests {
             b"000 \nSAGL31 BGGH 070200\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoMetarBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("metar_collective"));
         assert_eq!(enrichment.title, Some("METAR bulletin"));
         assert_eq!(enrichment.pil, None);
@@ -230,12 +316,28 @@ mod tests {
             Some("SAGL31")
         );
         assert_eq!(
-            enrichment.metar.as_ref().map(MetarBulletin::report_count),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_metar)
+                .map(MetarBulletin::report_count),
             Some(1)
         );
         assert!(enrichment.office.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .is_none()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .is_none()
+        );
         assert!(enrichment.issues.is_empty());
     }
 
@@ -246,7 +348,7 @@ mod tests {
             b"000 \nFTXX01 KWBC 070200\nTAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("taf_bulletin"));
         assert_eq!(enrichment.title, Some("Terminal Aerodrome Forecast"));
         assert_eq!(enrichment.pil, None);
@@ -258,11 +360,19 @@ mod tests {
             Some("FTXX01")
         );
         assert_eq!(
-            enrichment.taf.as_ref().map(|taf| taf.station.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|taf| taf.station.as_str()),
             Some("WBCF")
         );
         assert_eq!(
-            enrichment.taf.as_ref().map(|taf| taf.issue_time.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|taf| taf.issue_time.as_str()),
             Some("070244Z")
         );
         assert_eq!(
@@ -271,14 +381,34 @@ mod tests {
         );
         assert_eq!(
             enrichment
-                .taf
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_taf)
                 .map(|taf| (taf.valid_from.as_deref(), taf.valid_to.as_deref())),
             Some((Some("0703"), Some("0803")))
         );
-        assert_eq!(enrichment.taf.as_ref().map(|taf| taf.amendment), Some(true));
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert_eq!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|taf| taf.amendment),
+            Some(true)
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_metar)
+                .is_none()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .is_none()
+        );
         assert!(enrichment.issues.is_empty());
     }
 
@@ -289,7 +419,7 @@ mod tests {
             b"FTVN41 KWBC 070303\nTAF\nTAF SVJC 070400Z 0706/0806 07005KT 9999 FEW013 TX33/0718Z\n      TN23/0708Z\n      TEMPO 0706/0710 08004KT CAVOK\n     FM071100 09006KT 9999 FEW013=\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("taf_bulletin"));
         assert_eq!(
             enrichment
@@ -299,22 +429,37 @@ mod tests {
             Some("FTVN41")
         );
         assert_eq!(
-            enrichment.taf.as_ref().map(|taf| taf.station.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|taf| taf.station.as_str()),
             Some("SVJC")
         );
         assert_eq!(
-            enrichment.taf.as_ref().map(|taf| taf.issue_time.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|taf| taf.issue_time.as_str()),
             Some("070400Z")
         );
         assert_eq!(
             enrichment
-                .taf
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_taf)
                 .map(|taf| (taf.valid_from.as_deref(), taf.valid_to.as_deref())),
             Some((Some("0706"), Some("0806")))
         );
         assert!(enrichment.issues.is_empty());
-        assert!(enrichment.dcp.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .is_none()
+        );
     }
 
     #[test]
@@ -324,7 +469,7 @@ mod tests {
             b"SXMS50 KWAL 070258\n83786162 066025814\n16.23\n003\n137\n071\n088\n12.9\n137\n007\n00000\n 42-0NN  45E\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
         assert_eq!(enrichment.title, Some("GOES DCP telemetry bulletin"));
         assert_eq!(
@@ -336,8 +481,9 @@ mod tests {
         );
         assert_eq!(
             enrichment
-                .dcp
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_dcp)
                 .and_then(|bulletin| bulletin.platform_id.as_deref()),
             Some("83786162 066025814")
         );
@@ -346,11 +492,27 @@ mod tests {
             Some("WAL")
         );
         assert_eq!(
-            enrichment.dcp.as_ref().map(|bulletin| bulletin.lines.len()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .map(|bulletin| bulletin.lines.len()),
             Some(11)
         );
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_metar)
+                .is_none()
+        );
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .is_none()
+        );
         assert!(enrichment.issues.is_empty());
     }
 
@@ -361,12 +523,13 @@ mod tests {
             b"SXPA50 KWAL 070309\n\x1eD6805150 066030901 \n05.06 \n008 \n180 \n056 \n098 \n12.8 \n183 \n018 \n00000 \n 39-0NN 141E\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
         assert_eq!(
             enrichment
-                .dcp
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_dcp)
                 .and_then(|bulletin| bulletin.platform_id.as_deref()),
             Some("D6805150 066030901")
         );
@@ -384,12 +547,13 @@ mod tests {
             b"SXMN20 KWAL 070326\n2211F77E 066032650bB1F@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@VT@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@Fx@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@Ta@TaJ 40+0NN  57E%\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
         assert_eq!(
             enrichment
-                .dcp
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_dcp)
                 .and_then(|bulletin| bulletin.platform_id.as_deref()),
             Some("2211F77E 066032650")
         );
@@ -398,7 +562,11 @@ mod tests {
             Some("WAL")
         );
         assert_eq!(
-            enrichment.dcp.as_ref().map(|bulletin| bulletin.lines.len()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dcp)
+                .map(|bulletin| bulletin.lines.len()),
             Some(1)
         );
         assert!(enrichment.issues.is_empty());
@@ -411,13 +579,14 @@ mod tests {
             b"WVID21 WAAA 090100\nWAAF SIGMET 05 VALID 090100/090700 WAAA-\nWAAF UJUNG PANDANG  FIR VA ERUPTION MT IBU PSN N0129 E12738 VA CLD\nOBS AT 0040Z WI N0129 E12737 - N0131 E12738 - N0129 E12751 - N0117\nE12744 - N0129 E12737 SFC/FL070 MOV SE 10KT NC=\n",
         );
 
-        assert_eq!(
-            enrichment.source,
-            ProductEnrichmentSource::WmoSigmetBulletin
-        );
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("sigmet_bulletin"));
         assert_eq!(
-            enrichment.sigmet.as_ref().map(|value| value.sections.len()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_sigmet)
+                .map(|value| value.sections.len()),
             Some(1)
         );
         assert!(enrichment.issues.is_empty());
@@ -430,10 +599,14 @@ mod tests {
             b"SAGG31 UGTB 090030 CCA\nMETAR COR UGKO 090030Z 24007KT 9999 SCT030 BKN061 03/01 Q1029 NOSIG=\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoMetarBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("metar_collective"));
         assert_eq!(
-            enrichment.metar.as_ref().map(MetarBulletin::report_count),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_metar)
+                .map(MetarBulletin::report_count),
             Some(1)
         );
         assert!(enrichment.issues.is_empty());
@@ -446,10 +619,14 @@ mod tests {
             b"FTMX41 KWBC 090103 AAA\nTAF AMD\nTAF AMD MMAS 090101Z 0901/0918 23008KT P6SM SCT100 BKN200\n     FM091200 04005KT P6SM SCT200=\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("taf_bulletin"));
         assert_eq!(
-            enrichment.taf.as_ref().map(|value| value.station.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|value| value.station.as_str()),
             Some("MMAS")
         );
         assert!(enrichment.issues.is_empty());
@@ -462,14 +639,22 @@ mod tests {
             b"FTXX60 KWBC 110130\nTAF\nTAF COR KSVN 110127Z 1101/1207 17006KT 9999 SKC QNH3008INS\n      BECMG 1117/1118 22009KT 9999 BKN060 QNH3004INS TX29/1117Z\n      TN17/1110Z=\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoTafBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("taf_bulletin"));
         assert_eq!(
-            enrichment.taf.as_ref().map(|value| value.station.as_str()),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|value| value.station.as_str()),
             Some("KSVN")
         );
         assert_eq!(
-            enrichment.taf.as_ref().map(|value| value.correction),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_taf)
+                .map(|value| value.correction),
             Some(true)
         );
         assert!(enrichment.issues.is_empty());
@@ -500,12 +685,13 @@ mod tests {
             ),
         ] {
             let enrichment = enrich_product(filename, bytes);
-            assert_eq!(enrichment.source, ProductEnrichmentSource::WmoDcpBulletin);
+            assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
             assert_eq!(enrichment.family, Some("dcp_telemetry_bulletin"));
             assert_eq!(
                 enrichment
-                    .dcp
+                    .parsed
                     .as_ref()
+                    .and_then(ProductArtifact::as_dcp)
                     .and_then(|bulletin| bulletin.platform_id.as_deref()),
                 Some(platform_id)
             );
@@ -520,10 +706,7 @@ mod tests {
             b"WAAB31 LATI 090038\nLAAA AIRMET 1 VALID 090100/090500 LATI-\nLAAA TIRANA FIR MOD ICE FCST S OF N4110 FL070/120 STNR NC=\n",
         );
 
-        assert_eq!(
-            enrichment.source,
-            ProductEnrichmentSource::WmoUnsupportedBulletin
-        );
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
         assert_eq!(enrichment.issues[0].code, "unsupported_airmet_bulletin");
         assert!(enrichment.wmo_header.is_some());
@@ -536,10 +719,7 @@ mod tests {
             b"FPCN11 CWWG 090059 AAD\nUPDATED FORECASTS FOR SOUTHERN MANITOBA ISSUED BY ENVIRONMENT CANADA\nAT 7:57 P.M. CDT SUNDAY 8 MARCH 2026 FOR TONIGHT MONDAY AND MONDAY\nNIGHT.\n",
         );
 
-        assert_eq!(
-            enrichment.source,
-            ProductEnrichmentSource::WmoUnsupportedBulletin
-        );
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
         assert_eq!(
             enrichment.issues[0].code,
@@ -555,10 +735,7 @@ mod tests {
             b"SACN74 CWAO 090000 RRC\n\nNPL SA 0000 AUTO8 M M M 990/-36/-39/2703/M/     7003 61MM=\n",
         );
 
-        assert_eq!(
-            enrichment.source,
-            ProductEnrichmentSource::WmoUnsupportedBulletin
-        );
+        assert_eq!(enrichment.source, ProductEnrichmentSource::WmoBulletin);
         assert_eq!(enrichment.family, Some("unsupported_wmo_bulletin"));
         assert_eq!(
             enrichment.issues[0].code,
@@ -597,56 +774,98 @@ mod tests {
             "FD1US1.TXT",
             b"000 \nFTUS80 KWBC 070000\nFD1US1\nDATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nBOS 9900 2812\n",
         );
-        assert!(fd.fd.is_some());
+        assert!(
+            fd.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_fd)
+                .is_some()
+        );
         assert!(fd.body.is_none());
 
         let pirep = enrich_product(
             "PIRXXX.TXT",
             b"000 \nUAUS01 KBOU 070000\nPIRBOU\nDEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n",
         );
-        assert!(pirep.pirep.is_some());
+        assert!(
+            pirep
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_pirep)
+                .is_some()
+        );
         assert!(pirep.body.is_none());
 
         let sigmet = enrich_product(
             "SIGABC.TXT",
             b"000 \nWSUS31 KKCI 070000\nSIGABC\nCONVECTIVE SIGMET 12C\nVALID UNTIL 2355Z\nIA MO\nFROM 20S DSM-30NW IRK\nAREA EMBD TS MOV FROM 24020KT.\n",
         );
-        assert!(sigmet.sigmet.is_some());
+        assert!(
+            sigmet
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_sigmet)
+                .is_some()
+        );
         assert!(sigmet.body.is_none());
 
         let lsr = enrich_product(
             "LSRBMX.TXT",
             b"000 \nNWUS54 KBMX 100015\nLSRBMX\n..TIME...   ...EVENT...      ...CITY LOCATION...     ...LAT.LON...\n..DATE...   ....MAG....      ..COUNTY LOCATION..ST.. ...SOURCE....\n0150 AM     HAIL             BROOKSVILLE             34.40N 87.70W\n03/10/2026  1.00 IN          WINSTON             AL  PUBLIC\n&&\n",
         );
-        assert!(lsr.lsr.is_some());
+        assert!(
+            lsr.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_lsr)
+                .is_some()
+        );
         assert!(lsr.body.is_none());
 
         let cwa = enrich_product(
             "CWAZLC.TXT",
             b"000 \nFAUS22 KZLC 100229\nCWAZLC\nZLC2 CWA 100230\nZLC CWA 202 VALID UNTIL 100630\nFROM 75W BIL-15NNE SHR-55SW DDY-45S OCS-35SSE SLC-75W BIL\nAREA MOD/ISO SEV MTN WAVE FL350-ABV FL450. ALTITUDE CHANGE OF +/-25KTS. RPRTD BY ACFT. VISIBLE ON SATELLITE. CWSU 100230Z. CO ID MT UT WY\n=\n",
         );
-        assert!(cwa.cwa.is_some());
+        assert!(
+            cwa.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cwa)
+                .is_some()
+        );
         assert!(cwa.body.is_none());
 
         let wwp = enrich_product(
             "WWP1.TXT",
             b"000 \nWWUS40 KWNS 102008\nWWP1\nTORNADO WATCH PROBABILITIES FOR WT 0031\nPROBABILITY TABLE:\nPROB OF 2 OR MORE TORNADOES : 20%\nPROB OF 1 OR MORE STRONG /EF2-EF5/ TORNADOES : 10%\nPROB OF 10 OR MORE SEVERE WIND EVENTS : 70%\nPROB OF 1 OR MORE WIND EVENTS >= 65 KNOTS : 40%\nPROB OF 10 OR MORE SEVERE HAIL EVENTS : 60%\nPROB OF 1 OR MORE HAIL EVENTS >= 2 INCHES : 30%\nPROB OF 6 OR MORE COMBINED SEVERE HAIL/WIND EVENTS : 95%\nATTRIBUTE TABLE:\nMAX HAIL /INCHES/ : 2.0\nMAX WIND GUSTS SURFACE /KNOTS/ : 70\nMAX TOPS /X 100 FEET/ : 500\nMEAN STORM MOTION VECTOR /DEGREES AND KNOTS/ : 24035\nPARTICULARLY DANGEROUS SITUATION : NO\n",
         );
-        assert!(wwp.wwp.is_some());
+        assert!(
+            wwp.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_wwp)
+                .is_some()
+        );
         assert!(wwp.body.is_none());
 
         let cf6 = enrich_product(
             "CF6GSN.TXT",
             b"000 \nCXGM50 PGUM 100030\nCF6GSN\nPRELIMINARY LOCAL CLIMATOLOGICAL DATA\nSTATION: TEST STATION\nMONTH: MARCH\nYEAR: 2026\nDY MAX MIN AVG DEP HDD CDD PCP SNW SND AWD MWD DIR MIN PSBL SKY WX GST GDR\n 1 70 50 60 0 5 0 0.10 0.0 0 8.5 20 180 600 720 CLR RA 30 190\n",
         );
-        assert!(cf6.cf6.is_some());
+        assert!(
+            cf6.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_cf6)
+                .is_some()
+        );
         assert!(cf6.body.is_none());
 
         let dsm = enrich_product(
             "DSMCQC.TXT",
             b"000 \nCXUS45 KABQ 110415\nDSMCQC\nKCQC DS 2100 10/03 631553/ 400627// 63/ 40//9671608/T/00/00/00/T/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/00/-/-/-/-/28282059/29431531\n",
         );
-        assert!(dsm.dsm.is_some());
+        assert!(
+            dsm.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_dsm)
+                .is_some()
+        );
         assert!(dsm.body.is_none());
 
         let hml = enrich_product(
@@ -662,14 +881,24 @@ HMLMTR
 </site>
 "#,
         );
-        assert!(hml.hml.is_some());
+        assert!(
+            hml.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_hml)
+                .is_some()
+        );
         assert!(hml.body.is_none());
 
         let mos = enrich_product(
             "METBCK.TXT",
             b"000 \nFOUS46 KWNO 100000\nMETBCK\nKBCK NAM MET GUIDANCE 03/10/2026 0000 UTC\nHR 00 03 06\nTMP 20 21 22\nWND 05 06 07\n",
         );
-        assert!(mos.mos.is_some());
+        assert!(
+            mos.parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_mos)
+                .is_some()
+        );
         assert!(mos.body.is_none());
     }
 
@@ -680,14 +909,21 @@ HMLMTR
             b"000 \nACUS11 KWNS 260208\nSWOMCD\nSPC MCD 260208\nMIZ000-WIZ000-260415-\n\nMESOSCALE DISCUSSION 1525\nNWS STORM PREDICTION CENTER NORMAN OK\n0908 PM CDT THU JUL 25 2013\n\nAREAS AFFECTED...PORTIONS OF NRN WI AND THE UPPER PENINSULA OF MI\n\nCONCERNING...SEVERE THUNDERSTORM WATCH 446...\n\nVALID 260208Z - 260415Z\n\nATTN...WFO...MQT...GRB...DLH...\n\nLAT...LON 44738786 45378992 45829078 46369061 46638962 46338801\n 45868698 44738786\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::TextMcdBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.family, Some("mcd_bulletin"));
-        assert!(enrichment.mcd.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_mcd)
+                .is_some()
+        );
         assert!(enrichment.body.is_none());
         assert_eq!(
             enrichment
-                .mcd
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_mcd)
                 .map(|bulletin| bulletin.discussion_number),
             Some(1525)
         );
@@ -697,15 +933,25 @@ HMLMTR
     fn rbg94e_products_route_to_structured_ero_enrichment() {
         let enrichment = enrich_product(
             "RBG94E.TXT",
-            b"000 \nFOUS30 KWBC 132156\nRBG94E\nDay 1 Excessive Rainfall Threat Area\nValid 2156Z Tue Jul 13 2021 - 12Z Wed Jul 14 2021\n\nMARGINAL RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM\n20 N CYSC 20 N 1V4 20 SW PSF.\n",
+            b"000 \nFOUS30 KWBC 132156\nRBG94E\nDay 1 Excessive Rainfall Threat Area\nValid 2156Z Tue Jul 13 2021 - 12Z Wed Jul 14 2021\n\nMARGINAL RISK OF RAINFALL EXCEEDING FFG TO THE RIGHT OF A LINE FROM\n20 SE GTF 20 E MBW 20 SW PSF.\n",
         );
 
-        assert_eq!(enrichment.source, ProductEnrichmentSource::TextEroBulletin);
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.family, Some("ero_bulletin"));
-        assert!(enrichment.ero.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_ero)
+                .is_some()
+        );
         assert!(enrichment.body.is_none());
         assert_eq!(
-            enrichment.ero.as_ref().map(|bulletin| bulletin.day),
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_ero)
+                .map(|bulletin| bulletin.day),
             Some(1)
         );
     }
@@ -717,17 +963,21 @@ HMLMTR
             b"000 \nWUUS01 KWNS 071300\nPTSDY1\nVALID TIME 071300Z - 081200Z\n\n... CATEGORICAL ...\n\nMRGL 49061987 48451952 47761927 49061987\n",
         );
 
-        assert_eq!(
-            enrichment.source,
-            ProductEnrichmentSource::TextSpcOutlookBulletin
-        );
+        assert_eq!(enrichment.source, ProductEnrichmentSource::TextHeader);
         assert_eq!(enrichment.family, Some("spc_outlook_bulletin"));
-        assert!(enrichment.spc_outlook.is_some());
+        assert!(
+            enrichment
+                .parsed
+                .as_ref()
+                .and_then(ProductArtifact::as_spc_outlook)
+                .is_some()
+        );
         assert!(enrichment.body.is_none());
         assert_eq!(
             enrichment
-                .spc_outlook
+                .parsed
                 .as_ref()
+                .and_then(ProductArtifact::as_spc_outlook)
                 .map(|bulletin| bulletin.days[0].day),
             Some(1)
         );
@@ -743,9 +993,7 @@ HMLMTR
         assert!(enrichment.office.is_none());
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_none());
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.parsed.is_none());
     }
 
     #[test]
@@ -757,9 +1005,7 @@ HMLMTR
         assert!(enrichment.family.is_none());
         assert!(enrichment.office.is_none());
         assert!(enrichment.wmo_header.is_none());
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.parsed.is_none());
         let json = serde_json::to_value(&enrichment).expect("enrichment serializes");
         assert!(json.get("flags").is_none());
     }
@@ -774,9 +1020,7 @@ HMLMTR
         assert!(enrichment.office.is_none());
         assert!(enrichment.header.is_none());
         assert!(enrichment.wmo_header.is_none());
-        assert!(enrichment.metar.is_none());
-        assert!(enrichment.taf.is_none());
-        assert!(enrichment.dcp.is_none());
+        assert!(enrichment.parsed.is_none());
         assert!(enrichment.issues.is_empty());
     }
 }

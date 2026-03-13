@@ -26,6 +26,8 @@
 *.log
 
 # Temp
-
 .tmp/
 .ruff_cache/
+
+# Python
+__pycache__/

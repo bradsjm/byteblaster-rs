@@ -26,7 +26,7 @@ pub struct MosForecastRow {
 }
 
 pub(crate) fn parse_mos_bulletin(text: &str, reference_time: DateTime<Utc>) -> Option<MosBulletin> {
-    let normalized = text.replace('\r', "");
+    let normalized = strip_control_chars(text);
     if normalized
         .lines()
         .any(|line| line.trim_start().starts_with(".B "))
@@ -44,11 +44,12 @@ fn split_sections(text: &str) -> Option<Vec<String>> {
     let mut sections = Vec::new();
     let mut current = Vec::new();
     for line in text.lines() {
-        if section_meta_re().is_match(line.trim()) && !current.is_empty() {
+        let sanitized = sanitize_section_line(line);
+        if parse_section_header(sanitized).is_some() && !current.is_empty() {
             sections.push(current.join("\n"));
             current.clear();
         }
-        current.push(line);
+        current.push(sanitized);
     }
     if !current.is_empty() {
         sections.push(current.join("\n"));
@@ -58,23 +59,27 @@ fn split_sections(text: &str) -> Option<Vec<String>> {
 
 fn parse_section(section: &str) -> Option<MosSection> {
     let lines = section.lines().collect::<Vec<_>>();
-    let header = section_meta_re().captures(lines.first()?.trim())?;
-    let station = header.name("station")?.as_str().to_string();
-    let mut model = header.name("model")?.as_str().to_string();
-    let mos_name = header.name("mos")?.as_str();
+    let header = parse_section_header(sanitize_section_line(lines.first()?))?;
+    let station = header.station;
+    let mut model = header.model;
+    let mos_name = header.mos_name;
     if mos_name == "LAMP" {
         model = "LAV".to_string();
     } else if model == "GFSX" {
         model = "MEX".to_string();
     } else if model == "NBM" {
-        model = if mos_name == "NBX" { "NBE" } else { mos_name }.to_string();
+        model = if mos_name == "NBX" {
+            "NBE".to_string()
+        } else {
+            mos_name.clone()
+        };
     }
     let runtime = format!(
         "{}-{:02}-{:02}T{}:00:00Z",
-        header.name("year")?.as_str(),
-        header.name("month")?.as_str().parse::<u8>().ok()?,
-        header.name("day")?.as_str().parse::<u8>().ok()?,
-        &header.name("hhmm")?.as_str()[..2]
+        header.year,
+        header.month,
+        header.day,
+        &header.hhmm[..2]
     );
     let init = DateTime::parse_from_rfc3339(&runtime)
         .ok()?
@@ -182,18 +187,22 @@ fn parse_hour_axis<'a>(
     model: &str,
     init: DateTime<Utc>,
 ) -> Option<(Vec<DateTime<Utc>>, Vec<&'a str>)> {
-    let start = lines
-        .iter()
-        .position(|line| line.trim_start().starts_with("HR"))?;
-    let hours = lines[start]
-        .split_whitespace()
+    let axis = ["FHR", "HR", "UTC"].into_iter().find_map(|label| {
+        lines
+            .iter()
+            .position(|line| line.trim_start().starts_with(label))
+            .map(|index| (label, index))
+    })?;
+    let hours = lines[axis.1]
+        .split(|ch: char| ch.is_ascii_whitespace() || ch == '|')
         .skip(1)
         .map(str::to_string)
+        .filter(|token| !token.is_empty())
         .collect::<Vec<_>>();
     let mut times: Vec<DateTime<Utc>> = Vec::new();
     for (idx, hour) in hours.iter().enumerate() {
-        let ts = if model == "LAV" || matches!(model, "MEX" | "NBE" | "NBS") {
-            init + TimeDelta::hours(i64::from(hour.parse::<u8>().ok()?))
+        let ts = if axis.0 != "UTC" && (model == "LAV" || matches!(model, "MEX" | "NBE" | "NBS")) {
+            init + TimeDelta::hours(i64::from(hour.parse::<u32>().ok()?))
         } else if hour == "00" && idx > 0 {
             let prev: DateTime<Utc> = *times.last()?;
             prev + TimeDelta::hours(i64::from((24 - prev.hour()) % 24))
@@ -207,7 +216,20 @@ fn parse_hour_axis<'a>(
         };
         times.push(ts);
     }
-    Some((times, lines[start + 1..].to_vec()))
+    Some((times, lines[axis.1 + 1..].to_vec()))
+}
+
+fn strip_control_chars(text: &str) -> String {
+    text.chars()
+        .filter(|ch| !ch.is_ascii_control() || ch.is_ascii_whitespace())
+        .collect()
+}
+
+fn sanitize_section_line(line: &str) -> &str {
+    line.trim_start_matches(|ch: char| {
+        !ch.is_ascii_alphanumeric() && !ch.is_ascii_whitespace() && ch != '.'
+    })
+    .trim()
 }
 
 fn remap_var(name: String) -> String {
@@ -219,11 +241,56 @@ fn remap_var(name: String) -> String {
     }
 }
 
-fn section_meta_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"^(?P<station>[A-Z0-9_]{3,10})\s+(?P<model>[A-Z0-9]{3,5})\s+(?:V[0-9]\.[0-9]\s+)?(?P<mos>[A-Z0-9]{3,5}) GUIDANCE\s+(?P<month>\d{1,2})/(?P<day>\d{2})/(?P<year>\d{4})\s+(?P<hhmm>\d{4}) UTC$")
-            .expect("valid MOS metadata regex")
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SectionHeader {
+    station: String,
+    model: String,
+    mos_name: String,
+    month: u8,
+    day: u8,
+    year: i32,
+    hhmm: String,
+}
+
+fn parse_section_header(line: &str) -> Option<SectionHeader> {
+    let tokens = line.split_whitespace().collect::<Vec<_>>();
+    let station = tokens.first()?.to_string();
+    let model = tokens.get(1)?.to_string();
+    let (mos_index, mos_name) = match tokens.get(2).copied() {
+        Some(version) if version.starts_with('V') => (3, *tokens.get(3)?),
+        Some(name) => (2, name),
+        None => return None,
+    };
+    if tokens.get(mos_index + 1).copied() != Some("GUIDANCE") {
+        return None;
+    }
+    let date = *tokens.get(mos_index + 2)?;
+    let hhmm = tokens.get(mos_index + 3)?.to_string();
+    if tokens.get(mos_index + 4).copied() != Some("UTC") || hhmm.len() != 4 {
+        return None;
+    }
+    let (month, day, year) = date
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+        .try_into()
+        .ok()
+        .and_then(|[month, day, year]: [&str; 3]| {
+            Some((
+                month.parse::<u8>().ok()?,
+                day.parse::<u8>().ok()?,
+                year.parse::<i32>().ok()?,
+            ))
+        })?;
+
+    Some(SectionHeader {
+        station,
+        model,
+        mos_name: mos_name.to_string(),
+        month,
+        day,
+        year,
+        hhmm,
     })
 }
 
@@ -239,7 +306,10 @@ fn ftp_header_re() -> &'static Regex {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_mos_bulletin;
+    use super::{
+        parse_hour_axis, parse_mos_bulletin, parse_section, parse_section_header, split_sections,
+        strip_control_chars,
+    };
     use chrono::Utc;
 
     #[test]
@@ -269,5 +339,29 @@ AHP 12/08/13/09";
                 .values
                 .contains_key("TAIFBX")
         );
+    }
+
+    #[test]
+    fn parses_mexafg_fixture() {
+        let text = include_str!("../../tests/fixtures/products/specialized/mos/MOS-MEXAFG.txt")
+            .lines()
+            .skip(3)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let normalized = strip_control_chars(&text);
+        let sections = split_sections(&normalized).expect("mexafg sections");
+        let lines = sections[0].lines().collect::<Vec<_>>();
+        let header = parse_section_header(lines[0]).expect("mexafg header");
+        let (_, data_lines) = parse_hour_axis(&lines, "MEX", Utc::now()).expect("mexafg axis");
+        let section = parse_section(&sections[0]).expect("mexafg section");
+        let bulletin = parse_mos_bulletin(&text, Utc::now()).expect("mexafg bulletin");
+
+        assert_eq!(header.station, "PAOR");
+        assert!(!data_lines.is_empty());
+        assert_eq!(bulletin.sections.len(), 1);
+        assert_eq!(section.station, "PAOR");
+        assert_eq!(bulletin.sections[0].station, "PAOR");
+        assert_eq!(bulletin.sections[0].model, "MEX");
+        assert!(!bulletin.sections[0].forecasts.is_empty());
     }
 }

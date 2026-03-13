@@ -101,10 +101,16 @@ Current routing values:
 - `lsr`
 - `cwa`
 - `wwp`
+- `saw`
+- `sel`
 - `cf6`
 - `dsm`
 - `hml`
 - `mos`
+- `cli`
+- `mcd`
+- `ero`
+- `spc_outlook`
 
 If you add a new specialized AFOS family, do all of the following together:
 
@@ -175,12 +181,33 @@ At the time of writing:
 - `LSR` routes to specialized parsing and `body_behavior = never`
 - `CWA` routes to specialized parsing and `body_behavior = never`
 - `WWP` routes to specialized parsing and `body_behavior = never`
+- `SAW` routes to specialized parsing and `body_behavior = never`
+- `SEL` routes to specialized parsing and `body_behavior = never`
 - `CF6` routes to specialized parsing and `body_behavior = never`
 - `DSM` routes to specialized parsing and `body_behavior = never`
 - `HML` routes to specialized parsing and `body_behavior = never`
-- `MET`, `MAV`, `MEX`, `FRH`, and `FTP` route to specialized parsing and `body_behavior = never`
+- `MET`, `MAV`, `MEX`, `FRH`, `FTP`, `ECS`, `LAV`, `LEV`, `NBE`, `NBS`, and `NBX` route to specialized parsing and `body_behavior = never`
+- `CLI` routes to specialized parsing and `body_behavior = never`
 
 That means current specialized AFOS families remain bodyless by catalog policy.
+
+Exact-AFOS overrides also route:
+
+- `SWOMCD` and `FFGMPD` to specialized MCD/MPD parsing
+- `RBG94E`, `RBG98E`, and `RBG99E` to specialized ERO parsing
+- `PTSDY1`, `PTSDY2`, `PTSDY3`, `PTSD48`, `PFWFD1`, `PFWFD2`, and `PFWF38` to specialized SPC outlook parsing
+
+WMO-only strategies currently support structured parsing for:
+
+- `FD`
+- `PIREP`
+- `METAR`
+- `TAF`
+- `SIGMET`
+- `DCP`
+- WMO-routed `CWA`
+
+If you add or remove a supported family, update this section, [README.md](./README.md), and the corpus fixtures/tests together.
 
 ### If you want to enable coexistence for a family
 
@@ -194,6 +221,25 @@ You must:
 5. update docs
 
 If you cannot prove coexistence with fixtures, do not enable it.
+
+## Recognized-Malformed Family Rule
+
+Supported-family recognition is not allowed to silently fall back to generic text just because structured parsing failed.
+
+### Required behavior
+
+- if a supported family is positively recognized, classification must stop on that family
+- structured success produces that family candidate
+- structured failure produces `MalformedFamily`
+- `assemble.rs` must preserve the recognized family and surfaced issues
+
+### What this forbids
+
+- falling through to `TextGeneric` for a recognized supported AFOS or WMO family
+- falling through to `UnsupportedWmo` for a recognized supported WMO family
+- using corpus filename exceptions to hide classifier gaps
+
+If a real fixture in a supported-family corpus still needs a per-file exception, treat that as a parser bug unless the fixture was imported into the wrong family directory.
 
 ## Parser Module Guidance
 
@@ -345,7 +391,7 @@ Do not keep compatibility aliases for removed schema or API names.
 
 Every architecture-affecting parser change must add or update tests close to the changed layer.
 
-Integration tests should use real product bulletins as fixtures where possible, especially for classification and assembly changes from `https://mesonet.agron.iastate.edu/api/1/nwstext/{product_id}`.
+Integration tests should use real product bulletins as fixtures wherever possible. The current corpus is intentionally pyIEM-heavy and family-scoped; Mesonet remains useful for provenance and targeted acquisition, but it is no longer the dominant fixture source.
 
 Unit tests under `src/**` must not depend on files under `tests/**`.
 
@@ -371,7 +417,7 @@ Use `pyIEM` to:
 
 Check current local examples of this pattern before adding new tests:
 
-- `tests/vtec_hvtec_parity.rs`
+- `tests/vtec_hvtec_regressions.rs`
 - `src/body/ugc.rs`
 
 Do not treat `pyIEM` as an architecture authority.
@@ -382,10 +428,18 @@ Do not change `emwin-parser` outputs solely to match `pyIEM` unless a real bulle
 
 - unit tests for the parser or data model you changed
 - regression tests for output-shape or routing changes
+- corpus integration updates when the change affects supported-family routing, malformed-family behavior, or real-product fixture handling
 - crate tests:
   - `cargo test -p emwin-parser`
 - workspace tests:
   - `cargo test --workspace`
+
+### Corpus policy
+
+- fixture-backed `enrich_product()` behavior belongs in `tests/corpus_*.rs`
+- direct low-level parser API regressions belong in narrow non-corpus files such as `tests/body_parser_integration.rs` and `tests/vtec_hvtec_regressions.rs`
+- do not create standalone fixture-backed regression files when the assertion belongs to an existing corpus family suite
+- supported-family corpus suites should not depend on filename allowlists to permit generic fallback
 
 ### Validation commands
 

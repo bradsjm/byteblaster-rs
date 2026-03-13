@@ -1,21 +1,20 @@
 mod common;
 
-use common::{assert_family, assert_specialized, enrich, fixture_cases, matches_any};
+use common::{assert_specialized, assert_supported_family, enrich, fixture_cases};
 
 #[test]
 fn cwa_corpus_routes_to_structured_bulletins() {
     for case in fixture_cases("specialized", "cwa") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("cwa_bulletin") {
-            assert_family(&enrichment, "nws_text_product", &case);
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected generic CWA fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "cwa_bulletin",
+            &case,
+            &["invalid_cwa_bulletin", "missing_reference_time"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_specialized(&enrichment, "cwa_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_cwa()
             .unwrap_or_else(|| panic!("{} -> expected CWA artifact", case.name));
@@ -41,16 +40,15 @@ fn cwa_corpus_routes_to_structured_bulletins() {
 fn wwp_corpus_routes_to_structured_bulletins() {
     for case in fixture_cases("specialized", "wwp") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("wwp_bulletin") {
-            assert_family(&enrichment, "nws_text_product", &case);
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected generic WWP fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "wwp_bulletin",
+            &case,
+            &["invalid_wwp_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_specialized(&enrichment, "wwp_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_wwp()
             .unwrap_or_else(|| panic!("{} -> expected WWP artifact", case.name));
@@ -65,8 +63,6 @@ fn wwp_corpus_routes_to_structured_bulletins() {
 
 #[test]
 fn saw_corpus_routes_to_structured_bulletins() {
-    let noisy = ["jabber"];
-
     for case in fixture_cases("specialized", "saw") {
         let enrichment = enrich(&case);
         let artifact = assert_specialized(&enrichment, "saw_bulletin", &case, &[]);
@@ -79,9 +75,6 @@ fn saw_corpus_routes_to_structured_bulletins() {
             "{} -> expected watch number",
             case.name
         );
-        if matches_any(&case.name, &noisy) {
-            continue;
-        }
         if matches!(bulletin.action, emwin_parser::SawAction::Issue) {
             assert!(
                 bulletin.polygon.is_some() || enrichment.body.is_some(),

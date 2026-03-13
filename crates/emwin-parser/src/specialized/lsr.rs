@@ -80,8 +80,12 @@ fn split_lsr_chunks(text: &str) -> Vec<String> {
 fn is_time_line(line: &str) -> bool {
     let trimmed = line.trim_end();
     trimmed.len() >= 29
-        && trimmed[..4].chars().all(|c| c.is_ascii_digit())
-        && trimmed[4..].starts_with(" ")
+        && trimmed
+            .get(..4)
+            .is_some_and(|prefix| prefix.chars().all(|c| c.is_ascii_digit()))
+        && trimmed
+            .get(4..)
+            .is_some_and(|suffix| suffix.starts_with(' '))
 }
 
 fn parse_lsr_chunk(text: &str, reference_time: DateTime<Utc>) -> Option<LsrReport> {
@@ -168,7 +172,7 @@ fn parse_first_lsr_line(line: &str) -> Option<ParsedLsrFirstLine> {
     }
 
     let ampm = match line.get(cursor..cursor + 2)? {
-        "AM" | "PM" => line[cursor..cursor + 2].to_string(),
+        "AM" | "PM" => line.get(cursor..cursor + 2)?.to_string(),
         _ => return None,
     };
     cursor += 2;
@@ -187,12 +191,18 @@ fn parse_first_lsr_line(line: &str) -> Option<ParsedLsrFirstLine> {
     let lat_token = tail.next()?.trim().to_string();
     let middle = tail.next()?.trim_end();
 
-    if !is_lsr_lat_token(&lat_token) || !is_lsr_lon_token(&lon_token) || middle.len() < 17 {
+    let split_at = middle
+        .char_indices()
+        .nth(17)
+        .map(|(index, _)| index)
+        .unwrap_or(middle.len());
+
+    if !is_lsr_lat_token(&lat_token) || !is_lsr_lon_token(&lon_token) || split_at == middle.len() {
         return None;
     }
 
-    let event_text = middle[..17].trim().to_string();
-    let city = middle[17..].trim().to_string();
+    let event_text = middle.get(..split_at)?.trim().to_string();
+    let city = middle.get(split_at..)?.trim().to_string();
     if event_text.is_empty() || city.is_empty() {
         return None;
     }
@@ -210,7 +220,9 @@ fn parse_first_lsr_line(line: &str) -> Option<ParsedLsrFirstLine> {
 fn is_lsr_lat_token(token: &str) -> bool {
     token.len() >= 2
         && token.ends_with(['N', 'S'])
-        && token[..token.len() - 1]
+        && token
+            .get(..token.len() - 1)
+            .unwrap_or_default()
             .chars()
             .all(|character| character.is_ascii_digit() || character == '.')
 }
@@ -218,7 +230,9 @@ fn is_lsr_lat_token(token: &str) -> bool {
 fn is_lsr_lon_token(token: &str) -> bool {
     token.len() >= 2
         && token.ends_with(['E', 'W'])
-        && token[..token.len() - 1]
+        && token
+            .get(..token.len() - 1)
+            .unwrap_or_default()
             .chars()
             .all(|character| character.is_ascii_digit() || character == '.')
 }

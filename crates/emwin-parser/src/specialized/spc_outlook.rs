@@ -103,7 +103,11 @@ fn parse_outlook_areas(text: &str) -> Vec<SpcOutlookArea> {
     while index < lines.len() {
         let line = lines[index].trim();
         if let Some(captures) = category_re().captures(line) {
-            category = Some(captures.name("name").unwrap().as_str().to_ascii_uppercase());
+            let Some(name) = captures.name("name") else {
+                index += 1;
+                continue;
+            };
+            category = Some(name.as_str().to_ascii_uppercase());
             index += 1;
             continue;
         }
@@ -116,18 +120,14 @@ fn parse_outlook_areas(text: &str) -> Vec<SpcOutlookArea> {
                 index += 1;
                 continue;
             };
-            let threshold = captures
-                .name("threshold")
-                .unwrap()
-                .as_str()
-                .to_ascii_uppercase();
-            let mut raw_points = String::new();
-            let mut current = line.to_string();
+            let Some(threshold_match) = captures.name("threshold") else {
+                index += 1;
+                continue;
+            };
+            let threshold = threshold_match.as_str().to_ascii_uppercase();
+            let mut raw_points = Vec::new();
+            raw_points.push(line[threshold_match.end()..].trim().to_string());
             loop {
-                if !raw_points.is_empty() {
-                    raw_points.push(' ');
-                }
-                raw_points.push_str(current[captures.get(0).unwrap().end()..].trim());
                 index += 1;
                 if index >= lines.len() || lines[index].trim() == "&&" {
                     break;
@@ -137,9 +137,9 @@ fn parse_outlook_areas(text: &str) -> Vec<SpcOutlookArea> {
                     index -= 1;
                     break;
                 }
-                current = peek.to_string();
+                raw_points.push(peek.to_string());
             }
-            let polygons = parse_polygon_tokens(&raw_points);
+            let polygons = parse_polygon_tokens(&raw_points.join(" "));
             areas.push(SpcOutlookArea {
                 category: current_category,
                 threshold,

@@ -81,6 +81,21 @@ pub fn assert_specialized<'a>(
     })
 }
 
+pub fn assert_supported_family(
+    enrichment: &ProductEnrichment,
+    expected: &str,
+    case: &FixtureCase,
+    allow_issues: &[&str],
+) {
+    assert_family(enrichment, expected, case);
+    assert!(
+        enrichment.parsed.is_some() || has_any_issue(&enrichment.issues, allow_issues),
+        "{} -> expected parsed artifact or allowlisted degraded issues, issues={:?}",
+        case.name,
+        issue_codes(&enrichment.issues)
+    );
+}
+
 pub fn assert_wmo<'a>(
     enrichment: &'a ProductEnrichment,
     expected: &str,

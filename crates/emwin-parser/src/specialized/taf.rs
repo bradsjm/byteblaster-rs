@@ -117,8 +117,14 @@ impl Preamble {
 /// Parses a TAF bulletin from text content.
 pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
     let compact = compact_ascii_whitespace(text);
-    let mut input = compact.as_str();
-    let preamble = parse_taf_prefix(&mut input)?;
+    let compact = strip_leading_marker_line(&compact);
+    let mut input = compact;
+    let preamble = parse_taf_prefix(&mut input).or_else(|| {
+        looks_like_station_led_taf_report(input).then_some(Preamble {
+            amendment: false,
+            correction: false,
+        })
+    })?;
     let report_body = input;
     let station = next_token(&mut input)?;
     let issue_time = next_token(&mut input)?;
@@ -148,6 +154,34 @@ pub(crate) fn parse_taf_bulletin(text: &str) -> Option<TafBulletin> {
             format!("{} {}", preamble.normalized_prefix(), report_body)
         },
     })
+}
+
+fn strip_leading_marker_line(text: &str) -> &str {
+    let Some((first, rest)) = text.split_once(' ') else {
+        return text;
+    };
+    if first.len() > 3
+        && first.starts_with("TAF")
+        && first
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+        && rest.starts_with("TAF")
+    {
+        rest
+    } else {
+        text
+    }
+}
+
+fn looks_like_station_led_taf_report(text: &str) -> bool {
+    let mut parts = text.split_whitespace();
+    let Some(station) = parts.next() else {
+        return false;
+    };
+    let Some(issue_time) = parts.next() else {
+        return false;
+    };
+    is_station_token(station) && is_issue_time_token(issue_time)
 }
 
 /// Compacts ASCII whitespace in one pass.
@@ -359,6 +393,9 @@ fn parse_wind(token: &str) -> Option<TafWind> {
     let (direction, remainder, is_variable) = if let Some(rest) = core.strip_prefix("VRB") {
         (None, rest, true)
     } else {
+        if core.len() < 5 {
+            return None;
+        }
         let (direction, rest) = core.split_at(3);
         if !direction.chars().all(|ch| ch.is_ascii_digit()) {
             return None;
@@ -544,5 +581,16 @@ mod tests {
         assert!(taf.amendment);
         assert!(!taf.correction);
         assert!(taf.raw.starts_with("TAF AMD MMAS 090101Z"));
+    }
+
+    #[test]
+    fn parses_station_led_taf_without_explicit_taf_prefix() {
+        let text = "KPAM 061900Z 0619/0801 36009KT 9999 SCT030 QNH3007INS";
+        let taf = parse_taf_bulletin(text).expect("expected station-led TAF parsing to succeed");
+
+        assert_eq!(taf.station, "KPAM");
+        assert_eq!(taf.issue_time, "061900Z");
+        assert_eq!(taf.valid_from.as_deref(), Some("0619"));
+        assert_eq!(taf.valid_to.as_deref(), Some("0801"));
     }
 }

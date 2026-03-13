@@ -34,9 +34,9 @@ use crate::{BbbKind, ProductEnrichmentSource, TextProductHeader, WmoHeader, enri
 use super::candidate::{
     BodyContributionRequest, Cf6Candidate, ClassificationCandidate, CliCandidate, CwaCandidate,
     DcpCandidate, DsmCandidate, EroCandidate, FdCandidate, HmlCandidate, LsrCandidate,
-    McdCandidate, MetarCandidate, MosCandidate, PirepCandidate, SawCandidate, SelCandidate,
-    SigmetCandidate, SpcOutlookCandidate, TafCandidate, TextGenericCandidate,
-    UnsupportedWmoCandidate, WwpCandidate,
+    MalformedFamilyCandidate, McdCandidate, MetarCandidate, MosCandidate, PirepCandidate,
+    SawCandidate, SelCandidate, SigmetCandidate, SpcOutlookCandidate, TafCandidate,
+    TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::{EnvelopeKind, ParsedEnvelope};
 
@@ -45,6 +45,8 @@ type WmoStrategy = for<'a> fn(&WmoClassificationContext<'a>) -> Option<Classific
 
 const TEXT_STRATEGIES: &[TextStrategy] = &[
     classify_text_fd,
+    classify_text_metar,
+    classify_text_taf,
     classify_text_pirep,
     classify_text_sigmet,
     classify_text_lsr,
@@ -64,6 +66,8 @@ const TEXT_STRATEGIES: &[TextStrategy] = &[
 
 const WMO_STRATEGIES: &[WmoStrategy] = &[
     classify_wmo_fd,
+    classify_wmo_pirep,
+    classify_wmo_dsm,
     classify_wmo_metar,
     classify_wmo_taf,
     classify_wmo_dcp,
@@ -124,11 +128,13 @@ pub(crate) fn classify(envelope: &ParsedEnvelope) -> ClassificationCandidate {
             .clone()
             .map(ClassificationCandidate::NonText)
             .unwrap_or(ClassificationCandidate::Unknown),
-        EnvelopeKind::Unknown => envelope
-            .parse_error
-            .clone()
-            .map(ClassificationCandidate::TextParseFailure)
-            .unwrap_or(ClassificationCandidate::Unknown),
+        EnvelopeKind::Unknown => classify_unknown_text_envelope(envelope).unwrap_or_else(|| {
+            envelope
+                .parse_error
+                .clone()
+                .map(ClassificationCandidate::TextParseFailure)
+                .unwrap_or(ClassificationCandidate::Unknown)
+        }),
     }
 }
 
@@ -248,12 +254,20 @@ fn looks_like_fd_wmo_bulletin(filename: &str, body_text: &str) -> bool {
 
 /// Detects whether AFOS text resembles a PIREP bulletin.
 fn looks_like_pirep_text_product(afos: &str, body_text: &str) -> bool {
+    let trimmed = body_text.trim_start();
+    let has_kind = trimmed.starts_with("UA ")
+        || trimmed.starts_with("UUA ")
+        || body_text.contains("\nUA ")
+        || body_text.contains("\nUUA ")
+        || body_text.contains(" UA ")
+        || body_text.contains(" UUA ");
     afos.starts_with("PIR")
         || afos.eq_ignore_ascii_case("PRCUS")
         || afos.eq_ignore_ascii_case("PIREP")
+        || body_text.trim_start().starts_with("ARP ")
         || ((body_text.contains("/OV ") || body_text.contains("/OV"))
             && body_text.contains("/TM")
-            && (body_text.contains(" UA ") || body_text.contains(" UUA ")))
+            && has_kind)
 }
 
 /// Detects whether AFOS text resembles a CLI bulletin.
@@ -273,7 +287,12 @@ fn looks_like_sigmet_text_product(afos: &str, body_text: &str) -> bool {
 }
 
 fn looks_like_lsr_text_product(afos: &str, body_text: &str) -> bool {
-    afos.starts_with("LSR") && body_text.contains("..TIME...") && body_text.contains("..DATE...")
+    afos.starts_with("LSR") && {
+        let uppercase = body_text.to_ascii_uppercase();
+        (uppercase.contains("..TIME..") && uppercase.contains("..DATE.."))
+            || uppercase.contains("PRELIMINARY LOCAL STORM REPORT")
+            || uppercase.contains("LOCAL STORM REPORT")
+    }
 }
 
 fn looks_like_cwa_text_product(afos: &str, body_text: &str) -> bool {
@@ -288,7 +307,8 @@ fn looks_like_cwa_text_product(afos: &str, body_text: &str) -> bool {
 fn looks_like_wwp_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("WWP")
         && body_text.contains("PROBABILITY TABLE:")
-        && body_text.contains("ATTRIBUTE TABLE:")
+        && (body_text.contains("ATTRIBUTE TABLE:")
+            || body_text.contains("WATCH PROBABILITIES FOR WT"))
 }
 
 fn looks_like_saw_text_product(afos: &str, body_text: &str) -> bool {
@@ -304,19 +324,20 @@ fn looks_like_sel_text_product(afos: &str, body_text: &str) -> bool {
 
 fn looks_like_cf6_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("CF6")
-        && body_text.contains("PRELIMINARY LOCAL CLIMATOLOGICAL DATA")
-        && body_text.contains("MONTH:")
-        && body_text.contains("YEAR:")
+        || (body_text.contains("PRELIMINARY LOCAL CLIMATOLOGICAL DATA")
+            && body_text.contains("MONTH:")
+            && body_text.contains("YEAR:"))
 }
 
 fn looks_like_dsm_text_product(afos: &str, body_text: &str) -> bool {
     afos.starts_with("DSM")
-        && body_text.lines().any(|line| {
-            let trimmed = line.trim();
-            trimmed.len() >= 7
-                && trimmed.as_bytes().get(4..7) == Some(b" DS")
-                && trimmed.contains('/')
-        })
+        || body_text.contains(" DS ")
+            && body_text.lines().any(|line| {
+                let trimmed = line.trim();
+                trimmed.len() >= 7
+                    && trimmed.as_bytes().get(4..7) == Some(b" DS")
+                    && trimmed.contains('/')
+            })
 }
 
 fn looks_like_hml_text_product(afos: &str, body_text: &str) -> bool {
@@ -324,14 +345,20 @@ fn looks_like_hml_text_product(afos: &str, body_text: &str) -> bool {
 }
 
 fn looks_like_mos_text_product(afos: &str, body_text: &str) -> bool {
-    matches!(afos.get(..3), Some("MET" | "MAV" | "MEX" | "FRH" | "FTP"))
-        && ((body_text.contains("GUIDANCE")
-            && body_text
-                .lines()
-                .any(|line| line.trim_start().starts_with("HR")))
-            || body_text
-                .lines()
-                .any(|line| line.trim_start().starts_with(".B ")))
+    matches!(
+        afos.get(..3),
+        Some("MET" | "MAV" | "MEX" | "FRH" | "FTP" | "ECS" | "LAV" | "LEV" | "NBE" | "NBS" | "NBX")
+    ) && ((body_text.contains("GUIDANCE") && body_text.contains("MOS GUIDANCE"))
+        || (body_text.contains("GUIDANCE")
+            && body_text.lines().any(|line| {
+                let trimmed = line.trim_start();
+                trimmed.starts_with("HR")
+                    || trimmed.starts_with("FHR")
+                    || trimmed.starts_with("UTC")
+            }))
+        || body_text
+            .lines()
+            .any(|line| line.trim_start().starts_with(".B ")))
 }
 
 fn looks_like_mcd_text_product(afos: &str, body_text: &str) -> bool {
@@ -364,6 +391,51 @@ fn looks_like_sigmet_wmo_bulletin(body_text: &str) -> bool {
         || (first_line.contains(" SIGMET ") && first_line.contains(" VALID "))
 }
 
+fn looks_like_metar_wmo_bulletin(body_text: &str) -> bool {
+    body_text.lines().map(str::trim).any(|line| {
+        line == "METAR"
+            || line == "SPECI"
+            || line.starts_with("METAR ")
+            || line.starts_with("SPECI ")
+    })
+}
+
+fn looks_like_metar_text_product(afos: &str, body_text: &str) -> bool {
+    matches!(afos, "METAR" | "SPECI") || looks_like_metar_wmo_bulletin(body_text)
+}
+
+fn looks_like_taf_wmo_bulletin(body_text: &str) -> bool {
+    body_text.lines().map(str::trim).any(|line| {
+        line == "TAF"
+            || line.starts_with("TAF ")
+            || (line.len() > 3
+                && line.starts_with("TAF")
+                && line
+                    .chars()
+                    .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()))
+    })
+}
+
+fn looks_like_taf_text_product(afos: &str, body_text: &str) -> bool {
+    afos.starts_with("TAF")
+        && (looks_like_taf_wmo_bulletin(body_text) || looks_like_station_led_taf_body(body_text))
+}
+
+fn looks_like_station_led_taf_body(body_text: &str) -> bool {
+    let mut parts = body_text.split_whitespace();
+    let Some(station) = parts.next() else {
+        return false;
+    };
+    let Some(issue_time) = parts.next() else {
+        return false;
+    };
+    (3..=4).contains(&station.len())
+        && station.chars().all(|ch| ch.is_ascii_alphanumeric())
+        && issue_time.len() == 7
+        && issue_time.ends_with('Z')
+        && issue_time[..6].chars().all(|ch| ch.is_ascii_digit())
+}
+
 /// Detects whether WMO-only text resembles an AIRMET bulletin.
 fn looks_like_airmet_wmo_bulletin(body_text: &str) -> bool {
     first_nonempty_line(body_text)
@@ -385,6 +457,82 @@ fn first_nonempty_line(text: &str) -> Option<&str> {
     text.lines().map(str::trim).find(|line| !line.is_empty())
 }
 
+fn classify_unknown_text_envelope(envelope: &ParsedEnvelope) -> Option<ClassificationCandidate> {
+    let text = envelope.normalized.text_str()?;
+    if !looks_like_dsm_text_product("", text) {
+        return None;
+    }
+    let reference_time = filename_reference_time(envelope.filename()).unwrap_or_else(Utc::now);
+    let Some(bulletin) = parse_dsm_bulletin(text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::Unknown,
+            "dsm_bulletin",
+            "Daily summary message",
+            None,
+            None,
+            None,
+            None,
+            None,
+            "dsm_parse",
+            "invalid_dsm_bulletin",
+            "recognized DSM bulletin without bulletin headers, but structured parsing failed",
+            first_nonempty_line(text),
+        ));
+    };
+
+    Some(ClassificationCandidate::Dsm(DsmCandidate {
+        source: ProductEnrichmentSource::Unknown,
+        header: None,
+        wmo_header: None,
+        pil: None,
+        bbb_kind: None,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn filename_reference_time(filename: &str) -> Option<DateTime<Utc>> {
+    let stem = filename_stem(filename);
+    let prefix = stem.get(..12)?;
+    chrono::NaiveDateTime::parse_from_str(prefix, "%Y%m%d%H%M")
+        .ok()
+        .map(|naive| naive.and_utc())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn malformed_supported_family(
+    source: ProductEnrichmentSource,
+    family: &'static str,
+    title: &'static str,
+    header: Option<TextProductHeader>,
+    wmo_header: Option<WmoHeader>,
+    pil: Option<String>,
+    bbb_kind: Option<BbbKind>,
+    body_request: Option<BodyContributionRequest>,
+    kind: &'static str,
+    code: &'static str,
+    message: &'static str,
+    line: Option<&str>,
+) -> ClassificationCandidate {
+    ClassificationCandidate::MalformedFamily(MalformedFamilyCandidate {
+        source,
+        family,
+        title,
+        header,
+        wmo_header,
+        pil,
+        bbb_kind,
+        body_request,
+        issues: vec![crate::ProductParseIssue::new(
+            kind,
+            code,
+            message,
+            line.map(str::to_string),
+        )],
+    })
+}
+
 /// Checks whether the line begins with `<CCCC> SIGMET`.
 fn starts_with_icao_sigmet_line(line: &str) -> bool {
     let mut parts = line.split_whitespace();
@@ -398,18 +546,48 @@ fn starts_with_icao_sigmet_line(line: &str) -> bool {
 }
 
 fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    let reference_time = context.reference_time?;
     if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Fd) {
         return None;
     }
     if !looks_like_fd_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_fd_bulletin(
+    let Some(reference_time) = context.reference_time else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "fd_bulletin",
+            "Winds and temperatures aloft",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "fd_parse",
+            "missing_reference_time",
+            "recognized FD bulletin, but header timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some(bulletin) = parse_fd_bulletin(
         context.body_text,
         Some(context.header.afos.as_str()),
         reference_time,
-    )?;
+    ) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "fd_bulletin",
+            "Winds and temperatures aloft",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "fd_parse",
+            "invalid_fd_bulletin",
+            "recognized FD bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Fd(FdCandidate {
         source: ProductEnrichmentSource::TextHeader,
@@ -428,17 +606,103 @@ fn classify_text_fd(context: &TextClassificationContext<'_>) -> Option<Classific
     }))
 }
 
-fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Pirep) {
+fn classify_text_metar(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_metar_text_product(&context.header.afos, context.body_text) {
         return None;
     }
+    let bulletin_text = if matches!(context.header.afos.as_str(), "METAR" | "SPECI")
+        && !looks_like_metar_wmo_bulletin(context.body_text)
+    {
+        format!("{} {}", context.header.afos, context.body_text.trim_start())
+    } else {
+        context.body_text.to_string()
+    };
+    let Some((bulletin, issues)) = parse_metar_bulletin(&bulletin_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "metar_collective",
+            "METAR bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            None,
+            "metar_parse",
+            "invalid_metar_bulletin",
+            "recognized METAR bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+
+    Some(ClassificationCandidate::Metar(MetarCandidate {
+        source: ProductEnrichmentSource::TextHeader,
+        header: Some(context.header.clone()),
+        wmo_header: None,
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+        issues,
+    }))
+}
+
+fn classify_text_taf(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_taf_text_product(&context.header.afos, context.body_text) {
+        return None;
+    }
+    let Some(bulletin) = parse_taf_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "taf_bulletin",
+            "Terminal Aerodrome Forecast",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            None,
+            "taf_parse",
+            "invalid_taf_bulletin",
+            "recognized TAF bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+
+    Some(ClassificationCandidate::Taf(TafCandidate {
+        source: ProductEnrichmentSource::TextHeader,
+        header: Some(context.header.clone()),
+        wmo_header: None,
+        pil: context.pil.clone(),
+        bbb_kind: context.bbb_kind,
+        body_request: None,
+        bulletin,
+    }))
+}
+
+fn classify_text_pirep(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
     if !looks_like_pirep_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_pirep_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_pirep_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "pirep_bulletin",
+            "Pilot report bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "pirep_parse",
+            "invalid_pirep_bulletin",
+            "recognized PIREP bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Pirep(PirepCandidate {
-        header: context.header.clone(),
+        source: ProductEnrichmentSource::TextHeader,
+        header: Some(context.header.clone()),
+        wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
         body_request: build_body_request(
@@ -459,7 +723,22 @@ fn classify_text_sigmet(
     if !looks_like_sigmet_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_sigmet_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_sigmet_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "sigmet_bulletin",
+            "SIGMET bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "sigmet_parse",
+            "invalid_sigmet_bulletin",
+            "recognized SIGMET bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
         source: ProductEnrichmentSource::TextHeader,
@@ -478,13 +757,41 @@ fn classify_text_sigmet(
 }
 
 fn classify_text_lsr(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Lsr) {
-        return None;
-    }
     if !looks_like_lsr_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let (bulletin, issues) = parse_lsr_bulletin(context.body_text, context.reference_time?)?;
+    let Some(reference_time) = context.reference_time else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "lsr_bulletin",
+            "Local storm report bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "lsr_parse",
+            "missing_reference_time",
+            "recognized LSR bulletin, but header timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some((bulletin, issues)) = parse_lsr_bulletin(context.body_text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "lsr_bulletin",
+            "Local storm report bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "lsr_parse",
+            "invalid_lsr_bulletin",
+            "recognized LSR bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Lsr(LsrCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -528,7 +835,38 @@ fn classify_text_cwa(context: &TextClassificationContext<'_>) -> Option<Classifi
     if !looks_like_cwa_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_cwa_bulletin(context.body_text, context.reference_time?)?;
+    let Some(reference_time) = context.reference_time else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "cwa_bulletin",
+            "Center Weather Advisory",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "cwa_parse",
+            "missing_reference_time",
+            "recognized CWA bulletin, but header timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some(bulletin) = parse_cwa_bulletin(context.body_text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "cwa_bulletin",
+            "Center Weather Advisory",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "cwa_parse",
+            "invalid_cwa_bulletin",
+            "recognized CWA bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Cwa(CwaCandidate {
         header: Some(context.header.clone()),
         wmo_header: None,
@@ -551,7 +889,22 @@ fn classify_text_wwp(context: &TextClassificationContext<'_>) -> Option<Classifi
     if !looks_like_wwp_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_wwp_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_wwp_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "wwp_bulletin",
+            "Watch probability table",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "wwp_parse",
+            "invalid_wwp_bulletin",
+            "recognized WWP bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Wwp(WwpCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -567,13 +920,25 @@ fn classify_text_wwp(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_cf6(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Cf6) {
-        return None;
-    }
     if !looks_like_cf6_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let (bulletin, issues) = parse_cf6_bulletin(context.body_text)?;
+    let Some((bulletin, issues)) = parse_cf6_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "cf6_bulletin",
+            "Climate summary bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "cf6_parse",
+            "invalid_cf6_bulletin",
+            "recognized CF6 bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Cf6(Cf6Candidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -637,18 +1002,32 @@ fn classify_text_sel(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_dsm(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Dsm) {
-        return None;
-    }
     if !looks_like_dsm_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_dsm_bulletin(
+    let Some(bulletin) = parse_dsm_bulletin(
         context.body_text,
         context.reference_time.unwrap_or_else(Utc::now),
-    )?;
+    ) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "dsm_bulletin",
+            "Daily summary message",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "dsm_parse",
+            "invalid_dsm_bulletin",
+            "recognized DSM bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Dsm(DsmCandidate {
-        header: context.header.clone(),
+        source: ProductEnrichmentSource::TextHeader,
+        header: Some(context.header.clone()),
+        wmo_header: None,
         pil: context.pil.clone(),
         bbb_kind: context.bbb_kind,
         body_request: build_body_request(
@@ -668,7 +1047,22 @@ fn classify_text_hml(context: &TextClassificationContext<'_>) -> Option<Classifi
     if !looks_like_hml_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_hml_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_hml_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "hml_bulletin",
+            "Hydrological Markup Language bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "hml_parse",
+            "invalid_hml_bulletin",
+            "recognized HML bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Hml(HmlCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -684,13 +1078,41 @@ fn classify_text_hml(context: &TextClassificationContext<'_>) -> Option<Classifi
 }
 
 fn classify_text_mos(context: &TextClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    if context.policy.map(|entry| entry.routing) != Some(TextProductRouting::Mos) {
-        return None;
-    }
     if !looks_like_mos_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_mos_bulletin(context.body_text, context.reference_time?)?;
+    let Some(reference_time) = context.reference_time else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "mos_bulletin",
+            "Model output statistics guidance",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "mos_parse",
+            "missing_reference_time",
+            "recognized MOS bulletin, but header timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some(bulletin) = parse_mos_bulletin(context.body_text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "mos_bulletin",
+            "Model output statistics guidance",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "mos_parse",
+            "invalid_mos_bulletin",
+            "recognized MOS bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Mos(MosCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -738,7 +1160,23 @@ fn classify_text_ero(context: &TextClassificationContext<'_>) -> Option<Classifi
     if !looks_like_ero_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin = parse_ero_bulletin(context.body_text, Some(context.header.afos.as_str()))?;
+    let Some(bulletin) = parse_ero_bulletin(context.body_text, Some(context.header.afos.as_str()))
+    else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "ero_bulletin",
+            "Excessive rainfall outlook",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "ero_parse",
+            "invalid_ero_bulletin",
+            "recognized ERO bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::Ero(EroCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -762,8 +1200,24 @@ fn classify_text_spc_outlook(
     if !looks_like_spc_outlook_text_product(&context.header.afos, context.body_text) {
         return None;
     }
-    let bulletin =
-        parse_spc_outlook_bulletin(context.body_text, Some(context.header.afos.as_str()))?;
+    let Some(bulletin) =
+        parse_spc_outlook_bulletin(context.body_text, Some(context.header.afos.as_str()))
+    else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::TextHeader,
+            "spc_outlook_bulletin",
+            "SPC outlook bulletin",
+            Some(context.header.clone()),
+            None,
+            context.pil.clone(),
+            context.bbb_kind,
+            build_body_request(context.body_plan, context.body_text, context.reference_time),
+            "spc_outlook_parse",
+            "invalid_spc_outlook_bulletin",
+            "recognized SPC outlook bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
     Some(ClassificationCandidate::SpcOutlook(SpcOutlookCandidate {
         header: context.header.clone(),
         pil: context.pil.clone(),
@@ -791,15 +1245,45 @@ fn build_body_request(
 }
 
 fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    let reference_time = context.header.timestamp(Utc::now())?;
     if !looks_like_fd_wmo_bulletin(context.filename, context.body_text) {
         return None;
     }
-    let bulletin = parse_fd_bulletin(
+    let Some(reference_time) = context.header.timestamp(Utc::now()) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "fd_bulletin",
+            "Winds and temperatures aloft",
+            None,
+            Some(context.header.clone()),
+            None,
+            None,
+            None,
+            "fd_parse",
+            "missing_reference_time",
+            "recognized FD bulletin, but WMO timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some(bulletin) = parse_fd_bulletin(
         context.body_text,
         Some(filename_stem(context.filename)),
         reference_time,
-    )?;
+    ) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "fd_bulletin",
+            "Winds and temperatures aloft",
+            None,
+            Some(context.header.clone()),
+            None,
+            None,
+            None,
+            "fd_parse",
+            "invalid_fd_bulletin",
+            "recognized FD bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Fd(FdCandidate {
         source: ProductEnrichmentSource::WmoBulletin,
@@ -815,20 +1299,136 @@ fn classify_wmo_fd(context: &WmoClassificationContext<'_>) -> Option<Classificat
 }
 
 fn classify_wmo_metar(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    let (bulletin, issues) = parse_metar_bulletin(context.body_text)?;
+    if first_nonempty_line(context.body_text).is_some_and(|line| line.starts_with("NPL SA ")) {
+        return None;
+    }
+    let Some((bulletin, issues)) = parse_metar_bulletin(context.body_text) else {
+        return looks_like_metar_wmo_bulletin(context.body_text).then(|| {
+            malformed_supported_family(
+                ProductEnrichmentSource::WmoBulletin,
+                "metar_collective",
+                "METAR bulletin",
+                None,
+                Some(context.header.clone()),
+                None,
+                None,
+                None,
+                "metar_parse",
+                "invalid_metar_bulletin",
+                "recognized METAR bulletin, but structured parsing failed",
+                first_nonempty_line(context.body_text),
+            )
+        });
+    };
 
     Some(ClassificationCandidate::Metar(MetarCandidate {
-        header: context.header.clone(),
+        source: ProductEnrichmentSource::WmoBulletin,
+        header: None,
+        wmo_header: Some(context.header.clone()),
+        pil: None,
+        bbb_kind: None,
+        body_request: None,
         bulletin,
         issues,
     }))
 }
 
 fn classify_wmo_taf(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
-    let bulletin = parse_taf_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_taf_bulletin(context.body_text) else {
+        return looks_like_taf_wmo_bulletin(context.body_text).then(|| {
+            malformed_supported_family(
+                ProductEnrichmentSource::WmoBulletin,
+                "taf_bulletin",
+                "Terminal Aerodrome Forecast",
+                None,
+                Some(context.header.clone()),
+                None,
+                None,
+                None,
+                "taf_parse",
+                "invalid_taf_bulletin",
+                "recognized TAF bulletin, but structured parsing failed",
+                first_nonempty_line(context.body_text),
+            )
+        });
+    };
 
     Some(ClassificationCandidate::Taf(TafCandidate {
-        header: context.header.clone(),
+        source: ProductEnrichmentSource::WmoBulletin,
+        header: None,
+        wmo_header: Some(context.header.clone()),
+        pil: None,
+        bbb_kind: None,
+        body_request: None,
+        bulletin,
+    }))
+}
+
+fn classify_wmo_dsm(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_dsm_text_product("", context.body_text) {
+        return None;
+    }
+    let reference_time = context
+        .header
+        .timestamp(Utc::now())
+        .unwrap_or_else(Utc::now);
+    let Some(bulletin) = parse_dsm_bulletin(context.body_text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "dsm_bulletin",
+            "Daily summary message",
+            None,
+            Some(context.header.clone()),
+            None,
+            None,
+            None,
+            "dsm_parse",
+            "invalid_dsm_bulletin",
+            "recognized DSM bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+
+    Some(ClassificationCandidate::Dsm(DsmCandidate {
+        source: ProductEnrichmentSource::WmoBulletin,
+        header: None,
+        wmo_header: Some(context.header.clone()),
+        pil: None,
+        bbb_kind: None,
+        body_request: None,
+        bulletin,
+        issues: Vec::new(),
+    }))
+}
+
+fn classify_wmo_pirep(context: &WmoClassificationContext<'_>) -> Option<ClassificationCandidate> {
+    if !looks_like_pirep_text_product("", context.body_text) {
+        return None;
+    }
+    let Some(bulletin) = parse_pirep_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "pirep_bulletin",
+            "Pilot report bulletin",
+            None,
+            Some(context.header.clone()),
+            None,
+            None,
+            None,
+            "pirep_parse",
+            "invalid_pirep_bulletin",
+            "recognized PIREP bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+
+    Some(ClassificationCandidate::Pirep(PirepCandidate {
+        source: ProductEnrichmentSource::WmoBulletin,
+        header: None,
+        wmo_header: Some(context.header.clone()),
+        pil: None,
+        bbb_kind: None,
+        body_request: None,
         bulletin,
     }))
 }
@@ -846,7 +1446,22 @@ fn classify_wmo_sigmet(context: &WmoClassificationContext<'_>) -> Option<Classif
     if !looks_like_sigmet_wmo_bulletin(context.body_text) {
         return None;
     }
-    let bulletin = parse_sigmet_bulletin(context.body_text)?;
+    let Some(bulletin) = parse_sigmet_bulletin(context.body_text) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "sigmet_bulletin",
+            "SIGMET bulletin",
+            None,
+            Some(context.header.clone()),
+            None,
+            None,
+            None,
+            "sigmet_parse",
+            "invalid_sigmet_bulletin",
+            "recognized SIGMET bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Sigmet(SigmetCandidate {
         source: ProductEnrichmentSource::WmoBulletin,
@@ -864,7 +1479,38 @@ fn classify_wmo_cwa(context: &WmoClassificationContext<'_>) -> Option<Classifica
     if !looks_like_cwa_text_product("", context.body_text) {
         return None;
     }
-    let bulletin = parse_cwa_bulletin(context.body_text, context.header.timestamp(Utc::now())?)?;
+    let Some(reference_time) = context.header.timestamp(Utc::now()) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "cwa_bulletin",
+            "Center Weather Advisory",
+            None,
+            Some(context.header.clone()),
+            Some("CWA".to_string()),
+            None,
+            None,
+            "cwa_parse",
+            "missing_reference_time",
+            "recognized CWA bulletin, but WMO timestamp could not be resolved",
+            first_nonempty_line(context.body_text),
+        ));
+    };
+    let Some(bulletin) = parse_cwa_bulletin(context.body_text, reference_time) else {
+        return Some(malformed_supported_family(
+            ProductEnrichmentSource::WmoBulletin,
+            "cwa_bulletin",
+            "Center Weather Advisory",
+            None,
+            Some(context.header.clone()),
+            Some("CWA".to_string()),
+            None,
+            None,
+            "cwa_parse",
+            "invalid_cwa_bulletin",
+            "recognized CWA bulletin, but structured parsing failed",
+            first_nonempty_line(context.body_text),
+        ));
+    };
 
     Some(ClassificationCandidate::Cwa(CwaCandidate {
         header: None,
@@ -1140,7 +1786,12 @@ mod tests {
             panic!("expected dsm candidate");
         };
 
-        assert!(candidate.header.afos.starts_with("DSM"));
+        assert!(
+            candidate
+                .header
+                .as_ref()
+                .is_some_and(|header| header.afos.starts_with("DSM"))
+        );
         assert!(candidate.body_request.is_none());
         assert_eq!(candidate.bulletin.summaries[0].station, "KCQC");
     }
@@ -1469,81 +2120,87 @@ HMLMTR
     }
 
     #[test]
-    fn malformed_lsr_falls_back_to_text_generic() {
+    fn malformed_lsr_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "LSRBMX.TXT",
             b"000 \nNWUS54 KBMX 100015\nLSRBMX\nPreliminary Local Storm Report\nNo standard report block\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "lsr_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_lsr_bulletin");
     }
 
     #[test]
-    fn malformed_wwp_falls_back_to_text_generic() {
+    fn malformed_wwp_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "WWP1.TXT",
             b"000 \nWWUS40 KWNS 102012\nWWP1\nTORNADO WATCH PROBABILITIES FOR WT 0031\nPROBABILITY TABLE:\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "wwp_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_wwp_bulletin");
     }
 
     #[test]
-    fn malformed_cf6_falls_back_to_text_generic() {
+    fn malformed_cf6_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "CF6GSN.TXT",
             b"000 \nCXGM50 PGUM 100030\nCF6GSN\nPRELIMINARY LOCAL CLIMATOLOGICAL DATA\nMONTH: MARCH\nYEAR: 2026\nDY MAX MIN AVG DEP HDD CDD WTR\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "cf6_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_cf6_bulletin");
     }
 
     #[test]
-    fn malformed_hml_falls_back_to_text_generic() {
+    fn malformed_hml_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "HMLMTR.TXT",
             b"000 \nSRUS56 KMTR 100002\nHMLMTR\n<?xml version=\"1.0\"?><site><observed><datum></site>\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "hml_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_hml_bulletin");
     }
 
     #[test]
-    fn malformed_standard_mos_falls_back_to_text_generic() {
+    fn malformed_standard_mos_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "METBCK.TXT",
             b"000 \nFOUS46 KWNO 100000\nMETNC1\nKBCK   NAM MOS GUIDANCE    3/10/2026  0000 UTC\nTMP 41 38 36\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "mos_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_mos_bulletin");
     }
 
     #[test]
-    fn malformed_ftp_falls_back_to_text_generic() {
+    fn malformed_ftp_stays_in_family_with_issue() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "FTPACR.TXT",
             b"000 \nFOAK12 KWNO 100000\nFTPACR\n.B NMC 0311\n.B1 bad header\n.END\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::TextGeneric(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "mos_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_mos_bulletin");
     }
 
     #[test]
@@ -1825,15 +2482,16 @@ HMLMTR
     }
 
     #[test]
-    fn failed_fd_parse_falls_through_to_metar_candidate() {
+    fn failed_fd_parse_stays_with_fd_family() {
         let envelope = ParsedEnvelope::build(NormalizedInput::from_input(
             "FDFAIL.TXT",
             b"000 \nSAGL31 BGGH 070200\nDATA BASED ON 070000Z\nVALID 071200Z\nFT 3000 6000\nMETAR BGKK 070220Z AUTO VRB02KT 9999NDV OVC043/// M03/M08 Q0967=\n",
         ));
 
-        assert!(matches!(
-            classify(&envelope),
-            ClassificationCandidate::Metar(_)
-        ));
+        let ClassificationCandidate::MalformedFamily(candidate) = classify(&envelope) else {
+            panic!("expected malformed-family candidate");
+        };
+        assert_eq!(candidate.family, "fd_bulletin");
+        assert_eq!(candidate.issues[0].code, "invalid_fd_bulletin");
     }
 }

@@ -11,6 +11,16 @@ fn marine_weather_message_corpus_uses_vtec_event_body() {
             continue;
         }
         assert_vtec_body(&enrichment, &case);
+        if case.name == "MWWBUFNY.TXT" {
+            assert!(
+                !enrichment
+                    .issues
+                    .iter()
+                    .any(|issue| issue.code == "vtec_segment_missing_required_polygon"),
+                "{} -> marine product should not emit missing polygon issue",
+                case.name
+            );
+        }
     }
 }
 

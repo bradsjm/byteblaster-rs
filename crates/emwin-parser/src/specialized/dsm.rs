@@ -34,7 +34,11 @@ pub struct DsmSummary {
 }
 
 pub(crate) fn parse_dsm_bulletin(text: &str, reference_time: DateTime<Utc>) -> Option<DsmBulletin> {
-    let normalized = text.replace(['\r', '\n'], "");
+    let normalized = text
+        .chars()
+        .filter(|ch| !ch.is_ascii_control() || matches!(ch, '\n' | '\r'))
+        .collect::<String>()
+        .replace(['\r', '\n'], "");
     let mut summaries = Vec::new();
     for token in normalized
         .split('=')

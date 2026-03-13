@@ -128,24 +128,48 @@ pub(crate) fn parse_metar_bulletin(text: &str) -> Option<(MetarBulletin, Vec<Pro
     let content = normalize_metar_segment(text);
     let mut reports = Vec::new();
     let mut issues = Vec::new();
+    let mut collective_kind = None;
 
     for segment in content.split('=') {
         let normalized = normalize_metar_segment(segment);
         if normalized.is_empty() {
             continue;
         }
+        if normalized == "METAR" {
+            collective_kind = Some(MetarReportKind::Metar);
+            continue;
+        }
+        if normalized == "SPECI" {
+            collective_kind = Some(MetarReportKind::Speci);
+            continue;
+        }
 
         match parse_metar_report_ref(&normalized) {
-            Some(parsed) => reports.push(parsed.into_owned(normalized.clone())),
-            None if normalized.contains("METAR") || normalized.contains("SPECI") => {
-                issues.push(ProductParseIssue::new(
-                    "metar_parse",
-                    "invalid_metar_report",
-                    "could not parse METAR/SPECI report from bulletin token",
-                    Some(normalized),
-                ));
+            Some(parsed) => {
+                collective_kind = Some(parsed.kind);
+                reports.push(parsed.into_owned(normalized.clone()));
             }
-            None => {}
+            None => {
+                if let Some(parsed) = parse_surface_sa_report_ref(&normalized) {
+                    collective_kind = Some(MetarReportKind::Metar);
+                    reports.push(parsed.into_owned(normalized.clone()));
+                    continue;
+                }
+                if let Some(parsed) =
+                    collective_kind.and_then(|kind| parse_bare_metar_report_ref(&normalized, kind))
+                {
+                    reports.push(parsed.into_owned(normalized.clone()));
+                    continue;
+                }
+                if normalized.contains("METAR") || normalized.contains("SPECI") {
+                    issues.push(ProductParseIssue::new(
+                        "metar_parse",
+                        "invalid_metar_report",
+                        "could not parse METAR/SPECI report from bulletin token",
+                        Some(normalized),
+                    ));
+                }
+            }
         }
     }
 
@@ -158,6 +182,9 @@ fn normalize_metar_segment(segment: &str) -> String {
     let mut pending_space = false;
 
     for ch in segment.chars() {
+        if ch.is_ascii_control() && !ch.is_ascii_whitespace() {
+            continue;
+        }
         if ch.is_ascii_whitespace() {
             pending_space = true;
             continue;
@@ -181,10 +208,13 @@ fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef> {
     let mut correction = false;
 
     let station = inline_station.unwrap_or_else(|| {
-        let token = tokens[index];
+        let token = tokens.get(index).copied().unwrap_or_default();
         index += 1;
         token
     });
+    if station.is_empty() {
+        return None;
+    }
     if station == "COR" {
         correction = true;
         let next = *tokens.get(index)?;
@@ -196,6 +226,53 @@ fn parse_metar_report_ref(segment: &str) -> Option<ParsedMetarRef> {
     }
 
     parse_metar_body(kind, station, &tokens[index..], correction, segment)
+}
+
+fn parse_bare_metar_report_ref(segment: &str, kind: MetarReportKind) -> Option<ParsedMetarRef> {
+    let tokens = segment.split(' ').collect::<Vec<_>>();
+    let mut index = 0;
+    let mut correction = false;
+    let station = *tokens.get(index)?;
+    index += 1;
+    if station == "COR" {
+        correction = true;
+        let next = *tokens.get(index)?;
+        index += 1;
+        if !is_metar_station(next) {
+            return None;
+        }
+        return parse_metar_body(kind, next, &tokens[index..], correction, segment);
+    }
+    parse_metar_body(kind, station, &tokens[index..], correction, segment)
+}
+
+fn parse_surface_sa_report_ref(segment: &str) -> Option<ParsedMetarRef> {
+    let tokens = segment.split_whitespace().collect::<Vec<_>>();
+    let station = *tokens.first()?;
+    let report_marker = *tokens.get(1)?;
+    let hhmm = *tokens.get(2)?;
+    if !is_sa_station(station) || report_marker != "SA" || hhmm.len() != 4 {
+        return None;
+    }
+
+    Some(ParsedMetarRef {
+        kind: MetarReportKind::Metar,
+        station: station.to_string(),
+        observation_time: format!("{hhmm}00Z"),
+        correction: false,
+        wind: None,
+        visibility: None,
+        weather: Vec::new(),
+        sky_conditions: Vec::new(),
+        temperature_c: None,
+        dewpoint_c: None,
+        altimeter: None,
+        remarks: None,
+    })
+}
+
+fn is_sa_station(token: &str) -> bool {
+    (3..=4).contains(&token.len()) && token.chars().all(|ch| ch.is_ascii_uppercase())
 }
 
 fn parse_metar_body(
@@ -313,6 +390,9 @@ fn parse_wind(token: &str) -> Option<MetarWind> {
     let (direction, remainder, is_variable) = if let Some(rest) = core.strip_prefix("VRB") {
         (None, rest, true)
     } else {
+        if core.len() < 5 {
+            return None;
+        }
         let (direction, rest) = core.split_at(3);
         (Some(direction.parse::<u16>().ok()?), rest, false)
     };

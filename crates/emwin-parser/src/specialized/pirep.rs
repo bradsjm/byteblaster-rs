@@ -113,7 +113,9 @@ pub(crate) fn parse_pirep_bulletin(text: &str) -> Option<PirepBulletin> {
     let reports = pirep_reports(text)
         .into_iter()
         .filter_map(|report| {
-            parse_pirep_report_ref(&report).map(|parsed| parsed.into_owned(report.clone()))
+            parse_pirep_report_ref(&report)
+                .or_else(|| parse_arp_pirep_report_ref(&report))
+                .map(|parsed| parsed.into_owned(report.clone()))
         })
         .collect::<Vec<_>>();
 
@@ -156,13 +158,33 @@ fn compact_ascii_whitespace(text: &str) -> String {
 /// Parses an individual normalized PIREP report.
 fn parse_pirep_report_ref(report: &str) -> Option<ParsedPirepRef<'_>> {
     let (header, body) = report.split_once('/')?;
-    let captures = report_header_re().captures(header.trim())?;
-    let report_kind = match captures.name("kind")?.as_str() {
-        "UA" => PirepKind::Ua,
-        "UUA" => PirepKind::Uua,
-        _ => return None,
+    let header = header.trim();
+    let (report_kind, station) = if let Some(captures) = report_header_re().captures(header) {
+        let report_kind = match captures.name("kind")?.as_str() {
+            "UA" => PirepKind::Ua,
+            "UUA" => PirepKind::Uua,
+            _ => return None,
+        };
+        (
+            report_kind,
+            captures.name("station").map(|value| value.as_str()),
+        )
+    } else {
+        let tokens = header.split_whitespace().collect::<Vec<_>>();
+        let kind_idx = tokens
+            .iter()
+            .rposition(|token| matches!(*token, "UA" | "UUA"))?;
+        let report_kind = match *tokens.get(kind_idx)? {
+            "UA" => PirepKind::Ua,
+            "UUA" => PirepKind::Uua,
+            _ => return None,
+        };
+        let station = kind_idx
+            .checked_sub(1)
+            .and_then(|index| tokens.get(index).copied())
+            .filter(|token| is_pirep_station(token));
+        (report_kind, station)
     };
-    let station = captures.name("station").map(|value| value.as_str());
     let mut fields = parse_pirep_fields(body);
 
     let time = fields.remove("TM").map(|value| normalize_time(&value));
@@ -179,6 +201,11 @@ fn parse_pirep_report_ref(report: &str) -> Option<ParsedPirepRef<'_>> {
         .remove("TA")
         .and_then(|value| parse_temperature_c(&value));
     let remarks = fields.remove("RM");
+    let has_time = time.is_some();
+
+    if station.is_none() && !has_time {
+        return None;
+    }
 
     Some(ParsedPirepRef {
         report_kind,
@@ -203,14 +230,19 @@ fn parse_pirep_fields(report: &str) -> BTreeMap<String, String> {
 
     for part in report.split('/') {
         let trimmed = part.trim();
-        if trimmed.len() < 3 {
+        if trimmed.chars().count() < 3 {
             continue;
         }
-        let key = &trimmed[..2];
+        let Some(key) = trimmed.get(..2) else {
+            continue;
+        };
         if !key.chars().all(|ch| ch.is_ascii_uppercase()) {
             continue;
         }
-        let value = trimmed[2..].trim();
+        let Some(value) = trimmed.get(2..) else {
+            continue;
+        };
+        let value = value.trim();
         if value.is_empty() {
             continue;
         }
@@ -218,6 +250,42 @@ fn parse_pirep_fields(report: &str) -> BTreeMap<String, String> {
     }
 
     fields
+}
+
+fn parse_arp_pirep_report_ref(report: &str) -> Option<ParsedPirepRef<'_>> {
+    let tokens = report.split_whitespace().collect::<Vec<_>>();
+    if tokens.first().copied() != Some("ARP") {
+        return None;
+    }
+    let location_raw = tokens.get(2).map(|value| value.to_string());
+    let location = location_raw.as_deref().and_then(parse_ov_latlon);
+    let time = tokens.get(3).map(|value| {
+        value
+            .chars()
+            .filter(|ch| ch.is_ascii_digit())
+            .take(4)
+            .collect()
+    });
+    let flight_level_ft = tokens.get(4).and_then(|value| parse_flight_level(value));
+    let temperature_c = tokens
+        .get(5)
+        .and_then(|value| parse_arp_temperature_c(value));
+
+    Some(ParsedPirepRef {
+        report_kind: PirepKind::Ua,
+        station: None,
+        time,
+        location_raw,
+        location,
+        flight_level_ft,
+        aircraft_type: None,
+        sky_condition: None,
+        turbulence: None,
+        icing: None,
+        temperature_c,
+        remarks: None,
+        unsupported_fields: BTreeMap::new(),
+    })
 }
 
 fn normalize_time(value: &str) -> String {
@@ -256,7 +324,10 @@ fn parse_ov_latlon(value: &str) -> Option<GeoPoint> {
 }
 
 fn parse_flight_level(value: &str) -> Option<u32> {
-    let digits = value.strip_prefix("FL").unwrap_or(value);
+    let digits = value
+        .strip_prefix("FL")
+        .or_else(|| value.strip_prefix('F'))
+        .unwrap_or(value);
     let digits = digits
         .chars()
         .take_while(|ch| ch.is_ascii_digit())
@@ -280,12 +351,31 @@ fn parse_temperature_c(value: &str) -> Option<i16> {
     Some(if negative { -number } else { number })
 }
 
+fn parse_arp_temperature_c(value: &str) -> Option<i16> {
+    let value = value.trim();
+    let negative = value.starts_with("MS") || value.starts_with('M') || value.starts_with('-');
+    let digits = value
+        .trim_start_matches("MS")
+        .trim_start_matches('M')
+        .trim_start_matches('-');
+    let number = digits.parse::<i16>().ok()?;
+    Some(if negative { -number } else { number })
+}
+
 fn report_header_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"^(?P<station>[A-Z0-9]{3,4})\s+(?P<kind>UA|UUA)\b")
+        Regex::new(r"^(?P<station>[A-Z0-9]{2,4})\s+(?P<kind>UA|UUA)\b")
             .expect("pirep header regex compiles")
     })
+}
+
+fn is_pirep_station(token: &str) -> bool {
+    (2..=4).contains(&token.len())
+        && token
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+        && !token.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn ov_latlon_re() -> &'static Regex {
@@ -357,5 +447,21 @@ mod tests {
     #[test]
     fn rejects_non_pirep_text() {
         assert!(parse_pirep_bulletin("AREA FORECAST DISCUSSION").is_none());
+    }
+
+    #[test]
+    fn parses_arp_style_wmo_pirep_fixture() {
+        let text =
+            include_str!("../../tests/fixtures/products/specialized/pirep/PIREPS-airmet.txt")
+                .lines()
+                .skip(2)
+                .collect::<Vec<_>>()
+                .join("\n");
+        let bulletin = parse_pirep_bulletin(&text).expect("arp-style pirep should parse");
+
+        assert_eq!(bulletin.reports.len(), 1);
+        assert_eq!(bulletin.reports[0].time.as_deref(), Some("1457"));
+        assert_eq!(bulletin.reports[0].flight_level_ft, Some(36_000));
+        assert_eq!(bulletin.reports[0].temperature_c, Some(-63));
     }
 }

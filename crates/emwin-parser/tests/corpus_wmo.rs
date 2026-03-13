@@ -1,30 +1,21 @@
 mod common;
 
-use common::{assert_wmo, enrich, fixture_cases, matches_any};
+use common::{assert_supported_family, assert_wmo, enrich, fixture_cases};
 use emwin_parser::enrich_product;
 
 #[test]
 fn metar_corpus_routes_to_wmo_bulletins() {
     for case in fixture_cases("wmo", "metar_collective") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("metar_collective") {
-            assert!(
-                matches!(
-                    enrichment.family,
-                    Some("nws_text_product") | Some("unsupported_wmo_bulletin")
-                ),
-                "{} -> expected generic or unsupported-wmo fallback, got {:?}",
-                case.name,
-                enrichment.family
-            );
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected unstructured METAR fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "metar_collective",
+            &case,
+            &["invalid_metar_bulletin", "invalid_metar_report"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_wmo(&enrichment, "metar_collective", &case, &[]);
+        };
         let bulletin = artifact
             .as_metar()
             .unwrap_or_else(|| panic!("{} -> expected METAR artifact", case.name));
@@ -40,24 +31,15 @@ fn metar_corpus_routes_to_wmo_bulletins() {
 fn taf_corpus_routes_to_wmo_bulletins() {
     for case in fixture_cases("wmo", "taf_bulletin") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("taf_bulletin") {
-            assert!(
-                matches!(
-                    enrichment.family,
-                    Some("nws_text_product") | Some("unsupported_wmo_bulletin")
-                ),
-                "{} -> expected generic or unsupported-wmo fallback, got {:?}",
-                case.name,
-                enrichment.family
-            );
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected unstructured TAF fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "taf_bulletin",
+            &case,
+            &["invalid_taf_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_wmo(&enrichment, "taf_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_taf()
             .unwrap_or_else(|| panic!("{} -> expected TAF artifact", case.name));
@@ -73,24 +55,15 @@ fn taf_corpus_routes_to_wmo_bulletins() {
 fn sigmet_corpus_routes_to_wmo_bulletins() {
     for case in fixture_cases("wmo", "sigmet_bulletin") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("sigmet_bulletin") {
-            assert!(
-                matches!(
-                    enrichment.family,
-                    Some("nws_text_product") | Some("unsupported_wmo_bulletin")
-                ),
-                "{} -> expected generic or unsupported-wmo fallback, got {:?}",
-                case.name,
-                enrichment.family
-            );
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected unstructured SIGMET fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "sigmet_bulletin",
+            &case,
+            &["invalid_sigmet_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_wmo(&enrichment, "sigmet_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_sigmet()
             .unwrap_or_else(|| panic!("{} -> expected SIGMET artifact", case.name));
@@ -99,16 +72,14 @@ fn sigmet_corpus_routes_to_wmo_bulletins() {
             "{} -> expected SIGMET sections",
             case.name
         );
-        if !matches_any(&case.name, &["cancel"]) {
-            assert!(
-                bulletin
-                    .sections
-                    .iter()
-                    .any(|section| !section.raw.trim().is_empty()),
-                "{} -> expected populated SIGMET sections",
-                case.name
-            );
-        }
+        assert!(
+            bulletin
+                .sections
+                .iter()
+                .any(|section| !section.raw.trim().is_empty()),
+            "{} -> expected populated SIGMET sections",
+            case.name
+        );
     }
 }
 
@@ -116,24 +87,15 @@ fn sigmet_corpus_routes_to_wmo_bulletins() {
 fn fd_corpus_routes_to_wmo_bulletins() {
     for case in fixture_cases("wmo", "fd_bulletin") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("fd_bulletin") {
-            assert!(
-                matches!(
-                    enrichment.family,
-                    Some("nws_text_product") | Some("unsupported_wmo_bulletin")
-                ),
-                "{} -> expected generic or unsupported-wmo fallback, got {:?}",
-                case.name,
-                enrichment.family
-            );
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected unstructured FD fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "fd_bulletin",
+            &case,
+            &["invalid_fd_bulletin", "missing_reference_time"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_wmo(&enrichment, "fd_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_fd()
             .unwrap_or_else(|| panic!("{} -> expected FD artifact", case.name));

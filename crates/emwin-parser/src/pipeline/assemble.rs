@@ -14,9 +14,9 @@ use crate::{ProductBody, body::enrich_body_from_plan};
 use super::ClassificationCandidate;
 use super::candidate::{
     BodyContributionRequest, Cf6Candidate, CliCandidate, CwaCandidate, DcpCandidate, DsmCandidate,
-    EroCandidate, FdCandidate, HmlCandidate, LsrCandidate, McdCandidate, MetarCandidate,
-    MosCandidate, PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate, SpcOutlookCandidate,
-    TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
+    EroCandidate, FdCandidate, HmlCandidate, LsrCandidate, MalformedFamilyCandidate, McdCandidate,
+    MetarCandidate, MosCandidate, PirepCandidate, SawCandidate, SelCandidate, SigmetCandidate,
+    SpcOutlookCandidate, TafCandidate, TextGenericCandidate, UnsupportedWmoCandidate, WwpCandidate,
 };
 use super::normalize::detected_container;
 
@@ -54,6 +54,9 @@ pub(crate) fn assemble_product_enrichment(
         ClassificationCandidate::Metar(candidate) => assemble_from_metar(candidate, filename),
         ClassificationCandidate::Taf(candidate) => assemble_from_taf(candidate, filename),
         ClassificationCandidate::Dcp(candidate) => assemble_from_dcp(candidate, filename),
+        ClassificationCandidate::MalformedFamily(candidate) => {
+            assemble_from_malformed_family(candidate, filename)
+        }
         ClassificationCandidate::NonText(candidate) => assemble_from_non_text(candidate),
         ClassificationCandidate::UnsupportedWmo(candidate) => {
             assemble_from_unsupported_wmo(candidate, filename)
@@ -208,20 +211,22 @@ fn assemble_from_fd(candidate: FdCandidate, filename: &str) -> ProductEnrichment
 /// Assembles a PIREP bulletin candidate without reparsing it.
 fn assemble_from_pirep(candidate: PirepCandidate, filename: &str) -> ProductEnrichment {
     let PirepCandidate {
+        source,
         header,
+        wmo_header,
         pil,
         bbb_kind,
         body_request,
         bulletin,
     } = candidate;
     assemble_specialized_enrichment(SpecializedAssemblyInput {
-        source: ProductEnrichmentSource::TextHeader,
+        source,
         family: "pirep_bulletin",
         title: "Pilot report bulletin",
         filename: filename.to_string(),
         pil,
-        header: Some(header),
-        wmo_header: None,
+        header,
+        wmo_header,
         bbb_kind,
         body_request,
         issues: Vec::new(),
@@ -374,13 +379,13 @@ fn assemble_from_cf6(candidate: Cf6Candidate, filename: &str) -> ProductEnrichme
 
 fn assemble_from_dsm(candidate: DsmCandidate, filename: &str) -> ProductEnrichment {
     assemble_specialized_enrichment(SpecializedAssemblyInput {
-        source: ProductEnrichmentSource::TextHeader,
+        source: candidate.source,
         family: "dsm_bulletin",
         title: "Asos Daily Summary",
         filename: filename.to_string(),
         pil: candidate.pil,
-        header: Some(candidate.header),
-        wmo_header: None,
+        header: candidate.header,
+        wmo_header: candidate.wmo_header,
         bbb_kind: candidate.bbb_kind,
         body_request: candidate.body_request,
         issues: candidate.issues,
@@ -484,22 +489,27 @@ fn assemble_optional_body(
 /// Assembles a parsed METAR candidate.
 fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnrichment {
     let MetarCandidate {
+        source,
         header,
+        wmo_header,
+        pil,
+        bbb_kind,
+        body_request: _body_request,
         bulletin,
         issues,
     } = candidate;
 
     build_enrichment(EnrichmentBase {
-        source: ProductEnrichmentSource::WmoBulletin,
+        source,
         family: Some("metar_collective"),
         title: Some("METAR bulletin"),
         container: container_from_filename(filename),
-        pil: None,
+        pil,
         wmo_prefix: None,
-        office: wmo_office_entry(&header.cccc).copied(),
-        header: None,
-        wmo_header: Some(header),
-        bbb_kind: None,
+        office: office_for_headers(header.as_ref(), wmo_header.as_ref()),
+        header,
+        wmo_header,
+        bbb_kind,
         body: None,
         parsed: Some(ProductArtifact::Metar(bulletin)),
         issues,
@@ -508,19 +518,27 @@ fn assemble_from_metar(candidate: MetarCandidate, filename: &str) -> ProductEnri
 
 /// Assembles a parsed TAF candidate.
 fn assemble_from_taf(candidate: TafCandidate, filename: &str) -> ProductEnrichment {
-    let TafCandidate { header, bulletin } = candidate;
+    let TafCandidate {
+        source,
+        header,
+        wmo_header,
+        pil,
+        bbb_kind,
+        body_request: _body_request,
+        bulletin,
+    } = candidate;
 
     build_enrichment(EnrichmentBase {
-        source: ProductEnrichmentSource::WmoBulletin,
+        source,
         family: Some("taf_bulletin"),
         title: Some("Terminal Aerodrome Forecast"),
         container: container_from_filename(filename),
-        pil: None,
+        pil,
         wmo_prefix: None,
-        office: wmo_office_entry(&header.cccc).copied(),
-        header: None,
-        wmo_header: Some(header),
-        bbb_kind: None,
+        office: office_for_headers(header.as_ref(), wmo_header.as_ref()),
+        header,
+        wmo_header,
+        bbb_kind,
         body: None,
         parsed: Some(ProductArtifact::Taf(bulletin)),
         issues: Vec::new(),
@@ -545,6 +563,42 @@ fn assemble_from_dcp(candidate: DcpCandidate, filename: &str) -> ProductEnrichme
         body: None,
         parsed: Some(ProductArtifact::Dcp(bulletin)),
         issues: Vec::new(),
+    })
+}
+
+/// Assembles a recognized supported family that could not produce a structured artifact.
+fn assemble_from_malformed_family(
+    candidate: MalformedFamilyCandidate,
+    filename: &str,
+) -> ProductEnrichment {
+    let MalformedFamilyCandidate {
+        source,
+        family,
+        title,
+        header,
+        wmo_header,
+        pil,
+        bbb_kind,
+        body_request,
+        issues,
+    } = candidate;
+    let (body, mut body_issues) = assemble_optional_body(body_request);
+    body_issues.extend(issues);
+
+    build_enrichment(EnrichmentBase {
+        source,
+        family: Some(family),
+        title: Some(title),
+        container: container_from_filename(filename),
+        pil,
+        wmo_prefix: None,
+        office: office_for_headers(header.as_ref(), wmo_header.as_ref()),
+        header,
+        wmo_header,
+        bbb_kind,
+        body,
+        parsed: None,
+        issues: body_issues,
     })
 }
 
@@ -677,8 +731,8 @@ mod tests {
     use crate::{
         Cf6Bulletin, Cf6DayRow, CwaBulletin, CwaGeometry, CwaGeometryKind, DsmBulletin, DsmSummary,
         GeoPoint, HmlBulletin, HmlDatum, HmlDocument, HmlSeries, LsrBulletin, LsrReport,
-        MosBulletin, MosForecastRow, MosSection, ProductArtifact, ProductParseIssue, SawAction,
-        SawBulletin, SelBulletin, SpcWatchType, WwpBulletin,
+        MosBulletin, MosForecastRow, MosSection, ProductArtifact, ProductEnrichmentSource,
+        ProductParseIssue, SawAction, SawBulletin, SelBulletin, SpcWatchType, WwpBulletin,
     };
 
     use super::assemble_product_enrichment;
@@ -770,7 +824,9 @@ mod tests {
         let bulletin = parse_pirep_bulletin("DEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n")
             .expect("pirep bulletin should parse");
         let candidate = ClassificationCandidate::Pirep(PirepCandidate {
-            header: text_header("PIRBOU"),
+            source: ProductEnrichmentSource::TextHeader,
+            header: Some(text_header("PIRBOU")),
+            wmo_header: None,
             pil: Some("PIR".to_string()),
             bbb_kind: None,
             body_request: None,
@@ -1171,7 +1227,9 @@ mod tests {
             }],
         };
         let candidate = ClassificationCandidate::Dsm(DsmCandidate {
-            header: text_header("DSMCQC"),
+            source: ProductEnrichmentSource::TextHeader,
+            header: Some(text_header("DSMCQC")),
+            wmo_header: None,
             pil: Some("DSM".to_string()),
             bbb_kind: None,
             body_request: None,
@@ -1315,7 +1373,12 @@ mod tests {
         )
         .expect("metar bulletin should parse");
         let candidate = ClassificationCandidate::Metar(MetarCandidate {
-            header: wmo_header("SAGL31", "BGGH"),
+            source: ProductEnrichmentSource::WmoBulletin,
+            header: None,
+            wmo_header: Some(wmo_header("SAGL31", "BGGH")),
+            pil: None,
+            bbb_kind: None,
+            body_request: None,
             bulletin,
             issues,
         });
@@ -1337,7 +1400,12 @@ mod tests {
         let bulletin = parse_taf_bulletin("TAF AMD\nWBCF 070244Z 0703/0803 18012KT P6SM SCT050\n")
             .expect("taf bulletin should parse");
         let candidate = ClassificationCandidate::Taf(TafCandidate {
-            header: wmo_header("FTXX01", "KWBC"),
+            source: ProductEnrichmentSource::WmoBulletin,
+            header: None,
+            wmo_header: Some(wmo_header("FTXX01", "KWBC")),
+            pil: None,
+            bbb_kind: None,
+            body_request: None,
             bulletin,
         });
 
@@ -1458,7 +1526,9 @@ mod tests {
         let bulletin = parse_pirep_bulletin("DEN UA /OV 35 SW /TM 1925 /FL050 /TP E145=\n")
             .expect("pirep bulletin should parse");
         let candidate = ClassificationCandidate::Pirep(PirepCandidate {
-            header: text_header("PIRBOU"),
+            source: ProductEnrichmentSource::TextHeader,
+            header: Some(text_header("PIRBOU")),
+            wmo_header: None,
             pil: Some("PIR".to_string()),
             bbb_kind: None,
             body_request: None,

@@ -7,6 +7,20 @@ fn airport_weather_warning_corpus_uses_generic_body() {
     for case in fixture_cases("generic", "airport_weather_warning") {
         let enrichment = enrich(&case);
         assert_generic_body(&enrichment, &case);
+        if case.name == "AWWUNVPA.TXT" {
+            let body = enrichment
+                .body
+                .as_ref()
+                .and_then(|body| body.as_generic())
+                .unwrap_or_else(|| panic!("{} -> expected generic body", case.name));
+            assert!(
+                body.latlon
+                    .as_ref()
+                    .is_some_and(|polygons| !polygons.is_empty()),
+                "{} -> expected LAT...LON geometry",
+                case.name
+            );
+        }
     }
 }
 

@@ -1,23 +1,20 @@
 mod common;
 
-use common::{assert_family, assert_specialized, enrich, fixture_cases, matches_any};
+use common::{assert_specialized, assert_supported_family, enrich, fixture_cases};
 
 #[test]
 fn cf6_corpus_routes_to_structured_bulletins() {
-    let sparse = ["bad", "empty", "error", "future"];
-
     for case in fixture_cases("specialized", "cf6") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("cf6_bulletin") {
-            assert_family(&enrichment, "nws_text_product", &case);
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected generic CF6 fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "cf6_bulletin",
+            &case,
+            &["invalid_cf6_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_specialized(&enrichment, "cf6_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_cf6()
             .unwrap_or_else(|| panic!("{} -> expected CF6 artifact", case.name));
@@ -31,13 +28,11 @@ fn cf6_corpus_routes_to_structured_bulletins() {
             "{} -> expected month",
             case.name
         );
-        if !matches_any(&case.name, &sparse) {
-            assert!(
-                !bulletin.rows.is_empty(),
-                "{} -> expected day rows",
-                case.name
-            );
-        }
+        assert!(
+            !bulletin.rows.is_empty(),
+            "{} -> expected day rows",
+            case.name
+        );
     }
 }
 
@@ -45,24 +40,15 @@ fn cf6_corpus_routes_to_structured_bulletins() {
 fn dsm_corpus_routes_to_structured_bulletins() {
     for case in fixture_cases("specialized", "dsm") {
         let enrichment = enrich(&case);
-        if enrichment.family != Some("dsm_bulletin") {
-            assert!(
-                matches!(
-                    enrichment.family,
-                    Some("nws_text_product") | Some("unsupported_wmo_bulletin")
-                ),
-                "{} -> expected generic or unsupported-wmo DSM fallback, got {:?}",
-                case.name,
-                enrichment.family
-            );
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected generic DSM fallback",
-                case.name
-            );
+        assert_supported_family(
+            &enrichment,
+            "dsm_bulletin",
+            &case,
+            &["invalid_dsm_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_specialized(&enrichment, "dsm_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_dsm()
             .unwrap_or_else(|| panic!("{} -> expected DSM artifact", case.name));
@@ -108,29 +94,17 @@ fn ero_corpus_routes_to_structured_bulletins() {
 
 #[test]
 fn spc_outlook_corpus_routes_to_structured_bulletins() {
-    let sparse = [
-        "empty",
-        "nullgeom",
-        "nogeom",
-        "badpoly",
-        "invalid",
-        "shapelyerror",
-    ];
     for case in fixture_cases("specialized", "spc_outlook") {
-        let enrichment = match std::panic::catch_unwind(|| enrich(&case)) {
-            Ok(enrichment) => enrichment,
-            Err(_) => continue,
-        };
-        if enrichment.family != Some("spc_outlook_bulletin") {
-            assert_family(&enrichment, "nws_text_product", &case);
-            assert!(
-                enrichment.parsed.is_none(),
-                "{} -> expected generic SPC outlook fallback",
-                case.name
-            );
+        let enrichment = enrich(&case);
+        assert_supported_family(
+            &enrichment,
+            "spc_outlook_bulletin",
+            &case,
+            &["invalid_spc_outlook_bulletin"],
+        );
+        let Some(artifact) = enrichment.parsed.as_ref() else {
             continue;
-        }
-        let artifact = assert_specialized(&enrichment, "spc_outlook_bulletin", &case, &[]);
+        };
         let bulletin = artifact
             .as_spc_outlook()
             .unwrap_or_else(|| panic!("{} -> expected SPC outlook artifact", case.name));
@@ -139,12 +113,10 @@ fn spc_outlook_corpus_routes_to_structured_bulletins() {
             "{} -> expected SPC days",
             case.name
         );
-        if !matches_any(&case.name, &sparse) {
-            assert!(
-                bulletin.days.iter().all(|day| !day.outlooks.is_empty()),
-                "{} -> expected day outlooks",
-                case.name
-            );
-        }
+        assert!(
+            bulletin.days.iter().all(|day| !day.outlooks.is_empty()),
+            "{} -> expected day outlooks",
+            case.name
+        );
     }
 }

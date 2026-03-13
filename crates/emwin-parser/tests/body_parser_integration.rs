@@ -1,4 +1,4 @@
-//! Smoke tests that exercise the major body parsers together on one bulletin.
+//! Direct integration coverage for the standalone body parser APIs.
 
 use chrono::Utc;
 use emwin_parser::{

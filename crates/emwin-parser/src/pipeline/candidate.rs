@@ -59,6 +59,8 @@ pub(crate) enum ClassificationCandidate {
     Taf(TafCandidate),
     /// Parsed DCP bulletin candidate.
     Dcp(DcpCandidate),
+    /// Recognized supported family whose structured parser failed without losing family identity.
+    MalformedFamily(MalformedFamilyCandidate),
     /// Filename-classified non-text product candidate.
     NonText(NonTextProductMeta),
     /// Recognized WMO bulletin that is intentionally unsupported.
@@ -126,8 +128,12 @@ pub(crate) struct FdCandidate {
 /// Parsed PIREP bulletin candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PirepCandidate {
-    /// AFOS text header for the bulletin.
-    pub(crate) header: TextProductHeader,
+    /// Output source associated with the candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// AFOS text header for the bulletin when present.
+    pub(crate) header: Option<TextProductHeader>,
+    /// WMO-only header for the bulletin when present.
+    pub(crate) wmo_header: Option<WmoHeader>,
     /// Three-character PIL prefix when present.
     pub(crate) pil: Option<String>,
     /// BBB meaning for the text header.
@@ -232,7 +238,9 @@ pub(crate) struct Cf6Candidate {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DsmCandidate {
-    pub(crate) header: TextProductHeader,
+    pub(crate) source: ProductEnrichmentSource,
+    pub(crate) header: Option<TextProductHeader>,
+    pub(crate) wmo_header: Option<WmoHeader>,
     pub(crate) pil: Option<String>,
     pub(crate) bbb_kind: Option<BbbKind>,
     pub(crate) body_request: Option<BodyContributionRequest>,
@@ -293,8 +301,18 @@ pub(crate) struct SpcOutlookCandidate {
 /// Parsed METAR bulletin candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MetarCandidate {
+    /// Output source associated with the candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// Text header when the bulletin came through AFOS parsing.
+    pub(crate) header: Option<TextProductHeader>,
     /// WMO-only header that identified the bulletin.
-    pub(crate) header: WmoHeader,
+    pub(crate) wmo_header: Option<WmoHeader>,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for AFOS-derived candidates.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed METAR bulletin payload.
     pub(crate) bulletin: MetarBulletin,
     /// Non-fatal parse issues emitted during METAR parsing.
@@ -304,8 +322,18 @@ pub(crate) struct MetarCandidate {
 /// Parsed TAF bulletin candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TafCandidate {
+    /// Output source associated with the candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// Text header when the bulletin came through AFOS parsing.
+    pub(crate) header: Option<TextProductHeader>,
     /// WMO-only header that identified the bulletin.
-    pub(crate) header: WmoHeader,
+    pub(crate) wmo_header: Option<WmoHeader>,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for AFOS-derived candidates.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
     /// Parsed TAF bulletin payload.
     pub(crate) bulletin: TafBulletin,
 }
@@ -317,6 +345,29 @@ pub(crate) struct DcpCandidate {
     pub(crate) header: WmoHeader,
     /// Parsed DCP bulletin payload.
     pub(crate) bulletin: DcpBulletin,
+}
+
+/// Recognized supported family that could not produce a structured artifact.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MalformedFamilyCandidate {
+    /// Output source associated with this candidate.
+    pub(crate) source: ProductEnrichmentSource,
+    /// Product family emitted for the candidate.
+    pub(crate) family: &'static str,
+    /// Human-readable title emitted for the candidate.
+    pub(crate) title: &'static str,
+    /// Text header when the bulletin came from AFOS parsing.
+    pub(crate) header: Option<TextProductHeader>,
+    /// WMO-only header when the bulletin came from fallback parsing.
+    pub(crate) wmo_header: Option<WmoHeader>,
+    /// Three-character PIL prefix when present.
+    pub(crate) pil: Option<String>,
+    /// BBB meaning for AFOS-derived candidates.
+    pub(crate) bbb_kind: Option<BbbKind>,
+    /// Optional generic body extraction request for future coexistence.
+    pub(crate) body_request: Option<BodyContributionRequest>,
+    /// Non-fatal parse issues explaining the degraded result.
+    pub(crate) issues: Vec<ProductParseIssue>,
 }
 
 /// Unsupported-but-recognized WMO bulletin candidate.

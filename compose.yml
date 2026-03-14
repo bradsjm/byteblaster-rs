@@ -1,0 +1,54 @@
+name: emwin-dev
+
+x-emwin-service: &emwin-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  depends_on:
+    postgres:
+      condition: service_healthy
+  init: true
+  env_file:
+    - .env.compose
+  environment:
+    EMWIN_BIND: ${EMWIN_BIND:-0.0.0.0:8080}
+    EMWIN_OUTPUT_DIR: ${EMWIN_OUTPUT_DIR:-/run/emwin/output}
+    EMWIN_PERSIST_DATABASE_URL: ${EMWIN_PERSIST_DATABASE_URL:-postgresql://emwin:emwin@postgres:5432/emwin?sslmode=disable}
+    EMWIN_PERSIST_QUEUE_CAPACITY: ${EMWIN_PERSIST_QUEUE_CAPACITY:-1024}
+    EMWIN_STATS_INTERVAL_SECS: ${EMWIN_STATS_INTERVAL_SECS:-30}
+    EMWIN_FILE_RETENTION_SECS: ${EMWIN_FILE_RETENTION_SECS:-300}
+    EMWIN_MAX_RETAINED_FILES: ${EMWIN_MAX_RETAINED_FILES:-1000}
+    EMWIN_MAX_CLIENTS: ${EMWIN_MAX_CLIENTS:-100}
+    RUST_LOG: ${RUST_LOG:-info}
+  tmpfs:
+    - /run/emwin:rw,exec,size=256m
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.5-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-emwin}
+      POSTGRES_USER: ${POSTGRES_USER:-emwin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emwin}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data:rw,size=512m
+
+  emwin-server:
+    <<: *emwin-service
+    command: ["server"]
+    ports:
+      - "${EMWIN_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s

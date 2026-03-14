@@ -1,4 +1,4 @@
-//! Filter completed-file events for stream and server consumers.
+//! Filter completed-file events for server consumers.
 //!
 //! These filters operate on already-enriched parser output, which keeps query evaluation out of
 //! the hot path that assembles files from incoming segments.
@@ -173,44 +173,6 @@ impl FileEventFilter {
         })
     }
 
-    pub(crate) fn from_cli_filters(
-        raw_filters: &[String],
-    ) -> crate::error::CliResult<Option<Self>> {
-        if raw_filters.is_empty() {
-            return Ok(None);
-        }
-
-        let mut input = FileFilterInput::default();
-        for raw in raw_filters {
-            let (key, value) = raw.split_once('=').ok_or_else(|| {
-                crate::error::CliError::invalid_argument(format!(
-                    "invalid --filter entry {raw:?}; expected key=value"
-                ))
-            })?;
-            let key = key.trim();
-            let value = value.trim();
-            if key.is_empty() || value.is_empty() {
-                return Err(crate::error::CliError::invalid_argument(format!(
-                    "invalid --filter entry {raw:?}; expected non-empty key=value"
-                )));
-            }
-            if key.eq_ignore_ascii_case("event") {
-                return Err(crate::error::CliError::invalid_argument(
-                    "--filter event=... is only supported by server /events",
-                ));
-            }
-            input.insert_cli_value(key, value).map_err(|message| {
-                crate::error::CliError::invalid_argument(format!(
-                    "invalid --filter entry {raw:?}: {message}"
-                ))
-            })?;
-        }
-
-        Self::try_from_input(&input)
-            .map(Some)
-            .map_err(|err| crate::error::CliError::invalid_argument(err.message))
-    }
-
     pub(crate) fn has_constraints(&self) -> bool {
         self.filename_pattern.is_some()
             || self.size.has_constraints()
@@ -262,81 +224,6 @@ impl FileEventFilter {
 
         self.wind_hail.matches(metadata.product.body.as_ref())
     }
-}
-
-impl FileFilterInput {
-    fn insert_cli_value(&mut self, key: &str, value: &str) -> Result<(), String> {
-        match normalize_lower(key).as_str() {
-            "filename" => append_string(&mut self.filename, value),
-            "source" => append_string(&mut self.source, value),
-            "pil" => append_string(&mut self.pil, value),
-            "family" => append_string(&mut self.family, value),
-            "container" => append_string(&mut self.container, value),
-            "wmo_prefix" => append_string(&mut self.wmo_prefix, value),
-            "office" => append_string(&mut self.office, value),
-            "office_city" => append_string(&mut self.office_city, value),
-            "office_state" => append_string(&mut self.office_state, value),
-            "bbb_kind" => append_string(&mut self.bbb_kind, value),
-            "cccc" => append_string(&mut self.cccc, value),
-            "ttaaii" => append_string(&mut self.ttaaii, value),
-            "afos" => append_string(&mut self.afos, value),
-            "bbb" => append_string(&mut self.bbb, value),
-            "has_issues" => append_string(&mut self.has_issues, value),
-            "issue_kind" => append_string(&mut self.issue_kind, value),
-            "issue_code" => append_string(&mut self.issue_code, value),
-            "has_vtec" => append_string(&mut self.has_vtec, value),
-            "has_ugc" => append_string(&mut self.has_ugc, value),
-            "has_hvtec" => append_string(&mut self.has_hvtec, value),
-            "has_latlon" => append_string(&mut self.has_latlon, value),
-            "has_time_mot_loc" => append_string(&mut self.has_time_mot_loc, value),
-            "has_wind_hail" => append_string(&mut self.has_wind_hail, value),
-            "state" => append_string(&mut self.state, value),
-            "county" => append_string(&mut self.county, value),
-            "zone" => append_string(&mut self.zone, value),
-            "fire_zone" => append_string(&mut self.fire_zone, value),
-            "marine_zone" => append_string(&mut self.marine_zone, value),
-            "vtec_phenomena" => append_string(&mut self.vtec_phenomena, value),
-            "vtec_significance" => append_string(&mut self.vtec_significance, value),
-            "vtec_action" => append_string(&mut self.vtec_action, value),
-            "vtec_office" => append_string(&mut self.vtec_office, value),
-            "etn" => append_string(&mut self.etn, value),
-            "hvtec_nwslid" => append_string(&mut self.hvtec_nwslid, value),
-            "hvtec_severity" => append_string(&mut self.hvtec_severity, value),
-            "hvtec_cause" => append_string(&mut self.hvtec_cause, value),
-            "hvtec_record" => append_string(&mut self.hvtec_record, value),
-            "wind_hail_kind" => append_string(&mut self.wind_hail_kind, value),
-            "lat" => self.lat = Some(parse_scalar(key, value)?),
-            "lon" => self.lon = Some(parse_scalar(key, value)?),
-            "distance_miles" => self.distance_miles = Some(parse_scalar(key, value)?),
-            "min_wind_mph" => self.min_wind_mph = Some(parse_scalar(key, value)?),
-            "min_hail_inches" => self.min_hail_inches = Some(parse_scalar(key, value)?),
-            "min_size" => self.min_size = Some(parse_scalar(key, value)?),
-            "max_size" => self.max_size = Some(parse_scalar(key, value)?),
-            other => return Err(format!("unknown filter key {other}")),
-        }
-
-        Ok(())
-    }
-}
-
-fn append_string(slot: &mut Option<String>, value: &str) {
-    match slot {
-        Some(existing) => {
-            existing.push(',');
-            existing.push_str(value);
-        }
-        None => *slot = Some(value.to_string()),
-    }
-}
-
-fn parse_scalar<T>(key: &str, value: &str) -> Result<T, String>
-where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Display,
-{
-    value
-        .parse::<T>()
-        .map_err(|err| format!("{key} must be a valid value: {err}"))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1172,42 +1059,6 @@ fn normalize_lower(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{FileEventFilter, FileFilterInput};
-    use crate::live::file_pipeline::build_completed_file_metadata;
-    use emwin_protocol::ingest::ProductOrigin;
-
-    #[test]
-    fn cli_filter_matches_issue_code() {
-        let filter = FileEventFilter::from_cli_filters(&[
-            "has_issues=true".to_string(),
-            "issue_code=invalid_wmo_header".to_string(),
-        ])
-        .expect("filter should parse")
-        .expect("filter should exist");
-        let metadata = build_completed_file_metadata(
-            "AFDBOX.TXT",
-            1704070800,
-            ProductOrigin::Qbt,
-            b"000 \nINVALID HEADER\nAFDBOX\nBody\n",
-        );
-
-        assert!(filter.matches_metadata(&metadata));
-    }
-
-    #[test]
-    fn cli_filter_rejects_unknown_key() {
-        let err = FileEventFilter::from_cli_filters(&["bogus=value".to_string()])
-            .expect_err("unknown key should fail");
-
-        assert!(err.to_string().contains("unknown filter key"));
-    }
-
-    #[test]
-    fn cli_filter_rejects_event_key() {
-        let err = FileEventFilter::from_cli_filters(&["event=file_complete".to_string()])
-            .expect_err("event key should fail");
-
-        assert!(err.to_string().contains("only supported by server /events"));
-    }
 
     #[test]
     fn input_validation_rejects_distance_without_coords() {

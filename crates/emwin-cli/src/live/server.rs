@@ -1,4 +1,4 @@
-//! Server command for running an HTTP server with SSE endpoints.
+//! Primary live command for running the EMWIN HTTP server with SSE endpoints.
 //!
 //! This module provides an HTTP server that:
 //! - Streams events via Server-Sent Events (SSE)

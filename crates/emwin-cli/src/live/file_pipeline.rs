@@ -1,7 +1,8 @@
-//! Write completed files and their metadata sidecars for live mode.
+//! Build persistence artifacts for completed files.
 //!
-//! The file pipeline keeps persistence concerns separate from stream rendering so the same
-//! assembled payload can be written to disk and broadcast to other consumers.
+//! The file pipeline keeps filesystem-side persistence concerns separate from server ingest and
+//! delivery so the same assembled payload can be retained in memory, exposed over HTTP, and
+//! persisted asynchronously.
 
 use emwin_db::{BlobEntry, BlobRole, CompletedFileMetadata, PersistRequest};
 use emwin_protocol::ingest::ProductOrigin;

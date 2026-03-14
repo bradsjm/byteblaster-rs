@@ -16,6 +16,19 @@ Run via Docker (no local Rust toolchain required):
 docker run --rm ghcr.io/bradsjm/emwin-rs/emwin-cli:latest --help
 ```
 
+Development compose stack (ephemeral Postgres + `emwin-cli server`):
+
+```bash
+cp .env.compose.example .env.compose
+docker compose up --build
+```
+
+- `compose.yml` provisions `postgis/postgis` and `emwin-cli server`.
+- Postgres data and `EMWIN_OUTPUT_DIR` use `tmpfs`, so the stack is intentionally non-persistent.
+- `emwin-cli` runs with `EMWIN_OUTPUT_DIR=/run/emwin/output` and `EMWIN_PERSIST_DATABASE_URL=postgresql://emwin:emwin@postgres:5432/emwin?sslmode=disable` by default.
+- Set `EMWIN_USERNAME` in `.env.compose`; set `EMWIN_RECEIVER=wxwire` and `EMWIN_PASSWORD` only when using Weather Wire.
+- The HTTP server is exposed on `http://127.0.0.1:8080` and Postgres on `127.0.0.1:5432` by default.
+
 ## Use `emwin-protocol` in your app
 
 Add the crate from this monorepo:
@@ -66,24 +79,22 @@ emwin-protocol = { path = "../emwin-rs/crates/emwin-protocol", default-features 
 
 ## Quick start
 
-Live stream mode:
+Live server mode:
 
 ```bash
-cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
-cargo run -p emwin-cli -- stream --output-dir ./out --post-process-archives false --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password 'secret'
-cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username you@example.com --password 'secret'
+cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --post-process-archives false
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --persist-database-url postgres://localhost/emwin
+cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password 'secret'
 ```
 
-Optional stream file writing:
+Optional file persistence:
 
-- `stream --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar while still emitting stream events.
-- `stream` and `server` default to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
+- `server --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar.
+- `server` defaults to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
 - Corrupt `.ZIP` and `.ZIS` payloads are logged as `Corrupt Zip File Received` and dropped when archive post-processing is enabled.
-- `stream --filter <key=value>` filters product/file events using the same keys as `server /events`, for example `has_issues=true` or `issue_code=invalid_wmo_header`.
-- Stream output is structured logs on `stderr` only; stream does not emit JSON payloads.
+- `server` serves retained payloads over HTTP while optionally persisting payloads and metadata asynchronously in the background.
 
 CLI logging format:
 

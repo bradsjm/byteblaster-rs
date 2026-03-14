@@ -71,16 +71,15 @@ cargo test -p emwin-cli <test_name> -- --nocapture
 ## Local Run Commands
 
 ```bash
-cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
 cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out
 ```
 
 Live mode examples:
 
 ```bash
-cargo run -p emwin-cli -- stream --email you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --email you@example.com --max-events 100
+cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password your-pass
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --persist-database-url postgres://localhost/emwin
 ```
 
 ## Crate Architecture Boundaries
@@ -115,7 +114,7 @@ cargo run -p emwin-cli -- stream --output-dir ./out --email you@example.com --ma
 - Types/traits/enums: `UpperCamelCase`.
 - Functions/modules/variables: `snake_case`.
 - Constants: `SCREAMING_SNAKE_CASE`.
-- Use names that reflect command semantics (`stream`, `server`, `relay`).
+- Use names that reflect command semantics (`server`, `relay`).
 
 ### Error handling
 
@@ -134,7 +133,7 @@ cargo run -p emwin-cli -- stream --output-dir ./out --email you@example.com --ma
 
 - Prefer unit tests in the defining module and add integration tests only when command-process coverage is required.
 - Validate stdout/stderr channel behavior for contract-sensitive changes.
-- For `stream --output-dir`, assert filesystem side effects deterministically.
+- For `server --output-dir`, assert filesystem side effects deterministically.
 - Keep tests deterministic and independent from external network timing.
 
 ## Documentation Requirements

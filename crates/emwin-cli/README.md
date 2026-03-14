@@ -1,16 +1,17 @@
 # emwin-cli
 
-CLI application for EMWIN live event streaming workflows. Built on `emwin-protocol` and `emwin-parser`.
+CLI application for EMWIN live server workflows. Built on `emwin-protocol` and `emwin-parser`.
 
 ## Commands
 
-- `stream`
-  - Connect to EMWIN servers and stream events.
-  - Optional `--output-dir <PATH>`: assemble completed files from stream events and queue them for asynchronous persistence.
+- `server`
+  - Live command.
+  - Connects to EMWIN servers, exposes HTTP and SSE endpoints, and retains recent files for `/files` downloads.
+  - Optional `--output-dir <PATH>` persists completed payloads asynchronously.
 
 ## Output formats
 
-- `stream` always emits structured `tracing` logs to `stderr` and does not emit JSON payloads.
+- `server` emits structured `tracing` diagnostics to `stderr` and serves retained payloads over HTTP.
 
 Contract:
 
@@ -20,27 +21,29 @@ Contract:
 
 ## Live mode options
 
-For `stream`:
+Common live ingest options:
 
 - `--receiver <qbt|wxwire>` (optional, default `qbt`)
 - `--username <EMAIL>` (required)
 - `--password <PASSWORD>` (required when `--receiver wxwire`)
 - `--server <host:port>` (optional, repeatable or comma-delimited)
 - `--server-list-path <PATH>` (optional persisted server list path)
-- `--filter <key=value>` (optional, repeatable; reuses `server /events` file filter keys such as `has_issues=true` or `issue_code=invalid_wmo_header`)
-- `--max-events <N>` (optional; defaults to unbounded)
-- `--idle-timeout-secs <SECONDS>` (default `90`)
 - `--post-process-archives <true|false>` (default `true`; extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and delivery)
 - `--persist-queue-capacity <N>` (default `1024`; bounded async persistence queue, evicts oldest queued item when full)
 - `--persist-database-url <URL>` (optional; writes normalized metadata into Postgres/PostGIS while still storing payload blobs under `--output-dir`)
 
-Additional `stream` option:
+Live command: `server`
 
+- `--bind <ADDR>` (default `127.0.0.1:8080`)
+- `--cors-origin <ORIGIN>`
+- `--max-clients <N>`
+- `--stats-interval-secs <SECONDS>`
+- `--file-retention-secs <SECONDS>`
+- `--max-retained-files <N>`
+- `--quiet`
 - `--output-dir <PATH>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
-- `--persist-queue-capacity <N>` (optional override for the async persistence queue)
-- `--persist-database-url <URL>` (optional metadata sink; requires `--output-dir` because raw payload blobs remain filesystem-backed)
 
-Additional `stream --output-dir` behavior:
+Persistence behavior when `--output-dir` is set:
 
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
 - persistence runs in a background task so live ingest does not wait on filesystem I/O
@@ -50,16 +53,10 @@ Additional `stream --output-dir` behavior:
 - corrupt archives are logged as `Corrupt Zip File Received` and dropped when post-processing is enabled
 - sidecar names replace the original extension, for example `AFDBOX.TXT` -> `AFDBOX.JSON`
 
-For `server`:
-
-- `--output-dir <PATH>` (optional; persists retained completed files asynchronously using the same payload plus `.JSON` sidecar layout as `stream`)
-- `--persist-queue-capacity <N>` (default `1024`; bounded async persistence queue, evicts oldest queued item when full)
-- `--persist-database-url <URL>` (optional metadata sink; requires `--output-dir` for blob storage)
-
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
-When `--server` is provided for QBT live mode, the CLI now pins that explicit server set across
-`stream` and `server` instead of later replacing it with server-list updates.
+When `--server` is provided for QBT live mode, the CLI now pins that explicit server set instead
+of later replacing it with server-list updates.
 
 ## Environment variables and `.env`
 
@@ -79,8 +76,6 @@ Supported environment variables include:
 - `EMWIN_PASSWORD`
 - `EMWIN_SERVER`
 - `EMWIN_SERVER_LIST_PATH`
-- `EMWIN_MAX_EVENTS`
-- `EMWIN_IDLE_TIMEOUT_SECS`
 - `EMWIN_BIND`
 - `EMWIN_CORS_ORIGIN`
 - `EMWIN_MAX_CLIENTS`
@@ -100,12 +95,10 @@ Filters are intentionally not configurable through environment variables.
 Live mode:
 
 ```bash
-cargo run -p emwin-cli -- stream --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --username you@example.com --filter has_issues=true
-cargo run -p emwin-cli -- stream --output-dir ./out --post-process-archives false --username you@example.com --max-events 100
-cargo run -p emwin-cli -- stream --receiver wxwire --username you@example.com --password your-pass --max-events 100
-cargo run -p emwin-cli -- stream --output-dir ./out --receiver wxwire --username you@example.com --password your-pass --max-events 100
+cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out
+cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --persist-database-url postgres://localhost/emwin
+cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password your-pass
 ```
 
 ## Server filter examples

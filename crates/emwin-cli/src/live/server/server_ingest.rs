@@ -19,7 +19,7 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::watch;
 use tracing::info;
 
-/// Runs the QBT ingest loop until shutdown or stream termination.
+/// Runs the QBT ingest loop until shutdown or receiver termination.
 pub(super) async fn run_qbt_ingest_loop(
     config: QbtReceiverConfig,
     state: Arc<AppState>,

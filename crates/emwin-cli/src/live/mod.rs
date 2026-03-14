@@ -9,6 +9,7 @@ pub(crate) mod config;
 pub(crate) mod file_pipeline;
 pub(crate) mod filter;
 pub(crate) mod ingest;
+pub(crate) mod persistence;
 pub mod server;
 mod server_support;
 pub mod shared;

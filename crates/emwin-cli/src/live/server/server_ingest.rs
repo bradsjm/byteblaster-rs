@@ -5,6 +5,7 @@
 
 use super::types::{AppState, CompletedFileEventPayload, EventKind, TelemetryPayload};
 use crate::live::archive_postprocess::post_process_archive;
+use crate::live::persistence::FilePersistenceProducer;
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
     ProductOrigin,
@@ -23,6 +24,7 @@ pub(super) async fn run_qbt_ingest_loop(
     config: QbtReceiverConfig,
     state: Arc<AppState>,
     post_process_archives: bool,
+    persistence: Option<FilePersistenceProducer>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
     let mut ingest = IngestReceiver::build(IngestConfig::Qbt(config))?;
@@ -38,7 +40,7 @@ pub(super) async fn run_qbt_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_ingest_event(item, &state, post_process_archives);
+                handle_ingest_event(item, &state, post_process_archives, persistence.as_ref())?;
             }
         }
     }
@@ -53,6 +55,7 @@ pub(super) async fn run_wxwire_ingest_loop(
     config: WxWireReceiverConfig,
     state: Arc<AppState>,
     post_process_archives: bool,
+    persistence: Option<FilePersistenceProducer>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
     let mut ingest = IngestReceiver::build(IngestConfig::WxWire(config))?;
@@ -68,7 +71,7 @@ pub(super) async fn run_wxwire_ingest_loop(
                 let Some(item) = item else {
                     break;
                 };
-                handle_ingest_event(item, &state, post_process_archives);
+                handle_ingest_event(item, &state, post_process_archives, persistence.as_ref())?;
             }
         }
     }
@@ -83,7 +86,8 @@ fn handle_ingest_event(
     item: Result<IngestEvent, IngestError>,
     state: &Arc<AppState>,
     post_process_archives: bool,
-) {
+    persistence: Option<&FilePersistenceProducer>,
+) -> crate::error::CliResult<()> {
     match item {
         Ok(IngestEvent::Connected { endpoint }) => {
             {
@@ -145,7 +149,7 @@ fn handle_ingest_event(
                             error = %err,
                             "Corrupt Zip File Received"
                         );
-                        return;
+                        return Ok(());
                     }
                 };
             let completed_at = SystemTime::now();
@@ -166,6 +170,17 @@ fn handle_ingest_event(
                     completed_at,
                 )
             };
+            if let Some(persistence) = persistence {
+                let queued = crate::live::persistence::enqueue_completed_product(
+                    persistence,
+                    &delivered.filename,
+                    &delivered.data,
+                    retained_meta.clone(),
+                )?;
+                if !queued {
+                    tracing::warn!(filename = %delivered.filename, "persistence queue closed");
+                }
+            }
             super::publish(
                 state,
                 EventKind::FileComplete(Box::new(CompletedFileEventPayload::from_metadata(
@@ -215,6 +230,8 @@ fn handle_ingest_event(
         }
         Ok(_) => {}
     }
+
+    Ok(())
 }
 
 pub(super) async fn run_stats_loop(
@@ -342,7 +359,9 @@ mod tests {
             )),
             &state,
             true,
-        );
+            None,
+        )
+        .expect("ingest event should succeed");
 
         let retained = state
             .retained_files
@@ -387,7 +406,9 @@ mod tests {
             )),
             &state,
             true,
-        );
+            None,
+        )
+        .expect("corrupt archive should not fail handler");
 
         assert_eq!(
             state

@@ -481,6 +481,7 @@ dependencies = [
  "bytes",
  "clap",
  "dotenvy",
+ "emwin-db",
  "emwin-parser",
  "emwin-protocol",
  "futures",
@@ -495,6 +496,16 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zip",
+]
+
+[[package]]
+name = "emwin-db"
+version = "0.3.0"
+dependencies = [
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

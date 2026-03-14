@@ -363,6 +363,7 @@ pub struct ServerOptions {
     pub password: Option<String>,
     pub raw_servers: Vec<String>,
     pub server_list_path: Option<String>,
+    pub output_dir: Option<String>,
     pub bind: String,
     pub cors_origin: Option<String>,
     pub max_clients: usize,
@@ -371,6 +372,7 @@ pub struct ServerOptions {
     pub max_retained_files: usize,
     pub post_process_archives: bool,
     pub quiet: bool,
+    pub persistence_queue_capacity: usize,
 }
 
 pub(crate) struct ClientGuard {

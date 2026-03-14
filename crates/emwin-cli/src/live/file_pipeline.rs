@@ -3,6 +3,7 @@
 //! The file pipeline keeps persistence concerns separate from stream rendering so the same
 //! assembled payload can be written to disk and broadcast to other consumers.
 
+use emwin_db::{BlobEntry, PersistRequest};
 use emwin_parser::{
     ProductDetailV2, ProductEnrichment, ProductSummaryV2, detail_product_v2, enrich_product,
     summarize_product_v2,
@@ -37,14 +38,15 @@ impl Serialize for CompletedFileMetadata {
 }
 
 /// Paths and metadata returned after a file plus sidecar have been written.
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub(crate) struct CompletedFileRecord {
     pub(crate) path: String,
     pub(crate) metadata_path: String,
-    pub(crate) metadata: CompletedFileMetadata,
 }
 
 /// Persists an assembled file and returns its displayable path.
+#[cfg(test)]
 pub(crate) fn write_completed_file(
     output_dir: &Path,
     filename: &str,
@@ -71,6 +73,7 @@ pub(crate) fn metadata_sidecar_path(output_dir: &Path, filename: &str) -> PathBu
     }
 }
 
+#[cfg(test)]
 pub(crate) fn write_completed_metadata_json(
     output_dir: &Path,
     filename: &str,
@@ -82,6 +85,12 @@ pub(crate) fn write_completed_metadata_json(
     }
     std::fs::write(&target, serde_json::to_vec_pretty(metadata)?)?;
     Ok(target.to_string_lossy().to_string())
+}
+
+pub(crate) fn metadata_json_bytes(
+    metadata: &CompletedFileMetadata,
+) -> crate::error::CliResult<Vec<u8>> {
+    Ok(serde_json::to_vec_pretty(metadata)?)
 }
 
 pub(crate) fn build_completed_file_metadata(
@@ -100,6 +109,7 @@ pub(crate) fn build_completed_file_metadata(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn persist_completed_record(
     output_dir: &Path,
     filename: &str,
@@ -111,7 +121,27 @@ pub(crate) fn persist_completed_record(
     Ok(CompletedFileRecord {
         path,
         metadata_path,
+    })
+}
+
+pub(crate) fn build_persist_request(
+    filename: &str,
+    data: &[u8],
+    metadata: CompletedFileMetadata,
+) -> crate::error::CliResult<PersistRequest<CompletedFileMetadata>> {
+    let metadata_path = metadata_sidecar_path(Path::new(""), filename)
+        .to_string_lossy()
+        .trim_start_matches('/')
+        .to_string();
+    let metadata_bytes = metadata_json_bytes(&metadata)?;
+
+    Ok(PersistRequest {
+        request_key: filename.to_string(),
         metadata,
+        blobs: vec![
+            BlobEntry::new(filename, data.to_vec(), Some("application/octet-stream")),
+            BlobEntry::new(metadata_path, metadata_bytes, Some("application/json")),
+        ],
     })
 }
 

@@ -8,9 +8,11 @@
 
 use crate::ReceiverKind;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
+use crate::live::persistence::start_filesystem_runtime;
 use crate::live::server_support::RetainedFiles;
 use axum::http::HeaderValue;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -41,6 +43,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         password,
         raw_servers,
         server_list_path,
+        output_dir,
         bind,
         cors_origin,
         max_clients,
@@ -49,12 +52,19 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         max_retained_files,
         post_process_archives,
         quiet,
+        persistence_queue_capacity,
     } = options;
 
     let bind_addr = SocketAddr::from_str(&bind).map_err(|err| {
         crate::error::CliError::invalid_argument(format!("invalid --bind value {bind}: {err}"))
     })?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let persistence_runtime = output_dir
+        .map(PathBuf::from)
+        .map(|path| start_filesystem_runtime(path, persistence_queue_capacity));
+    let persistence_producer = persistence_runtime
+        .as_ref()
+        .map(|runtime| runtime.producer());
 
     let state = Arc::new(AppState {
         event_tx: broadcast::channel(EVENT_CHANNEL_CAPACITY).0,
@@ -101,6 +111,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
                 config,
                 Arc::clone(&state),
                 post_process_archives,
+                persistence_producer.clone(),
                 shutdown_rx.clone(),
             ))
         }
@@ -124,6 +135,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
                 config,
                 Arc::clone(&state),
                 post_process_archives,
+                persistence_producer.clone(),
                 shutdown_rx.clone(),
             ))
         }
@@ -156,6 +168,10 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
 
     let ingest_result = ingest_task.await;
     let stats_result = stats_task.await;
+    let persistence_result = match persistence_runtime {
+        Some(runtime) => Some(crate::live::persistence::shutdown_runtime(runtime).await?),
+        None => None,
+    };
 
     if let Err(err) = serve_result {
         return Err(crate::error::CliError::runtime(format!(
@@ -187,6 +203,15 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
                 "stats task join failed: {err}"
             )));
         }
+    }
+    if let Some(stats) = persistence_result {
+        info!(
+            enqueued_total = stats.enqueued_total,
+            evicted_total = stats.evicted_total,
+            persisted_total = stats.persisted_total,
+            failed_total = stats.failed_total,
+            "server persistence complete"
+        );
     }
 
     Ok(())

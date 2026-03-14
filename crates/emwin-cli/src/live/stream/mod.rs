@@ -6,9 +6,12 @@
 mod common;
 
 use crate::live::archive_postprocess::post_process_archive;
-use crate::live::file_pipeline::{build_completed_file_metadata, persist_completed_record};
+use crate::live::file_pipeline::build_completed_file_metadata;
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};
-use common::{LiveStats, log_completed_file, log_ingest_warning, log_product_event};
+use crate::live::persistence::{
+    enqueue_completed_product, shutdown_runtime, start_filesystem_runtime,
+};
+use common::{LiveStats, log_ingest_warning, log_product_event};
 use emwin_protocol::ingest::{IngestEvent, IngestTelemetry};
 use futures::StreamExt;
 use std::path::PathBuf;
@@ -21,9 +24,12 @@ pub async fn run(
     text_preview_chars: usize,
 ) -> crate::error::CliResult<()> {
     let output_dir_path = output_dir.map(PathBuf::from);
-    if let Some(path) = &output_dir_path {
-        std::fs::create_dir_all(path)?;
-    }
+    let persistence_runtime = output_dir_path
+        .as_ref()
+        .map(|path| start_filesystem_runtime(path.clone(), live.persistence_queue_capacity));
+    let persistence_producer = persistence_runtime
+        .as_ref()
+        .map(|runtime| runtime.producer());
 
     let mut ingest = LiveIngest::build(LiveIngestRequest {
         live: &live,
@@ -86,15 +92,15 @@ pub async fn run(
                     &metadata,
                     text_preview_chars,
                 );
-                if let Some(output_dir) = output_dir_path.as_deref() {
-                    let completed = persist_completed_record(
-                        output_dir,
+                if let Some(producer) = persistence_producer.as_ref()
+                    && enqueue_completed_product(
+                        producer,
                         &delivered.filename,
                         &delivered.data,
                         metadata,
-                    )?;
-                    log_completed_file(&completed);
-                    written_files.push(completed.path);
+                    )?
+                {
+                    written_files.push(delivered.filename.clone());
                 }
             }
             Ok(IngestEvent::Connected { endpoint }) => {
@@ -130,6 +136,17 @@ pub async fn run(
 
     drop(events);
     ingest.stop().await?;
+
+    if let Some(runtime) = persistence_runtime {
+        let stats = shutdown_runtime(runtime).await?;
+        info!(
+            enqueued_total = stats.enqueued_total,
+            evicted_total = stats.evicted_total,
+            persisted_total = stats.persisted_total,
+            failed_total = stats.failed_total,
+            "stream persistence complete"
+        );
+    }
 
     info!(
         events = seen,

@@ -1,0 +1,16 @@
+//! Async persistence runtime and pluggable blob storage backends.
+//!
+//! This crate keeps ingest producers off the storage hot path by queueing persistence requests for
+//! a background worker. Producers enqueue completed products without awaiting filesystem, object
+//! storage, or database I/O.
+
+mod error;
+mod runtime;
+mod writer;
+
+pub use error::{PersistError, PersistResult};
+pub use runtime::{
+    EnqueueResult, MetadataSink, NoopMetadataSink, PersistRequest, PersistedRequest,
+    PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats,
+};
+pub use writer::{BlobEntry, BlobStorageKind, BlobWriter, FilesystemBlobWriter, StoredBlob};

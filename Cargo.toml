@@ -2,6 +2,7 @@
 members = [
     "crates/emwin-protocol",
     "crates/emwin-cli",
+    "crates/emwin-db",
     "crates/emwin-parser",
 ]
 resolver = "3"

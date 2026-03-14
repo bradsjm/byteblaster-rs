@@ -11,6 +11,7 @@ homepage.workspace = true
 [dependencies]
 emwin-protocol = { path = "../emwin-protocol", features = ["telemetry-serde"] }
 emwin-parser = { path = "../emwin-parser" }
+emwin-db = { path = "../emwin-db" }
 tokio.workspace = true
 clap.workspace = true
 serde.workspace = true

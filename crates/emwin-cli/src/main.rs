@@ -35,6 +35,8 @@ struct LiveOptions {
     idle_timeout_secs: u64,
     /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
     post_process_archives: bool,
+    /// Maximum number of queued persistence requests.
+    persistence_queue_capacity: usize,
 }
 
 /// Supported upstream receiver backends.
@@ -86,9 +88,15 @@ enum Commands {
         /// Idle timeout in seconds.
         #[arg(long, env = "EMWIN_IDLE_TIMEOUT_SECS", default_value_t = 90)]
         idle_timeout_secs: u64,
+        /// Maximum number of queued persistence requests before evicting the oldest request.
+        #[arg(long, env = "EMWIN_PERSIST_QUEUE_CAPACITY", default_value_t = 1024)]
+        persist_queue_capacity: usize,
     },
     /// Run HTTP server with SSE endpoints.
     Server {
+        /// Optional directory to persist completed files asynchronously.
+        #[arg(long, env = "EMWIN_OUTPUT_DIR")]
+        output_dir: Option<String>,
         /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
         #[arg(
             long,
@@ -133,6 +141,9 @@ enum Commands {
         /// Suppress non-error output.
         #[arg(long, env = "EMWIN_QUIET", default_value_t = false)]
         quiet: bool,
+        /// Maximum number of queued persistence requests before evicting the oldest request.
+        #[arg(long, env = "EMWIN_PERSIST_QUEUE_CAPACITY", default_value_t = 1024)]
+        persist_queue_capacity: usize,
     },
     /// Run low-latency EMWIN passthrough relay.
     Relay {
@@ -173,6 +184,7 @@ async fn main() -> crate::error::CliResult<()> {
             filters,
             max_events,
             idle_timeout_secs,
+            persist_queue_capacity,
         } => {
             let live = LiveOptions {
                 receiver,
@@ -184,10 +196,12 @@ async fn main() -> crate::error::CliResult<()> {
                 max_events: max_events.unwrap_or(usize::MAX),
                 idle_timeout_secs,
                 post_process_archives,
+                persistence_queue_capacity: persist_queue_capacity,
             };
             live::stream::run(output_dir, live, text_preview_chars).await
         }
         Commands::Server {
+            output_dir,
             post_process_archives,
             username,
             password,
@@ -201,6 +215,7 @@ async fn main() -> crate::error::CliResult<()> {
             file_retention_secs,
             max_retained_files,
             quiet,
+            persist_queue_capacity,
         } => {
             let options = live::server::ServerOptions {
                 username,
@@ -214,8 +229,10 @@ async fn main() -> crate::error::CliResult<()> {
                 stats_interval_secs,
                 file_retention_secs,
                 max_retained_files,
+                output_dir,
                 post_process_archives,
                 quiet,
+                persistence_queue_capacity: persist_queue_capacity,
             };
             live::server::run(options).await
         }
@@ -278,6 +295,7 @@ mod tests {
             .to_string();
 
         assert!(help.contains("--post-process-archives"));
+        assert!(help.contains("--output-dir"));
     }
 
     #[test]
@@ -336,5 +354,48 @@ mod tests {
         };
 
         assert_eq!(max_events, None);
+    }
+
+    #[test]
+    fn stream_accepts_persist_queue_capacity() {
+        let cli = Cli::try_parse_from(["emwin", "stream", "--persist-queue-capacity", "77"])
+            .expect("stream args should parse");
+
+        let Commands::Stream {
+            persist_queue_capacity,
+            ..
+        } = cli.command
+        else {
+            panic!("expected stream command");
+        };
+
+        assert_eq!(persist_queue_capacity, 77);
+    }
+
+    #[test]
+    fn server_accepts_output_dir_and_persist_queue_capacity() {
+        let cli = Cli::try_parse_from([
+            "emwin",
+            "server",
+            "--username",
+            "test@example.com",
+            "--output-dir",
+            "./out",
+            "--persist-queue-capacity",
+            "55",
+        ])
+        .expect("server args should parse");
+
+        let Commands::Server {
+            output_dir,
+            persist_queue_capacity,
+            ..
+        } = cli.command
+        else {
+            panic!("expected server command");
+        };
+
+        assert_eq!(output_dir.as_deref(), Some("./out"));
+        assert_eq!(persist_queue_capacity, 55);
     }
 }

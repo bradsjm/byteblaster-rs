@@ -27,6 +27,8 @@ pub enum CliError {
     WxWireReceiver(#[from] emwin_protocol::wxwire_receiver::WxWireReceiverError),
     #[error(transparent)]
     Ingest(#[from] emwin_protocol::ingest::IngestError),
+    #[error(transparent)]
+    Persistence(#[from] emwin_db::PersistError),
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
     #[error("runtime failure: {0}")]

@@ -5,7 +5,6 @@
 
 use crate::cmd::event_output::text_preview;
 use crate::live::file_pipeline::CompletedFileMetadata;
-use crate::live::file_pipeline::CompletedFileRecord;
 use crate::live::shared::unix_seconds;
 use emwin_protocol::ingest::{IngestWarning, ProductOrigin};
 use std::time::SystemTime;
@@ -16,22 +15,6 @@ pub(super) struct LiveStats {
     pub(super) connections_total: u64,
     pub(super) disconnects_total: u64,
     pub(super) products_total: u64,
-}
-
-pub(super) fn log_completed_file(completed: &CompletedFileRecord) {
-    let metadata = &completed.metadata;
-    info!(
-        path = %completed.path,
-        metadata_path = %completed.metadata_path,
-        filename = %metadata.filename,
-        timestamp_utc = metadata.timestamp_utc,
-        product_source = ?metadata.product.source,
-        product_afos = metadata.product.header.as_ref().map(|value| value.afos.as_str()),
-        product_ttaaii = metadata.product.header.as_ref().map(|value| value.ttaaii.as_str()),
-        product_pil = metadata.product.pil.as_deref(),
-        product_issue_code = metadata.product.issues.first().map(|value| value.code),
-        "wrote file"
-    );
 }
 
 pub(super) fn log_product_event(

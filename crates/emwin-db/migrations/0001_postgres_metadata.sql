@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS products (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     filename TEXT NOT NULL,
     source_timestamp_utc BIGINT NOT NULL,
+    source_receiver TEXT NOT NULL,
+    source_message_id TEXT,
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     size_bytes BIGINT NOT NULL,
     origin_json JSONB NOT NULL,
     payload_storage_kind TEXT NOT NULL,
@@ -160,6 +163,9 @@ CREATE TABLE IF NOT EXISTS product_search_points (
 
 CREATE INDEX IF NOT EXISTS products_source_timestamp_idx ON products (source_timestamp_utc DESC);
 CREATE INDEX IF NOT EXISTS products_filename_idx ON products (filename);
+CREATE INDEX IF NOT EXISTS products_source_receiver_idx ON products (source_receiver);
+CREATE INDEX IF NOT EXISTS products_source_message_id_idx ON products (source_message_id) WHERE source_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS products_ingested_at_idx ON products (ingested_at DESC);
 CREATE INDEX IF NOT EXISTS products_family_pil_idx ON products (family, pil);
 CREATE INDEX IF NOT EXISTS products_office_idx ON products (office_code, office_state);
 CREATE INDEX IF NOT EXISTS products_wmo_prefix_idx ON products (wmo_prefix);

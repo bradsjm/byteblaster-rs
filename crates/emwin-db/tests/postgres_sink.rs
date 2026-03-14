@@ -75,7 +75,7 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     .expect("postgres sink should persist metadata");
 
     let row = sqlx::query(
-        "SELECT id, payload_location, metadata_location, has_vtec, has_ugc, has_hvtec, has_latlon, has_time_mot_loc, has_wind_hail \
+        "SELECT id, source_receiver, source_message_id, ingested_at, payload_location, metadata_location, has_vtec, has_ugc, has_hvtec, has_latlon, has_time_mot_loc, has_wind_hail \
          FROM products WHERE filename = $1 AND source_timestamp_utc = $2",
     )
     .bind(&metadata.filename)
@@ -85,6 +85,9 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     .expect("persisted product row should exist");
 
     let product_id = row.get::<i64, _>("id");
+    assert_eq!(row.get::<String, _>("source_receiver"), "qbt");
+    assert_eq!(row.get::<Option<String>, _>("source_message_id"), None);
+    assert!(row.get::<chrono::DateTime<chrono::Utc>, _>("ingested_at") <= chrono::Utc::now());
     assert_eq!(
         row.get::<String, _>("payload_location"),
         "/tmp/FFWOAXNE.TXT"

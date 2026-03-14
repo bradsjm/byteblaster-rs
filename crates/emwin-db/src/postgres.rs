@@ -6,6 +6,7 @@ use emwin_parser::{
     GenericBody, HvtecCode, ProductBody, ProductHeaderV2, TimeMotLocEntry, UgcArea, UgcSection,
     VtecCode, VtecEventBody,
 };
+use emwin_protocol::ingest::ProductOrigin;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -110,6 +111,8 @@ struct PreparedProduct {
 struct ProductRow {
     filename: String,
     source_timestamp_utc: i64,
+    source_receiver: String,
+    source_message_id: Option<String>,
     size_bytes: i64,
     origin_json: Value,
     payload_storage_kind: String,
@@ -289,6 +292,8 @@ impl PreparedProduct {
                     metadata.timestamp_utc
                 ))
             })?,
+            source_receiver: source_receiver(&metadata.origin).to_string(),
+            source_message_id: source_message_id(&metadata.origin),
             size_bytes: i64::try_from(metadata.size).map_err(|_| {
                 PersistError::InvalidRequest(format!(
                     "size `{}` does not fit in bigint",
@@ -694,6 +699,8 @@ async fn upsert_product(
         "INSERT INTO products (
             filename,
             source_timestamp_utc,
+            source_receiver,
+            source_message_id,
             size_bytes,
             origin_json,
             payload_storage_kind,
@@ -753,8 +760,11 @@ async fn upsert_product(
             $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
             $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
             $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-            $51, $52, $53, $54, $55
+            $51, $52, $53, $54, $55, $56, $57
         ) ON CONFLICT (filename, source_timestamp_utc) DO UPDATE SET
+            source_receiver = EXCLUDED.source_receiver,
+            source_message_id = EXCLUDED.source_message_id,
+            ingested_at = now(),
             size_bytes = EXCLUDED.size_bytes,
             origin_json = EXCLUDED.origin_json,
             payload_storage_kind = EXCLUDED.payload_storage_kind,
@@ -812,6 +822,8 @@ async fn upsert_product(
     )
     .bind(&row.filename)
     .bind(row.source_timestamp_utc)
+    .bind(&row.source_receiver)
+    .bind(&row.source_message_id)
     .bind(row.size_bytes)
     .bind(&row.origin_json)
     .bind(&row.payload_storage_kind)
@@ -1175,6 +1187,22 @@ fn flatten_header(header: Option<&ProductHeaderV2>) -> HeaderColumns {
     }
 }
 
+fn source_receiver(origin: &ProductOrigin) -> &'static str {
+    match origin {
+        ProductOrigin::Qbt => "qbt",
+        ProductOrigin::WxWire { .. } => "wxwire",
+        _ => "unknown",
+    }
+}
+
+fn source_message_id(origin: &ProductOrigin) -> Option<String> {
+    match origin {
+        ProductOrigin::Qbt => None,
+        ProductOrigin::WxWire { message_id, .. } => Some(message_id.clone()),
+        _ => None,
+    }
+}
+
 fn blob_storage_kind(kind: BlobStorageKind) -> &'static str {
     match kind {
         BlobStorageKind::Filesystem => "filesystem",
@@ -1258,6 +1286,8 @@ mod tests {
             prepared.row.metadata_location.as_deref(),
             Some("/tmp/AFDBOX.JSON")
         );
+        assert_eq!(prepared.row.source_receiver, "qbt");
+        assert_eq!(prepared.row.source_message_id, None);
         assert_eq!(prepared.row.source, "text_header");
         assert_eq!(prepared.row.container, "raw");
     }

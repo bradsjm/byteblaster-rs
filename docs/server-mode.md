@@ -25,7 +25,7 @@ Common options:
 
 - `--bind <ADDR:PORT>`: listen address (default `127.0.0.1:8080`)
 - `--max-clients <N>`: max concurrent SSE clients
-- `--stats-interval-secs <N>`: periodic stats logging (`0` disables)
+- `--stats-interval-secs <N>`: periodic stats logging (`0` disables); when file persistence is enabled, the log also includes persistence queue depth/capacity and cumulative enqueue, eviction, success, and failure counts
 - `--file-retention-secs <N>`: retained completed-file TTL
 - `--max-retained-files <N>`: retained completed-file capacity
 - `--cors-origin "*"|"https://..."`: CORS policy
@@ -176,12 +176,14 @@ Fields:
 
 ## `GET /metrics`
 
-Returns the current telemetry snapshot.
+Returns the current telemetry snapshot. When file persistence is enabled, the same persistence
+queue fields emitted in the periodic stats log are also included in the JSON response.
 
 Response shape:
 
 ```json
 {
+  "receiver": "qbt",
   "connection_attempts_total": 0,
   "connection_success_total": 0,
   "connection_fail_total": 0,
@@ -199,7 +201,13 @@ Response shape:
   "handler_failures_total": 0,
   "backpressure_warning_emitted_total": 0,
   "event_queue_drop_total": 0,
-  "telemetry_events_emitted_total": 0
+  "telemetry_events_emitted_total": 0,
+  "persistence_queue_len": 0,
+  "persistence_queue_capacity": 1024,
+  "persistence_enqueued_total": 0,
+  "persistence_evicted_total": 0,
+  "persistence_persisted_total": 0,
+  "persistence_failed_total": 0
 }
 ```
 
@@ -223,6 +231,12 @@ Field meanings:
 - `backpressure_warning_emitted_total`: backpressure warning emissions
 - `event_queue_drop_total`: dropped events from queue pressure
 - `telemetry_events_emitted_total`: telemetry events emitted
+- `persistence_queue_len`: queued persistence requests waiting to be written (only when persistence is enabled)
+- `persistence_queue_capacity`: maximum in-memory persistence queue size before eviction (only when persistence is enabled)
+- `persistence_enqueued_total`: accepted persistence requests (only when persistence is enabled)
+- `persistence_evicted_total`: queued requests evicted to admit newer work (only when persistence is enabled)
+- `persistence_persisted_total`: requests fully written to blob storage and metadata sink (only when persistence is enabled)
+- `persistence_failed_total`: requests that failed during persistence (only when persistence is enabled)
 
 ## `GET /dashboard`
 

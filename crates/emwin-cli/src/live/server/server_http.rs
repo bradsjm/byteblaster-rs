@@ -67,7 +67,7 @@ pub(super) async fn root_handler() -> Json<RootResponse> {
             EndpointDoc {
                 method: "GET",
                 path: "/metrics",
-                description: "JSON telemetry snapshot",
+                description: "JSON telemetry and persistence snapshot",
             },
         ],
     })
@@ -233,13 +233,20 @@ pub(super) async fn health_handler(State(state): State<Arc<AppState>>) -> Json<H
 
 pub(super) async fn metrics_handler(
     State(state): State<Arc<AppState>>,
-) -> Json<super::types::TelemetryPayload> {
-    let snapshot = state
+) -> Json<super::types::MetricsPayload> {
+    let telemetry = state
         .telemetry
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    Json(snapshot)
+    let persistence = state
+        .persistence
+        .as_ref()
+        .map(|producer| producer.stats_snapshot());
+    Json(super::types::MetricsPayload {
+        telemetry,
+        persistence,
+    })
 }
 
 pub(super) fn event_matches_filter(filter: &EventFilter, event: &EventKind) -> bool {

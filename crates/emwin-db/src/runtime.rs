@@ -60,6 +60,10 @@ impl<M: Send + 'static> MetadataSink<M> for NoopMetadataSink {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PersistenceStats {
+    /// Number of requests currently waiting in the queue.
+    pub queue_len: usize,
+    /// Maximum number of requests the queue can hold before eviction starts.
+    pub queue_capacity: usize,
     /// Number of requests accepted by producers.
     pub enqueued_total: u64,
     /// Number of queued requests evicted to admit newer work.
@@ -146,6 +150,20 @@ impl<M> PersistenceProducer<M> {
         }
     }
 
+    /// Returns a point-in-time snapshot of queue depth and cumulative outcomes.
+    pub fn stats_snapshot(&self) -> PersistenceStats {
+        let guard = self
+            .shared
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        PersistenceStats {
+            queue_len: guard.pending.len(),
+            queue_capacity: self.shared.capacity,
+            ..guard.stats
+        }
+    }
+
     fn close(&self) {
         let mut guard = self
             .shared
@@ -205,6 +223,11 @@ impl<M: Send + 'static> PersistenceRuntime<M> {
         self.producer.clone()
     }
 
+    /// Returns a point-in-time snapshot of queue depth and cumulative outcomes.
+    pub fn stats_snapshot(&self) -> PersistenceStats {
+        self.producer.stats_snapshot()
+    }
+
     /// Closes the queue, drains remaining requests, and returns final runtime stats.
     pub async fn shutdown(self) -> PersistResult<PersistenceStats> {
         self.producer.close();
@@ -257,19 +280,17 @@ where
         }
     }
 
-    let guard = producer
-        .shared
-        .state
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let stats = producer.stats_snapshot();
     info!(
-        enqueued_total = guard.stats.enqueued_total,
-        evicted_total = guard.stats.evicted_total,
-        persisted_total = guard.stats.persisted_total,
-        failed_total = guard.stats.failed_total,
+        queue_len = stats.queue_len,
+        queue_capacity = stats.queue_capacity,
+        enqueued_total = stats.enqueued_total,
+        evicted_total = stats.evicted_total,
+        persisted_total = stats.persisted_total,
+        failed_total = stats.failed_total,
         "persistence runtime stopped"
     );
-    guard.stats
+    stats
 }
 
 fn pop_request<M>(producer: &PersistenceProducer<M>) -> Option<PersistRequest<M>> {
@@ -333,12 +354,15 @@ where
 mod tests {
     use super::{
         BlobEntry, EnqueueResult, MetadataSink, NoopMetadataSink, PersistRequest, PersistedRequest,
-        PersistenceConfig, PersistenceRuntime,
+        PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats, QueueState,
+        SharedQueue,
     };
     use crate::error::{PersistError, PersistResult};
     use crate::writer::{BlobRole, BlobStorageKind, BlobWriter, BoxFuture, FilesystemBlobWriter};
+    use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
+    use tokio::sync::Semaphore;
 
     #[derive(Debug, Default)]
     struct RecordingWriter {
@@ -447,6 +471,40 @@ mod tests {
         }
     }
 
+    #[test]
+    fn stats_snapshot_reports_live_queue_state() {
+        let producer = PersistenceProducer {
+            shared: Arc::new(SharedQueue {
+                state: Mutex::new(QueueState {
+                    pending: VecDeque::from([request("queued")]),
+                    closed: false,
+                    stats: PersistenceStats {
+                        queue_len: 0,
+                        queue_capacity: 0,
+                        enqueued_total: 4,
+                        evicted_total: 1,
+                        persisted_total: 2,
+                        failed_total: 1,
+                    },
+                }),
+                available: Semaphore::new(0),
+                capacity: 8,
+            }),
+        };
+
+        assert_eq!(
+            producer.stats_snapshot(),
+            PersistenceStats {
+                queue_len: 1,
+                queue_capacity: 8,
+                enqueued_total: 4,
+                evicted_total: 1,
+                persisted_total: 2,
+                failed_total: 1,
+            }
+        );
+    }
+
     #[tokio::test]
     async fn queue_evicts_oldest_request_when_full() {
         let writer = RecordingWriter::default();
@@ -476,6 +534,8 @@ mod tests {
         assert_eq!(result.evicted_oldest_key.as_deref(), Some("one"));
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
+        assert_eq!(stats.queue_capacity, 2);
         assert_eq!(stats.evicted_total, 1);
         assert_eq!(stats.persisted_total, 2);
         assert_eq!(
@@ -505,6 +565,7 @@ mod tests {
         assert!(result.accepted);
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.failed_total, 1);
         assert!(
             persisted
@@ -525,6 +586,7 @@ mod tests {
         assert!(result.accepted);
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.failed_total, 1);
         assert!(
             deletes
@@ -565,6 +627,7 @@ mod tests {
         assert!(result.accepted);
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.failed_total, 1);
         assert_eq!(
             std::fs::read_to_string(temp.path().join("nested/product.txt"))
@@ -609,6 +672,7 @@ mod tests {
         assert!(result.accepted);
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.persisted_total, 1);
         assert_eq!(
             std::fs::read_to_string(temp.path().join("nested/product.txt"))

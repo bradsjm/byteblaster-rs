@@ -6,6 +6,7 @@
 use super::types::{AppState, CompletedFileEventPayload, EventKind, TelemetryPayload};
 use crate::live::archive_postprocess::post_process_archive;
 use crate::live::persistence::FilePersistenceProducer;
+use emwin_db::PersistenceStats;
 use emwin_protocol::ingest::{
     IngestConfig, IngestError, IngestEvent, IngestReceiver, IngestTelemetry, IngestWarning,
     ProductOrigin,
@@ -18,6 +19,18 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 use tokio::sync::watch;
 use tracing::info;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ServerStatsSnapshot {
+    uptime_secs: u64,
+    data_blocks_total: u64,
+    received_servers: usize,
+    received_sat_servers: usize,
+    retained_files: usize,
+    connected_clients: usize,
+    upstream: String,
+    persistence: Option<PersistenceStats>,
+}
 
 /// Runs the QBT ingest loop until shutdown or receiver termination.
 pub(super) async fn run_qbt_ingest_loop(
@@ -238,6 +251,7 @@ fn handle_ingest_event(
 pub(super) async fn run_stats_loop(
     state: Arc<AppState>,
     stats_interval_secs: u64,
+    persistence: Option<FilePersistenceProducer>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> crate::error::CliResult<()> {
     if stats_interval_secs == 0 {
@@ -258,33 +272,36 @@ pub(super) async fn run_stats_loop(
                     continue;
                 }
 
-                let endpoint = state
-                    .upstream_endpoint
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .clone();
-                let clients = state.connected_clients.load(Ordering::Relaxed);
-                let files = state
-                    .retained_files
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .len();
-                let data_blocks = state.data_blocks_total.load(Ordering::Relaxed);
-                let received_servers = state.received_servers.load(Ordering::Relaxed);
-                let received_sat_servers = state.received_sat_servers.load(Ordering::Relaxed);
-
-                let uptime_secs = state.started_at.elapsed().as_secs();
-                let upstream = endpoint.unwrap_or_else(|| "disconnected".to_string());
-                info!(
-                    uptime_secs,
-                    data_blocks_total = data_blocks,
-                    received_servers,
-                    received_sat_servers,
-                    retained_files = files,
-                    connected_clients = clients,
-                    upstream,
-                    "server stats snapshot"
-                );
+                let snapshot = build_server_stats_snapshot(&state, persistence.as_ref());
+                if let Some(persistence) = snapshot.persistence {
+                    info!(
+                        uptime_secs = snapshot.uptime_secs,
+                        data_blocks_total = snapshot.data_blocks_total,
+                        received_servers = snapshot.received_servers,
+                        received_sat_servers = snapshot.received_sat_servers,
+                        retained_files = snapshot.retained_files,
+                        connected_clients = snapshot.connected_clients,
+                        upstream = snapshot.upstream,
+                        persistence_queue_len = persistence.queue_len,
+                        persistence_queue_capacity = persistence.queue_capacity,
+                        persistence_enqueued_total = persistence.enqueued_total,
+                        persistence_evicted_total = persistence.evicted_total,
+                        persistence_persisted_total = persistence.persisted_total,
+                        persistence_failed_total = persistence.failed_total,
+                        "server stats snapshot"
+                    );
+                } else {
+                    info!(
+                        uptime_secs = snapshot.uptime_secs,
+                        data_blocks_total = snapshot.data_blocks_total,
+                        received_servers = snapshot.received_servers,
+                        received_sat_servers = snapshot.received_sat_servers,
+                        retained_files = snapshot.retained_files,
+                        connected_clients = snapshot.connected_clients,
+                        upstream = snapshot.upstream,
+                        "server stats snapshot"
+                    );
+                }
             }
         }
     }
@@ -292,19 +309,48 @@ pub(super) async fn run_stats_loop(
     Ok(())
 }
 
+fn build_server_stats_snapshot(
+    state: &AppState,
+    persistence: Option<&FilePersistenceProducer>,
+) -> ServerStatsSnapshot {
+    let endpoint = state
+        .upstream_endpoint
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+
+    ServerStatsSnapshot {
+        uptime_secs: state.started_at.elapsed().as_secs(),
+        data_blocks_total: state.data_blocks_total.load(Ordering::Relaxed),
+        received_servers: state.received_servers.load(Ordering::Relaxed),
+        received_sat_servers: state.received_sat_servers.load(Ordering::Relaxed),
+        retained_files: state
+            .retained_files
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len(),
+        connected_clients: state.connected_clients.load(Ordering::Relaxed),
+        upstream: endpoint.unwrap_or_else(|| "disconnected".to_string()),
+        persistence: persistence.map(FilePersistenceProducer::stats_snapshot),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::handle_ingest_event;
+    use super::{build_server_stats_snapshot, handle_ingest_event};
+    use crate::live::file_pipeline::build_persist_request;
     use crate::live::server::types::{AppState, EventKind, TelemetryPayload};
     use crate::live::server_support::RetainedFiles;
     use bytes::Bytes;
-    use emwin_protocol::ingest::IngestEvent;
+    use emwin_db::{NoopMetadataSink, PersistenceConfig, PersistenceRuntime};
+    use emwin_protocol::ingest::{IngestEvent, ProductOrigin};
     use emwin_protocol::qbt_receiver::QbtCompletedFile;
     use std::io::Write;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize};
     use std::time::{Duration, Instant, SystemTime};
+    use tempfile::tempdir;
     use tokio::sync::{broadcast, watch};
 
     fn test_state() -> Arc<AppState> {
@@ -314,6 +360,7 @@ mod tests {
             shutdown_rx,
             retained_files: Mutex::new(RetainedFiles::new(16, Duration::from_secs(60))),
             telemetry: Mutex::new(TelemetryPayload::Unavailable),
+            persistence: None,
             connected_clients: AtomicUsize::new(0),
             max_clients: 16,
             next_event_id: AtomicU64::new(1),
@@ -338,6 +385,68 @@ mod tests {
             writer.write_all(body).expect("write body should succeed");
         }
         writer.finish().expect("finish should succeed").into_inner()
+    }
+
+    #[tokio::test]
+    async fn server_stats_snapshot_includes_persistence_metrics_when_enabled() {
+        let state = test_state();
+        state
+            .connected_clients
+            .store(3, std::sync::atomic::Ordering::Relaxed);
+        state
+            .data_blocks_total
+            .store(5, std::sync::atomic::Ordering::Relaxed);
+        state
+            .received_servers
+            .store(2, std::sync::atomic::Ordering::Relaxed);
+        state
+            .received_sat_servers
+            .store(1, std::sync::atomic::Ordering::Relaxed);
+        *state
+            .upstream_endpoint
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some("example:2211".to_string());
+
+        let temp = tempdir().expect("tempdir should succeed");
+        let runtime = PersistenceRuntime::spawn(
+            PersistenceConfig::new(4),
+            emwin_db::FilesystemBlobWriter::new(temp.path().to_path_buf()),
+            NoopMetadataSink,
+        );
+        let producer = runtime.producer();
+        let metadata = RetainedFiles::new(1, Duration::from_secs(60)).insert(
+            "TEST.TXT".to_string(),
+            b"payload".to_vec(),
+            1,
+            ProductOrigin::Qbt,
+            SystemTime::UNIX_EPOCH,
+        );
+        let request = build_persist_request("TEST.TXT", b"payload", metadata)
+            .expect("persist request should build");
+        let queued = producer.enqueue(request);
+        assert!(queued.accepted);
+
+        let snapshot = build_server_stats_snapshot(&state, Some(&producer));
+        let persistence = snapshot
+            .persistence
+            .expect("persistence stats should exist");
+        assert_eq!(snapshot.connected_clients, 3);
+        assert_eq!(snapshot.data_blocks_total, 5);
+        assert_eq!(snapshot.received_servers, 2);
+        assert_eq!(snapshot.received_sat_servers, 1);
+        assert_eq!(snapshot.upstream, "example:2211");
+        assert_eq!(persistence.queue_capacity, 4);
+        assert_eq!(persistence.enqueued_total, 1);
+
+        runtime.shutdown().await.expect("shutdown should succeed");
+    }
+
+    #[test]
+    fn server_stats_snapshot_omits_persistence_metrics_when_disabled() {
+        let state = test_state();
+        let snapshot = build_server_stats_snapshot(&state, None);
+        assert_eq!(snapshot.upstream, "disconnected");
+        assert!(snapshot.persistence.is_none());
     }
 
     #[test]

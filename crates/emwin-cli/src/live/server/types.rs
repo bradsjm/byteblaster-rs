@@ -5,11 +5,12 @@
 
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
 use crate::live::filter::{FileEventFilter, FileFilterInput};
+use crate::live::persistence::FilePersistenceProducer;
 use crate::live::server_support::{RetainedFiles, file_download_url};
-use emwin_db::CompletedFileMetadata;
+use emwin_db::{CompletedFileMetadata, PersistenceStats};
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
-use serde::ser::SerializeStruct;
+use serde::ser::{SerializeMap, SerializeStruct};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
@@ -81,6 +82,42 @@ pub(crate) enum TelemetryPayload {
     Unavailable,
     Qbt(QbtReceiverTelemetrySnapshot),
     WxWire(WxWireReceiverTelemetrySnapshot),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct MetricsPayload {
+    pub(crate) telemetry: TelemetryPayload,
+    pub(crate) persistence: Option<PersistenceStats>,
+}
+
+impl Serialize for MetricsPayload {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let telemetry = serde_json::to_value(&self.telemetry).map_err(serde::ser::Error::custom)?;
+        let Some(telemetry_fields) = telemetry.as_object() else {
+            return Err(serde::ser::Error::custom(
+                "telemetry payload must serialize as an object",
+            ));
+        };
+
+        let persistence_field_count = usize::from(self.persistence.is_some()) * 6;
+        let mut map =
+            serializer.serialize_map(Some(telemetry_fields.len() + persistence_field_count))?;
+        for (key, value) in telemetry_fields {
+            map.serialize_entry(key, value)?;
+        }
+        if let Some(persistence) = self.persistence {
+            map.serialize_entry("persistence_queue_len", &persistence.queue_len)?;
+            map.serialize_entry("persistence_queue_capacity", &persistence.queue_capacity)?;
+            map.serialize_entry("persistence_enqueued_total", &persistence.enqueued_total)?;
+            map.serialize_entry("persistence_evicted_total", &persistence.evicted_total)?;
+            map.serialize_entry("persistence_persisted_total", &persistence.persisted_total)?;
+            map.serialize_entry("persistence_failed_total", &persistence.failed_total)?;
+        }
+        map.end()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -216,6 +253,7 @@ pub(crate) struct AppState {
     pub(crate) shutdown_rx: watch::Receiver<bool>,
     pub(crate) retained_files: Mutex<RetainedFiles>,
     pub(crate) telemetry: Mutex<TelemetryPayload>,
+    pub(crate) persistence: Option<FilePersistenceProducer>,
     pub(crate) connected_clients: AtomicUsize,
     pub(crate) max_clients: usize,
     pub(crate) next_event_id: AtomicU64,

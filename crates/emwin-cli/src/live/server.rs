@@ -90,6 +90,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             Duration::from_secs(file_retention_secs.max(1)),
         )),
         telemetry: Mutex::new(TelemetryPayload::Unavailable),
+        persistence: persistence_producer.clone(),
         connected_clients: AtomicUsize::new(0),
         max_clients: max_clients.max(1),
         next_event_id: AtomicU64::new(1),
@@ -159,6 +160,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     let stats_task = tokio::spawn(server_ingest::run_stats_loop(
         Arc::clone(&state),
         stats_interval_secs,
+        persistence_producer.clone(),
         shutdown_rx.clone(),
     ));
     let ctrlc_task = tokio::spawn({
@@ -184,7 +186,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
 
     let ingest_result = ingest_task.await;
     let stats_result = stats_task.await;
-    let persistence_result = match persistence_runtime {
+    let _persistence_shutdown_stats = match persistence_runtime {
         Some(runtime) => Some(crate::live::persistence::shutdown_runtime(runtime).await?),
         None => None,
     };
@@ -220,16 +222,6 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             )));
         }
     }
-    if let Some(stats) = persistence_result {
-        info!(
-            enqueued_total = stats.enqueued_total,
-            evicted_total = stats.evicted_total,
-            persisted_total = stats.persisted_total,
-            failed_total = stats.failed_total,
-            "server persistence complete"
-        );
-    }
-
     Ok(())
 }
 
@@ -289,6 +281,7 @@ mod tests {
         TelemetryPayload, build_router, event_matches_filter, files_handler,
         sanitize_requested_filename,
     };
+    use crate::live::file_pipeline::build_persist_request;
     use crate::live::server::types::{AppState, CompletedFileEventPayload, EventKind, EventsQuery};
     use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
@@ -296,11 +289,14 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
-    use emwin_db::CompletedFileMetadata;
+    use emwin_db::{
+        CompletedFileMetadata, NoopMetadataSink, PersistenceConfig, PersistenceRuntime,
+    };
     use emwin_protocol::ingest::ProductOrigin;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
+    use tempfile::tempdir;
     use tokio::sync::{broadcast, watch};
     use tower::ServiceExt;
 
@@ -311,6 +307,7 @@ mod tests {
             shutdown_rx,
             retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
             telemetry: std::sync::Mutex::new(TelemetryPayload::Unavailable),
+            persistence: None,
             connected_clients: AtomicUsize::new(0),
             max_clients,
             next_event_id: AtomicU64::new(1),
@@ -703,6 +700,93 @@ Body
         assert!(body_text.contains("\"/files\""));
         assert!(body_text.contains("\"/health\""));
         assert!(body_text.contains("\"/metrics\""));
+    }
+
+    #[tokio::test]
+    async fn metrics_endpoint_includes_persistence_fields_when_enabled() {
+        let temp = tempdir().expect("tempdir should succeed");
+        let runtime = PersistenceRuntime::spawn(
+            PersistenceConfig::new(4),
+            emwin_db::FilesystemBlobWriter::new(temp.path().to_path_buf()),
+            NoopMetadataSink,
+        );
+        let producer = runtime.producer();
+        let metadata = CompletedFileMetadata::build(
+            "TEST.TXT",
+            1,
+            ProductOrigin::Qbt,
+            b"000 \nFTUS42 KFFC 022320\nTAFPDK\nBody\n",
+        );
+        let request = build_persist_request("TEST.TXT", b"payload", metadata)
+            .expect("persist request should build");
+        assert!(producer.enqueue(request).accepted);
+
+        let (_, shutdown_rx) = watch::channel(false);
+        let state = Arc::new(AppState {
+            event_tx: broadcast::channel(32).0,
+            shutdown_rx,
+            retained_files: std::sync::Mutex::new(RetainedFiles::new(32, Duration::from_secs(60))),
+            telemetry: std::sync::Mutex::new(TelemetryPayload::Unavailable),
+            persistence: Some(producer),
+            connected_clients: AtomicUsize::new(0),
+            max_clients: 10,
+            next_event_id: AtomicU64::new(1),
+            data_blocks_total: AtomicU64::new(0),
+            received_servers: AtomicUsize::new(0),
+            received_sat_servers: AtomicUsize::new(0),
+            started_at: Instant::now(),
+            upstream_endpoint: std::sync::Mutex::new(None),
+            quiet: true,
+        });
+        let app = build_router(state, None).expect("router should build");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .method("GET")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let value: serde_json::Value =
+            serde_json::from_slice(&body).expect("body should be json object");
+        assert_eq!(
+            value.get("receiver"),
+            Some(&serde_json::json!("unavailable"))
+        );
+        assert_eq!(
+            value.get("persistence_queue_len"),
+            Some(&serde_json::json!(1))
+        );
+        assert_eq!(
+            value.get("persistence_queue_capacity"),
+            Some(&serde_json::json!(4))
+        );
+        assert_eq!(
+            value.get("persistence_enqueued_total"),
+            Some(&serde_json::json!(1))
+        );
+        assert_eq!(
+            value.get("persistence_evicted_total"),
+            Some(&serde_json::json!(0))
+        );
+        assert_eq!(
+            value.get("persistence_persisted_total"),
+            Some(&serde_json::json!(0))
+        );
+        assert_eq!(
+            value.get("persistence_failed_total"),
+            Some(&serde_json::json!(0))
+        );
+
+        runtime.shutdown().await.expect("shutdown should succeed");
     }
 
     #[test]

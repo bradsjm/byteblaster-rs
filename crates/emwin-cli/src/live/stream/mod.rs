@@ -9,7 +9,7 @@ use crate::live::archive_postprocess::post_process_archive;
 use crate::live::file_pipeline::build_completed_file_metadata;
 use crate::live::ingest::{LiveIngest, LiveIngestRequest};
 use crate::live::persistence::{
-    enqueue_completed_product, shutdown_runtime, start_filesystem_runtime,
+    enqueue_completed_product, shutdown_runtime, start_runtime_with_postgres,
 };
 use common::{LiveStats, log_ingest_warning, log_product_event};
 use emwin_protocol::ingest::{IngestEvent, IngestTelemetry};
@@ -23,10 +23,25 @@ pub async fn run(
     live: crate::LiveOptions,
     text_preview_chars: usize,
 ) -> crate::error::CliResult<()> {
+    if live.postgres_database_url.is_some() && output_dir.is_none() {
+        return Err(crate::error::CliError::invalid_argument(
+            "--persist-database-url requires --output-dir for blob storage",
+        ));
+    }
+
     let output_dir_path = output_dir.map(PathBuf::from);
-    let persistence_runtime = output_dir_path
-        .as_ref()
-        .map(|path| start_filesystem_runtime(path.clone(), live.persistence_queue_capacity));
+    let persistence_runtime = match output_dir_path.as_ref() {
+        Some(path) => Some(
+            start_runtime_with_postgres(
+                path.clone(),
+                live.persistence_queue_capacity,
+                live.postgres_database_url.as_deref(),
+                "emwin-cli-stream",
+            )
+            .await?,
+        ),
+        None => None,
+    };
     let persistence_producer = persistence_runtime
         .as_ref()
         .map(|runtime| runtime.producer());
@@ -75,6 +90,7 @@ pub async fn run(
                 let metadata = build_completed_file_metadata(
                     &delivered.filename,
                     crate::live::shared::unix_seconds(product.source_timestamp_utc),
+                    product.origin.clone(),
                     &delivered.data,
                 );
                 if live

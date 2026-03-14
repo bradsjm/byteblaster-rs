@@ -37,6 +37,8 @@ struct LiveOptions {
     post_process_archives: bool,
     /// Maximum number of queued persistence requests.
     persistence_queue_capacity: usize,
+    /// Optional Postgres metadata sink URL used alongside filesystem blob storage.
+    postgres_database_url: Option<String>,
 }
 
 /// Supported upstream receiver backends.
@@ -91,6 +93,9 @@ enum Commands {
         /// Maximum number of queued persistence requests before evicting the oldest request.
         #[arg(long, env = "EMWIN_PERSIST_QUEUE_CAPACITY", default_value_t = 1024)]
         persist_queue_capacity: usize,
+        /// Optional Postgres metadata sink URL used alongside --output-dir blob storage.
+        #[arg(long, env = "EMWIN_PERSIST_DATABASE_URL")]
+        persist_database_url: Option<String>,
     },
     /// Run HTTP server with SSE endpoints.
     Server {
@@ -144,6 +149,9 @@ enum Commands {
         /// Maximum number of queued persistence requests before evicting the oldest request.
         #[arg(long, env = "EMWIN_PERSIST_QUEUE_CAPACITY", default_value_t = 1024)]
         persist_queue_capacity: usize,
+        /// Optional Postgres metadata sink URL used alongside --output-dir blob storage.
+        #[arg(long, env = "EMWIN_PERSIST_DATABASE_URL")]
+        persist_database_url: Option<String>,
     },
     /// Run low-latency EMWIN passthrough relay.
     Relay {
@@ -185,6 +193,7 @@ async fn main() -> crate::error::CliResult<()> {
             max_events,
             idle_timeout_secs,
             persist_queue_capacity,
+            persist_database_url,
         } => {
             let live = LiveOptions {
                 receiver,
@@ -197,6 +206,7 @@ async fn main() -> crate::error::CliResult<()> {
                 idle_timeout_secs,
                 post_process_archives,
                 persistence_queue_capacity: persist_queue_capacity,
+                postgres_database_url: persist_database_url,
             };
             live::stream::run(output_dir, live, text_preview_chars).await
         }
@@ -216,6 +226,7 @@ async fn main() -> crate::error::CliResult<()> {
             max_retained_files,
             quiet,
             persist_queue_capacity,
+            persist_database_url,
         } => {
             let options = live::server::ServerOptions {
                 username,
@@ -233,6 +244,7 @@ async fn main() -> crate::error::CliResult<()> {
                 post_process_archives,
                 quiet,
                 persistence_queue_capacity: persist_queue_capacity,
+                postgres_database_url: persist_database_url,
             };
             live::server::run(options).await
         }
@@ -282,6 +294,7 @@ mod tests {
 
         assert!(help.contains("--output-dir"));
         assert!(help.contains("--post-process-archives"));
+        assert!(help.contains("--persist-database-url"));
         assert!(!help.contains("download"));
     }
 
@@ -296,6 +309,7 @@ mod tests {
 
         assert!(help.contains("--post-process-archives"));
         assert!(help.contains("--output-dir"));
+        assert!(help.contains("--persist-database-url"));
     }
 
     #[test]
@@ -373,7 +387,31 @@ mod tests {
     }
 
     #[test]
-    fn server_accepts_output_dir_and_persist_queue_capacity() {
+    fn stream_accepts_persist_database_url() {
+        let cli = Cli::try_parse_from([
+            "emwin",
+            "stream",
+            "--persist-database-url",
+            "postgres://localhost/emwin",
+        ])
+        .expect("stream args should parse");
+
+        let Commands::Stream {
+            persist_database_url,
+            ..
+        } = cli.command
+        else {
+            panic!("expected stream command");
+        };
+
+        assert_eq!(
+            persist_database_url.as_deref(),
+            Some("postgres://localhost/emwin")
+        );
+    }
+
+    #[test]
+    fn server_accepts_output_dir_queue_capacity_and_database_url() {
         let cli = Cli::try_parse_from([
             "emwin",
             "server",
@@ -383,12 +421,15 @@ mod tests {
             "./out",
             "--persist-queue-capacity",
             "55",
+            "--persist-database-url",
+            "postgres://localhost/emwin",
         ])
         .expect("server args should parse");
 
         let Commands::Server {
             output_dir,
             persist_queue_capacity,
+            persist_database_url,
             ..
         } = cli.command
         else {
@@ -397,5 +438,9 @@ mod tests {
 
         assert_eq!(output_dir.as_deref(), Some("./out"));
         assert_eq!(persist_queue_capacity, 55);
+        assert_eq!(
+            persist_database_url.as_deref(),
+            Some("postgres://localhost/emwin")
+        );
     }
 }

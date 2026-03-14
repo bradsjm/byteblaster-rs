@@ -8,7 +8,7 @@
 
 use crate::ReceiverKind;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
-use crate::live::persistence::start_filesystem_runtime;
+use crate::live::persistence::start_runtime_with_postgres;
 use crate::live::server_support::RetainedFiles;
 use axum::http::HeaderValue;
 use std::net::SocketAddr;
@@ -53,15 +53,31 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         post_process_archives,
         quiet,
         persistence_queue_capacity,
+        postgres_database_url,
     } = options;
+
+    if postgres_database_url.is_some() && output_dir.is_none() {
+        return Err(crate::error::CliError::invalid_argument(
+            "--persist-database-url requires --output-dir for blob storage",
+        ));
+    }
 
     let bind_addr = SocketAddr::from_str(&bind).map_err(|err| {
         crate::error::CliError::invalid_argument(format!("invalid --bind value {bind}: {err}"))
     })?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let persistence_runtime = output_dir
-        .map(PathBuf::from)
-        .map(|path| start_filesystem_runtime(path, persistence_queue_capacity));
+    let persistence_runtime = match output_dir.map(PathBuf::from) {
+        Some(path) => Some(
+            start_runtime_with_postgres(
+                path,
+                persistence_queue_capacity,
+                postgres_database_url.as_deref(),
+                "emwin-cli-server",
+            )
+            .await?,
+        ),
+        None => None,
+    };
     let persistence_producer = persistence_runtime
         .as_ref()
         .map(|runtime| runtime.producer());
@@ -273,7 +289,6 @@ mod tests {
         TelemetryPayload, build_router, event_matches_filter, files_handler,
         sanitize_requested_filename,
     };
-    use crate::live::file_pipeline::CompletedFileMetadata;
     use crate::live::server::types::{AppState, CompletedFileEventPayload, EventKind, EventsQuery};
     use crate::live::server_support::RetainedFiles;
     use crate::live::server_support::wildcard_match;
@@ -281,6 +296,8 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, Query, State};
     use axum::http::{HeaderMap, Request, StatusCode};
+    use emwin_db::CompletedFileMetadata;
+    use emwin_protocol::ingest::ProductOrigin;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::time::{Duration, Instant, SystemTime};
@@ -427,6 +444,7 @@ AKC090-051300-
             filename: filename.to_string(),
             size: 11,
             timestamp_utc: 1,
+            origin: ProductOrigin::Qbt,
             product_summary: emwin_parser::summarize_product_v2(&product),
             product_detail: emwin_parser::detail_product_v2(&product),
             product,
@@ -516,16 +534,34 @@ AKC090-051300-
     #[test]
     fn retained_files_evict_by_capacity_and_ttl() {
         let mut files = RetainedFiles::new(2, Duration::from_millis(50));
-        files.insert("a.txt".to_string(), vec![1], 1, SystemTime::now());
-        files.insert("b.txt".to_string(), vec![2], 2, SystemTime::now());
-        files.insert("c.txt".to_string(), vec![3], 3, SystemTime::now());
+        files.insert(
+            "a.txt".to_string(),
+            vec![1],
+            1,
+            ProductOrigin::Qbt,
+            SystemTime::now(),
+        );
+        files.insert(
+            "b.txt".to_string(),
+            vec![2],
+            2,
+            ProductOrigin::Qbt,
+            SystemTime::now(),
+        );
+        files.insert(
+            "c.txt".to_string(),
+            vec![3],
+            3,
+            ProductOrigin::Qbt,
+            SystemTime::now(),
+        );
 
         assert!(files.get("a.txt").is_none());
         assert!(files.get("b.txt").is_some());
         assert!(files.get("c.txt").is_some());
 
         let old = SystemTime::now() - Duration::from_secs(1);
-        files.insert("old.txt".to_string(), vec![9], 9, old);
+        files.insert("old.txt".to_string(), vec![9], 9, ProductOrigin::Qbt, old);
         assert!(files.get("old.txt").is_none());
     }
 
@@ -557,6 +593,7 @@ AKC090-051300-
                 "nested/my file.txt".to_string(),
                 b"hello world".to_vec(),
                 1,
+                ProductOrigin::Qbt,
                 SystemTime::now(),
             );
         }
@@ -598,6 +635,7 @@ Body
 "
                 .to_vec(),
                 1,
+                ProductOrigin::Qbt,
                 SystemTime::now(),
             );
         }

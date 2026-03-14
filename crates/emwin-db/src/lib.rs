@@ -5,12 +5,18 @@
 //! storage, or database I/O.
 
 mod error;
+mod metadata;
+mod postgres;
 mod runtime;
 mod writer;
 
 pub use error::{PersistError, PersistResult};
+pub use metadata::CompletedFileMetadata;
+pub use postgres::{PostgresConfig, PostgresMetadataSink};
 pub use runtime::{
     EnqueueResult, MetadataSink, NoopMetadataSink, PersistRequest, PersistedRequest,
     PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats,
 };
-pub use writer::{BlobEntry, BlobStorageKind, BlobWriter, FilesystemBlobWriter, StoredBlob};
+pub use writer::{
+    BlobEntry, BlobRole, BlobStorageKind, BlobWriter, FilesystemBlobWriter, StoredBlob,
+};

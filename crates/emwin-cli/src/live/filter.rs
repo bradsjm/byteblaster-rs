@@ -3,8 +3,8 @@
 //! These filters operate on already-enriched parser output, which keeps query evaluation out of
 //! the hot path that assembles files from incoming segments.
 
-use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::server_support::wildcard_match;
+use emwin_db::CompletedFileMetadata;
 use emwin_parser::{
     BbbKind, GeoPoint, HvtecCause, HvtecCode, HvtecRecord, HvtecSeverity, ProductBody,
     ProductEnrichment, ProductEnrichmentSource, ProductParseIssue, UgcSection, VtecCode,
@@ -1173,6 +1173,7 @@ fn normalize_lower(value: &str) -> String {
 mod tests {
     use super::{FileEventFilter, FileFilterInput};
     use crate::live::file_pipeline::build_completed_file_metadata;
+    use emwin_protocol::ingest::ProductOrigin;
 
     #[test]
     fn cli_filter_matches_issue_code() {
@@ -1185,6 +1186,7 @@ mod tests {
         let metadata = build_completed_file_metadata(
             "AFDBOX.TXT",
             1704070800,
+            ProductOrigin::Qbt,
             b"000 \nINVALID HEADER\nAFDBOX\nBody\n",
         );
 

@@ -3,39 +3,9 @@
 //! The file pipeline keeps persistence concerns separate from stream rendering so the same
 //! assembled payload can be written to disk and broadcast to other consumers.
 
-use emwin_db::{BlobEntry, PersistRequest};
-use emwin_parser::{
-    ProductDetailV2, ProductEnrichment, ProductSummaryV2, detail_product_v2, enrich_product,
-    summarize_product_v2,
-};
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use emwin_db::{BlobEntry, BlobRole, CompletedFileMetadata, PersistRequest};
+use emwin_protocol::ingest::ProductOrigin;
 use std::path::{Path, PathBuf};
-
-/// Serializable metadata emitted beside a completed output file.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CompletedFileMetadata {
-    pub(crate) filename: String,
-    pub(crate) size: usize,
-    pub(crate) timestamp_utc: u64,
-    pub(crate) product: ProductEnrichment,
-    pub(crate) product_summary: ProductSummaryV2,
-    pub(crate) product_detail: ProductDetailV2,
-}
-
-impl Serialize for CompletedFileMetadata {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("CompletedFileMetadata", 4)?;
-        state.serialize_field("filename", &self.filename)?;
-        state.serialize_field("size", &self.size)?;
-        state.serialize_field("timestamp_utc", &self.timestamp_utc)?;
-        state.serialize_field("product", &self.product_detail)?;
-        state.end()
-    }
-}
 
 /// Paths and metadata returned after a file plus sidecar have been written.
 #[cfg(test)]
@@ -96,17 +66,10 @@ pub(crate) fn metadata_json_bytes(
 pub(crate) fn build_completed_file_metadata(
     filename: &str,
     timestamp_utc: u64,
+    origin: ProductOrigin,
     data: &[u8],
 ) -> CompletedFileMetadata {
-    let product = enrich_product(filename, data);
-    CompletedFileMetadata {
-        filename: filename.to_string(),
-        size: data.len(),
-        timestamp_utc,
-        product_summary: summarize_product_v2(&product),
-        product_detail: detail_product_v2(&product),
-        product,
-    }
+    CompletedFileMetadata::build(filename, timestamp_utc, origin, data)
 }
 
 #[cfg(test)]
@@ -139,8 +102,18 @@ pub(crate) fn build_persist_request(
         request_key: filename.to_string(),
         metadata,
         blobs: vec![
-            BlobEntry::new(filename, data.to_vec(), Some("application/octet-stream")),
-            BlobEntry::new(metadata_path, metadata_bytes, Some("application/json")),
+            BlobEntry::new(
+                BlobRole::Payload,
+                filename,
+                data.to_vec(),
+                Some("application/octet-stream"),
+            ),
+            BlobEntry::new(
+                BlobRole::MetadataSidecar,
+                metadata_path,
+                metadata_bytes,
+                Some("application/json"),
+            ),
         ],
     })
 }
@@ -149,6 +122,7 @@ pub(crate) fn build_persist_request(
 mod tests {
     use crate::live::archive_postprocess::post_process_archive;
     use emwin_parser::ProductEnrichmentSource;
+    use emwin_protocol::ingest::ProductOrigin;
 
     use super::{
         build_completed_file_metadata, metadata_sidecar_path, persist_completed_record,
@@ -161,6 +135,7 @@ mod tests {
         let metadata = build_completed_file_metadata(
             "AFDBOX.TXT",
             1704070800,
+            ProductOrigin::Qbt,
             b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n",
         );
 
@@ -175,6 +150,7 @@ mod tests {
         let metadata = build_completed_file_metadata(
             "AFDBOX.TXT",
             1704070800,
+            ProductOrigin::Qbt,
             b"000 \nINVALID HEADER\nAFDBOX\nBody\n",
         );
 
@@ -191,6 +167,7 @@ mod tests {
         let metadata = build_completed_file_metadata(
             "TAFALLUS.TXT",
             1704070800,
+            ProductOrigin::Qbt,
             b"PK\x03\x04compressed bytes",
         );
 
@@ -219,8 +196,12 @@ mod tests {
         let delivered = post_process_archive(true, "AFDBOX.ZIP", &archive)
             .expect("archive post-processing should succeed");
 
-        let metadata =
-            build_completed_file_metadata(&delivered.filename, 1704070800, &delivered.data);
+        let metadata = build_completed_file_metadata(
+            &delivered.filename,
+            1704070800,
+            ProductOrigin::Qbt,
+            &delivered.data,
+        );
 
         assert_eq!(metadata.filename, "nested/AFDBOX.TXT");
         assert_eq!(metadata.product.source, ProductEnrichmentSource::TextHeader);
@@ -246,6 +227,7 @@ mod tests {
         let metadata = build_completed_file_metadata(
             "AFDBOX.TXT",
             1704070800,
+            ProductOrigin::Qbt,
             b"000 \nINVALID HEADER\nAFDBOX\nBody\n",
         );
 
@@ -269,7 +251,12 @@ mod tests {
     fn persist_completed_record_writes_payload_and_metadata_sidecar() {
         let tmp = tempfile::tempdir().expect("tempdir should exist");
         let payload = b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n";
-        let metadata = build_completed_file_metadata("nested/AFDBOX.TXT", 1704070800, payload);
+        let metadata = build_completed_file_metadata(
+            "nested/AFDBOX.TXT",
+            1704070800,
+            ProductOrigin::Qbt,
+            payload,
+        );
 
         let record = persist_completed_record(tmp.path(), "nested/AFDBOX.TXT", payload, metadata)
             .expect("completed record should persist");
@@ -309,8 +296,12 @@ mod tests {
         };
         let delivered = post_process_archive(true, "AFDBOX.ZIP", &archive)
             .expect("archive post-processing should succeed");
-        let metadata =
-            build_completed_file_metadata(&delivered.filename, 1704070800, &delivered.data);
+        let metadata = build_completed_file_metadata(
+            &delivered.filename,
+            1704070800,
+            ProductOrigin::Qbt,
+            &delivered.data,
+        );
         let tmp = tempfile::tempdir().expect("tempdir should exist");
 
         let record =

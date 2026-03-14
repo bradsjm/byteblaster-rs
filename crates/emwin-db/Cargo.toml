@@ -9,6 +9,12 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+emwin-parser = { path = "../emwin-parser" }
+emwin-protocol = { path = "../emwin-protocol", features = ["telemetry-serde"] }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

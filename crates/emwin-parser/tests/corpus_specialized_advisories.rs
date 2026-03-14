@@ -159,12 +159,18 @@ fn mcd_corpus_routes_to_structured_bulletins() {
             );
         }
         assert!(
-            bulletin.attn_wfo.iter().all(|entry| !entry.trim().is_empty()),
+            bulletin
+                .attn_wfo
+                .iter()
+                .all(|entry| !entry.trim().is_empty()),
             "{} -> expected non-empty MCD WFO attention entries",
             case.name
         );
         assert!(
-            bulletin.attn_rfc.iter().all(|entry| !entry.trim().is_empty()),
+            bulletin
+                .attn_rfc
+                .iter()
+                .all(|entry| !entry.trim().is_empty()),
             "{} -> expected non-empty MCD RFC attention entries",
             case.name
         );

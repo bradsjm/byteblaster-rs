@@ -167,6 +167,7 @@ fn handle_ingest_event(
                     delivered.filename.clone(),
                     delivered.data.to_vec(),
                     timestamp_utc,
+                    product.origin.clone(),
                     completed_at,
                 )
             };

@@ -4,9 +4,9 @@
 //! on stable payload shapes without circular dependencies.
 
 use crate::cmd::event_output::{frame_event_name, frame_event_to_json};
-use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::filter::{FileEventFilter, FileFilterInput};
 use crate::live::server_support::{RetainedFiles, file_download_url};
+use emwin_db::CompletedFileMetadata;
 use emwin_protocol::qbt_receiver::{QbtFrameEvent, QbtReceiverTelemetrySnapshot};
 use emwin_protocol::wxwire_receiver::{WxWireReceiverFrameEvent, WxWireReceiverTelemetrySnapshot};
 use serde::ser::SerializeStruct;
@@ -373,6 +373,7 @@ pub struct ServerOptions {
     pub post_process_archives: bool,
     pub quiet: bool,
     pub persistence_queue_capacity: usize,
+    pub postgres_database_url: Option<String>,
 }
 
 pub(crate) struct ClientGuard {

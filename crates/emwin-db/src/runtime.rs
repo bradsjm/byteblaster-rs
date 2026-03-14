@@ -315,15 +315,35 @@ where
         stored_blobs.push(stored);
     }
 
-    sink.persist(PersistedRequest {
-        request_key: request_key.clone(),
-        metadata,
-        blobs: stored_blobs,
-    })
-    .await
-    .map_err(|err| (request_key.clone(), err))?;
+    if let Err(err) = sink
+        .persist(PersistedRequest {
+            request_key: request_key.clone(),
+            metadata,
+            blobs: stored_blobs.clone(),
+        })
+        .await
+    {
+        cleanup_failed_sink_write(writer, &request_key, &stored_blobs).await;
+        return Err((request_key, err));
+    }
 
     Ok(request_key)
+}
+
+async fn cleanup_failed_sink_write<W>(writer: &W, request_key: &str, stored_blobs: &[StoredBlob])
+where
+    W: BlobWriter,
+{
+    for blob in stored_blobs.iter().rev() {
+        if let Err(err) = writer.delete(blob).await {
+            warn!(
+                request_key = %request_key,
+                blob_location = %blob.location,
+                error = %err,
+                "failed to clean up blob after metadata persistence failure"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -333,12 +353,13 @@ mod tests {
         PersistenceConfig, PersistenceRuntime,
     };
     use crate::error::{PersistError, PersistResult};
-    use crate::writer::{BlobStorageKind, BlobWriter, BoxFuture, FilesystemBlobWriter};
+    use crate::writer::{BlobRole, BlobStorageKind, BlobWriter, BoxFuture, FilesystemBlobWriter};
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
     #[derive(Debug, Default)]
     struct RecordingWriter {
+        deletes: Arc<Mutex<Vec<String>>>,
         writes: Arc<Mutex<Vec<String>>>,
     }
 
@@ -355,10 +376,25 @@ mod tests {
                     .push(entry.relative_path.clone());
                 Ok(crate::writer::StoredBlob {
                     kind: BlobStorageKind::Filesystem,
+                    role: entry.role,
                     location: entry.relative_path.clone(),
                     size_bytes: entry.bytes.len(),
                     content_type: entry.content_type.clone(),
                 })
+            })
+        }
+
+        fn delete<'a>(
+            &'a self,
+            blob: &'a crate::writer::StoredBlob,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            let deletes = Arc::clone(&self.deletes);
+            Box::pin(async move {
+                deletes
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push(blob.location.clone());
+                Ok(())
             })
         }
     }
@@ -394,6 +430,25 @@ mod tests {
         ) -> BoxFuture<'a, PersistResult<crate::writer::StoredBlob>> {
             Box::pin(async { Err(PersistError::Io(std::io::Error::other("boom"))) })
         }
+
+        fn delete<'a>(
+            &'a self,
+            _blob: &'a crate::writer::StoredBlob,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct FailingSink;
+
+    impl MetadataSink<String> for FailingSink {
+        fn persist<'a>(
+            &'a self,
+            _request: PersistedRequest<String>,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            Box::pin(async { Err(PersistError::InvalidRequest("sink failed".to_string())) })
+        }
     }
 
     fn request(name: &str) -> PersistRequest<String> {
@@ -401,6 +456,7 @@ mod tests {
             request_key: name.to_string(),
             metadata: name.to_string(),
             blobs: vec![BlobEntry::new(
+                BlobRole::Payload,
                 name,
                 name.as_bytes().to_vec(),
                 Some("text/plain"),
@@ -476,6 +532,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sink_failure_cleans_up_written_blobs() {
+        let writer = RecordingWriter::default();
+        let deletes = Arc::clone(&writer.deletes);
+        let runtime = PersistenceRuntime::spawn(PersistenceConfig::new(4), writer, FailingSink);
+        let producer = runtime.producer();
+
+        let result = producer.enqueue(request("broken"));
+        assert!(result.accepted);
+
+        let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.failed_total, 1);
+        assert_eq!(
+            deletes
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["broken"]
+        );
+    }
+
+    #[tokio::test]
     async fn filesystem_writer_persists_blobs() {
         let temp = tempdir().expect("tempdir should succeed");
         let runtime = PersistenceRuntime::spawn(
@@ -490,11 +567,13 @@ mod tests {
             metadata: (),
             blobs: vec![
                 BlobEntry::new(
+                    BlobRole::Payload,
                     "nested/product.txt",
                     b"payload".to_vec(),
                     Some("text/plain"),
                 ),
                 BlobEntry::new(
+                    BlobRole::MetadataSidecar,
                     "nested/product.JSON",
                     br#"{"ok":true}"#.to_vec(),
                     Some("application/json"),

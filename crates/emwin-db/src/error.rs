@@ -10,6 +10,16 @@ pub enum PersistError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Join(#[from] tokio::task::JoinError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+    #[error(transparent)]
+    Migration(#[from] sqlx::migrate::MigrateError),
     #[error("persistence runtime is closed")]
     Closed,
+    #[error("invalid persistence config: {0}")]
+    InvalidConfig(String),
+    #[error("invalid persistence request: {0}")]
+    InvalidRequest(String),
 }

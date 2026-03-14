@@ -32,16 +32,19 @@ For `stream`:
 - `--idle-timeout-secs <SECONDS>` (default `90`)
 - `--post-process-archives <true|false>` (default `true`; extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and delivery)
 - `--persist-queue-capacity <N>` (default `1024`; bounded async persistence queue, evicts oldest queued item when full)
+- `--persist-database-url <URL>` (optional; writes normalized metadata into Postgres/PostGIS while still storing payload blobs under `--output-dir`)
 
 Additional `stream` option:
 
 - `--output-dir <PATH>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
 - `--persist-queue-capacity <N>` (optional override for the async persistence queue)
+- `--persist-database-url <URL>` (optional metadata sink; requires `--output-dir` because raw payload blobs remain filesystem-backed)
 
 Additional `stream --output-dir` behavior:
 
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
 - persistence runs in a background task so live ingest does not wait on filesystem I/O
+- when `--persist-database-url` is set, the background task also upserts normalized product metadata and spatial child rows into Postgres/PostGIS
 - if the persistence queue fills, the oldest queued item is evicted so the newest product can still be accepted
 - `.ZIP` and `.ZIS` products are extracted before parsing, filtering, and persistence by default; the extracted entry filename replaces the archive filename
 - corrupt archives are logged as `Corrupt Zip File Received` and dropped when post-processing is enabled
@@ -51,6 +54,7 @@ For `server`:
 
 - `--output-dir <PATH>` (optional; persists retained completed files asynchronously using the same payload plus `.JSON` sidecar layout as `stream`)
 - `--persist-queue-capacity <N>` (default `1024`; bounded async persistence queue, evicts oldest queued item when full)
+- `--persist-database-url <URL>` (optional metadata sink; requires `--output-dir` for blob storage)
 
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
@@ -87,6 +91,7 @@ Supported environment variables include:
 - `EMWIN_POST_PROCESS_ARCHIVES`
 - `EMWIN_OUTPUT_DIR`
 - `EMWIN_PERSIST_QUEUE_CAPACITY`
+- `EMWIN_PERSIST_DATABASE_URL`
 
 Filters are intentionally not configurable through environment variables.
 

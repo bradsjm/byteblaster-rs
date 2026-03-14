@@ -3,10 +3,12 @@
 //! This module owns retained-file lifecycle rules and a few HTTP response helpers so the request
 //! handlers can stay focused on endpoint behavior.
 
-use crate::live::file_pipeline::{CompletedFileMetadata, build_completed_file_metadata};
+use crate::live::file_pipeline::build_completed_file_metadata;
 use axum::http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
+use emwin_db::CompletedFileMetadata;
+use emwin_protocol::ingest::ProductOrigin;
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, SystemTime};
 
@@ -42,11 +44,12 @@ impl RetainedFiles {
         filename: String,
         data: Vec<u8>,
         timestamp_utc: u64,
+        origin: ProductOrigin,
         completed_at: SystemTime,
     ) -> CompletedFileMetadata {
         self.evict_expired();
 
-        let metadata = build_completed_file_metadata(&filename, timestamp_utc, &data);
+        let metadata = build_completed_file_metadata(&filename, timestamp_utc, origin, &data);
 
         if self.by_name.contains_key(&filename) {
             self.order.retain(|name| name != &filename);

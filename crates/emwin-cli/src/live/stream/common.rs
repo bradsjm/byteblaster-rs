@@ -4,8 +4,8 @@
 //! used by the stream command for consistent output formatting.
 
 use crate::cmd::event_output::text_preview;
-use crate::live::file_pipeline::CompletedFileMetadata;
 use crate::live::shared::unix_seconds;
+use emwin_db::CompletedFileMetadata;
 use emwin_protocol::ingest::{IngestWarning, ProductOrigin};
 use std::time::SystemTime;
 use tracing::{info, warn};

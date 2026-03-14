@@ -103,6 +103,42 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     assert!(row.get::<bool, _>("has_time_mot_loc"));
     assert!(row.get::<bool, _>("has_wind_hail"));
 
+    let origin_json_column_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'origin_json'",
+    )
+    .fetch_one(sink.pool())
+    .await
+    .expect("products schema should be queryable");
+    assert_eq!(origin_json_column_count, 0);
+
+    let summary_json_column_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'summary_json'",
+    )
+    .fetch_one(sink.pool())
+    .await
+    .expect("products schema should be queryable");
+    assert_eq!(summary_json_column_count, 0);
+
+    let pruned_summary_column_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products' AND column_name = ANY($1)",
+    )
+    .bind(vec![
+        "issue_codes",
+        "vtec_phenomena",
+        "vtec_significance",
+        "vtec_actions",
+        "vtec_offices",
+        "etns",
+        "hvtec_nwslids",
+        "hvtec_causes",
+        "hvtec_severities",
+        "hvtec_records",
+    ])
+    .fetch_one(sink.pool())
+    .await
+    .expect("products schema should be queryable");
+    assert_eq!(pruned_summary_column_count, 0);
+
     let vtec_count =
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM product_vtec WHERE product_id = $1")
             .bind(product_id)

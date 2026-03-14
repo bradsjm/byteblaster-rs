@@ -67,7 +67,7 @@ pub trait BlobWriter: Send + Sync + 'static {
     /// Persists a blob entry and returns the resulting storage reference.
     fn write<'a>(&'a self, entry: &'a BlobEntry) -> BoxFuture<'a, PersistResult<StoredBlob>>;
 
-    /// Deletes a previously persisted blob when downstream metadata persistence fails.
+    /// Deletes a previously persisted blob when storage-level cleanup is required.
     fn delete<'a>(&'a self, blob: &'a StoredBlob) -> BoxFuture<'a, PersistResult<()>>;
 }
 

@@ -48,6 +48,7 @@ Persistence behavior when `--output-dir` is set:
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
 - persistence runs in a background task so live ingest does not wait on filesystem I/O
 - when `--persist-database-url` is set, the background task also upserts normalized product metadata and spatial child rows into Postgres/PostGIS
+- Postgres metadata failures do not roll back payload or sidecar files already written under `--output-dir`
 - if the persistence queue fills, the oldest queued item is evicted so the newest product can still be accepted
 - `.ZIP` and `.ZIS` products are extracted before parsing, filtering, and persistence by default; the extracted entry filename replaces the archive filename
 - corrupt archives are logged as `Corrupt Zip File Received` and dropped when post-processing is enabled

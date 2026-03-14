@@ -114,7 +114,6 @@ struct ProductRow {
     source_receiver: String,
     source_message_id: Option<String>,
     size_bytes: i64,
-    origin_json: Value,
     payload_storage_kind: String,
     payload_location: String,
     metadata_storage_kind: Option<String>,
@@ -154,17 +153,6 @@ struct ProductRow {
     issue_count: i32,
     states: Vec<String>,
     ugc_codes: Vec<String>,
-    vtec_phenomena: Vec<String>,
-    vtec_significance: Vec<String>,
-    vtec_actions: Vec<String>,
-    vtec_offices: Vec<String>,
-    etns: Vec<i64>,
-    hvtec_nwslids: Vec<String>,
-    hvtec_causes: Vec<String>,
-    hvtec_severities: Vec<String>,
-    hvtec_records: Vec<String>,
-    issue_codes: Vec<String>,
-    summary_json: Value,
     product_json: Value,
 }
 
@@ -300,7 +288,6 @@ impl PreparedProduct {
                     metadata.size
                 ))
             })?,
-            origin_json: serde_json::to_value(&metadata.origin)?,
             payload_storage_kind: blob_storage_kind(payload.kind).to_string(),
             payload_location: payload.location.clone(),
             metadata_storage_kind: sidecar.map(|blob| blob_storage_kind(blob.kind).to_string()),
@@ -366,23 +353,6 @@ impl PreparedProduct {
             issue_count: usize_to_i32(metadata.product_summary.issues.count, "issue_count")?,
             states: metadata.product_summary.keys.states.clone(),
             ugc_codes: metadata.product_summary.keys.ugc_codes.clone(),
-            vtec_phenomena: metadata.product_summary.keys.vtec_phenomena.clone(),
-            vtec_significance: metadata.product_summary.keys.vtec_significance.clone(),
-            vtec_actions: metadata.product_summary.keys.vtec_actions.clone(),
-            vtec_offices: metadata.product_summary.keys.vtec_offices.clone(),
-            etns: metadata
-                .product_summary
-                .keys
-                .etns
-                .iter()
-                .map(|value| i64::from(*value))
-                .collect(),
-            hvtec_nwslids: metadata.product_summary.keys.hvtec_nwslids.clone(),
-            hvtec_causes: metadata.product_summary.keys.hvtec_causes.clone(),
-            hvtec_severities: metadata.product_summary.keys.hvtec_severities.clone(),
-            hvtec_records: metadata.product_summary.keys.hvtec_records.clone(),
-            issue_codes: metadata.product_summary.issues.codes.clone(),
-            summary_json: serde_json::to_value(&metadata.product_summary)?,
             product_json: serde_json::to_value(&metadata.product_detail)?,
         };
 
@@ -702,7 +672,6 @@ async fn upsert_product(
             source_receiver,
             source_message_id,
             size_bytes,
-            origin_json,
             payload_storage_kind,
             payload_location,
             metadata_storage_kind,
@@ -742,31 +711,18 @@ async fn upsert_product(
             issue_count,
             states,
             ugc_codes,
-            vtec_phenomena,
-            vtec_significance,
-            vtec_actions,
-            vtec_offices,
-            etns,
-            hvtec_nwslids,
-            hvtec_causes,
-            hvtec_severities,
-            hvtec_records,
-            issue_codes,
-            summary_json,
             product_json
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
             $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
             $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-            $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-            $51, $52, $53, $54, $55, $56, $57
+            $41, $42, $43, $44, $45
         ) ON CONFLICT (filename, source_timestamp_utc) DO UPDATE SET
             source_receiver = EXCLUDED.source_receiver,
             source_message_id = EXCLUDED.source_message_id,
             ingested_at = now(),
             size_bytes = EXCLUDED.size_bytes,
-            origin_json = EXCLUDED.origin_json,
             payload_storage_kind = EXCLUDED.payload_storage_kind,
             payload_location = EXCLUDED.payload_location,
             metadata_storage_kind = EXCLUDED.metadata_storage_kind,
@@ -806,17 +762,6 @@ async fn upsert_product(
             issue_count = EXCLUDED.issue_count,
             states = EXCLUDED.states,
             ugc_codes = EXCLUDED.ugc_codes,
-            vtec_phenomena = EXCLUDED.vtec_phenomena,
-            vtec_significance = EXCLUDED.vtec_significance,
-            vtec_actions = EXCLUDED.vtec_actions,
-            vtec_offices = EXCLUDED.vtec_offices,
-            etns = EXCLUDED.etns,
-            hvtec_nwslids = EXCLUDED.hvtec_nwslids,
-            hvtec_causes = EXCLUDED.hvtec_causes,
-            hvtec_severities = EXCLUDED.hvtec_severities,
-            hvtec_records = EXCLUDED.hvtec_records,
-            issue_codes = EXCLUDED.issue_codes,
-            summary_json = EXCLUDED.summary_json,
             product_json = EXCLUDED.product_json
         RETURNING id",
     )
@@ -825,7 +770,6 @@ async fn upsert_product(
     .bind(&row.source_receiver)
     .bind(&row.source_message_id)
     .bind(row.size_bytes)
-    .bind(&row.origin_json)
     .bind(&row.payload_storage_kind)
     .bind(&row.payload_location)
     .bind(&row.metadata_storage_kind)
@@ -865,17 +809,6 @@ async fn upsert_product(
     .bind(row.issue_count)
     .bind(&row.states)
     .bind(&row.ugc_codes)
-    .bind(&row.vtec_phenomena)
-    .bind(&row.vtec_significance)
-    .bind(&row.vtec_actions)
-    .bind(&row.vtec_offices)
-    .bind(&row.etns)
-    .bind(&row.hvtec_nwslids)
-    .bind(&row.hvtec_causes)
-    .bind(&row.hvtec_severities)
-    .bind(&row.hvtec_records)
-    .bind(&row.issue_codes)
-    .bind(&row.summary_json)
     .bind(&row.product_json)
     .fetch_one(&mut **tx)
     .await?
@@ -994,10 +927,10 @@ async fn insert_product_ugc_areas(
                 "NULL"
             });
         if let (Some(latitude), Some(longitude)) = (area.latitude, area.longitude) {
-            row.push_bind(longitude)
-                .push(", ")
-                .push_bind(latitude)
-                .push("), 4326)");
+            row.push_bind_unseparated(longitude)
+                .push_unseparated(", ")
+                .push_bind_unseparated(latitude)
+                .push_unseparated("), 4326)");
         }
     });
     builder.build().execute(&mut **tx).await?;
@@ -1035,10 +968,10 @@ async fn insert_product_hvtec(
                 "NULL"
             });
         if let (Some(latitude), Some(longitude)) = (hvtec.latitude, hvtec.longitude) {
-            row.push_bind(longitude)
-                .push(", ")
-                .push_bind(latitude)
-                .push("), 4326)");
+            row.push_bind_unseparated(longitude)
+                .push_unseparated(", ")
+                .push_bind_unseparated(latitude)
+                .push_unseparated("), 4326)");
         }
     });
     builder.build().execute(&mut **tx).await?;
@@ -1065,8 +998,8 @@ async fn insert_product_time_mot_loc(
             .push_bind(entry.speed_kt)
             .push_bind(&entry.path_wkt)
             .push("ST_GeomFromText(")
-            .push_bind(&entry.path_wkt)
-            .push(", 4326)");
+            .push_bind_unseparated(&entry.path_wkt)
+            .push_unseparated(", 4326)");
     });
     builder.build().execute(&mut **tx).await?;
     Ok(())
@@ -1089,8 +1022,8 @@ async fn insert_product_polygons(
             .push_bind(polygon.polygon_index)
             .push_bind(&polygon.polygon_wkt)
             .push("ST_GeomFromText(")
-            .push_bind(&polygon.polygon_wkt)
-            .push(", 4326)");
+            .push_bind_unseparated(&polygon.polygon_wkt)
+            .push_unseparated(", 4326)");
     });
     builder.build().execute(&mut **tx).await?;
     Ok(())
@@ -1138,10 +1071,10 @@ async fn insert_product_search_points(
             .push_bind(point.latitude)
             .push_bind(point.longitude)
             .push("ST_SetSRID(ST_MakePoint(")
-            .push_bind(point.longitude)
-            .push(", ")
-            .push_bind(point.latitude)
-            .push("), 4326)");
+            .push_bind_unseparated(point.longitude)
+            .push_unseparated(", ")
+            .push_bind_unseparated(point.latitude)
+            .push_unseparated("), 4326)");
     });
     builder.build().execute(&mut **tx).await?;
     Ok(())

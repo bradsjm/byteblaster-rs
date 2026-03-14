@@ -319,31 +319,14 @@ where
         .persist(PersistedRequest {
             request_key: request_key.clone(),
             metadata,
-            blobs: stored_blobs.clone(),
+            blobs: stored_blobs,
         })
         .await
     {
-        cleanup_failed_sink_write(writer, &request_key, &stored_blobs).await;
         return Err((request_key, err));
     }
 
     Ok(request_key)
-}
-
-async fn cleanup_failed_sink_write<W>(writer: &W, request_key: &str, stored_blobs: &[StoredBlob])
-where
-    W: BlobWriter,
-{
-    for blob in stored_blobs.iter().rev() {
-        if let Err(err) = writer.delete(blob).await {
-            warn!(
-                request_key = %request_key,
-                blob_location = %blob.location,
-                error = %err,
-                "failed to clean up blob after metadata persistence failure"
-            );
-        }
-    }
 }
 
 #[cfg(test)]
@@ -532,7 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sink_failure_cleans_up_written_blobs() {
+    async fn sink_failure_keeps_written_blobs() {
         let writer = RecordingWriter::default();
         let deletes = Arc::clone(&writer.deletes);
         let runtime = PersistenceRuntime::spawn(PersistenceConfig::new(4), writer, FailingSink);
@@ -543,12 +526,55 @@ mod tests {
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.failed_total, 1);
-        assert_eq!(
+        assert!(
             deletes
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .as_slice(),
-            &["broken"]
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn filesystem_writer_keeps_blobs_when_sink_fails() {
+        let temp = tempdir().expect("tempdir should succeed");
+        let runtime = PersistenceRuntime::spawn(
+            PersistenceConfig::new(4),
+            FilesystemBlobWriter::new(temp.path().to_path_buf()),
+            FailingSink,
+        );
+        let producer = runtime.producer();
+
+        let result = producer.enqueue(PersistRequest {
+            request_key: "product".to_string(),
+            metadata: "product".to_string(),
+            blobs: vec![
+                BlobEntry::new(
+                    BlobRole::Payload,
+                    "nested/product.txt",
+                    b"payload".to_vec(),
+                    Some("text/plain"),
+                ),
+                BlobEntry::new(
+                    BlobRole::MetadataSidecar,
+                    "nested/product.JSON",
+                    br#"{"ok":true}"#.to_vec(),
+                    Some("application/json"),
+                ),
+            ],
+        });
+        assert!(result.accepted);
+
+        let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.failed_total, 1);
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("nested/product.txt"))
+                .expect("payload should exist"),
+            "payload"
+        );
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("nested/product.JSON"))
+                .expect("metadata should exist"),
+            "{\"ok\":true}"
         );
     }
 

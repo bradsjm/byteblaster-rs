@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS products (
     source_message_id TEXT,
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     size_bytes BIGINT NOT NULL,
-    origin_json JSONB NOT NULL,
     payload_storage_kind TEXT NOT NULL,
     payload_location TEXT NOT NULL,
     metadata_storage_kind TEXT,
@@ -48,17 +47,6 @@ CREATE TABLE IF NOT EXISTS products (
     issue_count INTEGER NOT NULL,
     states TEXT[] NOT NULL DEFAULT '{}',
     ugc_codes TEXT[] NOT NULL DEFAULT '{}',
-    vtec_phenomena TEXT[] NOT NULL DEFAULT '{}',
-    vtec_significance TEXT[] NOT NULL DEFAULT '{}',
-    vtec_actions TEXT[] NOT NULL DEFAULT '{}',
-    vtec_offices TEXT[] NOT NULL DEFAULT '{}',
-    etns BIGINT[] NOT NULL DEFAULT '{}',
-    hvtec_nwslids TEXT[] NOT NULL DEFAULT '{}',
-    hvtec_causes TEXT[] NOT NULL DEFAULT '{}',
-    hvtec_severities TEXT[] NOT NULL DEFAULT '{}',
-    hvtec_records TEXT[] NOT NULL DEFAULT '{}',
-    issue_codes TEXT[] NOT NULL DEFAULT '{}',
-    summary_json JSONB NOT NULL,
     product_json JSONB NOT NULL,
     CONSTRAINT products_filename_source_timestamp_key UNIQUE (filename, source_timestamp_utc)
 );
@@ -173,16 +161,6 @@ CREATE INDEX IF NOT EXISTS products_artifact_kind_idx ON products (artifact_kind
 CREATE INDEX IF NOT EXISTS products_source_idx ON products (source);
 CREATE INDEX IF NOT EXISTS products_states_gin_idx ON products USING GIN (states);
 CREATE INDEX IF NOT EXISTS products_ugc_codes_gin_idx ON products USING GIN (ugc_codes);
-CREATE INDEX IF NOT EXISTS products_vtec_phenomena_gin_idx ON products USING GIN (vtec_phenomena);
-CREATE INDEX IF NOT EXISTS products_vtec_significance_gin_idx ON products USING GIN (vtec_significance);
-CREATE INDEX IF NOT EXISTS products_vtec_actions_gin_idx ON products USING GIN (vtec_actions);
-CREATE INDEX IF NOT EXISTS products_vtec_offices_gin_idx ON products USING GIN (vtec_offices);
-CREATE INDEX IF NOT EXISTS products_etns_gin_idx ON products USING GIN (etns);
-CREATE INDEX IF NOT EXISTS products_hvtec_nwslids_gin_idx ON products USING GIN (hvtec_nwslids);
-CREATE INDEX IF NOT EXISTS products_hvtec_causes_gin_idx ON products USING GIN (hvtec_causes);
-CREATE INDEX IF NOT EXISTS products_hvtec_severities_gin_idx ON products USING GIN (hvtec_severities);
-CREATE INDEX IF NOT EXISTS products_hvtec_records_gin_idx ON products USING GIN (hvtec_records);
-CREATE INDEX IF NOT EXISTS products_issue_codes_gin_idx ON products USING GIN (issue_codes);
 
 CREATE INDEX IF NOT EXISTS product_issues_code_kind_idx ON product_issues (code, kind, product_id);
 CREATE INDEX IF NOT EXISTS product_vtec_lookup_idx ON product_vtec (office, phenomena, significance, action);

@@ -240,12 +240,8 @@ mod tests {
 
         assert_eq!(decoded["filename"], "AFDBOX.TXT");
         assert_eq!(decoded["size"], metadata.size);
-        assert_eq!(decoded["product"]["schema_version"], 2);
-        assert_eq!(
-            decoded["product"]["issues"][0]["code"],
-            "invalid_wmo_header"
-        );
-        assert!(decoded["product"].get("parsed").is_none());
+        assert!(decoded["product"].is_null());
+        assert_eq!(decoded["incidents"], serde_json::json!([]));
     }
 
     #[test]

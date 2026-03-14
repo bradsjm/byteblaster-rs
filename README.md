@@ -92,6 +92,7 @@ cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --
 Optional file persistence:
 
 - `server --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar.
+- The sidecar now persists minimal incident-oriented metadata; see `docs/persistence.md` for the sidecar shape and Postgres incident-row contract.
 - When `--persist-database-url` is also set, filesystem blob writes still succeed even if the Postgres metadata upsert fails.
 - `server` defaults to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
 - Corrupt `.ZIP` and `.ZIS` payloads are logged as `Corrupt Zip File Received` and dropped when archive post-processing is enabled.

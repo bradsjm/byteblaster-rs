@@ -1,5 +1,5 @@
 use crate::error::{PersistError, PersistResult};
-use crate::metadata::CompletedFileMetadata;
+use crate::metadata::{CompletedFileMetadata, IncidentMetadata, IncidentStatus};
 use crate::runtime::{MetadataSink, PersistedRequest};
 use crate::writer::{BlobRole, BlobStorageKind, BoxFuture, StoredBlob};
 use emwin_parser::{
@@ -12,6 +12,9 @@ use serde_json::Value;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, Transaction};
 use std::str::FromStr;
+
+const INCIDENT_FILENAME_PREFIX: &str = "__incident__";
+const INCIDENT_ROW_TIMESTAMP: i64 = 0;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -88,6 +91,13 @@ impl MetadataSink<CompletedFileMetadata> for PostgresMetadataSink {
             let mut tx = self.pool.begin().await?;
             let product_id = upsert_product(&mut tx, &prepared).await?;
             replace_children(&mut tx, product_id, &prepared).await?;
+            let incidents =
+                PreparedIncident::prepare(&request.metadata, &request.blobs, product_id)?;
+            for incident in &incidents {
+                if let Some(incident_id) = upsert_incident_product(&mut tx, incident).await? {
+                    replace_incident_children(&mut tx, incident_id, incident).await?;
+                }
+            }
             tx.commit().await?;
             Ok(())
         })
@@ -105,6 +115,30 @@ struct PreparedProduct {
     polygons: Vec<ProductPolygonRow>,
     wind_hail: Vec<ProductWindHailRow>,
     search_points: Vec<ProductSearchPointRow>,
+}
+
+#[derive(Debug)]
+struct PreparedIncident {
+    row: ProductRow,
+    vtec: Vec<ProductVtecRow>,
+    latest_product_timestamp_utc: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct PersistedIncidentState {
+    office: String,
+    phenomena: String,
+    significance: String,
+    etn: u32,
+    current_status: Option<IncidentStatus>,
+    latest_vtec_action: String,
+    issued_at: chrono::DateTime<chrono::Utc>,
+    start_utc: Option<chrono::DateTime<chrono::Utc>>,
+    end_utc: Option<chrono::DateTime<chrono::Utc>>,
+    first_product_id: i64,
+    latest_product_id: i64,
+    latest_product_timestamp_utc: i64,
+    last_updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug)]
@@ -262,7 +296,8 @@ impl PreparedProduct {
     fn prepare(metadata: &CompletedFileMetadata, blobs: &[StoredBlob]) -> PersistResult<Self> {
         let payload = find_blob(blobs, BlobRole::Payload)?;
         let sidecar = find_blob_optional(blobs, BlobRole::MetadataSidecar);
-        let header = metadata.product_summary.header.as_ref();
+        let product_summary = metadata.product_summary();
+        let header = product_summary.header.as_ref();
         let HeaderColumns {
             header_kind,
             ttaaii,
@@ -292,31 +327,27 @@ impl PreparedProduct {
             payload_location: payload.location.clone(),
             metadata_storage_kind: sidecar.map(|blob| blob_storage_kind(blob.kind).to_string()),
             metadata_location: sidecar.map(|blob| blob.location.clone()),
-            source: serde_label(&metadata.product_summary.source)?,
-            family: metadata.product_summary.family.map(str::to_string),
-            artifact_kind: metadata.product_summary.artifact_kind.map(str::to_string),
-            title: metadata.product_summary.title.map(str::to_string),
-            container: metadata.product_summary.container.to_string(),
-            pil: metadata.product_summary.pil.clone(),
-            wmo_prefix: metadata.product_summary.wmo_prefix.map(str::to_string),
-            bbb_kind: metadata
-                .product_summary
+            source: serde_label(&product_summary.source)?,
+            family: product_summary.family.map(str::to_string),
+            artifact_kind: product_summary.artifact_kind.map(str::to_string),
+            title: product_summary.title.map(str::to_string),
+            container: product_summary.container.to_string(),
+            pil: product_summary.pil.clone(),
+            wmo_prefix: product_summary.wmo_prefix.map(str::to_string),
+            bbb_kind: product_summary
                 .bbb_kind
                 .as_ref()
                 .map(serde_label)
                 .transpose()?,
-            office_code: metadata
-                .product_summary
+            office_code: product_summary
                 .office
                 .as_ref()
                 .map(|office| office.code.to_string()),
-            office_city: metadata
-                .product_summary
+            office_city: product_summary
                 .office
                 .as_ref()
                 .map(|office| office.city.to_string()),
-            office_state: metadata
-                .product_summary
+            office_state: product_summary
                 .office
                 .as_ref()
                 .map(|office| office.state.to_string()),
@@ -326,34 +357,31 @@ impl PreparedProduct {
             ddhhmm,
             bbb,
             afos,
-            has_body: metadata.product_summary.facets.has_body,
-            has_artifact: metadata.product_summary.facets.has_artifact,
-            has_issues: metadata.product_summary.facets.has_issues,
-            has_vtec: metadata.product_summary.facets.vtec_count > 0,
-            has_ugc: metadata.product_summary.facets.ugc_count > 0,
-            has_hvtec: metadata.product_summary.facets.hvtec_count > 0,
-            has_latlon: metadata.product_summary.facets.latlon_count > 0,
-            has_time_mot_loc: metadata.product_summary.facets.time_mot_loc_count > 0,
-            has_wind_hail: metadata.product_summary.facets.wind_hail_count > 0,
-            vtec_count: usize_to_i32(metadata.product_summary.facets.vtec_count, "vtec_count")?,
-            ugc_count: usize_to_i32(metadata.product_summary.facets.ugc_count, "ugc_count")?,
-            hvtec_count: usize_to_i32(metadata.product_summary.facets.hvtec_count, "hvtec_count")?,
-            latlon_count: usize_to_i32(
-                metadata.product_summary.facets.latlon_count,
-                "latlon_count",
-            )?,
+            has_body: product_summary.facets.has_body,
+            has_artifact: product_summary.facets.has_artifact,
+            has_issues: product_summary.facets.has_issues,
+            has_vtec: product_summary.facets.vtec_count > 0,
+            has_ugc: product_summary.facets.ugc_count > 0,
+            has_hvtec: product_summary.facets.hvtec_count > 0,
+            has_latlon: product_summary.facets.latlon_count > 0,
+            has_time_mot_loc: product_summary.facets.time_mot_loc_count > 0,
+            has_wind_hail: product_summary.facets.wind_hail_count > 0,
+            vtec_count: usize_to_i32(product_summary.facets.vtec_count, "vtec_count")?,
+            ugc_count: usize_to_i32(product_summary.facets.ugc_count, "ugc_count")?,
+            hvtec_count: usize_to_i32(product_summary.facets.hvtec_count, "hvtec_count")?,
+            latlon_count: usize_to_i32(product_summary.facets.latlon_count, "latlon_count")?,
             time_mot_loc_count: usize_to_i32(
-                metadata.product_summary.facets.time_mot_loc_count,
+                product_summary.facets.time_mot_loc_count,
                 "time_mot_loc_count",
             )?,
             wind_hail_count: usize_to_i32(
-                metadata.product_summary.facets.wind_hail_count,
+                product_summary.facets.wind_hail_count,
                 "wind_hail_count",
             )?,
-            issue_count: usize_to_i32(metadata.product_summary.issues.count, "issue_count")?,
-            states: metadata.product_summary.keys.states.clone(),
-            ugc_codes: metadata.product_summary.keys.ugc_codes.clone(),
-            product_json: serde_json::to_value(&metadata.product_detail)?,
+            issue_count: usize_to_i32(product_summary.issues.count, "issue_count")?,
+            states: product_summary.keys.states.clone(),
+            ugc_codes: product_summary.keys.ugc_codes.clone(),
+            product_json: serde_json::to_value(metadata)?,
         };
 
         let issues = metadata
@@ -385,6 +413,131 @@ impl PreparedProduct {
         }
 
         Ok(prepared)
+    }
+}
+
+impl PreparedIncident {
+    fn prepare(
+        metadata: &CompletedFileMetadata,
+        blobs: &[StoredBlob],
+        source_product_id: i64,
+    ) -> PersistResult<Vec<Self>> {
+        let payload = find_blob(blobs, BlobRole::Payload)?;
+        let sidecar = find_blob_optional(blobs, BlobRole::MetadataSidecar);
+        let latest_product_timestamp_utc = i64::try_from(metadata.timestamp_utc).map_err(|_| {
+            PersistError::InvalidRequest(format!(
+                "timestamp `{}` does not fit in bigint",
+                metadata.timestamp_utc
+            ))
+        })?;
+
+        metadata
+            .incidents
+            .iter()
+            .map(|incident| {
+                let status = incident.current_status;
+                let product_json = serde_json::to_value(PersistedIncidentState {
+                    office: incident.office.clone(),
+                    phenomena: incident.phenomena.clone(),
+                    significance: incident.significance.clone(),
+                    etn: incident.etn,
+                    current_status: status,
+                    latest_vtec_action: incident.latest_vtec_action.clone(),
+                    issued_at: incident.issued_at,
+                    start_utc: incident.start_utc,
+                    end_utc: incident.end_utc,
+                    first_product_id: source_product_id,
+                    latest_product_id: source_product_id,
+                    latest_product_timestamp_utc,
+                    last_updated_at: chrono::Utc::now(),
+                })?;
+                let row = ProductRow {
+                    filename: incident_filename(incident),
+                    source_timestamp_utc: INCIDENT_ROW_TIMESTAMP,
+                    source_receiver: source_receiver(&metadata.origin).to_string(),
+                    source_message_id: Some(source_product_id.to_string()),
+                    size_bytes: i64::try_from(metadata.size).map_err(|_| {
+                        PersistError::InvalidRequest(format!(
+                            "size `{}` does not fit in bigint",
+                            metadata.size
+                        ))
+                    })?,
+                    payload_storage_kind: blob_storage_kind(payload.kind).to_string(),
+                    payload_location: payload.location.clone(),
+                    metadata_storage_kind: sidecar
+                        .map(|blob| blob_storage_kind(blob.kind).to_string()),
+                    metadata_location: sidecar.map(|blob| blob.location.clone()),
+                    source: "incident".to_string(),
+                    family: Some("incident".to_string()),
+                    artifact_kind: None,
+                    title: Some("Current incident state".to_string()),
+                    container: "incident".to_string(),
+                    pil: metadata.product.pil.clone(),
+                    wmo_prefix: None,
+                    bbb_kind: None,
+                    office_code: Some(incident.office.clone()),
+                    office_city: None,
+                    office_state: None,
+                    header_kind: None,
+                    ttaaii: None,
+                    cccc: Some(incident.office.clone()),
+                    ddhhmm: None,
+                    bbb: None,
+                    afos: None,
+                    has_body: false,
+                    has_artifact: false,
+                    has_issues: false,
+                    has_vtec: true,
+                    has_ugc: false,
+                    has_hvtec: false,
+                    has_latlon: false,
+                    has_time_mot_loc: false,
+                    has_wind_hail: false,
+                    vtec_count: 1,
+                    ugc_count: 0,
+                    hvtec_count: 0,
+                    latlon_count: 0,
+                    time_mot_loc_count: 0,
+                    wind_hail_count: 0,
+                    issue_count: 0,
+                    states: Vec::new(),
+                    ugc_codes: Vec::new(),
+                    product_json,
+                };
+
+                Ok(Self {
+                    row,
+                    vtec: vec![ProductVtecRow {
+                        segment_index: None,
+                        status: status_code_for(status).to_string(),
+                        action: incident.latest_vtec_action.clone(),
+                        office: incident.office.clone(),
+                        phenomena: incident.phenomena.clone(),
+                        significance: incident.significance.clone(),
+                        etn: i64::from(incident.etn),
+                        begin_utc: incident.start_utc,
+                        end_utc: incident.end_utc,
+                    }],
+                    latest_product_timestamp_utc,
+                })
+            })
+            .collect()
+    }
+}
+
+fn incident_filename(incident: &IncidentMetadata) -> String {
+    format!(
+        "{INCIDENT_FILENAME_PREFIX}/{}/{}/{}/{}",
+        incident.office, incident.phenomena, incident.significance, incident.etn
+    )
+}
+
+fn status_code_for(status: Option<IncidentStatus>) -> &'static str {
+    match status {
+        Some(IncidentStatus::Active) | None => "O",
+        Some(IncidentStatus::Cancelled)
+        | Some(IncidentStatus::Expired)
+        | Some(IncidentStatus::Upgraded) => "X",
     }
 }
 
@@ -817,6 +970,172 @@ async fn upsert_product(
     Ok(product_id)
 }
 
+async fn upsert_incident_product(
+    tx: &mut Transaction<'_, Postgres>,
+    prepared: &PreparedIncident,
+) -> PersistResult<Option<i64>> {
+    let row = &prepared.row;
+    let product_id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO products (
+            filename,
+            source_timestamp_utc,
+            source_receiver,
+            source_message_id,
+            size_bytes,
+            payload_storage_kind,
+            payload_location,
+            metadata_storage_kind,
+            metadata_location,
+            source,
+            family,
+            artifact_kind,
+            title,
+            container,
+            pil,
+            wmo_prefix,
+            bbb_kind,
+            office_code,
+            office_city,
+            office_state,
+            header_kind,
+            ttaaii,
+            cccc,
+            ddhhmm,
+            bbb,
+            afos,
+            has_body,
+            has_artifact,
+            has_issues,
+            has_vtec,
+            has_ugc,
+            has_hvtec,
+            has_latlon,
+            has_time_mot_loc,
+            has_wind_hail,
+            vtec_count,
+            ugc_count,
+            hvtec_count,
+            latlon_count,
+            time_mot_loc_count,
+            wind_hail_count,
+            issue_count,
+            states,
+            ugc_codes,
+            product_json
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+            $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
+            $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
+            $41, $42, $43, $44, $45
+        ) ON CONFLICT (filename, source_timestamp_utc) DO UPDATE SET
+            source_receiver = EXCLUDED.source_receiver,
+            source_message_id = EXCLUDED.source_message_id,
+            ingested_at = now(),
+            size_bytes = EXCLUDED.size_bytes,
+            payload_storage_kind = EXCLUDED.payload_storage_kind,
+            payload_location = EXCLUDED.payload_location,
+            metadata_storage_kind = EXCLUDED.metadata_storage_kind,
+            metadata_location = EXCLUDED.metadata_location,
+            source = EXCLUDED.source,
+            family = EXCLUDED.family,
+            artifact_kind = EXCLUDED.artifact_kind,
+            title = EXCLUDED.title,
+            container = EXCLUDED.container,
+            pil = EXCLUDED.pil,
+            wmo_prefix = EXCLUDED.wmo_prefix,
+            bbb_kind = EXCLUDED.bbb_kind,
+            office_code = EXCLUDED.office_code,
+            office_city = EXCLUDED.office_city,
+            office_state = EXCLUDED.office_state,
+            header_kind = EXCLUDED.header_kind,
+            ttaaii = EXCLUDED.ttaaii,
+            cccc = EXCLUDED.cccc,
+            ddhhmm = EXCLUDED.ddhhmm,
+            bbb = EXCLUDED.bbb,
+            afos = EXCLUDED.afos,
+            has_body = EXCLUDED.has_body,
+            has_artifact = EXCLUDED.has_artifact,
+            has_issues = EXCLUDED.has_issues,
+            has_vtec = EXCLUDED.has_vtec,
+            has_ugc = EXCLUDED.has_ugc,
+            has_hvtec = EXCLUDED.has_hvtec,
+            has_latlon = EXCLUDED.has_latlon,
+            has_time_mot_loc = EXCLUDED.has_time_mot_loc,
+            has_wind_hail = EXCLUDED.has_wind_hail,
+            vtec_count = EXCLUDED.vtec_count,
+            ugc_count = EXCLUDED.ugc_count,
+            hvtec_count = EXCLUDED.hvtec_count,
+            latlon_count = EXCLUDED.latlon_count,
+            time_mot_loc_count = EXCLUDED.time_mot_loc_count,
+            wind_hail_count = EXCLUDED.wind_hail_count,
+            issue_count = EXCLUDED.issue_count,
+            states = EXCLUDED.states,
+            ugc_codes = EXCLUDED.ugc_codes,
+            product_json = jsonb_set(
+                jsonb_set(
+                    EXCLUDED.product_json,
+                    '{first_product_id}',
+                    COALESCE(products.product_json -> 'first_product_id', EXCLUDED.product_json -> 'first_product_id')
+                ),
+                '{current_status}',
+                COALESCE(EXCLUDED.product_json -> 'current_status', products.product_json -> 'current_status', 'null'::jsonb)
+            )
+        WHERE COALESCE((products.product_json ->> 'latest_product_timestamp_utc')::bigint, -1) <= $46
+        RETURNING id",
+    )
+    .bind(&row.filename)
+    .bind(row.source_timestamp_utc)
+    .bind(&row.source_receiver)
+    .bind(&row.source_message_id)
+    .bind(row.size_bytes)
+    .bind(&row.payload_storage_kind)
+    .bind(&row.payload_location)
+    .bind(&row.metadata_storage_kind)
+    .bind(&row.metadata_location)
+    .bind(&row.source)
+    .bind(&row.family)
+    .bind(&row.artifact_kind)
+    .bind(&row.title)
+    .bind(&row.container)
+    .bind(&row.pil)
+    .bind(&row.wmo_prefix)
+    .bind(&row.bbb_kind)
+    .bind(&row.office_code)
+    .bind(&row.office_city)
+    .bind(&row.office_state)
+    .bind(&row.header_kind)
+    .bind(&row.ttaaii)
+    .bind(&row.cccc)
+    .bind(&row.ddhhmm)
+    .bind(&row.bbb)
+    .bind(&row.afos)
+    .bind(row.has_body)
+    .bind(row.has_artifact)
+    .bind(row.has_issues)
+    .bind(row.has_vtec)
+    .bind(row.has_ugc)
+    .bind(row.has_hvtec)
+    .bind(row.has_latlon)
+    .bind(row.has_time_mot_loc)
+    .bind(row.has_wind_hail)
+    .bind(row.vtec_count)
+    .bind(row.ugc_count)
+    .bind(row.hvtec_count)
+    .bind(row.latlon_count)
+    .bind(row.time_mot_loc_count)
+    .bind(row.wind_hail_count)
+    .bind(row.issue_count)
+    .bind(&row.states)
+    .bind(&row.ugc_codes)
+    .bind(&row.product_json)
+    .bind(prepared.latest_product_timestamp_utc)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(product_id)
+}
+
 async fn replace_children(
     tx: &mut Transaction<'_, Postgres>,
     product_id: i64,
@@ -847,6 +1166,32 @@ async fn replace_children(
     insert_product_polygons(tx, product_id, &prepared.polygons).await?;
     insert_product_wind_hail(tx, product_id, &prepared.wind_hail).await?;
     insert_product_search_points(tx, product_id, &prepared.search_points).await?;
+    Ok(())
+}
+
+async fn replace_incident_children(
+    tx: &mut Transaction<'_, Postgres>,
+    product_id: i64,
+    prepared: &PreparedIncident,
+) -> PersistResult<()> {
+    for table in [
+        "product_issues",
+        "product_vtec",
+        "product_ugc_areas",
+        "product_hvtec",
+        "product_time_mot_loc",
+        "product_polygons",
+        "product_wind_hail",
+        "product_search_points",
+    ] {
+        let query = format!("DELETE FROM {table} WHERE product_id = $1");
+        sqlx::query(&query)
+            .bind(product_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+
+    insert_product_vtec(tx, product_id, &prepared.vtec).await?;
     Ok(())
 }
 

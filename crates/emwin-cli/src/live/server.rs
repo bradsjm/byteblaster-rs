@@ -437,15 +437,8 @@ AKC090-051300-
         };
 
         let product = emwin_parser::enrich_product(filename, data);
-        let metadata = CompletedFileMetadata {
-            filename: filename.to_string(),
-            size: 11,
-            timestamp_utc: 1,
-            origin: ProductOrigin::Qbt,
-            product_summary: emwin_parser::summarize_product_v2(&product),
-            product_detail: emwin_parser::detail_product_v2(&product),
-            product,
-        };
+        let metadata =
+            CompletedFileMetadata::from_product(filename, 11, 1, ProductOrigin::Qbt, product);
 
         EventKind::FileComplete(Box::new(CompletedFileEventPayload::from_metadata(metadata)))
     }
@@ -661,15 +654,10 @@ Body
         assert!(file.metadata.product.issues.is_empty());
         let metadata_json =
             serde_json::to_value(&file.metadata).expect("metadata should serialize");
-        assert_eq!(metadata_json["product"]["schema_version"], 2);
-        assert_eq!(metadata_json["product"]["header"]["kind"], "afos");
-        assert!(metadata_json["product"].get("parsed").is_none());
-        assert!(metadata_json["product"].get("wmo_header").is_none());
-        assert!(
-            metadata_json["product"]["office"]
-                .get("office_name")
-                .is_none()
-        );
+        assert_eq!(metadata_json["filename"], "TAFPDKGA.TXT");
+        assert_eq!(metadata_json["timestamp_utc"], 1);
+        assert!(metadata_json["product"].is_null());
+        assert!(metadata_json["incidents"].is_array());
     }
 
     #[tokio::test]

@@ -28,9 +28,8 @@ pub(crate) struct BroadcastEvent {
 }
 
 /// Downloadable file payload advertised by the HTTP API.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct CompletedFilePayload {
-    #[serde(flatten)]
     pub(crate) metadata: CompletedFileMetadata,
     pub(crate) download_url: String,
 }
@@ -42,6 +41,22 @@ impl CompletedFilePayload {
             metadata,
             download_url,
         }
+    }
+}
+
+impl Serialize for CompletedFilePayload {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let product = self.metadata.product_detail();
+        let mut state = serializer.serialize_struct("CompletedFilePayload", 5)?;
+        state.serialize_field("filename", &self.metadata.filename)?;
+        state.serialize_field("size", &self.metadata.size)?;
+        state.serialize_field("timestamp_utc", &self.metadata.timestamp_utc)?;
+        state.serialize_field("product", &product)?;
+        state.serialize_field("download_url", &self.download_url)?;
+        state.end()
     }
 }
 
@@ -70,7 +85,7 @@ impl Serialize for CompletedFileEventPayload {
         state.serialize_field("filename", &self.metadata.filename)?;
         state.serialize_field("size", &self.metadata.size)?;
         state.serialize_field("timestamp_utc", &self.metadata.timestamp_utc)?;
-        state.serialize_field("product", &self.metadata.product_summary)?;
+        state.serialize_field("product", &self.metadata.product_summary())?;
         state.serialize_field("download_url", &self.download_url)?;
         state.end()
     }

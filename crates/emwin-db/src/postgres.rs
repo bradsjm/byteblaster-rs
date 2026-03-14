@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, Transaction};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
@@ -99,6 +100,7 @@ struct PreparedProduct {
     row: ProductRow,
     issues: Vec<ProductIssueRow>,
     vtec: Vec<ProductVtecRow>,
+    incident_updates: Vec<PreparedIncidentUpdate>,
     ugc_areas: Vec<ProductUgcAreaRow>,
     hvtec: Vec<ProductHvtecRow>,
     time_mot_loc: Vec<ProductTimeMotLocRow>,
@@ -175,6 +177,25 @@ struct ProductVtecRow {
     etn: i64,
     begin_utc: Option<chrono::DateTime<chrono::Utc>>,
     end_utc: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct IncidentKey {
+    office: String,
+    phenomena: String,
+    significance: String,
+    etn: i64,
+}
+
+#[derive(Debug)]
+struct PreparedIncidentUpdate {
+    key: IncidentKey,
+    current_status: Option<String>,
+    latest_vtec_action: String,
+    issued_at: chrono::DateTime<chrono::Utc>,
+    start_utc: Option<chrono::DateTime<chrono::Utc>>,
+    end_utc: Option<chrono::DateTime<chrono::Utc>>,
+    latest_product_timestamp_utc: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug)]
@@ -372,6 +393,7 @@ impl PreparedProduct {
             row,
             issues,
             vtec: Vec::new(),
+            incident_updates: Vec::new(),
             ugc_areas: Vec::new(),
             hvtec: Vec::new(),
             time_mot_loc: Vec::new(),
@@ -384,7 +406,100 @@ impl PreparedProduct {
             collect_body_rows(&mut prepared, body)?;
         }
 
+        prepared.incident_updates =
+            prepare_incident_updates(prepared.row.source_timestamp_utc, &prepared.vtec)?;
+
         Ok(prepared)
+    }
+}
+
+fn prepare_incident_updates(
+    source_timestamp_utc: i64,
+    vtec_rows: &[ProductVtecRow],
+) -> PersistResult<Vec<PreparedIncidentUpdate>> {
+    #[derive(Debug)]
+    struct IncidentAccumulator {
+        current_status: Option<String>,
+        latest_vtec_action: String,
+        start_utc: Option<chrono::DateTime<chrono::Utc>>,
+        end_utc: Option<chrono::DateTime<chrono::Utc>>,
+    }
+
+    let issued_at = chrono::DateTime::from_timestamp(source_timestamp_utc, 0).ok_or_else(|| {
+        PersistError::InvalidRequest(format!(
+            "timestamp `{source_timestamp_utc}` cannot convert to timestamptz"
+        ))
+    })?;
+
+    let mut grouped = BTreeMap::<IncidentKey, IncidentAccumulator>::new();
+    for vtec in vtec_rows.iter().filter(|vtec| vtec.status == "O") {
+        let key = IncidentKey {
+            office: vtec.office.clone(),
+            phenomena: vtec.phenomena.clone(),
+            significance: vtec.significance.clone(),
+            etn: vtec.etn,
+        };
+        let entry = grouped.entry(key).or_insert_with(|| IncidentAccumulator {
+            current_status: map_incident_status(&vtec.action),
+            latest_vtec_action: vtec.action.clone(),
+            start_utc: vtec.begin_utc,
+            end_utc: vtec.end_utc,
+        });
+
+        if let Some(current_status) = map_incident_status(&vtec.action) {
+            entry.current_status = Some(current_status);
+        }
+        entry.latest_vtec_action = vtec.action.clone();
+        entry.start_utc = min_option_datetime(entry.start_utc, vtec.begin_utc);
+        entry.end_utc = max_option_datetime(entry.end_utc, vtec.end_utc);
+    }
+
+    Ok(grouped
+        .into_iter()
+        .map(|(key, value)| PreparedIncidentUpdate {
+            key,
+            current_status: value.current_status,
+            latest_vtec_action: value.latest_vtec_action,
+            issued_at,
+            start_utc: value.start_utc,
+            end_utc: value.end_utc,
+            latest_product_timestamp_utc: issued_at,
+        })
+        .collect())
+}
+
+fn map_incident_status(action: &str) -> Option<String> {
+    match action {
+        "NEW" | "CON" | "EXT" | "EXA" | "EXB" => Some("active".to_string()),
+        "CAN" => Some("cancelled".to_string()),
+        "EXP" => Some("expired".to_string()),
+        "UPG" => Some("upgraded".to_string()),
+        "COR" | "ROU" => None,
+        _ => None,
+    }
+}
+
+fn min_option_datetime(
+    current: Option<chrono::DateTime<chrono::Utc>>,
+    incoming: Option<chrono::DateTime<chrono::Utc>>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    match (current, incoming) {
+        (Some(current), Some(incoming)) => Some(current.min(incoming)),
+        (Some(current), None) => Some(current),
+        (None, Some(incoming)) => Some(incoming),
+        (None, None) => None,
+    }
+}
+
+fn max_option_datetime(
+    current: Option<chrono::DateTime<chrono::Utc>>,
+    incoming: Option<chrono::DateTime<chrono::Utc>>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    match (current, incoming) {
+        (Some(current), Some(incoming)) => Some(current.max(incoming)),
+        (Some(current), None) => Some(current),
+        (None, Some(incoming)) => Some(incoming),
+        (None, None) => None,
     }
 }
 
@@ -841,12 +956,86 @@ async fn replace_children(
 
     insert_product_issues(tx, product_id, &prepared.issues).await?;
     insert_product_vtec(tx, product_id, &prepared.vtec).await?;
+    upsert_incidents(tx, product_id, &prepared.incident_updates).await?;
     insert_product_ugc_areas(tx, product_id, &prepared.ugc_areas).await?;
     insert_product_hvtec(tx, product_id, &prepared.hvtec).await?;
     insert_product_time_mot_loc(tx, product_id, &prepared.time_mot_loc).await?;
     insert_product_polygons(tx, product_id, &prepared.polygons).await?;
     insert_product_wind_hail(tx, product_id, &prepared.wind_hail).await?;
     insert_product_search_points(tx, product_id, &prepared.search_points).await?;
+    Ok(())
+}
+
+async fn upsert_incidents(
+    tx: &mut Transaction<'_, Postgres>,
+    product_id: i64,
+    rows: &[PreparedIncidentUpdate],
+) -> PersistResult<()> {
+    for row in rows {
+        sqlx::query(
+            "WITH existing AS (
+                SELECT current_status
+                FROM incidents
+                WHERE office = $1 AND phenomena = $2 AND significance = $3 AND etn = $4
+            )
+            INSERT INTO incidents (
+                office,
+                phenomena,
+                significance,
+                etn,
+                current_status,
+                latest_vtec_action,
+                issued_at,
+                start_utc,
+                end_utc,
+                first_product_id,
+                latest_product_id,
+                latest_product_timestamp_utc
+            )
+            SELECT
+                $1,
+                $2,
+                $3,
+                $4,
+                COALESCE($5, existing.current_status),
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12
+            FROM (SELECT 1) seed
+            LEFT JOIN existing ON TRUE
+            WHERE $5 IS NOT NULL OR existing.current_status IS NOT NULL
+            ON CONFLICT (office, phenomena, significance, etn) DO UPDATE SET
+                current_status = COALESCE(EXCLUDED.current_status, incidents.current_status),
+                latest_vtec_action = EXCLUDED.latest_vtec_action,
+                issued_at = EXCLUDED.issued_at,
+                start_utc = EXCLUDED.start_utc,
+                end_utc = EXCLUDED.end_utc,
+                last_updated_at = now(),
+                first_product_id = incidents.first_product_id,
+                latest_product_id = EXCLUDED.latest_product_id,
+                latest_product_timestamp_utc = EXCLUDED.latest_product_timestamp_utc
+            WHERE EXCLUDED.latest_product_timestamp_utc >= incidents.latest_product_timestamp_utc",
+        )
+        .bind(&row.key.office)
+        .bind(&row.key.phenomena)
+        .bind(&row.key.significance)
+        .bind(row.key.etn)
+        .bind(&row.current_status)
+        .bind(&row.latest_vtec_action)
+        .bind(row.issued_at)
+        .bind(row.start_utc)
+        .bind(row.end_utc)
+        .bind(product_id)
+        .bind(product_id)
+        .bind(row.latest_product_timestamp_utc)
+        .execute(&mut **tx)
+        .await?;
+    }
+
     Ok(())
 }
 
@@ -1171,8 +1360,12 @@ fn serde_label<T: Serialize>(value: &T) -> PersistResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PreparedProduct, find_blob, serde_label};
+    use super::{
+        PreparedProduct, ProductVtecRow, find_blob, map_incident_status, max_option_datetime,
+        min_option_datetime, prepare_incident_updates, serde_label,
+    };
     use crate::{BlobRole, BlobStorageKind, CompletedFileMetadata, StoredBlob};
+    use chrono::{TimeZone, Utc};
     use emwin_protocol::ingest::ProductOrigin;
 
     #[test]
@@ -1240,5 +1433,121 @@ mod tests {
         .expect_err("payload is required");
 
         assert!(err.to_string().contains("Payload"));
+    }
+
+    #[test]
+    fn prepare_incident_updates_collapses_operational_duplicates() {
+        let updates = prepare_incident_updates(
+            1_741_175_200,
+            &[
+                ProductVtecRow {
+                    segment_index: Some(0),
+                    status: "O".to_string(),
+                    action: "NEW".to_string(),
+                    office: "KOAX".to_string(),
+                    phenomena: "FF".to_string(),
+                    significance: "W".to_string(),
+                    etn: 1,
+                    begin_utc: Some(
+                        Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0)
+                            .single()
+                            .expect("valid timestamp"),
+                    ),
+                    end_utc: Some(
+                        Utc.with_ymd_and_hms(2025, 3, 5, 18, 0, 0)
+                            .single()
+                            .expect("valid timestamp"),
+                    ),
+                },
+                ProductVtecRow {
+                    segment_index: Some(1),
+                    status: "O".to_string(),
+                    action: "CON".to_string(),
+                    office: "KOAX".to_string(),
+                    phenomena: "FF".to_string(),
+                    significance: "W".to_string(),
+                    etn: 1,
+                    begin_utc: Some(
+                        Utc.with_ymd_and_hms(2025, 3, 5, 11, 30, 0)
+                            .single()
+                            .expect("valid timestamp"),
+                    ),
+                    end_utc: Some(
+                        Utc.with_ymd_and_hms(2025, 3, 5, 19, 0, 0)
+                            .single()
+                            .expect("valid timestamp"),
+                    ),
+                },
+                ProductVtecRow {
+                    segment_index: Some(2),
+                    status: "T".to_string(),
+                    action: "CAN".to_string(),
+                    office: "KOAX".to_string(),
+                    phenomena: "FF".to_string(),
+                    significance: "W".to_string(),
+                    etn: 1,
+                    begin_utc: None,
+                    end_utc: None,
+                },
+            ],
+        )
+        .expect("incident updates should prepare");
+
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].latest_vtec_action, "CON");
+        assert_eq!(updates[0].current_status.as_deref(), Some("active"));
+        assert_eq!(
+            updates[0].start_utc,
+            Some(
+                Utc.with_ymd_and_hms(2025, 3, 5, 11, 30, 0)
+                    .single()
+                    .expect("valid timestamp"),
+            ),
+        );
+        assert_eq!(
+            updates[0].end_utc,
+            Some(
+                Utc.with_ymd_and_hms(2025, 3, 5, 19, 0, 0)
+                    .single()
+                    .expect("valid timestamp"),
+            ),
+        );
+        assert_eq!(
+            updates[0].issued_at,
+            Utc.timestamp_opt(1_741_175_200, 0)
+                .single()
+                .expect("valid timestamp"),
+        );
+    }
+
+    #[test]
+    fn incident_status_mapping_matches_lifecycle_rules() {
+        assert_eq!(map_incident_status("NEW").as_deref(), Some("active"));
+        assert_eq!(map_incident_status("CON").as_deref(), Some("active"));
+        assert_eq!(map_incident_status("CAN").as_deref(), Some("cancelled"));
+        assert_eq!(map_incident_status("EXP").as_deref(), Some("expired"));
+        assert_eq!(map_incident_status("UPG").as_deref(), Some("upgraded"));
+        assert_eq!(map_incident_status("COR"), None);
+        assert_eq!(map_incident_status("ROU"), None);
+    }
+
+    #[test]
+    fn option_datetime_helpers_ignore_missing_values() {
+        let earlier = Utc
+            .with_ymd_and_hms(2025, 3, 5, 12, 0, 0)
+            .single()
+            .expect("valid timestamp");
+        let later = Utc
+            .with_ymd_and_hms(2025, 3, 5, 13, 0, 0)
+            .single()
+            .expect("valid timestamp");
+
+        assert_eq!(
+            min_option_datetime(Some(later), Some(earlier)),
+            Some(earlier)
+        );
+        assert_eq!(min_option_datetime(Some(earlier), None), Some(earlier));
+        assert_eq!(max_option_datetime(Some(earlier), Some(later)), Some(later));
+        assert_eq!(max_option_datetime(None, Some(later)), Some(later));
     }
 }

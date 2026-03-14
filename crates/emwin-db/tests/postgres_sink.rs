@@ -1,3 +1,4 @@
+use chrono::{DateTime, TimeZone, Utc};
 use emwin_db::{
     BlobRole, BlobStorageKind, CompletedFileMetadata, MetadataSink, PersistedRequest,
     PostgresConfig, PostgresMetadataSink, StoredBlob,
@@ -5,8 +6,38 @@ use emwin_db::{
 use emwin_protocol::ingest::ProductOrigin;
 use sqlx::Row;
 
+#[derive(Clone, Copy)]
+struct TestIncidentKey {
+    office: &'static str,
+    phenomena: &'static str,
+    significance: &'static str,
+    etn: i64,
+}
+
+struct IncidentRecord {
+    current_status: String,
+    latest_vtec_action: String,
+    issued_at: DateTime<Utc>,
+    start_utc: Option<DateTime<Utc>>,
+    end_utc: Option<DateTime<Utc>>,
+    first_product_id: i64,
+    latest_product_id: i64,
+    latest_product_timestamp_utc: DateTime<Utc>,
+}
+
 fn test_database_url() -> Option<String> {
     std::env::var("EMWIN_PG_TEST_DATABASE_URL").ok()
+}
+
+async fn connect_test_sink() -> Option<PostgresMetadataSink> {
+    let database_url = test_database_url()?;
+    let mut config = PostgresConfig::new(database_url);
+    config.application_name = "emwin-db-test".to_string();
+    Some(
+        PostgresMetadataSink::connect(config)
+            .await
+            .expect("postgres sink should connect"),
+    )
 }
 
 fn sample_metadata() -> CompletedFileMetadata {
@@ -34,48 +65,151 @@ MAXWINDGUST...60 MPH
     )
 }
 
-fn sample_blobs() -> Vec<StoredBlob> {
+fn sample_blobs(filename: &str) -> Vec<StoredBlob> {
+    let sidecar_name = filename.replace(".TXT", ".JSON");
     vec![
         StoredBlob {
             kind: BlobStorageKind::Filesystem,
             role: BlobRole::Payload,
-            location: "/tmp/FFWOAXNE.TXT".to_string(),
+            location: format!("/tmp/{filename}"),
             size_bytes: 512,
             content_type: Some("application/octet-stream".to_string()),
         },
         StoredBlob {
             kind: BlobStorageKind::Filesystem,
             role: BlobRole::MetadataSidecar,
-            location: "/tmp/FFWOAXNE.JSON".to_string(),
+            location: format!("/tmp/{sidecar_name}"),
             size_bytes: 256,
             content_type: Some("application/json".to_string()),
         },
     ]
 }
 
-#[tokio::test]
-async fn postgres_sink_bootstraps_and_persists_rows() {
-    let Some(database_url) = test_database_url() else {
-        return;
-    };
+fn build_vtec_metadata(
+    filename: &str,
+    timestamp_utc: u64,
+    ugc_line: &str,
+    vtec_lines: &[String],
+) -> CompletedFileMetadata {
+    let bulletin = format!(
+        "000\nWUUS53 KOAX 051200\nFFWOAX\n\nFlash Flood Warning\nNational Weather Service Omaha/Valley NE\n1200 PM CST Wed Mar 5 2025\n\n{ugc_line}\n{}\n",
+        vtec_lines.join("\n")
+    );
+    CompletedFileMetadata::build(
+        filename,
+        timestamp_utc,
+        ProductOrigin::Qbt,
+        bulletin.as_bytes(),
+    )
+}
 
-    let mut config = PostgresConfig::new(database_url);
-    config.application_name = "emwin-db-test".to_string();
-    let sink = PostgresMetadataSink::connect(config)
-        .await
-        .expect("postgres sink should connect");
+fn vtec_line(status: char, action: &str, etn: i64, begin: &str, end: &str) -> String {
+    format!("/{status}.{action}.KOAX.FF.W.{etn:04}.{begin}-{end}/")
+}
 
-    let metadata = sample_metadata();
+fn utc_timestamp(seconds: u64) -> DateTime<Utc> {
+    Utc.timestamp_opt(
+        i64::try_from(seconds).expect("timestamp should fit in i64"),
+        0,
+    )
+    .single()
+    .expect("timestamp should be valid")
+}
+
+async fn persist_metadata(sink: &PostgresMetadataSink, metadata: CompletedFileMetadata) -> i64 {
+    let filename = metadata.filename.clone();
+    let timestamp = metadata.timestamp_utc;
     sink.persist(PersistedRequest {
-        request_key: metadata.filename.clone(),
-        metadata: metadata.clone(),
-        blobs: sample_blobs(),
+        request_key: filename.clone(),
+        metadata,
+        blobs: sample_blobs(&filename),
     })
     .await
     .expect("postgres sink should persist metadata");
 
+    sqlx::query("SELECT id FROM products WHERE filename = $1 AND source_timestamp_utc = $2")
+        .bind(&filename)
+        .bind(i64::try_from(timestamp).expect("timestamp should fit in bigint"))
+        .fetch_one(sink.pool())
+        .await
+        .expect("persisted product row should exist")
+        .get("id")
+}
+
+async fn cleanup_rows(
+    sink: &PostgresMetadataSink,
+    filenames: &[&str],
+    incident_keys: &[TestIncidentKey],
+) {
+    for key in incident_keys {
+        sqlx::query(
+            "DELETE FROM incidents WHERE office = $1 AND phenomena = $2 AND significance = $3 AND etn = $4",
+        )
+        .bind(key.office)
+        .bind(key.phenomena)
+        .bind(key.significance)
+        .bind(key.etn)
+        .execute(sink.pool())
+        .await
+        .expect("incident cleanup should succeed");
+    }
+
+    for filename in filenames {
+        sqlx::query("DELETE FROM products WHERE filename = $1")
+            .bind(*filename)
+            .execute(sink.pool())
+            .await
+            .expect("product cleanup should succeed");
+    }
+}
+
+async fn fetch_incident(
+    sink: &PostgresMetadataSink,
+    key: TestIncidentKey,
+) -> Option<IncidentRecord> {
+    sqlx::query(
+        "SELECT current_status, latest_vtec_action, issued_at, start_utc, end_utc, first_product_id, latest_product_id, latest_product_timestamp_utc
+         FROM incidents
+         WHERE office = $1 AND phenomena = $2 AND significance = $3 AND etn = $4",
+    )
+    .bind(key.office)
+    .bind(key.phenomena)
+    .bind(key.significance)
+    .bind(key.etn)
+    .fetch_optional(sink.pool())
+    .await
+    .expect("incident query should succeed")
+    .map(|row| IncidentRecord {
+        current_status: row.get("current_status"),
+        latest_vtec_action: row.get("latest_vtec_action"),
+        issued_at: row.get("issued_at"),
+        start_utc: row.get("start_utc"),
+        end_utc: row.get("end_utc"),
+        first_product_id: row.get("first_product_id"),
+        latest_product_id: row.get("latest_product_id"),
+        latest_product_timestamp_utc: row.get("latest_product_timestamp_utc"),
+    })
+}
+
+#[tokio::test]
+async fn postgres_sink_bootstraps_and_persists_rows() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let metadata = sample_metadata();
+    let incident_key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 1,
+    };
+    cleanup_rows(&sink, &[&metadata.filename], &[incident_key]).await;
+
+    let product_id = persist_metadata(&sink, metadata.clone()).await;
+
     let row = sqlx::query(
-        "SELECT id, source_receiver, source_message_id, ingested_at, payload_location, metadata_location, has_vtec, has_ugc, has_hvtec, has_latlon, has_time_mot_loc, has_wind_hail \
+        "SELECT id, source_receiver, source_message_id, ingested_at, payload_location, metadata_location, has_vtec, has_ugc, has_hvtec, has_latlon, has_time_mot_loc, has_wind_hail
          FROM products WHERE filename = $1 AND source_timestamp_utc = $2",
     )
     .bind(&metadata.filename)
@@ -84,10 +218,10 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     .await
     .expect("persisted product row should exist");
 
-    let product_id = row.get::<i64, _>("id");
+    assert_eq!(row.get::<i64, _>("id"), product_id);
     assert_eq!(row.get::<String, _>("source_receiver"), "qbt");
     assert_eq!(row.get::<Option<String>, _>("source_message_id"), None);
-    assert!(row.get::<chrono::DateTime<chrono::Utc>, _>("ingested_at") <= chrono::Utc::now());
+    assert!(row.get::<DateTime<Utc>, _>("ingested_at") <= Utc::now());
     assert_eq!(
         row.get::<String, _>("payload_location"),
         "/tmp/FFWOAXNE.TXT"
@@ -185,4 +319,380 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     assert_eq!(polygon_count, 1);
     assert_eq!(time_mot_loc_count, 1);
     assert_eq!(wind_hail_count, 2);
+
+    let incident = fetch_incident(&sink, incident_key)
+        .await
+        .expect("incident row should exist");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "NEW");
+    assert_eq!(incident.first_product_id, product_id);
+    assert_eq!(incident.latest_product_id, product_id);
+    assert_eq!(incident.issued_at, utc_timestamp(metadata.timestamp_utc));
+
+    cleanup_rows(&sink, &[&metadata.filename], &[incident_key]).await;
+}
+
+#[tokio::test]
+async fn incident_projection_tracks_lifecycle_and_lineage() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 2001,
+    };
+    let filenames = [
+        "FFWOAX-LIFECYCLE-NEW.TXT",
+        "FFWOAX-LIFECYCLE-CON.TXT",
+        "FFWOAX-LIFECYCLE-COR.TXT",
+        "FFWOAX-LIFECYCLE-CAN.TXT",
+        "FFWOAX-LIFECYCLE-EXP.TXT",
+        "FFWOAX-LIFECYCLE-UPG.TXT",
+    ];
+    cleanup_rows(&sink, &filenames, &[key]).await;
+
+    let new_timestamp = 1_741_175_200;
+    let new_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[0],
+            new_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "NEW",
+                key.etn,
+                "250305T1200Z",
+                "250305T1800Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after NEW");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "NEW");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, new_id);
+
+    let con_timestamp = new_timestamp + 300;
+    let con_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[1],
+            con_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "CON",
+                key.etn,
+                "250305T1200Z",
+                "250305T1900Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after CON");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "CON");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, con_id);
+    assert_eq!(incident.issued_at, utc_timestamp(con_timestamp));
+    assert_eq!(
+        incident.end_utc,
+        Some(
+            Utc.with_ymd_and_hms(2025, 3, 5, 19, 0, 0)
+                .single()
+                .expect("valid timestamp"),
+        ),
+    );
+
+    let cor_timestamp = con_timestamp + 300;
+    let cor_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[2],
+            cor_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "COR",
+                key.etn,
+                "250305T1200Z",
+                "250305T1900Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after COR");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "COR");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, cor_id);
+
+    let can_timestamp = cor_timestamp + 300;
+    let can_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[3],
+            can_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "CAN",
+                key.etn,
+                "250305T1200Z",
+                "250305T1900Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after CAN");
+    assert_eq!(incident.current_status, "cancelled");
+    assert_eq!(incident.latest_vtec_action, "CAN");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, can_id);
+
+    let exp_timestamp = can_timestamp + 300;
+    let exp_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[4],
+            exp_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "EXP",
+                key.etn,
+                "250305T1200Z",
+                "250305T1900Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after EXP");
+    assert_eq!(incident.current_status, "expired");
+    assert_eq!(incident.latest_vtec_action, "EXP");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, exp_id);
+
+    let upg_timestamp = exp_timestamp + 300;
+    let upg_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[5],
+            upg_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "UPG",
+                key.etn,
+                "250305T1200Z",
+                "250305T1900Z",
+            )],
+        ),
+    )
+    .await;
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident should exist after UPG");
+    assert_eq!(incident.current_status, "upgraded");
+    assert_eq!(incident.latest_vtec_action, "UPG");
+    assert_eq!(incident.first_product_id, new_id);
+    assert_eq!(incident.latest_product_id, upg_id);
+    assert_eq!(
+        incident.latest_product_timestamp_utc,
+        utc_timestamp(upg_timestamp)
+    );
+
+    cleanup_rows(&sink, &filenames, &[key]).await;
+}
+
+#[tokio::test]
+async fn incident_projection_collapses_duplicate_keys_within_one_product() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 2002,
+    };
+    let filename = "FFWOAX-DUPLICATE-KEYS.TXT";
+    cleanup_rows(&sink, &[filename], &[key]).await;
+
+    let product_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filename,
+            1_741_176_000,
+            "NEC001-051300-",
+            &[
+                vtec_line('O', "NEW", key.etn, "250305T1215Z", "250305T1700Z"),
+                vtec_line('O', "CON", key.etn, "250305T1200Z", "250305T1900Z"),
+            ],
+        ),
+    )
+    .await;
+
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("collapsed incident row should exist");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "CON");
+    assert_eq!(incident.first_product_id, product_id);
+    assert_eq!(incident.latest_product_id, product_id);
+    assert_eq!(
+        incident.start_utc,
+        Some(
+            Utc.with_ymd_and_hms(2025, 3, 5, 12, 0, 0)
+                .single()
+                .expect("valid timestamp"),
+        ),
+    );
+    assert_eq!(
+        incident.end_utc,
+        Some(
+            Utc.with_ymd_and_hms(2025, 3, 5, 19, 0, 0)
+                .single()
+                .expect("valid timestamp"),
+        ),
+    );
+
+    let incident_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM incidents WHERE office = $1 AND phenomena = $2 AND significance = $3 AND etn = $4",
+    )
+    .bind(key.office)
+    .bind(key.phenomena)
+    .bind(key.significance)
+    .bind(key.etn)
+    .fetch_one(sink.pool())
+    .await
+    .expect("incident count should be queryable");
+    assert_eq!(incident_count, 1);
+
+    cleanup_rows(&sink, &[filename], &[key]).await;
+}
+
+#[tokio::test]
+async fn incident_projection_rejects_stale_updates() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 2003,
+    };
+    let filenames = ["FFWOAX-STALE-NEWER.TXT", "FFWOAX-STALE-OLDER.TXT"];
+    cleanup_rows(&sink, &filenames, &[key]).await;
+
+    let newer_timestamp = 1_741_176_600;
+    let newer_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[0],
+            newer_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "NEW",
+                key.etn,
+                "250305T1200Z",
+                "250305T1800Z",
+            )],
+        ),
+    )
+    .await;
+
+    let older_timestamp = newer_timestamp - 600;
+    persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filenames[1],
+            older_timestamp,
+            "NEC001-051300-",
+            &[vtec_line(
+                'O',
+                "CAN",
+                key.etn,
+                "250305T1200Z",
+                "250305T1800Z",
+            )],
+        ),
+    )
+    .await;
+
+    let incident = fetch_incident(&sink, key)
+        .await
+        .expect("incident row should exist after stale replay");
+    assert_eq!(incident.current_status, "active");
+    assert_eq!(incident.latest_vtec_action, "NEW");
+    assert_eq!(incident.latest_product_id, newer_id);
+    assert_eq!(
+        incident.latest_product_timestamp_utc,
+        utc_timestamp(newer_timestamp)
+    );
+
+    cleanup_rows(&sink, &filenames, &[key]).await;
+}
+
+#[tokio::test]
+async fn incident_projection_ignores_non_operational_vtec() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 2004,
+    };
+    let filename = "FFWOAX-NON-OPERATIONAL.TXT";
+    cleanup_rows(&sink, &[filename], &[key]).await;
+
+    let product_id = persist_metadata(
+        &sink,
+        build_vtec_metadata(
+            filename,
+            1_741_177_200,
+            "NEC001-051300-",
+            &[vtec_line(
+                'T',
+                "NEW",
+                key.etn,
+                "250305T1200Z",
+                "250305T1800Z",
+            )],
+        ),
+    )
+    .await;
+
+    let product_vtec_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM product_vtec WHERE product_id = $1")
+            .bind(product_id)
+            .fetch_one(sink.pool())
+            .await
+            .expect("product vtec rows should be queryable");
+    assert_eq!(product_vtec_count, 1);
+    assert!(fetch_incident(&sink, key).await.is_none());
+
+    cleanup_rows(&sink, &[filename], &[key]).await;
 }

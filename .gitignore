@@ -9,6 +9,7 @@
 .AppleDouble
 .LSOverride
 ._*
+.opencode/
 
 # Rust IDEs
 .idea/

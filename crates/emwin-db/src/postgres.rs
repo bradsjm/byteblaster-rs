@@ -15,6 +15,9 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tracing::info;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -27,6 +30,8 @@ pub struct PostgresConfig {
     pub application_name: String,
     /// Maximum pool size. Default remains `1` to preserve queue ordering.
     pub max_connections: u32,
+    /// Maximum time spent trying to establish the pool before failing.
+    pub connect_timeout: Duration,
 }
 
 impl PostgresConfig {
@@ -36,6 +41,7 @@ impl PostgresConfig {
             database_url: database_url.into(),
             application_name: "emwin-db".to_string(),
             max_connections: 1,
+            connect_timeout: Duration::from_secs(5),
         }
     }
 }
@@ -45,6 +51,7 @@ impl PostgresConfig {
 pub struct PostgresMetadataSink {
     config: PostgresConfig,
     pool: Arc<Mutex<Option<PgPool>>>,
+    reconnect_pending: Arc<AtomicBool>,
 }
 
 /// Result of expiring active incident rows whose end time has passed.
@@ -60,6 +67,7 @@ impl PostgresMetadataSink {
         Self {
             config,
             pool: Arc::new(Mutex::new(None)),
+            reconnect_pending: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -103,6 +111,16 @@ impl PostgresMetadataSink {
             return Ok(existing.clone());
         }
         *guard = Some(pool.clone());
+        if self.reconnect_pending.swap(false, Ordering::AcqRel) {
+            let connect_target = connection_target(&self.config)
+                .unwrap_or_else(|_| "postgres target unavailable".to_string());
+            info!(
+                target = %connect_target,
+                connect_timeout_secs = self.config.connect_timeout.as_secs_f64(),
+                application_name = %self.config.application_name,
+                "postgres reconnect succeeded"
+            );
+        }
         Ok(pool)
     }
 
@@ -138,11 +156,22 @@ impl PostgresMetadataSink {
 
     async fn handle_runtime_error(&self, err: &PersistError) {
         if err.should_reset_postgres_pool() {
+            let connect_target = connection_target(&self.config)
+                .unwrap_or_else(|_| "postgres target unavailable".to_string());
             let mut guard = self
                 .pool
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            *guard = None;
+            if guard.is_some() {
+                info!(
+                    target = %connect_target,
+                    connect_timeout_secs = self.config.connect_timeout.as_secs_f64(),
+                    error = %err,
+                    "dropping cached postgres pool; next operation will reconnect"
+                );
+                *guard = None;
+                self.reconnect_pending.store(true, Ordering::Release);
+            }
         }
     }
 }
@@ -187,10 +216,17 @@ async fn connect_pool(config: &PostgresConfig) -> PersistResult<PgPool> {
         ));
     }
 
-    let options = PgConnectOptions::from_str(&config.database_url)?
-        .application_name(&config.application_name);
+    let options = connect_options(config)?;
+    let connect_target = describe_connect_target(&options);
+    info!(
+        target = %connect_target,
+        connect_timeout_secs = config.connect_timeout.as_secs_f64(),
+        application_name = %config.application_name,
+        "connecting to postgres"
+    );
     let pool = PgPoolOptions::new()
         .max_connections(config.max_connections.max(1))
+        .acquire_timeout(config.connect_timeout)
         .connect_with(options)
         .await?;
 
@@ -200,6 +236,39 @@ async fn connect_pool(config: &PostgresConfig) -> PersistResult<PgPool> {
         .await?;
 
     Ok(pool)
+}
+
+fn connect_options(config: &PostgresConfig) -> PersistResult<PgConnectOptions> {
+    Ok(
+        PgConnectOptions::from_str(&config.database_url)?
+            .application_name(&config.application_name),
+    )
+}
+
+fn connection_target(config: &PostgresConfig) -> PersistResult<String> {
+    Ok(describe_connect_target(&connect_options(config)?))
+}
+
+fn describe_connect_target(options: &PgConnectOptions) -> String {
+    match options.get_socket() {
+        Some(socket) => match options.get_database() {
+            Some(database) if !database.is_empty() => {
+                format!("unix:{} / {}", socket.display(), database)
+            }
+            _ => format!("unix:{}", socket.display()),
+        },
+        None => match options.get_database() {
+            Some(database) if !database.is_empty() => {
+                format!(
+                    "{}:{} / {}",
+                    options.get_host(),
+                    options.get_port(),
+                    database
+                )
+            }
+            _ => format!("{}:{}", options.get_host(), options.get_port()),
+        },
+    }
 }
 
 #[derive(Debug)]
@@ -1468,12 +1537,14 @@ fn serde_label<T: Serialize>(value: &T) -> PersistResult<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        PreparedProduct, ProductVtecRow, find_blob, map_incident_status, max_option_datetime,
-        min_option_datetime, prepare_incident_updates, serde_label,
+        PreparedProduct, ProductVtecRow, describe_connect_target, find_blob, map_incident_status,
+        max_option_datetime, min_option_datetime, prepare_incident_updates, serde_label,
     };
     use crate::{BlobRole, BlobStorageKind, CompletedFileMetadata, StoredBlob};
     use chrono::{TimeZone, Utc};
     use emwin_protocol::ingest::ProductOrigin;
+    use sqlx::postgres::PgConnectOptions;
+    use std::str::FromStr;
 
     #[test]
     fn serde_label_uses_serde_names() {
@@ -1656,5 +1727,18 @@ mod tests {
         assert_eq!(min_option_datetime(Some(earlier), None), Some(earlier));
         assert_eq!(max_option_datetime(Some(earlier), Some(later)), Some(later));
         assert_eq!(max_option_datetime(None, Some(later)), Some(later));
+    }
+
+    #[test]
+    fn describe_connect_target_redacts_credentials() {
+        let options = PgConnectOptions::from_str(
+            "postgres://user:secret@example.com:5544/emwin?sslmode=disable",
+        )
+        .expect("options should parse");
+
+        assert_eq!(
+            describe_connect_target(&options),
+            "example.com:5544 / emwin"
+        );
     }
 }

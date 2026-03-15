@@ -191,17 +191,20 @@ impl<M> PersistenceProducer<M> {
         }
     }
 
-    fn close(&self) {
+    fn close(&self) -> usize {
         let mut guard = self
             .shared
             .state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if guard.closed {
-            return;
+            return 0;
         }
         guard.closed = true;
+        let dropped = guard.pending.len();
+        guard.pending.clear();
         self.shared.available.add_permits(1);
+        dropped
     }
 }
 
@@ -255,9 +258,15 @@ impl<M: Clone + Send + 'static> PersistenceRuntime<M> {
         self.producer.stats_snapshot()
     }
 
-    /// Closes the queue, drains remaining requests, and returns final runtime stats.
+    /// Closes the queue, drops queued requests, and returns final runtime stats.
     pub async fn shutdown(self) -> PersistResult<PersistenceStats> {
-        self.producer.close();
+        let dropped = self.producer.close();
+        if dropped > 0 {
+            info!(
+                dropped_requests = dropped,
+                "dropped queued persistence requests during shutdown"
+            );
+        }
         Ok(self.task.await?)
     }
 }
@@ -772,6 +781,71 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct BlockingWriter {
+        writes: Arc<Mutex<Vec<String>>>,
+        started: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+        release: Arc<Mutex<Option<oneshot::Receiver<()>>>>,
+    }
+
+    impl BlockingWriter {
+        fn new(started: oneshot::Sender<()>, release: oneshot::Receiver<()>) -> Self {
+            Self {
+                writes: Arc::new(Mutex::new(Vec::new())),
+                started: Arc::new(Mutex::new(Some(started))),
+                release: Arc::new(Mutex::new(Some(release))),
+            }
+        }
+    }
+
+    impl BlobWriter for BlockingWriter {
+        fn write<'a>(
+            &'a self,
+            entry: &'a BlobEntry,
+        ) -> BoxFuture<'a, PersistResult<crate::writer::StoredBlob>> {
+            let writes = Arc::clone(&self.writes);
+            let started = Arc::clone(&self.started);
+            let release = Arc::clone(&self.release);
+            Box::pin(async move {
+                writes
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push(entry.relative_path.clone());
+
+                if let Some(sender) = started
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take()
+                {
+                    let _ = sender.send(());
+                }
+
+                let receiver = release
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take();
+                if let Some(receiver) = receiver {
+                    let _ = receiver.await;
+                }
+
+                Ok(crate::writer::StoredBlob {
+                    kind: BlobStorageKind::Filesystem,
+                    role: entry.role,
+                    location: entry.relative_path.clone(),
+                    size_bytes: entry.bytes.len(),
+                    content_type: entry.content_type.clone(),
+                })
+            })
+        }
+
+        fn delete<'a>(
+            &'a self,
+            _blob: &'a crate::writer::StoredBlob,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
     fn request(name: &str) -> PersistRequest<String> {
         PersistRequest {
             request_key: name.to_string(),
@@ -783,6 +857,24 @@ mod tests {
                 Some("text/plain"),
             )],
         }
+    }
+
+    async fn wait_for_stats<M, F>(runtime: &PersistenceRuntime<M>, predicate: F)
+    where
+        M: Clone + Send + 'static,
+        F: Fn(&PersistenceStats) -> bool,
+    {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let stats = runtime.stats_snapshot();
+                if predicate(&stats) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("runtime should reach expected stats");
     }
 
     #[test]
@@ -847,6 +939,8 @@ mod tests {
         let result = producer.enqueue(request("three"));
         assert_eq!(result.evicted_oldest_key.as_deref(), Some("one"));
 
+        wait_for_stats(&runtime, |stats| stats.persisted_total == 2).await;
+
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.queue_capacity, 2);
@@ -878,6 +972,8 @@ mod tests {
         let result = producer.enqueue(request("broken"));
         assert!(result.accepted);
 
+        wait_for_stats(&runtime, |stats| stats.failed_total == 1).await;
+
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.queue_len, 0);
         assert_eq!(stats.failed_total, 1);
@@ -898,6 +994,8 @@ mod tests {
 
         let result = producer.enqueue(request("broken"));
         assert!(result.accepted);
+
+        wait_for_stats(&runtime, |stats| stats.failed_total == 1).await;
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.queue_len, 0);
@@ -939,6 +1037,8 @@ mod tests {
             ],
         });
         assert!(result.accepted);
+
+        wait_for_stats(&runtime, |stats| stats.failed_total == 1).await;
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.queue_len, 0);
@@ -984,6 +1084,8 @@ mod tests {
             ],
         });
         assert!(result.accepted);
+
+        wait_for_stats(&runtime, |stats| stats.persisted_total == 1).await;
 
         let stats = runtime.shutdown().await.expect("shutdown should succeed");
         assert_eq!(stats.queue_len, 0);
@@ -1073,6 +1175,48 @@ mod tests {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .as_slice(),
             &["retry-sink"]
+        );
+    }
+
+    #[tokio::test]
+    async fn shutdown_drops_queued_requests() {
+        let (started_tx, started_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let writer = BlockingWriter::new(started_tx, release_rx);
+        let writes = Arc::clone(&writer.writes);
+        let sink = RecordingSink::default();
+        let persisted = Arc::clone(&sink.persisted);
+        let runtime = PersistenceRuntime::spawn(PersistenceConfig::new(4), writer, sink);
+        let producer = runtime.producer();
+
+        assert!(producer.enqueue(request("one")).accepted);
+        started_rx.await.expect("first write should start");
+        assert!(producer.enqueue(request("two")).accepted);
+        assert!(producer.enqueue(request("three")).accepted);
+
+        let shutdown_task = tokio::spawn(async move { runtime.shutdown().await });
+        let _ = release_tx.send(());
+
+        let stats = shutdown_task
+            .await
+            .expect("shutdown task should join")
+            .expect("shutdown should succeed");
+        assert_eq!(stats.queue_len, 0);
+        assert_eq!(stats.persisted_total, 1);
+        assert_eq!(stats.failed_total, 0);
+        assert_eq!(
+            writes
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["one"]
+        );
+        assert_eq!(
+            persisted
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["one"]
         );
     }
 }

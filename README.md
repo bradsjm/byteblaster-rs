@@ -16,19 +16,19 @@ Run via Docker (no local Rust toolchain required):
 docker run --rm ghcr.io/bradsjm/emwin-rs/emwin-cli:latest --help
 ```
 
-Development compose stack (ephemeral Postgres + `emwin-cli server`):
+Development compose stack (ephemeral Postgres + MinIO + `emwin-cli server`):
 
 ```bash
 cp .env.compose.example .env.compose
 docker compose up --build
 ```
 
-- `compose.yml` provisions `postgis/postgis` and `emwin-cli server`.
-- Postgres data and `EMWIN_OUTPUT_DIR` use `tmpfs`, so the stack is intentionally non-persistent.
-- `emwin-cli` runs with `EMWIN_OUTPUT_DIR=/run/emwin/output` and `EMWIN_PERSIST_DATABASE_URL=postgresql://emwin:emwin@postgres:5432/emwin?sslmode=disable` by default.
+- `compose.yml` provisions `postgis/postgis`, MinIO, and `emwin-cli server`.
+- Postgres data and MinIO object storage use `tmpfs`, so the stack is intentionally non-persistent.
+- `emwin-cli` runs with `EMWIN_OUTPUT_DIR=s3://emwin/emwin`, `AWS_ENDPOINT_URL=http://minio:9000`, and `EMWIN_PERSIST_DATABASE_URL=postgresql://emwin:emwin@postgres:5432/emwin?sslmode=disable` by default.
 - Set `EMWIN_USERNAME` in `.env.compose`; set `EMWIN_RECEIVER=wxwire` and `EMWIN_PASSWORD` only when using Weather Wire.
-- To archive blobs to S3-compatible storage in compose, set `EMWIN_OUTPUT_DIR=s3://bucket[/prefix]`; use `AWS_ENDPOINT_URL` to target MinIO or another custom endpoint with path-style addressing, set `AWS_REGION` or `AWS_DEFAULT_REGION` for region selection, and provide credentials with `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, or `AWS_PROFILE` when needed.
-- The HTTP server is exposed on `http://127.0.0.1:8080` and Postgres on `127.0.0.1:5432` by default.
+- To point compose at a different S3-compatible target, set `EMWIN_OUTPUT_DIR=s3://bucket[/prefix]`; use `AWS_ENDPOINT_URL` to target MinIO or another custom endpoint with path-style addressing, set `AWS_REGION` or `AWS_DEFAULT_REGION` for region selection, and provide credentials with `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, or `AWS_PROFILE` when needed.
+- The HTTP server is exposed on `http://127.0.0.1:8080`, Postgres on `127.0.0.1:5432`, MinIO S3 on `http://127.0.0.1:9000`, and the MinIO console on `http://127.0.0.1:9001` by default.
 
 ## Use `emwin-protocol` in your app
 

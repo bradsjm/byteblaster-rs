@@ -186,26 +186,35 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
     ));
     let cleanup_task =
         cleanup_sink.map(|sink| tokio::spawn(run_incident_cleanup_loop(sink, shutdown_rx.clone())));
-    let ctrlc_task = tokio::spawn({
-        let shutdown_tx = shutdown_tx.clone();
-        async move {
-            let _ = tokio::signal::ctrl_c().await;
-            let _ = shutdown_tx.send(true);
-        }
-    });
     let mut http_shutdown_rx = shutdown_rx.clone();
 
-    let serve = axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(async move {
-        let _ = http_shutdown_rx.changed().await;
-    });
+    let serve = async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            let _ = http_shutdown_rx.changed().await;
+        })
+        .await
+    };
+    tokio::pin!(serve);
 
-    let serve_result = serve.await;
-    ctrlc_task.abort();
-    let _ = shutdown_tx.send(true);
+    let mut shutdown_requested = false;
+    let serve_result = tokio::select! {
+        result = &mut serve => result,
+        signal = tokio::signal::ctrl_c() => {
+            signal?;
+            shutdown_requested = true;
+            info!("shutdown signal received; waiting for server tasks to stop");
+            let _ = shutdown_tx.send(true);
+            (&mut serve).await
+        }
+    };
+
+    if !shutdown_requested {
+        let _ = shutdown_tx.send(true);
+    }
 
     let ingest_result = ingest_task.await;
     let stats_result = stats_task.await;
@@ -262,6 +271,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
             )));
         }
     }
+    info!("server stopped");
     Ok(())
 }
 

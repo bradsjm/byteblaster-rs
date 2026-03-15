@@ -27,7 +27,7 @@ enum ReceiverKind {
 enum Commands {
     /// Live command with HTTP, SSE, and retained file endpoints.
     Server {
-        /// Optional directory to persist completed files asynchronously.
+        /// Optional filesystem path or `s3://bucket[/prefix]` URI for async blob persistence.
         #[arg(long, env = "EMWIN_OUTPUT_DIR")]
         output_dir: Option<String>,
         /// Whether completed ZIP/ZIS archives should be extracted before downstream handling.
@@ -237,5 +237,24 @@ mod tests {
             persist_database_url.as_deref(),
             Some("postgres://localhost/emwin")
         );
+    }
+
+    #[test]
+    fn server_accepts_s3_output_dir() {
+        let cli = Cli::try_parse_from([
+            "emwin",
+            "server",
+            "--username",
+            "test@example.com",
+            "--output-dir",
+            "s3://bucket/prefix",
+        ])
+        .expect("server args should parse");
+
+        let Commands::Server { output_dir, .. } = cli.command else {
+            panic!("expected server command");
+        };
+
+        assert_eq!(output_dir.as_deref(), Some("s3://bucket/prefix"));
     }
 }

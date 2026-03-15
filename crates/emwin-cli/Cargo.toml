@@ -26,6 +26,7 @@ tower-http.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
 dotenvy.workspace = true
+url.workspace = true
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [lints]

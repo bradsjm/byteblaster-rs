@@ -13,7 +13,6 @@ use crate::live::server_support::RetainedFiles;
 use axum::http::HeaderValue;
 use chrono::Utc;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -67,7 +66,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         crate::error::CliError::invalid_argument(format!("invalid --bind value {bind}: {err}"))
     })?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let started_persistence = match output_dir.map(PathBuf::from) {
+    let started_persistence = match output_dir {
         Some(path) => Some(
             start_runtime_with_postgres(
                 path,

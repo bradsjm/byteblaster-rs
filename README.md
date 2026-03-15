@@ -27,6 +27,7 @@ docker compose up --build
 - Postgres data and `EMWIN_OUTPUT_DIR` use `tmpfs`, so the stack is intentionally non-persistent.
 - `emwin-cli` runs with `EMWIN_OUTPUT_DIR=/run/emwin/output` and `EMWIN_PERSIST_DATABASE_URL=postgresql://emwin:emwin@postgres:5432/emwin?sslmode=disable` by default.
 - Set `EMWIN_USERNAME` in `.env.compose`; set `EMWIN_RECEIVER=wxwire` and `EMWIN_PASSWORD` only when using Weather Wire.
+- To archive blobs to S3-compatible storage in compose, set `EMWIN_OUTPUT_DIR=s3://bucket[/prefix]`; use `AWS_ENDPOINT_URL` to target MinIO or another custom endpoint with path-style addressing, set `AWS_REGION` or `AWS_DEFAULT_REGION` for region selection, and provide credentials with `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, or `AWS_PROFILE` when needed.
 - The HTTP server is exposed on `http://127.0.0.1:8080` and Postgres on `127.0.0.1:5432` by default.
 
 ## Use `emwin-protocol` in your app
@@ -86,18 +87,19 @@ cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:808
 cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out
 cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --post-process-archives false
 cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --persist-database-url postgres://localhost/emwin
+cargo run -p emwin-cli -- server --username you@example.com --output-dir s3://my-bucket/emwin --persist-database-url postgres://localhost/emwin
 cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password 'secret'
 ```
 
 Optional file persistence:
 
-- `server --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar.
-- When `--persist-database-url` is also set, filesystem blob writes still succeed even if the Postgres metadata upsert fails.
+- `server --output-dir <PATH|s3://bucket[/prefix]>` writes each completed assembled file and a sibling `.JSON` metadata sidecar.
+- When `--persist-database-url` is also set, blob writes still succeed even if the Postgres metadata upsert fails.
 - When Postgres is unavailable at startup or during runtime, the server stays up, retries metadata persistence in the background with backoff, and resumes writing after connectivity returns.
-- When filesystem writes fail transiently, including `ENOSPC`, the background persistence worker retries with throttled warning logs while live ingest and connected clients remain online.
+- When filesystem writes fail transiently, including `ENOSPC`, or S3 returns transient service/network failures, the background persistence worker retries with throttled warning logs while live ingest and connected clients remain online.
 - `server` defaults to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
 - Corrupt `.ZIP` and `.ZIS` payloads are logged as `Corrupt Zip File Received` and dropped when archive post-processing is enabled.
-- `server` serves retained payloads over HTTP while optionally persisting payloads and metadata asynchronously in the background.
+- `server` serves retained payloads over HTTP from the in-memory retention cache while optionally persisting payloads and metadata asynchronously in the background.
 
 CLI logging format:
 
@@ -169,7 +171,8 @@ Environment and `.env` support:
 
 - `.env` from the current working directory is loaded before CLI parsing.
 - CLI args override process env; process env overrides `.env`.
-- Useful variables include `EMWIN_RECEIVER`, `EMWIN_USERNAME`, `EMWIN_PASSWORD`, `EMWIN_SERVER`, `EMWIN_SERVER_LIST_PATH`, `EMWIN_MAX_EVENTS`, `EMWIN_IDLE_TIMEOUT_SECS`, `EMWIN_BIND`, `EMWIN_CORS_ORIGIN`, `EMWIN_MAX_CLIENTS`, `EMWIN_STATS_INTERVAL_SECS`, `EMWIN_FILE_RETENTION_SECS`, `EMWIN_MAX_RETAINED_FILES`, `EMWIN_QUIET`, `EMWIN_TEXT_PREVIEW_CHARS`, and `EMWIN_POST_PROCESS_ARCHIVES`.
+- Useful variables include `EMWIN_RECEIVER`, `EMWIN_USERNAME`, `EMWIN_PASSWORD`, `EMWIN_SERVER`, `EMWIN_SERVER_LIST_PATH`, `EMWIN_OUTPUT_DIR`, `EMWIN_PERSIST_DATABASE_URL`, `EMWIN_MAX_EVENTS`, `EMWIN_IDLE_TIMEOUT_SECS`, `EMWIN_BIND`, `EMWIN_CORS_ORIGIN`, `EMWIN_MAX_CLIENTS`, `EMWIN_STATS_INTERVAL_SECS`, `EMWIN_FILE_RETENTION_SECS`, `EMWIN_MAX_RETAINED_FILES`, `EMWIN_QUIET`, `EMWIN_TEXT_PREVIEW_CHARS`, and `EMWIN_POST_PROCESS_ARCHIVES`.
+- When `EMWIN_OUTPUT_DIR` uses `s3://bucket[/prefix]`, `emwin-db` resolves object-store settings from AWS-compatible environment variables: `AWS_ENDPOINT_URL` switches to a custom endpoint with path-style access, `AWS_REGION` or `AWS_DEFAULT_REGION` selects the region, and credentials come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, or `AWS_PROFILE` plus the compatible metadata providers exposed by `rust-s3`.
 - Filters are CLI-only and are not loaded from environment variables.
 
 Relay mode (raw TCP passthrough + metrics):

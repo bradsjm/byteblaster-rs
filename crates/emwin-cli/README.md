@@ -7,7 +7,7 @@ CLI application for EMWIN live server workflows. Built on `emwin-protocol` and `
 - `server`
   - Live command.
   - Connects to EMWIN servers, exposes HTTP and SSE endpoints, and retains recent files for `/files` downloads.
-  - Optional `--output-dir <PATH>` persists completed payloads asynchronously.
+  - Optional `--output-dir <PATH|s3://bucket[/prefix]>` persists completed payloads asynchronously.
 
 ## Output formats
 
@@ -41,21 +41,22 @@ Live command: `server`
 - `--file-retention-secs <SECONDS>`
 - `--max-retained-files <N>`
 - `--quiet`
-- `--output-dir <PATH>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
+- `--output-dir <PATH|s3://bucket[/prefix]>` (optional; writes each matching completed file plus a `.JSON` metadata sidecar)
 
 Persistence behavior when `--output-dir` is set:
 
 - each persisted product writes the payload file and a sibling `.JSON` metadata sidecar
-- persistence runs in a background task so live ingest does not wait on filesystem I/O
+- persistence runs in a background task so live ingest does not wait on filesystem or S3 I/O
 - when `--persist-database-url` is set, the background task also upserts normalized product metadata and spatial child rows into Postgres/PostGIS
 - when `--persist-database-url` is set, startup runs one incident cleanup pass and the server retries cleanup every 5 minutes to mark `active` incidents `expired` after their `end_utc` passes
 - Postgres metadata failures do not roll back payload or sidecar files already written under `--output-dir`
 - Postgres outages no longer abort server startup; the server stays online and background persistence retries with backoff until the database is reachable again
-- transient filesystem write failures, including disk-full conditions, are retried in the background with throttled warnings so live ingest and connected clients keep running
+- transient filesystem write failures, including disk-full conditions, and transient S3 request failures are retried in the background with throttled warnings so live ingest and connected clients keep running
 - if the persistence queue fills, the oldest queued item is evicted so the newest product can still be accepted
 - `.ZIP` and `.ZIS` products are extracted before parsing, filtering, and persistence by default; the extracted entry filename replaces the archive filename
 - corrupt archives are logged as `Corrupt Zip File Received` and dropped when post-processing is enabled
 - sidecar names replace the original extension, for example `AFDBOX.TXT` -> `AFDBOX.JSON`
+- `/files/*` continues to serve only the in-memory retained payload cache; persisted S3 objects are archival storage and are not proxied by the CLI
 
 If `--server` is omitted, built-in default endpoints are used.
 `--server` and `--server-list-path` are only supported for `--receiver qbt`.
@@ -94,6 +95,8 @@ Supported environment variables include:
 
 Filters are intentionally not configurable through environment variables.
 
+When `EMWIN_OUTPUT_DIR` uses `s3://bucket[/prefix]`, object-store configuration stays env-driven: set `AWS_ENDPOINT_URL` for MinIO or another custom S3-compatible endpoint, `AWS_REGION` or `AWS_DEFAULT_REGION` for region selection, and `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, or `AWS_PROFILE` for credentials. Persisted metadata still stores canonical `s3://bucket/key` references rather than presigned URLs.
+
 ## Examples
 
 Live mode:
@@ -102,6 +105,7 @@ Live mode:
 cargo run -p emwin-cli -- server --username you@example.com --bind 127.0.0.1:8080
 cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out
 cargo run -p emwin-cli -- server --username you@example.com --output-dir ./out --persist-database-url postgres://localhost/emwin
+cargo run -p emwin-cli -- server --username you@example.com --output-dir s3://my-bucket/emwin --persist-database-url postgres://localhost/emwin
 cargo run -p emwin-cli -- server --receiver wxwire --username you@example.com --password your-pass
 ```
 

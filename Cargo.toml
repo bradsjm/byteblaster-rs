@@ -33,9 +33,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 dotenvy = "0.15"
 flate2 = "1"
 futures = "0.3"
+rust-s3 = { version = "0.37.1", default-features = false, features = ["fail-on-err", "tokio-rustls-tls", "http-credentials"] }
 regex = "1"
 bstr = "1"
 memchr = "2"
+url = "2"
 winnow = "0.7"
 time = { version = "0.3.47", features = ["parsing", "macros"] }
 axum = "0.7"

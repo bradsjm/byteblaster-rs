@@ -1504,6 +1504,7 @@ fn source_message_id(origin: &ProductOrigin) -> Option<String> {
 fn blob_storage_kind(kind: BlobStorageKind) -> &'static str {
     match kind {
         BlobStorageKind::Filesystem => "filesystem",
+        BlobStorageKind::S3 => "s3",
     }
 }
 
@@ -1594,6 +1595,44 @@ mod tests {
         assert_eq!(prepared.row.source_message_id, None);
         assert_eq!(prepared.row.source, "text_header");
         assert_eq!(prepared.row.container, "raw");
+    }
+
+    #[test]
+    fn prepared_product_preserves_s3_locations_and_kind_labels() {
+        let metadata = CompletedFileMetadata::build(
+            "AFDBOX.TXT",
+            1704070800,
+            ProductOrigin::Qbt,
+            b"000 \nFXUS61 KBOX 022101\nAFDBOX\nBody\n",
+        );
+        let blobs = vec![
+            StoredBlob {
+                kind: BlobStorageKind::S3,
+                role: BlobRole::Payload,
+                location: "s3://example-bucket/archive/AFDBOX.TXT".to_string(),
+                size_bytes: 1,
+                content_type: Some("application/octet-stream".to_string()),
+            },
+            StoredBlob {
+                kind: BlobStorageKind::S3,
+                role: BlobRole::MetadataSidecar,
+                location: "s3://example-bucket/archive/AFDBOX.JSON".to_string(),
+                size_bytes: 1,
+                content_type: Some("application/json".to_string()),
+            },
+        ];
+
+        let prepared = PreparedProduct::prepare(&metadata, &blobs).expect("product should prepare");
+        assert_eq!(prepared.row.payload_storage_kind, "s3");
+        assert_eq!(
+            prepared.row.payload_location,
+            "s3://example-bucket/archive/AFDBOX.TXT"
+        );
+        assert_eq!(prepared.row.metadata_storage_kind.as_deref(), Some("s3"));
+        assert_eq!(
+            prepared.row.metadata_location.as_deref(),
+            Some("s3://example-bucket/archive/AFDBOX.JSON")
+        );
     }
 
     #[test]

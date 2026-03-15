@@ -18,5 +18,6 @@ pub use runtime::{
     PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats,
 };
 pub use writer::{
-    BlobEntry, BlobRole, BlobStorageKind, BlobWriter, FilesystemBlobWriter, StoredBlob,
+    BlobEntry, BlobRole, BlobStorageKind, BlobWriter, FilesystemBlobWriter, S3BlobWriter,
+    StoredBlob,
 };

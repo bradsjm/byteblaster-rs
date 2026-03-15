@@ -85,6 +85,26 @@ fn sample_blobs(filename: &str) -> Vec<StoredBlob> {
     ]
 }
 
+fn sample_s3_blobs(filename: &str) -> Vec<StoredBlob> {
+    let sidecar_name = filename.replace(".TXT", ".JSON");
+    vec![
+        StoredBlob {
+            kind: BlobStorageKind::S3,
+            role: BlobRole::Payload,
+            location: format!("s3://example-bucket/archive/{filename}"),
+            size_bytes: 512,
+            content_type: Some("application/octet-stream".to_string()),
+        },
+        StoredBlob {
+            kind: BlobStorageKind::S3,
+            role: BlobRole::MetadataSidecar,
+            location: format!("s3://example-bucket/archive/{sidecar_name}"),
+            size_bytes: 256,
+            content_type: Some("application/json".to_string()),
+        },
+    ]
+}
+
 fn build_vtec_metadata(
     filename: &str,
     timestamp_utc: u64,
@@ -123,6 +143,30 @@ async fn persist_metadata(sink: &PostgresMetadataSink, metadata: CompletedFileMe
         request_key: filename.clone(),
         metadata,
         blobs: sample_blobs(&filename),
+    })
+    .await
+    .expect("postgres sink should persist metadata");
+
+    sqlx::query("SELECT id FROM products WHERE filename = $1 AND source_timestamp_utc = $2")
+        .bind(&filename)
+        .bind(i64::try_from(timestamp).expect("timestamp should fit in bigint"))
+        .fetch_one(&sink.pool())
+        .await
+        .expect("persisted product row should exist")
+        .get("id")
+}
+
+async fn persist_metadata_with_blobs(
+    sink: &PostgresMetadataSink,
+    metadata: CompletedFileMetadata,
+    blobs: Vec<StoredBlob>,
+) -> i64 {
+    let filename = metadata.filename.clone();
+    let timestamp = metadata.timestamp_utc;
+    sink.persist(PersistedRequest {
+        request_key: filename.clone(),
+        metadata,
+        blobs,
     })
     .await
     .expect("postgres sink should persist metadata");
@@ -360,6 +404,51 @@ async fn postgres_sink_bootstraps_and_persists_rows() {
     assert_eq!(incident.first_product_id, product_id);
     assert_eq!(incident.latest_product_id, product_id);
     assert_eq!(incident.issued_at, utc_timestamp(metadata.timestamp_utc));
+
+    cleanup_rows(&sink, &[&metadata.filename], &[incident_key]).await;
+}
+
+#[tokio::test]
+async fn postgres_sink_persists_s3_blob_locations() {
+    let Some(sink) = connect_test_sink().await else {
+        return;
+    };
+
+    let metadata = sample_metadata();
+    let incident_key = TestIncidentKey {
+        office: "KOAX",
+        phenomena: "FF",
+        significance: "W",
+        etn: 1,
+    };
+    cleanup_rows(&sink, &[&metadata.filename], &[incident_key]).await;
+
+    persist_metadata_with_blobs(&sink, metadata.clone(), sample_s3_blobs(&metadata.filename)).await;
+
+    let row = sqlx::query(
+        "SELECT payload_storage_kind, payload_location, metadata_storage_kind, metadata_location
+         FROM products WHERE filename = $1 AND source_timestamp_utc = $2",
+    )
+    .bind(&metadata.filename)
+    .bind(i64::try_from(metadata.timestamp_utc).expect("timestamp should fit in bigint"))
+    .fetch_one(&sink.pool())
+    .await
+    .expect("persisted product row should exist");
+
+    assert_eq!(row.get::<String, _>("payload_storage_kind"), "s3");
+    assert_eq!(
+        row.get::<String, _>("payload_location"),
+        "s3://example-bucket/archive/FFWOAXNE.TXT"
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("metadata_storage_kind")
+            .as_deref(),
+        Some("s3")
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("metadata_location").as_deref(),
+        Some("s3://example-bucket/archive/FFWOAXNE.JSON")
+    );
 
     cleanup_rows(&sink, &[&metadata.filename], &[incident_key]).await;
 }

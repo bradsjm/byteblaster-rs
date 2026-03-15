@@ -5,14 +5,15 @@
 
 use crate::live::file_pipeline::build_persist_request;
 use emwin_db::{
-    CompletedFileMetadata, FilesystemBlobWriter, IncidentCleanupResult, NoopMetadataSink,
-    PersistRequest, PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats,
-    PostgresConfig, PostgresMetadataSink,
+    BlobWriter, CompletedFileMetadata, FilesystemBlobWriter, IncidentCleanupResult,
+    NoopMetadataSink, PersistRequest, PersistenceConfig, PersistenceProducer, PersistenceRuntime,
+    PersistenceStats, PostgresConfig, PostgresMetadataSink, S3BlobWriter,
 };
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::watch;
 use tracing::warn;
+use url::Url;
 
 pub(crate) type FilePersistenceRuntime = PersistenceRuntime<CompletedFileMetadata>;
 pub(crate) type FilePersistenceProducer = PersistenceProducer<CompletedFileMetadata>;
@@ -24,13 +25,22 @@ pub(crate) struct StartedPersistenceRuntime {
     pub(crate) postgres_sink: Option<PostgresMetadataSink>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StorageTarget {
+    Filesystem(PathBuf),
+    S3 {
+        bucket: String,
+        prefix: Option<String>,
+    },
+}
+
 pub(crate) async fn start_runtime_with_postgres(
-    output_dir: PathBuf,
+    output_dir: String,
     queue_capacity: usize,
     postgres_database_url: Option<&str>,
     application_name: &str,
 ) -> crate::error::CliResult<StartedPersistenceRuntime> {
-    let writer = FilesystemBlobWriter::new(output_dir);
+    let writer = build_blob_writer(parse_storage_target(&output_dir)?)?;
     let (runtime, postgres_sink) = if let Some(database_url) = postgres_database_url {
         let mut config = PostgresConfig::new(database_url);
         config.application_name = application_name.to_string();
@@ -52,6 +62,80 @@ pub(crate) async fn start_runtime_with_postgres(
     Ok(StartedPersistenceRuntime {
         runtime,
         postgres_sink,
+    })
+}
+
+fn build_blob_writer(target: StorageTarget) -> crate::error::CliResult<Box<dyn BlobWriter>> {
+    let writer: Box<dyn BlobWriter> = match target {
+        StorageTarget::Filesystem(path) => Box::new(FilesystemBlobWriter::new(path)),
+        StorageTarget::S3 { bucket, prefix } => Box::new(S3BlobWriter::new(bucket, prefix)?),
+    };
+    Ok(writer)
+}
+
+fn parse_storage_target(raw: &str) -> crate::error::CliResult<StorageTarget> {
+    if raw.is_empty() {
+        return Err(crate::error::CliError::invalid_argument(
+            "--output-dir cannot be empty",
+        ));
+    }
+
+    if raw.starts_with("s3://") {
+        return parse_s3_target(raw);
+    }
+
+    if raw.contains("://") {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "--output-dir only supports filesystem paths or s3://bucket[/prefix], got `{raw}`"
+        )));
+    }
+
+    Ok(StorageTarget::Filesystem(PathBuf::from(raw)))
+}
+
+fn parse_s3_target(raw: &str) -> crate::error::CliResult<StorageTarget> {
+    let url = Url::parse(raw).map_err(|err| {
+        crate::error::CliError::invalid_argument(format!("invalid S3 output URI `{raw}`: {err}"))
+    })?;
+
+    if url.scheme() != "s3" {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "--output-dir only supports filesystem paths or s3://bucket[/prefix], got `{raw}`"
+        )));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "S3 output URI must not include credentials: `{raw}`"
+        )));
+    }
+    if url.port().is_some() {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "S3 output URI must not include a port: `{raw}`"
+        )));
+    }
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "S3 output URI must not include query or fragment components: `{raw}`"
+        )));
+    }
+
+    let bucket = url.host_str().ok_or_else(|| {
+        crate::error::CliError::invalid_argument(format!(
+            "S3 output URI must include a bucket name: `{raw}`"
+        ))
+    })?;
+
+    let raw_path = url.path().trim_matches('/');
+    if raw_path.split('/').any(|segment| segment.is_empty()) && !raw_path.is_empty() {
+        return Err(crate::error::CliError::invalid_argument(format!(
+            "S3 output URI contains an empty prefix segment: `{raw}`"
+        )));
+    }
+
+    let prefix = (!raw_path.is_empty()).then(|| raw_path.to_string());
+    Ok(StorageTarget::S3 {
+        bucket: bucket.to_string(),
+        prefix,
     })
 }
 
@@ -110,4 +194,68 @@ pub(crate) async fn run_incident_cleanup_loop(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StorageTarget, parse_storage_target};
+    use std::path::PathBuf;
+
+    #[test]
+    fn filesystem_targets_remain_plain_paths() {
+        assert_eq!(
+            parse_storage_target("./out").expect("filesystem path should parse"),
+            StorageTarget::Filesystem(PathBuf::from("./out"))
+        );
+        assert_eq!(
+            parse_storage_target("/tmp/emwin").expect("absolute filesystem path should parse"),
+            StorageTarget::Filesystem(PathBuf::from("/tmp/emwin"))
+        );
+    }
+
+    #[test]
+    fn s3_targets_accept_bucket_and_prefix() {
+        assert_eq!(
+            parse_storage_target("s3://bucket").expect("bucket root should parse"),
+            StorageTarget::S3 {
+                bucket: "bucket".to_string(),
+                prefix: None,
+            }
+        );
+        assert_eq!(
+            parse_storage_target("s3://bucket/prefix/nested").expect("bucket prefix should parse"),
+            StorageTarget::S3 {
+                bucket: "bucket".to_string(),
+                prefix: Some("prefix/nested".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_storage_target("s3://bucket/prefix/nested/")
+                .expect("trailing slash should normalize"),
+            StorageTarget::S3 {
+                bucket: "bucket".to_string(),
+                prefix: Some("prefix/nested".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn storage_target_rejects_invalid_uris() {
+        for value in [
+            "https://example.com/out",
+            "s3:///prefix",
+            "s3://bucket?x=1",
+            "s3://bucket#frag",
+            "s3://user@bucket/prefix",
+            "s3://bucket:9000/prefix",
+            "",
+        ] {
+            assert!(parse_storage_target(value).is_err(), "{value} should fail");
+        }
+    }
+
+    #[test]
+    fn storage_target_does_not_accept_endpoint_urls_in_output_dir() {
+        assert!(parse_storage_target("s3://bucket/http://localhost:9000").is_err());
+    }
 }

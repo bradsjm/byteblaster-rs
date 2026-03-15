@@ -93,6 +93,8 @@ Optional file persistence:
 
 - `server --output-dir <PATH>` writes each completed assembled file and a sibling `.JSON` metadata sidecar.
 - When `--persist-database-url` is also set, filesystem blob writes still succeed even if the Postgres metadata upsert fails.
+- When Postgres is unavailable at startup or during runtime, the server stays up, retries metadata persistence in the background with backoff, and resumes writing after connectivity returns.
+- When filesystem writes fail transiently, including `ENOSPC`, the background persistence worker retries with throttled warning logs while live ingest and connected clients remain online.
 - `server` defaults to `--post-process-archives true`, which extracts the first entry from completed `.ZIP` and `.ZIS` products before parsing and downstream delivery.
 - Corrupt `.ZIP` and `.ZIS` payloads are logged as `Corrupt Zip File Received` and dropped when archive post-processing is enabled.
 - `server` serves retained payloads over HTTP while optionally persisting payloads and metadata asynchronously in the background.

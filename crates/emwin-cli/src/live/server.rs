@@ -8,9 +8,10 @@
 
 use crate::ReceiverKind;
 use crate::live::config::{LiveConfigRequest, LiveReceiverConfig, build_live_receiver_config};
-use crate::live::persistence::start_runtime_with_postgres;
+use crate::live::persistence::{run_incident_cleanup_loop, start_runtime_with_postgres};
 use crate::live::server_support::RetainedFiles;
 use axum::http::HeaderValue;
+use chrono::Utc;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -66,7 +67,7 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         crate::error::CliError::invalid_argument(format!("invalid --bind value {bind}: {err}"))
     })?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let persistence_runtime = match output_dir.map(PathBuf::from) {
+    let started_persistence = match output_dir.map(PathBuf::from) {
         Some(path) => Some(
             start_runtime_with_postgres(
                 path,
@@ -78,6 +79,27 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         ),
         None => None,
     };
+    if let Some(postgres_sink) = started_persistence
+        .as_ref()
+        .and_then(|started| started.postgres_sink.as_ref())
+    {
+        match postgres_sink.expire_active_incidents(Utc::now()).await {
+            Ok(result) if result.expired_count > 0 => {
+                info!(
+                    expired_count = result.expired_count,
+                    "expired stale incidents during startup"
+                );
+            }
+            Ok(_) => {}
+            Err(err) => {
+                tracing::warn!(error = %err, "startup incident cleanup skipped; will retry in background");
+            }
+        }
+    }
+    let cleanup_sink = started_persistence
+        .as_ref()
+        .and_then(|started| started.postgres_sink.clone());
+    let persistence_runtime = started_persistence.map(|started| started.runtime);
     let persistence_producer = persistence_runtime
         .as_ref()
         .map(|runtime| runtime.producer());
@@ -163,6 +185,8 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         persistence_producer.clone(),
         shutdown_rx.clone(),
     ));
+    let cleanup_task =
+        cleanup_sink.map(|sink| tokio::spawn(run_incident_cleanup_loop(sink, shutdown_rx.clone())));
     let ctrlc_task = tokio::spawn({
         let shutdown_tx = shutdown_tx.clone();
         async move {
@@ -186,6 +210,10 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
 
     let ingest_result = ingest_task.await;
     let stats_result = stats_task.await;
+    let cleanup_result = match cleanup_task {
+        Some(task) => Some(task.await),
+        None => None,
+    };
     let _persistence_shutdown_stats = match persistence_runtime {
         Some(runtime) => Some(crate::live::persistence::shutdown_runtime(runtime).await?),
         None => None,
@@ -219,6 +247,19 @@ pub async fn run(options: ServerOptions) -> crate::error::CliResult<()> {
         Err(err) => {
             return Err(crate::error::CliError::runtime(format!(
                 "stats task join failed: {err}"
+            )));
+        }
+    }
+    match cleanup_result {
+        Some(Ok(Ok(()))) | None => {}
+        Some(Ok(Err(err))) => {
+            return Err(crate::error::CliError::runtime(format!(
+                "cleanup task failed: {err}"
+            )));
+        }
+        Some(Err(err)) => {
+            return Err(crate::error::CliError::runtime(format!(
+                "cleanup task join failed: {err}"
             )));
         }
     }

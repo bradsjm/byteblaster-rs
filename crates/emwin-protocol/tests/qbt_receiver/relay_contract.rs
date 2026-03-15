@@ -109,6 +109,12 @@ impl RelayHarness {
             tokio::spawn(async move { run_qbt_relay(config, runtime_state, shutdown_rx).await });
 
         wait_for_port(relay_addr, Duration::from_secs(8)).await;
+        let readiness_probe = TcpStream::connect(relay_addr)
+            .await
+            .expect("connect readiness probe");
+        wait_for_active_clients(Arc::clone(&state), 1, Duration::from_secs(5)).await;
+        drop(readiness_probe);
+        wait_for_active_clients(Arc::clone(&state), 0, Duration::from_secs(5)).await;
 
         Self {
             addr: relay_addr,
@@ -152,6 +158,12 @@ async fn over_capacity_client_gets_server_list_then_disconnects() {
     let relay = RelayHarness::start(upstream.addr, 0, 720, 65_536).await;
     upstream.wait_ready().await;
 
+    let mut first = TcpStream::connect(relay.addr)
+        .await
+        .expect("connect first client");
+    send_auth(&mut first, "first@example.com").await;
+    wait_for_active_clients(Arc::clone(&relay.state), 1, Duration::from_secs(5)).await;
+
     let expected_server_list =
         build_server_list_wire(&[("127.0.0.1".to_string(), upstream.addr.port())]);
     let mut second = TcpStream::connect(relay.addr)
@@ -170,6 +182,8 @@ async fn over_capacity_client_gets_server_list_then_disconnects() {
         .expect("second disconnect read timeout")
         .expect("second disconnect read failed");
     assert_eq!(n2, 0, "second client should disconnect after server list");
+
+    drop(first);
 
     relay.stop().await;
 }

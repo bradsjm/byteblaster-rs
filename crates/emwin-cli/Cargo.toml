@@ -12,6 +12,7 @@ homepage.workspace = true
 emwin-protocol = { path = "../emwin-protocol", features = ["telemetry-serde"] }
 emwin-parser = { path = "../emwin-parser" }
 emwin-db = { path = "../emwin-db" }
+chrono.workspace = true
 tokio.workspace = true
 clap.workspace = true
 serde.workspace = true

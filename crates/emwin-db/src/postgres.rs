@@ -13,6 +13,8 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, Transaction};
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -41,41 +43,107 @@ impl PostgresConfig {
 /// Postgres metadata sink backed by an auto-migrated PostGIS schema.
 #[derive(Debug, Clone)]
 pub struct PostgresMetadataSink {
-    pool: PgPool,
+    config: PostgresConfig,
+    pool: Arc<Mutex<Option<PgPool>>>,
+}
+
+/// Result of expiring active incident rows whose end time has passed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncidentCleanupResult {
+    /// Number of incident rows updated to `expired`.
+    pub expired_count: u64,
 }
 
 impl PostgresMetadataSink {
-    /// Connects, validates PostGIS availability, and applies embedded migrations.
-    pub async fn connect(config: PostgresConfig) -> PersistResult<Self> {
-        if config.database_url.trim().is_empty() {
-            return Err(PersistError::InvalidConfig(
-                "postgres database url must not be empty".to_string(),
-            ));
+    /// Creates a sink that establishes the pool lazily on first use.
+    pub fn new(config: PostgresConfig) -> Self {
+        Self {
+            config,
+            pool: Arc::new(Mutex::new(None)),
         }
-        if config.application_name.trim().is_empty() {
-            return Err(PersistError::InvalidConfig(
-                "postgres application name must not be empty".to_string(),
-            ));
-        }
-
-        let options = PgConnectOptions::from_str(&config.database_url)?
-            .application_name(&config.application_name);
-        let pool = PgPoolOptions::new()
-            .max_connections(config.max_connections.max(1))
-            .connect_with(options)
-            .await?;
-
-        MIGRATOR.run(&pool).await?;
-        sqlx::query_scalar::<_, String>("SELECT postgis_version()")
-            .fetch_one(&pool)
-            .await?;
-
-        Ok(Self { pool })
     }
 
-    /// Exposes the underlying pool for integration tests and diagnostics.
-    pub fn pool(&self) -> &PgPool {
-        &self.pool
+    /// Connects, validates PostGIS availability, and applies embedded migrations.
+    pub async fn connect(config: PostgresConfig) -> PersistResult<Self> {
+        let sink = Self::new(config);
+        let _ = sink.ensure_pool().await?;
+        Ok(sink)
+    }
+
+    /// Exposes the initialized pool for integration tests and diagnostics.
+    pub fn pool(&self) -> PgPool {
+        let guard = self
+            .pool
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard
+            .as_ref()
+            .cloned()
+            .expect("postgres pool is not initialized")
+    }
+
+    async fn ensure_pool(&self) -> PersistResult<PgPool> {
+        {
+            let guard = self
+                .pool
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(pool) = guard.as_ref() {
+                return Ok(pool.clone());
+            }
+        }
+
+        let pool = connect_pool(&self.config).await?;
+
+        let mut guard = self
+            .pool
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(existing) = guard.as_ref() {
+            return Ok(existing.clone());
+        }
+        *guard = Some(pool.clone());
+        Ok(pool)
+    }
+
+    /// Expires active incidents whose `end_utc` has passed without a newer product update.
+    pub async fn expire_active_incidents(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> PersistResult<IncidentCleanupResult> {
+        let pool = self.ensure_pool().await?;
+        let result = sqlx::query(
+            "UPDATE incidents
+             SET current_status = 'expired',
+                 last_updated_at = now()
+             WHERE current_status = 'active'
+               AND end_utc IS NOT NULL
+               AND end_utc < $1",
+        )
+        .bind(now)
+        .execute(&pool)
+        .await;
+
+        match result {
+            Ok(done) => Ok(IncidentCleanupResult {
+                expired_count: done.rows_affected(),
+            }),
+            Err(err) => {
+                let err = PersistError::from(err);
+                self.handle_runtime_error(&err).await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn handle_runtime_error(&self, err: &PersistError) {
+        if err.should_reset_postgres_pool() {
+            let mut guard = self
+                .pool
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *guard = None;
+        }
     }
 }
 
@@ -86,13 +154,52 @@ impl MetadataSink<CompletedFileMetadata> for PostgresMetadataSink {
     ) -> BoxFuture<'a, PersistResult<()>> {
         Box::pin(async move {
             let prepared = PreparedProduct::prepare(&request.metadata, &request.blobs)?;
-            let mut tx = self.pool.begin().await?;
-            let product_id = upsert_product(&mut tx, &prepared).await?;
-            replace_children(&mut tx, product_id, &prepared).await?;
-            tx.commit().await?;
-            Ok(())
+            let pool = self.ensure_pool().await?;
+            let result: PersistResult<()> = async {
+                let mut tx = pool.begin().await?;
+                let product_id = upsert_product(&mut tx, &prepared).await?;
+                replace_children(&mut tx, product_id, &prepared).await?;
+                tx.commit().await?;
+                Ok(())
+            }
+            .await;
+
+            match result {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    self.handle_runtime_error(&err).await;
+                    Err(err)
+                }
+            }
         })
     }
+}
+
+async fn connect_pool(config: &PostgresConfig) -> PersistResult<PgPool> {
+    if config.database_url.trim().is_empty() {
+        return Err(PersistError::InvalidConfig(
+            "postgres database url must not be empty".to_string(),
+        ));
+    }
+    if config.application_name.trim().is_empty() {
+        return Err(PersistError::InvalidConfig(
+            "postgres application name must not be empty".to_string(),
+        ));
+    }
+
+    let options = PgConnectOptions::from_str(&config.database_url)?
+        .application_name(&config.application_name);
+    let pool = PgPoolOptions::new()
+        .max_connections(config.max_connections.max(1))
+        .connect_with(options)
+        .await?;
+
+    MIGRATOR.run(&pool).await?;
+    sqlx::query_scalar::<_, String>("SELECT postgis_version()")
+        .fetch_one(&pool)
+        .await?;
+
+    Ok(pool)
 }
 
 #[derive(Debug)]

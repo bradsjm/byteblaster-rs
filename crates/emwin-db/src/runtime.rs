@@ -2,14 +2,25 @@ use crate::error::{PersistError, PersistResult};
 use crate::writer::{BlobEntry, BlobWriter, BoxFuture, StoredBlob};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
+
+const DEFAULT_RETRY_INITIAL_DELAY: Duration = Duration::from_secs(1);
+const DEFAULT_RETRY_MAX_DELAY: Duration = Duration::from_secs(60);
+const DEFAULT_FAILURE_LOG_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Copy)]
 pub struct PersistenceConfig {
     /// Maximum number of queued requests kept in memory.
     pub queue_capacity: usize,
+    /// Initial backoff applied after retryable persistence failures.
+    pub retry_initial_delay: Duration,
+    /// Upper bound for retry backoff during sustained outages.
+    pub retry_max_delay: Duration,
+    /// Minimum spacing between repeated warning logs for the same backend failure class.
+    pub failure_log_cooldown: Duration,
 }
 
 impl PersistenceConfig {
@@ -17,11 +28,27 @@ impl PersistenceConfig {
     pub fn new(queue_capacity: usize) -> Self {
         Self {
             queue_capacity: queue_capacity.max(1),
+            retry_initial_delay: DEFAULT_RETRY_INITIAL_DELAY,
+            retry_max_delay: DEFAULT_RETRY_MAX_DELAY,
+            failure_log_cooldown: DEFAULT_FAILURE_LOG_COOLDOWN,
         }
+    }
+
+    /// Overrides retry delays while keeping queue sizing unchanged.
+    pub fn with_retry_delays(mut self, initial_delay: Duration, max_delay: Duration) -> Self {
+        self.retry_initial_delay = initial_delay;
+        self.retry_max_delay = max_delay.max(initial_delay);
+        self
+    }
+
+    /// Overrides warning log throttling while keeping other defaults unchanged.
+    pub fn with_failure_log_cooldown(mut self, cooldown: Duration) -> Self {
+        self.failure_log_cooldown = cooldown;
+        self
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PersistRequest<M> {
     /// Stable identifier used in logs, metrics, and eviction reporting.
     pub request_key: String,
@@ -185,7 +212,7 @@ pub struct PersistenceRuntime<M> {
     task: JoinHandle<PersistenceStats>,
 }
 
-impl<M: Send + 'static> PersistenceRuntime<M> {
+impl<M: Clone + Send + 'static> PersistenceRuntime<M> {
     /// Spawns a background worker that drains queued requests until shutdown.
     pub fn spawn<W, S>(config: PersistenceConfig, writer: W, sink: S) -> Self
     where
@@ -205,7 +232,7 @@ impl<M: Send + 'static> PersistenceRuntime<M> {
             shared: Arc::clone(&shared),
         };
         let worker_producer = producer.clone();
-        let task = tokio::spawn(async move { run_worker(shared, writer, sink).await });
+        let task = tokio::spawn(async move { run_worker(shared, config, writer, sink).await });
 
         info!(
             queue_capacity = config.queue_capacity.max(1),
@@ -235,15 +262,21 @@ impl<M: Send + 'static> PersistenceRuntime<M> {
     }
 }
 
-async fn run_worker<M, W, S>(shared: Arc<SharedQueue<M>>, writer: W, sink: S) -> PersistenceStats
+async fn run_worker<M, W, S>(
+    shared: Arc<SharedQueue<M>>,
+    config: PersistenceConfig,
+    writer: W,
+    sink: S,
+) -> PersistenceStats
 where
-    M: Send + 'static,
+    M: Clone + Send + 'static,
     W: BlobWriter,
     S: MetadataSink<M>,
 {
     let producer = PersistenceProducer {
         shared: Arc::clone(&shared),
     };
+    let mut backend_health = BackendHealth::default();
 
     loop {
         match shared.available.acquire().await {
@@ -258,7 +291,16 @@ where
             continue;
         };
 
-        match persist_request(&writer, &sink, request).await {
+        match persist_request_with_retry(
+            &producer,
+            &writer,
+            &sink,
+            request,
+            &config,
+            &mut backend_health,
+        )
+        .await
+        {
             Ok(request_key) => {
                 let mut guard = producer
                     .shared
@@ -311,43 +353,201 @@ fn is_closed<M>(producer: &PersistenceProducer<M>) -> bool {
     guard.closed && guard.pending.is_empty()
 }
 
-async fn persist_request<M, W, S>(
-    writer: &W,
-    sink: &S,
-    request: PersistRequest<M>,
-) -> Result<String, (String, PersistError)>
+async fn write_blobs<W>(writer: &W, blobs: &[BlobEntry]) -> PersistResult<Vec<StoredBlob>>
 where
-    M: Send + 'static,
     W: BlobWriter,
-    S: MetadataSink<M>,
 {
-    let PersistRequest {
-        request_key,
-        metadata,
-        blobs,
-    } = request;
-
     let mut stored_blobs = Vec::with_capacity(blobs.len());
-    for blob in &blobs {
-        let stored = writer
-            .write(blob)
-            .await
-            .map_err(|err| (request_key.clone(), err))?;
+    for blob in blobs {
+        let stored = writer.write(blob).await?;
         stored_blobs.push(stored);
     }
 
-    if let Err(err) = sink
-        .persist(PersistedRequest {
-            request_key: request_key.clone(),
-            metadata,
-            blobs: stored_blobs,
-        })
+    Ok(stored_blobs)
+}
+
+async fn persist_metadata<M, S>(
+    sink: &S,
+    request_key: &str,
+    metadata: M,
+    blobs: Vec<StoredBlob>,
+) -> PersistResult<()>
+where
+    M: Send + 'static,
+    S: MetadataSink<M>,
+{
+    sink.persist(PersistedRequest {
+        request_key: request_key.to_string(),
+        metadata,
+        blobs,
+    })
+    .await
+}
+
+async fn persist_request_with_retry<M, W, S>(
+    producer: &PersistenceProducer<M>,
+    writer: &W,
+    sink: &S,
+    request: PersistRequest<M>,
+    config: &PersistenceConfig,
+    backend_health: &mut BackendHealth,
+) -> Result<String, (String, PersistError)>
+where
+    M: Clone + Send + 'static,
+    W: BlobWriter,
+    S: MetadataSink<M>,
+{
+    let request_key = request.request_key.clone();
+    let mut attempt: u32 = 0;
+    let stored_blobs = loop {
+        match write_blobs(writer, &request.blobs).await {
+            Ok(stored_blobs) => break stored_blobs,
+            Err(err) if err.is_retryable() && !should_abort_retry(producer) => {
+                let delay = retry_delay(config, attempt);
+                backend_health.note_retryable_failure(
+                    &request_key,
+                    &err,
+                    delay,
+                    attempt + 1,
+                    config.failure_log_cooldown,
+                );
+                tokio::time::sleep(delay).await;
+                attempt = attempt.saturating_add(1);
+            }
+            Err(err) => return Err((request_key, err)),
+        }
+    };
+
+    attempt = 0;
+    loop {
+        match persist_metadata(
+            sink,
+            &request_key,
+            request.metadata.clone(),
+            stored_blobs.clone(),
+        )
         .await
-    {
-        return Err((request_key, err));
+        {
+            Ok(()) => {
+                backend_health.note_recovered(&request_key);
+                return Ok(request_key);
+            }
+            Err(err) if err.is_retryable() && !should_abort_retry(producer) => {
+                let delay = retry_delay(config, attempt);
+                backend_health.note_retryable_failure(
+                    &request_key,
+                    &err,
+                    delay,
+                    attempt + 1,
+                    config.failure_log_cooldown,
+                );
+                tokio::time::sleep(delay).await;
+                attempt = attempt.saturating_add(1);
+            }
+            Err(err) => {
+                return Err((request_key, err));
+            }
+        }
+    }
+}
+
+fn should_abort_retry<M>(producer: &PersistenceProducer<M>) -> bool {
+    let guard = producer
+        .shared
+        .state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    guard.closed
+}
+
+fn retry_delay(config: &PersistenceConfig, attempt: u32) -> Duration {
+    let multiplier = 1u64.checked_shl(attempt.min(6)).unwrap_or(64);
+    config
+        .retry_initial_delay
+        .saturating_mul(u32::try_from(multiplier).unwrap_or(u32::MAX))
+        .min(config.retry_max_delay)
+}
+
+#[derive(Debug, Default)]
+struct BackendHealth {
+    degraded: Option<DegradedBackend>,
+}
+
+#[derive(Debug)]
+struct DegradedBackend {
+    failure_class: &'static str,
+    last_error: String,
+    last_logged_at: Instant,
+    suppressed_failures: u64,
+}
+
+impl BackendHealth {
+    fn note_retryable_failure(
+        &mut self,
+        request_key: &str,
+        err: &PersistError,
+        retry_delay: Duration,
+        attempt: u32,
+        failure_log_cooldown: Duration,
+    ) {
+        let failure_class = err.failure_class();
+        let error_text = err.to_string();
+        let now = Instant::now();
+        match self.degraded.as_mut() {
+            Some(current)
+                if current.failure_class == failure_class
+                    && current.last_error == error_text
+                    && now.duration_since(current.last_logged_at) < failure_log_cooldown =>
+            {
+                current.suppressed_failures = current.suppressed_failures.saturating_add(1);
+            }
+            Some(current) => {
+                warn!(
+                    request_key = %request_key,
+                    failure_class,
+                    error = %err,
+                    retry_delay_secs = retry_delay.as_secs(),
+                    retry_attempt = attempt,
+                    suppressed_failures = current.suppressed_failures,
+                    "persistence backend unavailable; retrying"
+                );
+                *current = DegradedBackend {
+                    failure_class,
+                    last_error: error_text,
+                    last_logged_at: now,
+                    suppressed_failures: 0,
+                };
+            }
+            None => {
+                warn!(
+                    request_key = %request_key,
+                    failure_class,
+                    error = %err,
+                    retry_delay_secs = retry_delay.as_secs(),
+                    retry_attempt = attempt,
+                    "persistence backend unavailable; retrying"
+                );
+                self.degraded = Some(DegradedBackend {
+                    failure_class,
+                    last_error: error_text,
+                    last_logged_at: now,
+                    suppressed_failures: 0,
+                });
+            }
+        }
     }
 
-    Ok(request_key)
+    fn note_recovered(&mut self, request_key: &str) {
+        let Some(degraded) = self.degraded.take() else {
+            return;
+        };
+        info!(
+            request_key = %request_key,
+            failure_class = degraded.failure_class,
+            suppressed_failures = degraded.suppressed_failures,
+            "persistence backend recovered"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -360,9 +560,12 @@ mod tests {
     use crate::error::{PersistError, PersistResult};
     use crate::writer::{BlobRole, BlobStorageKind, BlobWriter, BoxFuture, FilesystemBlobWriter};
     use std::collections::VecDeque;
+    use std::io::ErrorKind;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
     use tokio::sync::Semaphore;
+    use tokio::sync::oneshot;
+    use tokio::time::Duration;
 
     #[derive(Debug, Default)]
     struct RecordingWriter {
@@ -455,6 +658,117 @@ mod tests {
             _request: PersistedRequest<String>,
         ) -> BoxFuture<'a, PersistResult<()>> {
             Box::pin(async { Err(PersistError::InvalidRequest("sink failed".to_string())) })
+        }
+    }
+
+    #[derive(Debug)]
+    struct TransientWriter {
+        attempts: Arc<Mutex<u32>>,
+        notify_success: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    }
+
+    impl TransientWriter {
+        fn new(notify_success: oneshot::Sender<()>) -> Self {
+            Self {
+                attempts: Arc::new(Mutex::new(0)),
+                notify_success: Arc::new(Mutex::new(Some(notify_success))),
+            }
+        }
+    }
+
+    impl BlobWriter for TransientWriter {
+        fn write<'a>(
+            &'a self,
+            entry: &'a BlobEntry,
+        ) -> BoxFuture<'a, PersistResult<crate::writer::StoredBlob>> {
+            let attempts = Arc::clone(&self.attempts);
+            let notify_success = Arc::clone(&self.notify_success);
+            Box::pin(async move {
+                let mut count = attempts
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                *count += 1;
+                if *count == 1 {
+                    return Err(PersistError::Io(std::io::Error::from(
+                        ErrorKind::StorageFull,
+                    )));
+                }
+                drop(count);
+
+                if let Some(sender) = notify_success
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take()
+                {
+                    let _ = sender.send(());
+                }
+
+                Ok(crate::writer::StoredBlob {
+                    kind: BlobStorageKind::Filesystem,
+                    role: entry.role,
+                    location: entry.relative_path.clone(),
+                    size_bytes: entry.bytes.len(),
+                    content_type: entry.content_type.clone(),
+                })
+            })
+        }
+
+        fn delete<'a>(
+            &'a self,
+            _blob: &'a crate::writer::StoredBlob,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    #[derive(Debug)]
+    struct FlakySink {
+        attempts: Arc<Mutex<u32>>,
+        persisted: Arc<Mutex<Vec<String>>>,
+        notify_success: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    }
+
+    impl FlakySink {
+        fn new(notify_success: oneshot::Sender<()>) -> Self {
+            Self {
+                attempts: Arc::new(Mutex::new(0)),
+                persisted: Arc::new(Mutex::new(Vec::new())),
+                notify_success: Arc::new(Mutex::new(Some(notify_success))),
+            }
+        }
+    }
+
+    impl MetadataSink<String> for FlakySink {
+        fn persist<'a>(
+            &'a self,
+            request: PersistedRequest<String>,
+        ) -> BoxFuture<'a, PersistResult<()>> {
+            let attempts = Arc::clone(&self.attempts);
+            let persisted = Arc::clone(&self.persisted);
+            let notify_success = Arc::clone(&self.notify_success);
+            Box::pin(async move {
+                let mut count = attempts
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                *count += 1;
+                if *count == 1 {
+                    return Err(PersistError::Sqlx(sqlx::Error::PoolTimedOut));
+                }
+                drop(count);
+
+                persisted
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push(request.request_key);
+                if let Some(sender) = notify_success
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take()
+                {
+                    let _ = sender.send(());
+                }
+                Ok(())
+            })
         }
     }
 
@@ -683,6 +997,82 @@ mod tests {
             std::fs::read_to_string(temp.path().join("nested/product.JSON"))
                 .expect("metadata should exist"),
             "{\"ok\":true}"
+        );
+    }
+
+    #[tokio::test]
+    async fn retryable_writer_failure_recovers_without_dropping_request() {
+        let (success_tx, success_rx) = oneshot::channel();
+        let writer = TransientWriter::new(success_tx);
+        let attempts = Arc::clone(&writer.attempts);
+        let sink = RecordingSink::default();
+        let persisted = Arc::clone(&sink.persisted);
+        let config = PersistenceConfig::new(4)
+            .with_retry_delays(Duration::from_millis(5), Duration::from_millis(5))
+            .with_failure_log_cooldown(Duration::from_millis(1));
+        let runtime = PersistenceRuntime::spawn(config, writer, sink);
+        let producer = runtime.producer();
+
+        assert!(producer.enqueue(request("retry-writer")).accepted);
+        success_rx.await.expect("writer should recover");
+
+        let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.failed_total, 0);
+        assert_eq!(stats.persisted_total, 1);
+        assert_eq!(
+            *attempts
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            2
+        );
+        assert_eq!(
+            persisted
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["retry-writer"]
+        );
+    }
+
+    #[tokio::test]
+    async fn retryable_sink_failure_reuses_written_blobs_until_recovered() {
+        let writer = RecordingWriter::default();
+        let writes = Arc::clone(&writer.writes);
+        let (success_tx, success_rx) = oneshot::channel();
+        let sink = FlakySink::new(success_tx);
+        let persisted = Arc::clone(&sink.persisted);
+        let attempts = Arc::clone(&sink.attempts);
+        let config = PersistenceConfig::new(4)
+            .with_retry_delays(Duration::from_millis(5), Duration::from_millis(5))
+            .with_failure_log_cooldown(Duration::from_millis(1));
+        let runtime = PersistenceRuntime::spawn(config, writer, sink);
+        let producer = runtime.producer();
+
+        assert!(producer.enqueue(request("retry-sink")).accepted);
+        success_rx.await.expect("sink should recover");
+
+        let stats = runtime.shutdown().await.expect("shutdown should succeed");
+        assert_eq!(stats.failed_total, 0);
+        assert_eq!(stats.persisted_total, 1);
+        assert_eq!(
+            *attempts
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            2
+        );
+        assert_eq!(
+            writes
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["retry-sink"]
+        );
+        assert_eq!(
+            persisted
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_slice(),
+            &["retry-sink"]
         );
     }
 }

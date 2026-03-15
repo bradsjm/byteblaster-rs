@@ -12,7 +12,7 @@ mod writer;
 
 pub use error::{PersistError, PersistResult};
 pub use metadata::CompletedFileMetadata;
-pub use postgres::{PostgresConfig, PostgresMetadataSink};
+pub use postgres::{IncidentCleanupResult, PostgresConfig, PostgresMetadataSink};
 pub use runtime::{
     EnqueueResult, MetadataSink, NoopMetadataSink, PersistRequest, PersistedRequest,
     PersistenceConfig, PersistenceProducer, PersistenceRuntime, PersistenceStats,

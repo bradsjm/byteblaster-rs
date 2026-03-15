@@ -7,7 +7,7 @@ use std::pin::Pin;
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// One blob to be written by a storage backend.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlobEntry {
     pub role: BlobRole,
     pub relative_path: String,

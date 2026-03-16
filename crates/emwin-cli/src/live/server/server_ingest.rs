@@ -204,10 +204,9 @@ fn handle_ingest_event(
             super::log_info(
                 state.quiet,
                 &format!(
-                    "file complete name={} bytes={} timestamp_utc={}",
+                    "file complete name={} bytes={}",
                     delivered.filename,
-                    delivered.data.len(),
-                    timestamp_utc
+                    delivered.data.len()
                 ),
             );
         }

@@ -9,11 +9,13 @@ use quick_xml::Reader;
 use quick_xml::events::Event as XmlEvent;
 use std::pin::Pin;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
+use tokio_rustls::rustls::crypto::ring;
 use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tracing::{debug, warn};
@@ -428,7 +430,9 @@ impl XmppSession {
             let _ = roots.add(cert);
         }
 
-        let config = ClientConfig::builder()
+        let config = ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .map_err(|err| WxWireTransportError::TlsHandshakeFailed(err.to_string()))?
             .with_root_certificates(roots)
             .with_no_client_auth();
         let connector = TlsConnector::from(std::sync::Arc::new(config));
@@ -742,8 +746,8 @@ fn add_default_client_ns(xml: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        add_default_client_ns, append_with_read_limit, is_room_join_presence,
-        is_supported_top_level_stanza, pop_next_top_level_element, stanza_root_tag_name,
+        Arc, ClientConfig, add_default_client_ns, append_with_read_limit, is_room_join_presence,
+        is_supported_top_level_stanza, pop_next_top_level_element, ring, stanza_root_tag_name,
     };
     use crate::wxwire_receiver::error::{WxWireReceiverError, WxWireTransportError};
     use std::str::FromStr;
@@ -853,5 +857,15 @@ mod tests {
             if message == "buffer too large"
         ));
         assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn rustls_client_config_builder_with_explicit_provider_is_usable() {
+        let result = ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))
+            .with_safe_default_protocol_versions();
+        assert!(
+            result.is_ok(),
+            "explicit rustls provider should remain usable"
+        );
     }
 }

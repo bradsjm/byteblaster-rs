@@ -42,8 +42,8 @@ emwin-protocol = { git = "https://github.com/bradsjm/emwin-rs", tag = "v0.1.0", 
 Use the unified ingest API from the crate root:
 
 ```rust
-use emwin_core::ingest::{IngestConfig, IngestReceiver};
-use emwin_core::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
+use emwin_protocol::ingest::{IngestConfig, IngestReceiver};
+use emwin_protocol::qbt_receiver::{QbtDecodeConfig, QbtReceiverConfig, default_qbt_upstream_servers};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

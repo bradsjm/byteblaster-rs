@@ -3,6 +3,30 @@
 //! `emwin-parser` turns raw bulletin bytes into structured headers, body features, and catalog
 //! lookups used elsewhere in the workspace. The crate prefers explicit parsing steps and borrowed
 //! views internally so higher-level code can opt into owned data only at stable API boundaries.
+//!
+//! # Features
+//!
+//! - **Generic parsing**: VTEC, UGC, HVTEC, LAT...LON polygons, TIME...MOT...LOC
+//! - **Specialized parsers**: METAR, TAF, SIGMET, PIREP, FD, and more
+//! - **Catalog lookups**: Text product metadata, WMO offices, UGC locations, NWSLID sites
+//! - **Issue tracking**: Non-fatal parse problems collected alongside successful parses
+//!
+//! # Example
+//!
+//! Enrich a text product to extract headers and body features:
+//!
+//! ```
+//! use emwin_parser::enrich_product;
+//!
+//! let enrichment = enrich_product(
+//!     "AFDBOX.TXT",
+//!     b"000 \nFTUS41 KBOX 070303\nAFDBOX\nZone Forecast Product\nMassachusetts\nBox 123 456",
+//! );
+//!
+//! assert_eq!(enrichment.pil.as_deref(), Some("AFD"));
+//! assert_eq!(enrichment.office.as_ref().map(|o| o.code), Some("BOX"));
+//! assert_eq!(enrichment.title, Some("Area Forecast Discussion"));
+//! ```
 
 mod body;
 mod data;
